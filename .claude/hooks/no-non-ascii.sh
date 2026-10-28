@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
-# PostToolUse hook: warn as soon as a non-ASCII character lands in a file the
-# `no-non-ascii` pre-commit hook guards, instead of at `git commit` time. The
-# author writes in Russian, so this is the easiest rule in the repo to trip.
-# Reports to the user (systemMessage) and to Claude (additionalContext; Claude
-# never sees a systemMessage or the stderr of a hook that exits 0). Never blocks.
+# PostToolUse hook: run pre-commit's own no-non-ascii hook on the file Claude
+# just edited, so a non-ASCII byte is reported at the edit instead of at
+# `git commit`. The author writes in Russian, so this is the easiest rule in the
+# repo to trip. The rule itself - file types, exemptions, pattern - lives only in
+# .pre-commit-config.yaml. Reports to the user (systemMessage) and to Claude
+# (additionalContext; Claude never sees a systemMessage or the stderr of a hook
+# that exits 0). Never blocks, and stays silent when the project environment is
+# not synced: the commit-time gate still applies.
 set -uo pipefail
 
 root="${CLAUDE_PROJECT_DIR:-$PWD}"
@@ -15,21 +18,17 @@ case "$file" in
   "$root"/*) ;;
   *) exit 0 ;;
 esac
-# The checked file types and the exemptions (CHANGELOG.md, uv.lock, Spec Kit's
-# generated files) come from the file the Codex hook reads;
-# tests/test_ascii_rules.py keeps it equal to the pre-commit rule.
-checks="$root/.codex/hooks/checks.json"
-jq -e --arg p "${file#"$root"/}" \
-  '. as $c | ($p | test($c.files)) and (($p | test($c.exclude)) | not)' \
-  "$checks" >/dev/null 2>&1 || exit 0
+command -v uv >/dev/null 2>&1 || exit 0
+cd "$root" || exit 0
 
-# Bytes above 0x7F only, as pre-commit counts them: CR and other control
-# characters are ASCII and are not reported.
-hits="$(LC_ALL=C grep -c $'[\x80-\xff]' "$file" 2>/dev/null || true)"
+rel="${file#"$root"/}"
+out="$(uv run --offline --no-sync pre-commit run no-non-ascii --files "$rel" 2>/dev/null)" && exit 0
+# pygrep reports each offending line as "path:line:text".
+hits="$(printf '%s\n' "$out" | awk -v p="$rel:" 'index($0, p) == 1 && substr($0, length(p) + 1) ~ /^[0-9]+:/' | wc -l | tr -d ' ')"
 [ "${hits:-0}" -gt 0 ] || exit 0
 
-jq -n --arg f "${file#"$root"/}" --arg n "$hits" '
-  ($f + ": " + $n + " line(s) contain non-ASCII characters. The no-non-ascii pre-commit hook rejects these in .py, .md, .yml, .toml, .json and shell files - rewrite them in ASCII.") as $msg
+jq -n --arg f "$rel" --arg n "$hits" '
+  ($f + ": " + $n + " line(s) contain non-ASCII characters. The no-non-ascii pre-commit hook rejects these - rewrite them in ASCII.") as $msg
   | {systemMessage: $msg,
      hookSpecificOutput: {hookEventName: "PostToolUse", additionalContext: $msg}}'
 exit 0

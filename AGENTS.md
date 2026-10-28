@@ -106,9 +106,10 @@ Read the relevant skill before using its workflow. Claude keeps `CLAUDE.md`,
 `.claude/skills/` and its own settings; update both guides and skill copies when a
 shared convention changes.
 
-`.codex/hooks.json` checks edited files after `apply_patch`, including multi-file
-patches and moves, using the pre-commit ASCII patterns and exclusions.
-Python edits are also formatted and linted with the project ruff toolchain.
+`.codex/hooks.json` runs pre-commit's own `no-non-ascii` hook on the files an
+`apply_patch` edited, including multi-file patches and moves, so the rule lives
+only in `.pre-commit-config.yaml`; the Claude hook does the same. Python edits are
+also formatted and linted with the project ruff toolchain.
 Run `python3 .codex/hooks/test_post_edit.py` to verify the handler; pre-commit
 runs these tests too. Post-edit hooks report completed edits; they do not undo
 them. Shell writes still require the pre-commit gate.
