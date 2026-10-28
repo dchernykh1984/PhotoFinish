@@ -21,4 +21,6 @@ request.
 
 ## Features
 
-- [001-video-refinement](001-video-refinement/spec.md): refine crossing times from video.
+- [001-video-refinement](001-video-refinement/spec.md): live finish video and the referee's list
+  of crossings.
+- [002-video-analysis](002-video-analysis/spec.md): finding riders in the video (experimental).
