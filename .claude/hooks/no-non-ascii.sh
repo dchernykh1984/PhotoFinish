@@ -18,9 +18,13 @@ case "$file" in
   "$root"/*) ;;
   *) exit 0 ;;
 esac
-# CHANGELOG.md and uv.lock are excluded from the pre-commit hook.
+# Mirrors the pre-commit exclusions: CHANGELOG.md, uv.lock and Spec Kit's
+# generated files (all of .specify/ but the constitution, and the speckit-*
+# skills), which `specify integration upgrade` stops refreshing once edited.
 case "${file#"$root"/}" in
   CHANGELOG.md|uv.lock) exit 0 ;;
+  .specify/memory/constitution.md) ;;
+  .specify/*|.claude/skills/speckit-*/*|.agents/skills/speckit-*/*) exit 0 ;;
 esac
 
 hits="$(LC_ALL=C grep -c '[^ -~	]' "$file" 2>/dev/null || true)"
