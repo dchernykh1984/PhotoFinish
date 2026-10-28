@@ -36,10 +36,11 @@ from that frame's own timestamp, not from its index times a nominal frame rate
 (phones record at a variable rate), and a camera's offset is applied once.
 
 **Does it change a format?** `number#time#action#` with the time as
-`D H:M:S.mmm` is written by every chronometer and read by
-FinishProtocolGeneratorPython. Adding a field, reordering, or changing the
-separator is a change for the whole set of tools, even though nothing in this
-repo complains.
+`D H:M:S[.mmm]` - fields not zero-padded, milliseconds only when recorded - is
+written by every chronometer and read by FinishProtocolGeneratorPython. Lines
+PhotoFinish does not correct are copied byte for byte. Adding a field,
+reordering, padding the time or changing the separator is a change for the
+whole set of tools, even though nothing in this repo complains.
 
 **Are the reads still tolerant?** Results files from the older C++ tools turn
 up in cp1251: read UTF-8, then cp1251, then Latin-1. A file still being
