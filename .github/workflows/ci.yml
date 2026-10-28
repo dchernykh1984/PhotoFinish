@@ -17,15 +17,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.14"
-      # The ruff, mypy and commitizen hooks run through uv, from uv.lock.
+      # pre-commit itself and its ruff, mypy and commitizen hooks all come from
+      # uv.lock: the versions developers run.
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
           python-version: "3.14"
-      - uses: pre-commit/action@v3.0.1
+      - name: Run pre-commit
+        run: uv run --frozen pre-commit run --all-files --show-diff-on-failure --color=always
 
   commitizen:
     if: github.ref != 'refs/heads/main'
