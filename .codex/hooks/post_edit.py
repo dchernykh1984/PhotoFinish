@@ -47,8 +47,8 @@ def edited_paths(payload: dict[str, Any], root: Path) -> list[Path]:
 def violations(paths: list[Path], root: Path) -> list[str]:
     """Run pre-commit's own no-non-ascii hook on the edited files.
 
-    Without uv or a synced environment nothing is reported: the commit-time gate
-    still applies.
+    Without uv or a synced environment nothing is reported: pre-commit at commit
+    (`uv run pre-commit install`) and CI still apply the rule.
     """
     uv = shutil.which("uv")
     if not paths or uv is None:

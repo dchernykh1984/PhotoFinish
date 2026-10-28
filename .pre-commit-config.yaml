@@ -3,6 +3,10 @@
 # their typographic punctuation is theirs. The constitution is ours and is checked like any file.
 exclude: ^(\.specify/(?!memory/constitution\.md$)|\.(claude|agents)/skills/speckit-[^/]+/)
 
+# One `uv run pre-commit install` sets up both stages: the file checks at commit
+# and the commit-message check.
+default_install_hook_types: [pre-commit, commit-msg]
+
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0

@@ -169,10 +169,10 @@ uv sync
 
 ```bash
 uv run pre-commit install
-uv run pre-commit install --hook-type commit-msg
 ```
 
-After that pre-commit hooks will run automatically on every commit.
+That installs both the file checks and the commit-message check
+(`default_install_hook_types`), and they run automatically on every commit.
 
 To run all checks manually across all files:
 

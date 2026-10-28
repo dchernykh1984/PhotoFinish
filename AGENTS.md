@@ -49,6 +49,7 @@ grow while PhotoFinish has them open.
 
 ```bash
 uv sync                                  # install
+uv run pre-commit install                # once per clone: checks at every commit
 uv run python -m app.main                # run the app (never python app/main.py)
 uv run pytest                            # tests, -n auto, coverage gate 90%
 uv run pre-commit run --all-files        # everything CI's pre-commit job runs
