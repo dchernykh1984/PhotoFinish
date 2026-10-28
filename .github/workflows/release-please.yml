@@ -1,0 +1,124 @@
+name: release-please
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to (re)build and upload assets for (backfill)."
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+# The uv.lock step below clones the release branch, rewrites the lock and pushes
+# it back. Two runs doing that at once race: one force-pushes a fresh version
+# bump while the other is mid-flight, and the loser's push is rejected as a
+# non-fast-forward. Serialise runs instead of cancelling them - cancelling could
+# abandon a release halfway through.
+concurrency:
+  group: release-please-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: >-
+        ${{ steps.rp.outputs.release_created
+        || steps.rp_retry.outputs.release_created }}
+      tag_name: >-
+        ${{ steps.rp.outputs.tag_name || steps.rp_retry.outputs.tag_name }}
+    steps:
+      # The action's very first GraphQL call has failed outright on a GitHub
+      # side error ("Something went wrong while executing your query"), and
+      # because this job is the only thing that tags a release, that left an
+      # already merged release PR untagged until someone re-ran it by hand.
+      # Tolerate the first attempt and try once more: release-please reads the
+      # whole release state on every run, so a second attempt either finishes
+      # the work or finds it already done.
+      - id: rp
+        uses: googleapis/release-please-action@v5
+        continue-on-error: true
+        with:
+          release-type: python
+
+      # A blip that lasts a few seconds is exactly the case being retried, so
+      # do not race straight back into it.
+      - name: Wait before retrying release-please
+        if: steps.rp.outcome == 'failure'
+        run: sleep 20
+
+      # No continue-on-error here: if the retry fails too, the job must go red
+      # rather than quietly skip the release build.
+      - id: rp_retry
+        if: steps.rp.outcome == 'failure'
+        uses: googleapis/release-please-action@v5
+        with:
+          release-type: python
+
+      # Whichever attempt ran, `pr` is set only when a release PR was opened or
+      # updated - a release-PR merge is a push that leaves it empty. Resolve it
+      # once here: fromJSON('') is an error, and whether a skipped step's env is
+      # evaluated at all is not specified, so the JSON must not be unpacked in
+      # an expression that a later `if` is expected to shield.
+      - name: Resolve the release pull request branch
+        id: rp_pr
+        env:
+          PR: ${{ steps.rp.outputs.pr || steps.rp_retry.outputs.pr }}
+        run: |
+          set -euo pipefail
+          branch=""
+          if [ -n "$PR" ]; then
+            branch=$(printf '%s' "$PR" | jq -r '.headBranchName // ""')
+          fi
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+
+      # release-please bumps pyproject.toml but knows nothing about uv.lock,
+      # whose own version field would stay behind - leaving every `uv sync`
+      # with a dirty tree and a lock that no longer matches the release.
+      - uses: astral-sh/setup-uv@v7
+        if: steps.rp_pr.outputs.branch
+        with:
+          python-version: "3.14"
+
+      - name: Match uv.lock to the released version
+        if: steps.rp_pr.outputs.branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ steps.rp_pr.outputs.branch }}
+        run: |
+          set -euo pipefail
+          git clone --branch "$BRANCH" --depth 1 \
+            "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" \
+            release-branch
+          cd release-branch
+          uv lock
+          if git diff --quiet -- uv.lock; then
+            echo "uv.lock already matches the released version"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -q -m "chore: match uv.lock to the released version" -- uv.lock
+          git push
+
+  # Build the full platform matrix and upload the portable apps to the release,
+  # in the same run (a GITHUB_TOKEN-created release cannot trigger a separate
+  # workflow). Also runnable manually to backfill assets for an existing tag.
+  release-build:
+    needs: release-please
+    if: >-
+      always() &&
+      ((github.event_name == 'push' && needs.release-please.outputs.release_created == 'true')
+      || github.event_name == 'workflow_dispatch')
+    permissions:
+      contents: write
+    uses: ./.github/workflows/build.yml
+    with:
+      release_tag: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || needs.release-please.outputs.tag_name }}
