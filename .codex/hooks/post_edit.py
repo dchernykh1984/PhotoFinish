@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Report non-ASCII bytes in files edited through Codex apply_patch."""
+"""Format edited Python and report non-ASCII bytes after a Codex apply_patch.
+
+The ASCII rule - file types, exemptions, pattern - lives only in
+.pre-commit-config.yaml; this hook asks pre-commit to apply it to the edited files.
+"""
 
 from __future__ import annotations
 
@@ -15,6 +19,8 @@ ROOT = Path(__file__).resolve().parents[2]
 PATCH_PATH = re.compile(
     r"^\*\*\* (?:Add File|Update File|Move to): ([^\r\n]+)\r?$", re.MULTILINE
 )
+# pygrep reports each offending line as "path:line:text".
+LINE_HIT = re.compile(r"\d+:")
 
 
 def edited_paths(payload: dict[str, Any], root: Path) -> list[Path]:
@@ -38,18 +44,39 @@ def edited_paths(payload: dict[str, Any], root: Path) -> list[Path]:
     return paths
 
 
-def violations(paths: list[Path], root: Path, checks: dict[str, str]) -> list[str]:
-    """Apply the same file and exemption patterns as the pre-commit ASCII gate."""
-    problems = []
-    for path in paths:
-        relative = path.relative_to(root).as_posix()
-        if not re.search(checks["files"], relative):
-            continue
-        if re.search(checks["exclude"], relative):
-            continue
-        if any(byte > 127 for byte in path.read_bytes()):
-            problems.append(relative)
-    return problems
+def violations(paths: list[Path], root: Path) -> list[str]:
+    """Run pre-commit's own no-non-ascii hook on the edited files.
+
+    Without uv or a synced environment nothing is reported: the commit-time gate
+    still applies.
+    """
+    uv = shutil.which("uv")
+    if not paths or uv is None:
+        return []
+    names = [path.relative_to(root).as_posix() for path in paths]
+    command = [uv, "run", "--offline", "--no-sync", "pre-commit", "run"]
+    try:
+        result = subprocess.run(  # noqa: S603
+            [*command, "no-non-ascii", "--files", *names],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=25,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):  # fmt: skip
+        return []
+    if result.returncode == 0:
+        return []
+    lines = result.stdout.splitlines()
+    return [
+        name
+        for name in names
+        if any(
+            line.startswith(f"{name}:") and LINE_HIT.match(line[len(name) + 1 :])
+            for line in lines
+        )
+    ]
 
 
 def format_python(paths: list[Path], root: Path) -> None:
@@ -97,10 +124,9 @@ def main() -> int:
         return 0
     if not isinstance(payload, dict):
         return 0
-    checks = json.loads((ROOT / ".codex/hooks/checks.json").read_text(encoding="utf-8"))
     paths = edited_paths(payload, ROOT)
     format_python(paths, ROOT)
-    problems = violations(paths, ROOT, checks)
+    problems = violations(paths, ROOT)
     if not problems:
         return 0
     print(
