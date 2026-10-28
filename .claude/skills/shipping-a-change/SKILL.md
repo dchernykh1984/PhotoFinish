@@ -105,9 +105,12 @@ force-push over a reviewed history.
 ## Releasing
 
 Only when explicitly asked. release-please opens a `chore(main): release X.Y.Z`
-PR after `feat:` or `fix:` commits land on `main`; merging it cuts the tag,
-syncs `uv.lock` to the new version, builds the portable apps for every platform
-and attaches them to the GitHub release. Never bump `pyproject.toml` by hand.
+PR after `feat:` or `fix:` commits land on `main`, and the same workflow run
+pushes a `chore: match uv.lock to the released version` commit onto that PR's
+branch. Merge only once that commit is there: CI and the release builds install
+with `uv sync --locked` and fail on a lock that lags `pyproject.toml`. Merging
+cuts the tag, builds the portable apps for every platform and attaches them to
+the GitHub release. Never bump `pyproject.toml` by hand.
 
 Confirm the assets landed:
 
