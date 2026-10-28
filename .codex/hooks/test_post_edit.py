@@ -187,13 +187,28 @@ class PostEditTests(unittest.TestCase):
             run.return_value.returncode = 0
             HOOK.format_python([first, self.checked, second], self.root)
         self.assertEqual(run.call_count, 2)
-        actions = [call.args[0][5] for call in run.call_args_list]
-        self.assertEqual(actions, ["check", "format"])
+        check, fmt = (call.args[0] for call in run.call_args_list)
+        self.assertEqual([check[5], fmt[5]], ["check", "format"])
+        self.assertEqual(check[check.index("--") + 1 :], [str(first), str(second)])
+        self.assertEqual(
+            fmt[fmt.index("--") + 1 :], [str(first), str(second), str(self.checked)]
+        )
         for call in run.call_args_list:
             self.assertEqual(call.kwargs["cwd"], self.root)
-            self.assertEqual(call.args[0][-2:], [str(first), str(second)])
-            self.assertIn("--offline", call.args[0])
-            self.assertIn("--no-sync", call.args[0])
+            for flag in ("--offline", "--no-sync", "--force-exclude"):
+                self.assertIn(flag, call.args[0])
+
+    def test_formatter_only_formats_markdown(self) -> None:
+        with (
+            patch.object(HOOK.shutil, "which", return_value="uv"),
+            patch.object(HOOK.subprocess, "run") as run,
+        ):
+            run.return_value.returncode = 0
+            HOOK.format_python([self.checked], self.root)
+        self.assertEqual(run.call_count, 1)
+        command = run.call_args.args[0]
+        self.assertEqual(command[5], "format")
+        self.assertEqual(command[-1], str(self.checked))
 
     def test_formatter_ignores_other_types_and_missing_toolchain(self) -> None:
         with (
@@ -201,7 +216,12 @@ class PostEditTests(unittest.TestCase):
             patch.object(HOOK.subprocess, "run") as run,
         ):
             HOOK.format_python([self.root / "code.py"], self.root)
-            HOOK.format_python([self.checked], self.root)
+        run.assert_not_called()
+        with (
+            patch.object(HOOK.shutil, "which", return_value="uv"),
+            patch.object(HOOK.subprocess, "run") as run,
+        ):
+            HOOK.format_python([self.root / "notes.txt"], self.root)
         run.assert_not_called()
 
     def test_formatter_timeout_still_runs_the_ascii_check(self) -> None:
