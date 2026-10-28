@@ -12,21 +12,16 @@ file="$(jq -r '.tool_response.filePath // .tool_input.file_path // empty' 2>/dev
 [ -n "$file" ] || exit 0
 [ -f "$file" ] || exit 0
 case "$file" in
-  *.py|*.md|*.yml|*.yaml|*.toml|*.json|*.sh) ;;
-  *) exit 0 ;;
-esac
-case "$file" in
   "$root"/*) ;;
   *) exit 0 ;;
 esac
-# Mirrors the pre-commit exclusions: CHANGELOG.md, uv.lock and Spec Kit's
-# generated files (all of .specify/ but the constitution, and the speckit-*
-# skills), which `specify integration upgrade` stops refreshing once edited.
-case "${file#"$root"/}" in
-  CHANGELOG.md|uv.lock) exit 0 ;;
-  .specify/memory/constitution.md) ;;
-  .specify/*|.claude/skills/speckit-*/*|.agents/skills/speckit-*/*) exit 0 ;;
-esac
+# The checked file types and the exemptions (CHANGELOG.md, uv.lock, Spec Kit's
+# generated files) come from the file the Codex hook reads;
+# tests/test_ascii_rules.py keeps it equal to the pre-commit rule.
+checks="$root/.codex/hooks/checks.json"
+jq -e --arg p "${file#"$root"/}" \
+  '. as $c | ($p | test($c.files)) and (($p | test($c.exclude)) | not)' \
+  "$checks" >/dev/null 2>&1 || exit 0
 
 # Bytes above 0x7F only, as pre-commit counts them: CR and other control
 # characters are ASCII and are not reported.
