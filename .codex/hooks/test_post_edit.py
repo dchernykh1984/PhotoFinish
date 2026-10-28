@@ -187,6 +187,8 @@ class PostEditTests(unittest.TestCase):
             run.return_value.returncode = 0
             HOOK.format_python([first, self.checked, second], self.root)
         self.assertEqual(run.call_count, 2)
+        actions = [call.args[0][5] for call in run.call_args_list]
+        self.assertEqual(actions, ["check", "format"])
         for call in run.call_args_list:
             self.assertEqual(call.kwargs["cwd"], self.root)
             self.assertEqual(call.args[0][-2:], [str(first), str(second)])

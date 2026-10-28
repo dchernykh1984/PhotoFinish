@@ -24,6 +24,7 @@ command -v uv >/dev/null 2>&1 || exit 0
 cd "$root" || exit 0
 # --no-sync: run the ruff already installed; never sync the environment (not
 # even from the cache) inside a hook. --offline: never download anything.
-uv run --offline --no-sync ruff format -q -- "$file" >/dev/null 2>&1
+# Fix first, then format, as pre-commit does: a fix can change the layout.
 uv run --offline --no-sync ruff check -q --fix -- "$file" >/dev/null 2>&1
+uv run --offline --no-sync ruff format -q -- "$file" >/dev/null 2>&1
 exit 0
