@@ -65,7 +65,7 @@ def format_python(paths: list[Path], root: Path) -> None:
                     uv,
                     "run",
                     "--offline",
-                    "--frozen",
+                    "--no-sync",
                     "ruff",
                     *action,
                     "--",

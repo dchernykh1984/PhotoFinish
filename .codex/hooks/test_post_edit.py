@@ -167,7 +167,7 @@ class PostEditTests(unittest.TestCase):
             self.assertEqual(call.kwargs["cwd"], self.root)
             self.assertEqual(call.args[0][-2:], [str(first), str(second)])
             self.assertIn("--offline", call.args[0])
-            self.assertIn("--frozen", call.args[0])
+            self.assertIn("--no-sync", call.args[0])
 
     def test_formatter_ignores_other_types_and_missing_toolchain(self) -> None:
         with (
