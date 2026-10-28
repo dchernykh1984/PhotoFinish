@@ -21,7 +21,8 @@ def test_base_dir_frozen_uses_executable_folder(monkeypatch) -> None:
     monkeypatch.setattr(
         paths.sys, "executable", "/downloads/PhotoFinish", raising=False
     )
-    assert paths.base_dir() == Path("/downloads")
+    # resolve() adds the drive on Windows, as base_dir() itself does.
+    assert paths.base_dir() == Path("/downloads").resolve()
 
 
 def test_base_dir_frozen_macos_app_uses_bundle_parent(monkeypatch) -> None:
@@ -32,4 +33,4 @@ def test_base_dir_frozen_macos_app_uses_bundle_parent(monkeypatch) -> None:
         "/Applications/PhotoFinish.app/Contents/MacOS/PhotoFinish",
         raising=False,
     )
-    assert paths.base_dir() == Path("/Applications")
+    assert paths.base_dir() == Path("/Applications").resolve()
