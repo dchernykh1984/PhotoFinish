@@ -6,7 +6,8 @@
 # .pre-commit-config.yaml. Reports to the user (systemMessage) and to Claude
 # (additionalContext; Claude never sees a systemMessage or the stderr of a hook
 # that exits 0). Never blocks, and stays silent when the project environment is
-# not synced: the commit-time gate still applies.
+# not synced: pre-commit at commit (`uv run pre-commit install`) and CI still
+# apply the rule.
 set -uo pipefail
 
 root="${CLAUDE_PROJECT_DIR:-$PWD}"
