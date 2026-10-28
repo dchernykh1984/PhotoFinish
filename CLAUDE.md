@@ -38,7 +38,7 @@ directory.
 
 | Tool | Relation |
 | --- | --- |
-| ChronometerPython, ChronometerAndroid | Write the results file PhotoFinish reads: `number#time#action#`, the time as `D H:M:S[.mmm]` (days since 1970-01-01, local time; fields not zero-padded, milliseconds only when recorded). |
+| ChronometerPython, ChronometerAndroid | Write the results file PhotoFinish reads: `number#time#action#`, the time as `D H:M:S[.mmm]` (days since 1970-01-01, local time; hours, minutes and seconds not zero-padded; milliseconds, when recorded, always three digits). |
 | FinishProtocolGeneratorPython | Reads the corrected copy PhotoFinish writes, in the same format. |
 | cycling-site | Not talked to; the chronometers upload, the generator publishes. |
 

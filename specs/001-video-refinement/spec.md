@@ -116,7 +116,8 @@ whose own error is below a frame.
 - **FR-001**: PhotoFinish MUST open the timing files it reads for reading only, and MUST
   NOT write, rename, truncate or lock them.
 - **FR-002**: PhotoFinish MUST read crossing lines `number#time#action#`, the time as
-  `D H:M:S[.mmm]` (fields not zero-padded, milliseconds only when recorded), from any
+  `D H:M:S[.mmm]` (hours, minutes and seconds not zero-padded; milliseconds, when recorded,
+  always three digits), from any
   chronometer of the set -- desktop or Android, by hand, by beam or
   by chips -- including files from the older C++ tools (UTF-8, then cp1251, then Latin-1).
 - **FR-003**: PhotoFinish MUST write its result as a corrected copy: every line of the
