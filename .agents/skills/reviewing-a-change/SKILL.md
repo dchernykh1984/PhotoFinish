@@ -36,8 +36,8 @@ from that frame's own timestamp, not from its index times a nominal frame rate
 (phones record at a variable rate), and a camera's offset is applied once.
 
 **Does it change a format?** `number#time#action#` with the time as
-`D H:M:S[.mmm]` - fields not zero-padded, milliseconds only when recorded - is
-written by every chronometer and read by FinishProtocolGeneratorPython. Lines
+`D H:M:S[.mmm]` - hours, minutes and seconds not zero-padded, milliseconds
+always three digits when recorded - is written by every chronometer and read by FinishProtocolGeneratorPython. Lines
 PhotoFinish does not correct are copied byte for byte. Adding a field,
 reordering, padding the time or changing the separator is a change for the
 whole set of tools, even though nothing in this repo complains.
