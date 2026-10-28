@@ -60,7 +60,9 @@ def violations(paths: list[Path], root: Path) -> list[str]:
             [*command, "no-non-ascii", "--files", *names],
             cwd=root,
             capture_output=True,
-            text=True,
+            # pygrep echoes offending lines raw; a cp1251 file is not UTF-8.
+            encoding="utf-8",
+            errors="replace",
             timeout=25,
             check=False,
         )
@@ -114,7 +116,8 @@ def format_python(paths: list[Path], root: Path) -> None:
                 ],
                 cwd=root,
                 capture_output=True,
-                text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=25,
                 check=False,
             )
