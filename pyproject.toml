@@ -25,13 +25,11 @@ default-groups = ["dev"]
 [tool.ruff]
 line-length = 88
 # Spec Kit's generated files: `specify integration upgrade` stops refreshing a
-# file once it was edited, so no formatter may touch them. The constitution in
-# .specify/memory is ours and stays in, as in .pre-commit-config.yaml.
+# file once it was edited, so no formatter may touch them. Everything in
+# .specify but memory/, which holds our constitution, is theirs - the same split
+# as the exclude in .pre-commit-config.yaml.
 extend-exclude = [
-    ".specify/templates",
-    ".specify/scripts",
-    ".specify/workflows",
-    ".specify/integrations",
+    ".specify/[!m]*",
     ".claude/skills/speckit-*",
     ".agents/skills/speckit-*",
 ]
