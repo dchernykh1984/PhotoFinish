@@ -22,6 +22,9 @@ default-groups = "all"
 
 [tool.ruff]
 line-length = 88
+# Spec Kit's generated files: `specify integration upgrade` stops refreshing a
+# file once it was edited, so no formatter may touch them.
+extend-exclude = [".specify", ".claude/skills/speckit-*", ".agents/skills/speckit-*"]
 
 [tool.ruff.lint]
 select = [

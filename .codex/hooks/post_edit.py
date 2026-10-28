@@ -80,13 +80,25 @@ def violations(paths: list[Path], root: Path) -> list[str]:
 
 
 def format_python(paths: list[Path], root: Path) -> None:
-    """Keep edited Python files ruff-clean without downloading a toolchain."""
+    """Keep edited Python ruff-clean and Markdown code blocks formatted.
+
+    The same split as the pre-commit ruff hooks: Python is fixed and formatted,
+    Markdown only formatted. --force-exclude keeps ruff off the files its config
+    excludes (Spec Kit's generated files).
+    """
     python_paths = [str(path) for path in paths if path.suffix == ".py"]
+    markdown_paths = [str(path) for path in paths if path.suffix == ".md"]
     uv = shutil.which("uv")
-    if not python_paths or uv is None:
+    if not (python_paths or markdown_paths) or uv is None:
         return
     # Fix first, then format, as pre-commit does: a fix can change the layout.
-    for action in (["check", "-q", "--fix"], ["format", "-q"]):
+    steps = (
+        (["check", "-q", "--fix"], python_paths),
+        (["format", "-q"], python_paths + markdown_paths),
+    )
+    for action, files in steps:
+        if not files:
+            continue
         try:
             result = subprocess.run(  # noqa: S603
                 [
@@ -96,8 +108,9 @@ def format_python(paths: list[Path], root: Path) -> None:
                     "--no-sync",
                     "ruff",
                     *action,
+                    "--force-exclude",
                     "--",
-                    *python_paths,
+                    *files,
                 ],
                 cwd=root,
                 capture_output=True,

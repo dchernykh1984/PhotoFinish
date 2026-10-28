@@ -10,8 +10,10 @@ file="$(jq -r '.tool_response.filePath // .tool_input.file_path // empty' 2>/dev
 
 [ -n "$file" ] || exit 0
 [ -f "$file" ] || exit 0
+# Python is fixed and formatted; Markdown only formatted (ruff formats its code
+# blocks), as the pre-commit ruff hooks do.
 case "$file" in
-  *.py) ;;
+  *.py|*.md) ;;
   *) exit 0 ;;
 esac
 # Only touch files inside this checkout.
@@ -25,6 +27,9 @@ cd "$root" || exit 0
 # --no-sync: run the ruff already installed; never sync the environment (not
 # even from the cache) inside a hook. --offline: never download anything.
 # Fix first, then format, as pre-commit does: a fix can change the layout.
-uv run --offline --no-sync ruff check -q --fix -- "$file" >/dev/null 2>&1
-uv run --offline --no-sync ruff format -q -- "$file" >/dev/null 2>&1
+# --force-exclude keeps ruff off the files its config excludes (Spec Kit's).
+case "$file" in
+  *.py) uv run --offline --no-sync ruff check -q --fix --force-exclude -- "$file" >/dev/null 2>&1 ;;
+esac
+uv run --offline --no-sync ruff format -q --force-exclude -- "$file" >/dev/null 2>&1
 exit 0

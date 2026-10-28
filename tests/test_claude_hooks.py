@@ -88,3 +88,21 @@ def test_ruff_hook_fixes_before_it_formats(tmp_path) -> None:
     calls = log.read_text(encoding="utf-8").splitlines()
     assert [call.split()[4] for call in calls] == ["check", "format"]
     assert all(call.startswith("run --offline --no-sync ruff") for call in calls)
+
+
+def test_ruff_hook_only_formats_markdown(tmp_path) -> None:
+    doc = tmp_path / "note.md"
+    doc.write_text("x\n", encoding="utf-8")
+    log = tmp_path / "uv.log"
+    _run("ruff-fix.sh", tmp_path, doc, f'echo "$*" >> {log}')
+    calls = log.read_text(encoding="utf-8").splitlines()
+    assert [call.split()[4] for call in calls] == ["format"]
+    assert "--force-exclude" in calls[0]
+
+
+def test_ruff_hook_ignores_other_files(tmp_path) -> None:
+    notes = tmp_path / "notes.txt"
+    notes.write_text("x\n", encoding="utf-8")
+    log = tmp_path / "uv.log"
+    _run("ruff-fix.sh", tmp_path, notes, f'echo "$*" >> {log}')
+    assert not log.exists()
