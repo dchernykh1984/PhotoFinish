@@ -17,6 +17,10 @@ jobs:
           enable-cache: true
           python-version: "3.14"
       - name: Export dependencies
-        run: uv export --locked --no-hashes --no-annotate --no-default-groups --group build --no-emit-project -o requirements.txt
+        # Platform markers stripped: audit the Windows and macOS build packages
+        # (pefile, pywin32-ctypes, macholib) too, not only what Linux installs.
+        run: >-
+          uv export --locked --no-hashes --no-annotate --no-default-groups
+          --group build --no-emit-project | sed 's/ ;.*//' > requirements.txt
       - name: Run pip-audit
-        run: uvx pip-audit -r requirements.txt
+        run: uvx pip-audit --disable-pip --no-deps -r requirements.txt
