@@ -278,6 +278,13 @@ class PostEditTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2, result.stderr)
         self.assertIn("source.md", result.stderr)
 
+    def test_steps_fit_inside_the_hook_timeout(self) -> None:
+        config = json.loads((SCRIPT.parents[1] / "hooks.json").read_text())
+        [entry] = config["hooks"]["PostToolUse"]
+        [hook] = entry["hooks"]
+        budget = 2 * HOOK.RUFF_TIMEOUT + HOOK.ASCII_TIMEOUT
+        self.assertLess(budget, hook["timeout"])
+
     def test_cli_ignores_invalid_json(self) -> None:
         result = subprocess.run(  # noqa: S603
             [sys.executable, str(SCRIPT)],

@@ -21,6 +21,10 @@ PATCH_PATH = re.compile(
 )
 # pygrep reports each offending line as "path:line:text".
 LINE_HIT = re.compile(r"\d+:")
+# Two ruff steps and the ASCII check run in turn and must finish together
+# inside the 60 s that .codex/hooks.json gives this hook.
+RUFF_TIMEOUT = 15
+ASCII_TIMEOUT = 25
 
 
 def edited_paths(payload: dict[str, Any], root: Path) -> list[Path]:
@@ -66,7 +70,7 @@ def violations(paths: list[Path], root: Path) -> list[str]:
             # pygrep echoes offending lines raw; a cp1251 file is not UTF-8.
             encoding="utf-8",
             errors="replace",
-            timeout=25,
+            timeout=ASCII_TIMEOUT,
             check=False,
         )
     except (OSError, subprocess.TimeoutExpired):  # fmt: skip
@@ -121,7 +125,7 @@ def format_python(paths: list[Path], root: Path) -> None:
                 capture_output=True,
                 encoding="utf-8",
                 errors="replace",
-                timeout=25,
+                timeout=RUFF_TIMEOUT,
                 check=False,
             )
         except (OSError, subprocess.TimeoutExpired):  # fmt: skip
