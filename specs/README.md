@@ -18,3 +18,7 @@ The principles every plan is checked against are in
 
 **Keep `app/` true.** A change that alters described behaviour updates it in the same pull
 request.
+
+## Features
+
+- [001-video-refinement](001-video-refinement/spec.md): refine crossing times from video.
