@@ -7,7 +7,9 @@
 # (additionalContext; Claude never sees a systemMessage or the stderr of a hook
 # that exits 0). Never blocks, and stays silent when the project environment is
 # not synced: pre-commit at commit (`uv run pre-commit install`) and CI still
-# apply the rule.
+# apply the rule. pre-commit loads every repo its config names, so on a cold
+# pre-commit cache the first check clones them (a few seconds, once); offline
+# with a cold cache it stays silent until they are cached.
 set -uo pipefail
 
 root="${CLAUDE_PROJECT_DIR:-$PWD}"

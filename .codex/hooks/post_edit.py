@@ -48,7 +48,10 @@ def violations(paths: list[Path], root: Path) -> list[str]:
     """Run pre-commit's own no-non-ascii hook on the edited files.
 
     Without uv or a synced environment nothing is reported: pre-commit at commit
-    (`uv run pre-commit install`) and CI still apply the rule.
+    (`uv run pre-commit install`) and CI still apply the rule. pre-commit loads
+    every repo its config names, so on a cold pre-commit cache the first check
+    clones them (a few seconds, once); offline it stays silent until they are
+    cached.
     """
     uv = shutil.which("uv")
     if not paths or uv is None:
