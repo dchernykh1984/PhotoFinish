@@ -16,9 +16,11 @@ dev = [
     "pytest-xdist>=3.8.0,<4",
     "pytest-cov>=7.1.0,<8",
 ]
+# The release builds' freezer, locked like every other tool.
+build = ["pyinstaller>=6,<7"]
 
 [tool.uv]
-default-groups = "all"
+default-groups = ["dev"]
 
 [tool.ruff]
 line-length = 88
