@@ -22,6 +22,7 @@ esac
 command -v uv >/dev/null 2>&1 || exit 0
 
 cd "$root" || exit 0
-uv run --frozen ruff format -q -- "$file" >/dev/null 2>&1
-uv run --frozen ruff check -q --fix -- "$file" >/dev/null 2>&1
+# --offline: never download a toolchain or sync the environment inside a hook.
+uv run --offline --frozen ruff format -q -- "$file" >/dev/null 2>&1
+uv run --offline --frozen ruff check -q --fix -- "$file" >/dev/null 2>&1
 exit 0
