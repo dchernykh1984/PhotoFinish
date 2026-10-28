@@ -4,8 +4,10 @@
 exclude: ^(\.specify/(?!memory/constitution\.md$)|\.(claude|agents)/skills/speckit-[^/]+/)
 
 # One `uv run pre-commit install` sets up both stages: the file checks at commit
-# and the commit-message check.
+# and the commit-message check. File hooks run at the commit stage only, never on
+# the message file (mixed-line-ending declares no stages of its own).
 default_install_hook_types: [pre-commit, commit-msg]
+default_stages: [pre-commit]
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
