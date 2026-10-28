@@ -114,11 +114,13 @@ whose own error is below a frame.
 - **FR-001**: PhotoFinish MUST open the timing files it reads for reading only, and MUST
   NOT write, rename, truncate or lock them.
 - **FR-002**: PhotoFinish MUST read crossing lines `number#time#action#`, the time as
-  `D H:M:S.mmm`, from any chronometer of the set -- desktop or Android, by hand, by beam or
+  `D H:M:S[.mmm]` (fields not zero-padded, milliseconds only when recorded), from any
+  chronometer of the set -- desktop or Android, by hand, by beam or
   by chips -- including files from the older C++ tools (UTF-8, then cp1251, then Latin-1).
 - **FR-003**: PhotoFinish MUST write its result as a corrected copy: every line of the
-  source, in source order and format, with corrected times in place of the recorded ones,
-  so FinishProtocolGeneratorPython reads it unchanged.
+  source in source order, the lines it does not correct byte for byte, and a corrected
+  time written the way the chronometers write it, so FinishProtocolGeneratorPython reads
+  the copy unchanged.
 - **FR-004**: Every correction MUST be written to a journal next to the corrected copy when
   the referee accepts it, with the crossing, the old time, the new time, the camera and the
   frame.
