@@ -27,7 +27,9 @@ case "${file#"$root"/}" in
   .specify/*|.claude/skills/speckit-*/*|.agents/skills/speckit-*/*) exit 0 ;;
 esac
 
-hits="$(LC_ALL=C grep -c '[^ -~	]' "$file" 2>/dev/null || true)"
+# Bytes above 0x7F only, as pre-commit counts them: CR and other control
+# characters are ASCII and are not reported.
+hits="$(LC_ALL=C grep -c $'[\x80-\xff]' "$file" 2>/dev/null || true)"
 [ "${hits:-0}" -gt 0 ] || exit 0
 
 jq -n --arg f "${file#"$root"/}" --arg n "$hits" \
