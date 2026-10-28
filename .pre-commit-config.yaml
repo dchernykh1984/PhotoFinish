@@ -14,22 +14,34 @@ repos:
       - id: mixed-line-ending
         args: [--fix=lf]
 
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.16.10
+  # ruff, mypy and commitizen run from uv.lock: the edit hooks and CI use the
+  # same versions, dependabot bumps them in one place, and mypy sees PySide6.
+  - repo: local
     hooks:
-      - id: ruff
-        args: [--fix]
+      - id: ruff-check
+        name: ruff check
+        entry: uv run --frozen ruff check --force-exclude --fix
+        language: system
+        types_or: [python, pyi, jupyter]
+        require_serial: true
       - id: ruff-format
-
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v2.4.0
-    hooks:
+        name: ruff format
+        entry: uv run --frozen ruff format --force-exclude
+        language: system
+        types_or: [python, pyi, jupyter, markdown]
+        require_serial: true
       - id: mypy
-
-  - repo: https://github.com/commitizen-tools/commitizen
-    rev: v4.19.3
-    hooks:
+        name: mypy
+        entry: uv run --frozen mypy
+        args: [--scripts-are-modules]
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
       - id: commitizen
+        name: commitizen check
+        entry: uv run --frozen cz check
+        args: [--allow-abort, --commit-msg-file]
+        language: system
         stages: [commit-msg]
 
   - repo: local
