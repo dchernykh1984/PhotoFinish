@@ -102,6 +102,8 @@ whose own error is below a frame.
   instead of applying it to the wrong crossing.
 - The same number crosses several times (laps): each crossing is corrected on its own; a
   correction belongs to one line, not to a number.
+- Two identical lines (the same crossing saved twice): a correction says which of them it
+  changes.
 - A source file from the older C++ tools in cp1251; a source whose last line is still being
   written.
 - A recording made at a variable frame rate (phones): times come from each frame's own
@@ -122,11 +124,12 @@ whose own error is below a frame.
   time written the way the chronometers write it, so FinishProtocolGeneratorPython reads
   the copy unchanged.
 - **FR-004**: Every correction MUST be written to a journal next to the corrected copy when
-  the referee accepts it, with the crossing, the old time, the new time, the camera and the
-  frame.
+  the referee accepts it, with the source line it corrects (number, recorded time, action),
+  the new time, the camera and the frame.
 - **FR-005**: The corrected copy MUST be the source with the journal applied: lines the
   chronometer adds later appear in it, and a correction whose source line has changed is
-  reported, not applied.
+  reported, not applied. A correction MUST identify its source line even when the same
+  line occurs more than once.
 - **FR-006**: The referee MUST be able to step through a recording frame by frame, see each
   frame's time to the millisecond, and accept the frame at which a rider crosses the line.
 - **FR-007**: PhotoFinish MUST show several recordings in step and let the referee align
@@ -183,9 +186,10 @@ whose own error is below a frame.
 - Accuracy is bounded by the frame rate, about half a frame interval: +-17 ms at 30 fps,
   +-2 ms at 240 fps. The three decimals of the time format are resolution, not accuracy
   (constitution, principle V).
-- The plan settles the file names and the journal's line format. Issue #49 proposed
+- The plan settles the file names and the journal's line format. Issue #49 sketched
   `results_video.txt` for the copy and `corrections.txt` with
-  `number#old_time#new_time#camera#` lines.
+  `number#old_time#new_time#camera#` lines; that sketch lacks the action and the frame
+  FR-004 asks for and cannot tell identical lines apart, so the plan extends it.
 - The chronometers, FinishProtocolGeneratorPython and the site need no change for this
   feature, unless FR-013 asks for live updates.
 - The plan picks the video library; heavy dependencies arrive with this feature.
