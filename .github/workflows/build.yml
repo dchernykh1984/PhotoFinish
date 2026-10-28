@@ -56,7 +56,11 @@ jobs:
       matrix: ${{ fromJSON(needs.targets.outputs.matrix) }}
     runs-on: ${{ matrix.os }}
     steps:
+      # A manual backfill runs from main; build the tag's code, not main's.
+      # Empty on pull requests, which keeps the default ref.
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.release_tag }}
 
       - uses: astral-sh/setup-uv@v7
         with:
