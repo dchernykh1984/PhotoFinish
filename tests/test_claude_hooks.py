@@ -121,3 +121,23 @@ def test_hooks_accept_windows_style_paths(tmp_path) -> None:
     log = tmp_path / "uv.log"
     _run("ruff-fix.sh", tmp_path, doc, f'echo "$*" >> {log}', backslashes=True)
     assert log.read_text(encoding="utf-8").split()[4] == "format"
+
+
+def test_settings_run_one_post_edit_hook() -> None:
+    settings = json.loads(
+        (ROOT / ".claude" / "settings.json").read_text(encoding="utf-8")
+    )
+    [entry] = settings["hooks"]["PostToolUse"]
+    [hook] = entry["hooks"]
+    assert entry["matcher"] == "Edit|Write"
+    assert hook["command"].endswith('/.claude/hooks/post-edit.sh"')
+
+
+def test_post_edit_formats_before_it_checks_ascii(tmp_path) -> None:
+    code = tmp_path / "code.py"
+    code.write_text("x = 1\n", encoding="utf-8")
+    log = tmp_path / "uv.log"
+    out = _run("post-edit.sh", tmp_path, code, f'echo "$*" >> {log}')
+    steps = [call.split()[3:5] for call in log.read_text(encoding="utf-8").splitlines()]
+    assert steps == [["ruff", "check"], ["ruff", "format"], ["pre-commit", "run"]]
+    assert out == ""
