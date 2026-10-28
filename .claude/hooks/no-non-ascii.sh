@@ -2,7 +2,8 @@
 # PostToolUse hook: warn as soon as a non-ASCII character lands in a file the
 # `no-non-ascii` pre-commit hook guards, instead of at `git commit` time. The
 # author writes in Russian, so this is the easiest rule in the repo to trip.
-# Only reports; never blocks.
+# Reports to the user (systemMessage) and to Claude (additionalContext; Claude
+# never sees a systemMessage or the stderr of a hook that exits 0). Never blocks.
 set -uo pipefail
 
 root="${CLAUDE_PROJECT_DIR:-$PWD}"
@@ -32,6 +33,8 @@ esac
 hits="$(LC_ALL=C grep -c $'[\x80-\xff]' "$file" 2>/dev/null || true)"
 [ "${hits:-0}" -gt 0 ] || exit 0
 
-jq -n --arg f "${file#"$root"/}" --arg n "$hits" \
-  '{systemMessage: ($f + ": " + $n + " line(s) contain non-ASCII characters. The no-non-ascii pre-commit hook rejects these in .py, .md, .yml, .toml, .json and shell files - rewrite them in ASCII.")}'
+jq -n --arg f "${file#"$root"/}" --arg n "$hits" '
+  ($f + ": " + $n + " line(s) contain non-ASCII characters. The no-non-ascii pre-commit hook rejects these in .py, .md, .yml, .toml, .json and shell files - rewrite them in ASCII.") as $msg
+  | {systemMessage: $msg,
+     hookSpecificOutput: {hookEventName: "PostToolUse", additionalContext: $msg}}'
 exit 0
