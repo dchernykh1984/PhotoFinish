@@ -44,8 +44,9 @@ agree within one frame, and the recording has no gap.
 
 **Acceptance Scenarios**:
 
-1. **Given** a camera, **When** the referee starts recording, **Then** the newest frame can be
-   viewed within 2 s of its capture and the timeline grows.
+1. **Given** a camera that sends a keyframe at least every 2 s, **When** the referee starts
+   recording, **Then** the newest frame can be viewed within 2 s of its capture and the timeline
+   grows; a camera with keyframes farther apart shows its newest frames that much later.
 2. **Given** recording, **When** the referee scrolls back 5 minutes, **Then** the frame of that
    moment is shown and recording continues without a gap.
 3. **Given** recording, **When** the window is killed, **Then** recording continues; started
@@ -251,6 +252,9 @@ an RTMP stream pushed from the same computer is received and recorded.
 ### Edge Cases
 
 - The input file's last line is still being written: it is taken once its line break is there.
+- An input line without a time PhotoFinish can read (`15##`, a slot saved without a time): taken
+  with its bytes, kept at the end of the output in input order and marked, so nothing the
+  chronometer wrote is dropped.
 - An input file from the older C++ tools in cp1251.
 - The same number crosses several times (laps): each line is its own crossing; an edit belongs to
   one line, not to a number. Two identical lines are two crossings.
@@ -264,15 +268,23 @@ an RTMP stream pushed from the same computer is received and recorded.
 - A network camera's picture arrives seconds late (about 4-5 s over the SJCAM Wi-Fi): until the
   camera is aligned (Story 7), its frames show earlier riders than their arrival times suggest.
 - A recording of many hours: the timeline zooms from the whole recording down to single frames.
+- An RTMP camera that never connects -- the computer's firewall blocks the port, or the phone
+  running the camera app is on another network: the camera's state says it is still waiting and
+  shows the address and port the camera app must reach.
 - The output file is changed by something else while PhotoFinish runs: PhotoFinish notices, keeps
   the outside version in a backup, and writes its own list; the journal records it.
+- The referee chooses an output file that already has crossings PhotoFinish did not write: they
+  become the start of the output list, journaled as outside content, and an input line whose exact
+  text is already among them counts as taken.
 
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
 
 - **FR-001**: The input file is opened for reading only; PhotoFinish never writes, renames,
-  truncates or locks it, and reads it again whenever it grows or changes.
+  truncates or locks it, and reads it again whenever it grows or changes. It keeps the file open only
+  while it reads it, so a chronometer replacing the file (an edit on the desktop) is not refused on
+  Windows because PhotoFinish holds it.
 - **FR-002**: Crossing lines `number#time#action#` are read from any chronometer of the set,
   including files from the older C++ tools (UTF-8, then cp1251, then Latin-1). The time is
   `D H:M:S[.mmm]` in local standard time, one hour later with the desktop chronometer's
@@ -283,10 +295,11 @@ an RTMP stream pushed from the same computer is received and recorded.
   computer's clock -- a steady clock anchored to the wall clock when recording starts -- is kept with
   the video.
 - **FR-004**: Any recorded frame can be shown while recording goes on; the newest frame can be
-  viewed within 2 s of its capture; "Live" follows the newest frame.
+  viewed within 2 s of its capture, or within the camera's keyframe interval when that is longer
+  (a network stream is stored as the camera encoded it); "Live" follows the newest frame.
 - **FR-005**: A camera that drops out or a recorder that fails is started again after 1 s, the pause
-  doubling to at most 30 s while it keeps failing; the gap is shown on the timeline; nothing
-  recorded before is lost.
+  doubling to at most 30 s while it keeps failing and back to 1 s after 30 s without a failure; the
+  gap is shown on the timeline; nothing recorded before is lost.
 - **FR-006**: Below 2 GB of free disk the referee is warned; on a full disk recording stops cleanly
   and says so.
 - **FR-007**: Camera connections: USB camera, RTSP stream, RTMP receiver, test camera, file played
@@ -297,9 +310,9 @@ an RTMP stream pushed from the same computer is received and recorded.
   `number#time#action#` lines in time order; a line taken from the input keeps its bytes until the
   referee changes it.
 - **FR-009**: PhotoFinish compares the input as it is with the input as it last took it: lines that
-  were added are appended to the output; lines that changed are highlighted in the input list with
-  both contents and are not applied; lines that disappeared stay in the output, marked. "Copy to
-  output" applies a highlighted input line by hand.
+  were added are added to the output, in its time order; lines that changed are highlighted in the
+  input list with both contents and are not applied; lines that disappeared stay in the output,
+  marked. "Copy to output" applies a highlighted input line by hand.
 - **FR-010**: The output can be changed by adding a crossing (a number, and a time from the current
   frame, interpolated or typed; the action from the finish-mode switch), changing a line's number
   or time, and removing a line after a confirmation. A typed time that is not a valid

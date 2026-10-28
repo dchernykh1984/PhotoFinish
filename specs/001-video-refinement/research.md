@@ -76,14 +76,20 @@
 
 ## 7. Input and output lists
 
-- **Decision**: the input file is polled every 500 ms and read as complete lines (UTF-8, then
-  cp1251, then Latin-1). `difflib.SequenceMatcher` aligns it with the input as last taken:
+- **Decision**: the input file is polled every 500 ms (size and modification time) and, when it
+  changed, opened, read whole and closed at once -- never held open, because on Windows an open
+  handle without delete sharing makes the chronometer's atomic rewrite fail -- and read as complete
+  lines (UTF-8, then cp1251, then Latin-1).
+ `difflib.SequenceMatcher` aligns it with the input as last taken:
   inserted lines are appended to the output, replaced lines become highlighted changes, deleted
   lines mark their output lines "removed from input". The output file holds its lines in time order
   and is replaced atomically on every change; `<output>.state.json` keeps each line's origin and
   marks; `<output>.journal.txt` gets one JSON object per change.
 - **Rationale**: FR-009 and FR-011; the output file stays a plain finish file that
   FinishProtocolGenerator reads, while the state and the journal carry what it cannot.
+- **An output file chosen with lines in it** and no `state.json`: its lines become the output list
+  with origin "outside", journaled once; the first alignment counts an input line as taken when its
+  exact text is among them, so choosing last session's output again does not double it.
 
 ## 8. Sub-frame times
 
