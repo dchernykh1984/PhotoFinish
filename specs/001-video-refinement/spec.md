@@ -128,8 +128,9 @@ whose own error is below a frame.
   time written the way the chronometers write it, so FinishProtocolGeneratorPython reads
   the copy unchanged.
 - **FR-004**: Every correction MUST be written to a journal next to the corrected copy when
-  the referee accepts it, with the source line it corrects (number, recorded time, action),
-  the new time, the camera and the frame.
+  the referee accepts it, with the source line it corrects -- its number, recorded time and
+  action, and which occurrence it is when the same line appears more than once -- the new
+  time, the camera and the frame.
 - **FR-005**: The corrected copy MUST be the source with the journal applied: lines the
   chronometer adds later appear in it, and a correction whose source line has changed is
   reported, not applied. A correction MUST identify its source line even when the same
@@ -167,8 +168,8 @@ whose own error is below a frame.
   marking a shared event.
 - **Source offset**: what turns a timing source's time into the video time; set by marking
   an event seen on both sides.
-- **Correction**: one source line (number, recorded time, action), its new time, the camera
-  and the frame it was read from.
+- **Correction**: one source line -- number, recorded time, action and, for a line that
+  repeats, which occurrence -- its new time, the camera and the frame it was read from.
 - **Corrected copy**: the source with the corrections applied, in the same format.
 
 ## Success Criteria *(mandatory)*
