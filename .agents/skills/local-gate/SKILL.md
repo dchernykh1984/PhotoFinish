@@ -49,7 +49,10 @@ ones that come up most:
 A PostToolUse hook runs `ruff format` and `ruff check --fix` on every Python
 file that gets edited, so formatting complaints should not reach the commit.
 
-**mypy** runs through pre-commit with `ignore_missing_imports = true`.
+**One version of each tool.** ruff, mypy and commitizen run from `uv.lock`:
+pre-commit calls them through `uv run --frozen`, as do the edit hooks and CI,
+so a bump is one lock change and mypy sees PySide6's types
+(`ignore_missing_imports = true` covers the rest).
 
 ## Coverage
 
