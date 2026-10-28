@@ -6,10 +6,13 @@ from pathlib import Path
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
 
+import app
 from app.main_window import MainWindow
 
 _APP_NAME = "PhotoFinish"
-_ICON = str(Path(__file__).parent / "app.ico")
+# Resolved from the package, not this script: a frozen build runs the entry
+# script from the bundle root, while the icon ships inside app/.
+_ICON = str(Path(app.__file__).parent / "app.ico")
 
 
 def main() -> None:
