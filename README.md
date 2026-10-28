@@ -50,6 +50,12 @@ again in the dialog. macOS 15 Sequoia dropped that shortcut - there, go to Syste
 Settings -> Privacy & Security, scroll down to the notice about the blocked app
 and press **Open Anyway**.
 
+Taken this way, the quarantine flag stays on, and macOS may run the app from a
+temporary read-only copy (App Translocation): the files PhotoFinish keeps next
+to itself then cannot be written there. After the first approved launch, move
+the app with Finder into its event folder - macOS does not translocate an app
+the user moved with Finder - or clear the flag with the command above.
+
 ### Windows
 
 Run the `.exe` directly. SmartScreen warns that the publisher is unknown: choose
