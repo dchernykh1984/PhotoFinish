@@ -20,10 +20,6 @@ dev = [
 [tool.uv]
 default-groups = "all"
 
-[tool.uv.build-backend]
-module-name = ["app"]
-module-root = ""
-
 [tool.ruff]
 line-length = 88
 
