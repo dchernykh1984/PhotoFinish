@@ -73,11 +73,11 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             libegl1 libgl1 libxkbcommon0 libxcb-cursor0
 
-      # Runtime dependencies only: the dev tools have no place in the build.
+      # Runtime dependencies plus PyInstaller: the dev tools have no place here.
       # --frozen installs exactly the lock even if its root version lags
       # pyproject.toml, so a tag cut before its lock commit still builds.
       - name: Install dependencies
-        run: uv sync --frozen --no-dev
+        run: uv sync --frozen --no-dev --group build
 
       - name: Build portable app
         shell: bash
@@ -86,8 +86,8 @@ jobs:
         run: |
           set -euo pipefail
           sep=":"; [ "$RUNNER_OS" = "Windows" ] && sep=";"
-          # Pin PyInstaller so a future major release cannot break builds.
-          pyi=(uv run --frozen --no-dev --with "pyinstaller>=6,<7" pyinstaller)
+          # PyInstaller comes from the lock's build group, like every other tool.
+          pyi=(uv run --frozen --no-dev --group build pyinstaller)
           common=(--noconfirm --windowed \
                   --collect-submodules app --add-data "app/app.ico${sep}app")
           if [ "$RUNNER_OS" = "macOS" ]; then

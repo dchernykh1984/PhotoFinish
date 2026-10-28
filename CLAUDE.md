@@ -54,7 +54,8 @@ uv run pytest                            # tests, -n auto, coverage gate 90%
 uv run pre-commit run --all-files        # everything CI's pre-commit job runs
 ```
 
-`uv sync` installs the dev group by default (`tool.uv.default-groups = "all"`).
+`uv sync` installs the dev group by default (`tool.uv.default-groups = ["dev"]`);
+the `build` group holds PyInstaller for the release builds.
 Python is pinned to 3.14.
 
 ## Conventions
