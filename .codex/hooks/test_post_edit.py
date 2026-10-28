@@ -242,8 +242,7 @@ class PostEditTests(unittest.TestCase):
             self.assertEqual(HOOK.main(), 2)
         self.assertIn("code.py", stderr.getvalue())
 
-    @unittest.skipIf(os.name == "nt", "the fake uv is a POSIX shell script")
-    def test_cli_reports_bytes_from_a_different_working_directory(self) -> None:
+    def run_cli_with_fake_uv(self, fake_uv_body: bytes) -> subprocess.CompletedProcess:
         folder = self.root / ".codex/hooks"
         folder.mkdir(parents=True)
         script = folder / "post_edit.py"
@@ -251,12 +250,10 @@ class PostEditTests(unittest.TestCase):
         bin_dir = self.root / "bin"
         bin_dir.mkdir()
         fake_uv = bin_dir / "uv"
-        fake_uv.write_text(
-            "#!/bin/sh\nprintf 'source.md:1:caf\\n'\nexit 1\n", encoding="utf-8"
-        )
+        fake_uv.write_bytes(b"#!/bin/sh\n" + fake_uv_body)
         fake_uv.chmod(0o755)
         env = {**os.environ, "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}"}
-        result = subprocess.run(  # noqa: S603
+        return subprocess.run(  # noqa: S603
             [sys.executable, str(script)],
             input=json.dumps(self.payload("*** Update File: source.md\n")),
             text=True,
@@ -265,7 +262,20 @@ class PostEditTests(unittest.TestCase):
             env=env,
             check=False,
         )
+
+    @unittest.skipIf(os.name == "nt", "the fake uv is a POSIX shell script")
+    def test_cli_reports_bytes_from_a_different_working_directory(self) -> None:
+        result = self.run_cli_with_fake_uv(b"printf 'source.md:1:caf\\n'\nexit 1\n")
         self.assertEqual(result.returncode, 2)
+        self.assertIn("source.md", result.stderr)
+
+    @unittest.skipIf(os.name == "nt", "the fake uv is a POSIX shell script")
+    def test_cli_reports_a_line_that_is_not_utf8(self) -> None:
+        # pygrep echoes the offending line raw; a cp1251 file is not UTF-8.
+        result = self.run_cli_with_fake_uv(
+            b"printf 'source.md:1:caf\\351\\n'\nexit 1\n"
+        )
+        self.assertEqual(result.returncode, 2, result.stderr)
         self.assertIn("source.md", result.stderr)
 
     def test_cli_ignores_invalid_json(self) -> None:
