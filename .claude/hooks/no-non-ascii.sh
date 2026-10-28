@@ -11,6 +11,9 @@ set -uo pipefail
 
 root="${CLAUDE_PROJECT_DIR:-$PWD}"
 file="$(jq -r '.tool_response.filePath // .tool_input.file_path // empty' 2>/dev/null)"
+# Claude Code on Windows passes native paths; compare them with forward slashes.
+root="${root//\\//}"
+file="${file//\\//}"
 
 [ -n "$file" ] || exit 0
 [ -f "$file" ] || exit 0
