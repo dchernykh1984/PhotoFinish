@@ -31,6 +31,7 @@ def _run(
     ascii_report: str = "",
     ascii_exit: int = 0,
     backslashes: bool = False,
+    crlf_jq: bool = False,
 ) -> tuple[str, list[list[str]]]:
     """Run the hook; return its stdout and the (tool, subcommand) of each uv call."""
     bin_dir = project / "bin"
@@ -47,6 +48,14 @@ def _run(
         encoding="utf-8",
     )
     uv.chmod(0o755)
+    if crlf_jq:
+        # A native jq.exe under Git Bash ends every line with CRLF.
+        jq = bin_dir / "jq"
+        to_crlf = "awk '{printf \"%s\\r\\n\", $0}'"
+        jq.write_text(
+            f'#!/bin/sh\n"{shutil.which("jq")}" "$@" | {to_crlf}\n', encoding="utf-8"
+        )
+        jq.chmod(0o755)
     # Claude Code on Windows passes native paths with backslashes.
     style = (lambda p: str(p).replace("/", "\\")) if backslashes else str
     result = subprocess.run(  # noqa: S603
@@ -136,6 +145,18 @@ def test_windows_style_paths_are_accepted(tmp_path) -> None:
     doc = _file(tmp_path, "note.md")
     out, calls = _run(
         tmp_path, doc, ascii_report="note.md:1:caf\n", ascii_exit=1, backslashes=True
+    )
+    assert calls == [RUFF_FORMAT, ASCII]
+    assert json.loads(out)["systemMessage"].startswith("note.md: 1 line(s)")
+
+
+def test_a_crlf_jq_does_not_break_the_path(tmp_path) -> None:
+    out, calls = _run(
+        tmp_path,
+        _file(tmp_path, "note.md"),
+        ascii_report="note.md:1:caf\n",
+        ascii_exit=1,
+        crlf_jq=True,
     )
     assert calls == [RUFF_FORMAT, ASCII]
     assert json.loads(out)["systemMessage"].startswith("note.md: 1 line(s)")

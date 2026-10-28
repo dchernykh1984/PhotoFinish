@@ -21,7 +21,8 @@
 set -uo pipefail
 
 root="${CLAUDE_PROJECT_DIR:-$PWD}"
-file="$(jq -r '.tool_response.filePath // .tool_input.file_path // empty' 2>/dev/null)"
+# tr: a native jq.exe under Git Bash ends its output with CRLF.
+file="$(jq -r '.tool_response.filePath // .tool_input.file_path // empty' 2>/dev/null | tr -d '\r')"
 # Claude Code on Windows passes native paths; compare them with forward slashes.
 root="${root//\\//}"
 file="${file//\\//}"
