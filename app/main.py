@@ -20,17 +20,17 @@ def main() -> None:
     _macos_set_process_name(_APP_NAME)
     _windows_set_app_id(_APP_NAME)
 
-    app = QApplication(sys.argv)
-    app.setApplicationName(_APP_NAME)
-    app.setApplicationDisplayName(_APP_NAME)
-    app.setWindowIcon(QIcon(_ICON))
+    qapp = QApplication(sys.argv)
+    qapp.setApplicationName(_APP_NAME)
+    qapp.setApplicationDisplayName(_APP_NAME)
+    qapp.setWindowIcon(QIcon(_ICON))
     if sys.platform.startswith("linux"):
-        app.setDesktopFileName(_APP_NAME.lower().replace(" ", "-"))
+        qapp.setDesktopFileName(_APP_NAME.lower().replace(" ", "-"))
 
     window = MainWindow()
     window.resize(1000, 700)
     window.show()
-    sys.exit(app.exec())
+    sys.exit(qapp.exec())
 
 
 def _macos_set_process_name(name: str) -> None:
