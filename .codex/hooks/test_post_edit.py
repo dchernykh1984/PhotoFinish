@@ -203,6 +203,24 @@ class PostEditTests(unittest.TestCase):
             ["nested/CHANGELOG.md"],
         )
 
+    def test_spec_kit_files_are_exempt_but_the_constitution_is_not(self) -> None:
+        checks = json.loads(SCRIPT.with_name("checks.json").read_text(encoding="utf-8"))
+        names = [
+            ".specify/templates/plan-template.md",
+            ".claude/skills/speckit-plan/SKILL.md",
+            ".agents/skills/speckit-plan/SKILL.md",
+            ".specify/memory/constitution.md",
+            ".claude/skills/local-gate/SKILL.md",
+        ]
+        for name in names:
+            path = self.root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b"\xff")
+        self.assertEqual(
+            HOOK.violations([self.root / n for n in names], self.root, checks),
+            [".specify/memory/constitution.md", ".claude/skills/local-gate/SKILL.md"],
+        )
+
     def test_cli_ignores_invalid_json(self) -> None:
         result = subprocess.run(  # noqa: S603
             [sys.executable, str(SCRIPT)],
