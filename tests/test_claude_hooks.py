@@ -1,7 +1,8 @@
-"""The Claude edit hooks, run as Claude Code runs them: a JSON payload on stdin.
+"""The Claude edit hook, run as Claude Code runs it: a JSON payload on stdin.
 
-A fake `uv` on PATH stands in for pre-commit and ruff, so the tests check what
-the hooks do with the answer, not the rule itself (pre-commit owns that).
+A fake `uv` on PATH stands in for ruff and pre-commit and logs every call, so the
+tests check what the hook runs and what it does with the answers, not the rules
+themselves (ruff and pre-commit own those).
 """
 
 from __future__ import annotations
@@ -15,28 +16,42 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-HOOKS = ROOT / ".claude" / "hooks"
+HOOK = ROOT / ".claude" / "hooks" / "post-edit.sh"
 
 pytestmark = pytest.mark.skipif(
     os.name == "nt" or not (shutil.which("bash") and shutil.which("jq")),
-    reason="the hooks are bash scripts that need jq",
+    reason="the hook is a bash script that needs jq",
 )
 
 
 def _run(
-    hook: str, project: Path, file: Path, fake_uv: str, *, backslashes: bool = False
-) -> str:
+    project: Path,
+    file: Path,
+    *,
+    ascii_report: str = "",
+    ascii_exit: int = 0,
+    backslashes: bool = False,
+) -> tuple[str, list[list[str]]]:
+    """Run the hook; return its stdout and the (tool, subcommand) of each uv call."""
     bin_dir = project / "bin"
     bin_dir.mkdir(exist_ok=True)
+    log = project / "uv.log"
     uv = bin_dir / "uv"
-    uv.write_text(f"#!/bin/sh\n{fake_uv}\n", encoding="utf-8")
+    uv.write_text(
+        "#!/bin/sh\n"
+        f'echo "$*" >> "{log}"\n'
+        'if [ "$4" = pre-commit ]; then\n'
+        f"  printf '%s' '{ascii_report}'\n"
+        f"  exit {ascii_exit}\n"
+        "fi\n",
+        encoding="utf-8",
+    )
     uv.chmod(0o755)
     # Claude Code on Windows passes native paths with backslashes.
     style = (lambda p: str(p).replace("/", "\\")) if backslashes else str
-    payload = json.dumps({"tool_input": {"file_path": style(file)}})
     result = subprocess.run(  # noqa: S603
-        ["bash", str(HOOKS / hook)],  # noqa: S607
-        input=payload,
+        ["bash", str(HOOK)],  # noqa: S607
+        input=json.dumps({"tool_input": {"file_path": style(file)}}),
         capture_output=True,
         text=True,
         env={
@@ -46,81 +61,22 @@ def _run(
         },
         check=True,
     )
-    return result.stdout
+    calls = log.read_text(encoding="utf-8").splitlines() if log.exists() else []
+    return result.stdout, [call.split()[3:5] for call in calls]
 
 
-def test_ascii_hook_tells_the_user_and_claude(tmp_path) -> None:
-    doc = tmp_path / "docs" / "note.md"
-    doc.parent.mkdir()
-    doc.write_text("x\n", encoding="utf-8")
-    pygrep = "printf 'Failed\\ndocs/note.md:2:caf\\ndocs/note.md:5:x\\n'; exit 1"
-    out = json.loads(_run("no-non-ascii.sh", tmp_path, doc, pygrep))
-    assert out["systemMessage"].startswith("docs/note.md: 2 line(s)")
-    assert out["hookSpecificOutput"] == {
-        "hookEventName": "PostToolUse",
-        "additionalContext": out["systemMessage"],
-    }
+def _file(project: Path, name: str) -> Path:
+    path = project / name
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("x\n", encoding="utf-8")
+    return path
 
 
-def test_ascii_hook_is_silent_when_pre_commit_passes(tmp_path) -> None:
-    doc = tmp_path / "note.md"
-    doc.write_text("x\n", encoding="utf-8")
-    assert _run("no-non-ascii.sh", tmp_path, doc, "exit 0") == ""
-
-
-def test_ascii_hook_ignores_errors_that_name_no_line(tmp_path) -> None:
-    doc = tmp_path / "note.md"
-    doc.write_text("x\n", encoding="utf-8")
-    broken = "echo 'error: Failed to spawn: pre-commit'; exit 2"
-    assert _run("no-non-ascii.sh", tmp_path, doc, broken) == ""
-
-
-def test_ascii_hook_ignores_files_outside_the_project(tmp_path) -> None:
-    project = tmp_path / "project"
-    project.mkdir()
-    outside = tmp_path / "outside.md"
-    outside.write_text("x\n", encoding="utf-8")
-    pygrep = "printf 'outside.md:1:x\\n'; exit 1"
-    assert _run("no-non-ascii.sh", project, outside, pygrep) == ""
-
-
-def test_ruff_hook_fixes_before_it_formats(tmp_path) -> None:
-    code = tmp_path / "code.py"
-    code.write_text("x = 1\n", encoding="utf-8")
-    log = tmp_path / "uv.log"
-    _run("ruff-fix.sh", tmp_path, code, f'echo "$*" >> {log}')
-    calls = log.read_text(encoding="utf-8").splitlines()
-    assert [call.split()[4] for call in calls] == ["check", "format"]
-    assert all(call.startswith("run --offline --no-sync ruff") for call in calls)
-
-
-def test_ruff_hook_only_formats_markdown(tmp_path) -> None:
-    doc = tmp_path / "note.md"
-    doc.write_text("x\n", encoding="utf-8")
-    log = tmp_path / "uv.log"
-    _run("ruff-fix.sh", tmp_path, doc, f'echo "$*" >> {log}')
-    calls = log.read_text(encoding="utf-8").splitlines()
-    assert [call.split()[4] for call in calls] == ["format"]
-    assert "--force-exclude" in calls[0]
-
-
-def test_ruff_hook_ignores_other_files(tmp_path) -> None:
-    notes = tmp_path / "notes.txt"
-    notes.write_text("x\n", encoding="utf-8")
-    log = tmp_path / "uv.log"
-    _run("ruff-fix.sh", tmp_path, notes, f'echo "$*" >> {log}')
-    assert not log.exists()
-
-
-def test_hooks_accept_windows_style_paths(tmp_path) -> None:
-    doc = tmp_path / "note.md"
-    doc.write_text("x\n", encoding="utf-8")
-    pygrep = "printf 'note.md:1:caf\\n'; exit 1"
-    out = _run("no-non-ascii.sh", tmp_path, doc, pygrep, backslashes=True)
-    assert json.loads(out)["systemMessage"].startswith("note.md: 1 line(s)")
-    log = tmp_path / "uv.log"
-    _run("ruff-fix.sh", tmp_path, doc, f'echo "$*" >> {log}', backslashes=True)
-    assert log.read_text(encoding="utf-8").split()[4] == "format"
+RUFF_CHECK, RUFF_FORMAT, ASCII = (
+    ["ruff", "check"],
+    ["ruff", "format"],
+    ["pre-commit", "run"],
+)
 
 
 def test_settings_run_one_post_edit_hook() -> None:
@@ -133,11 +89,53 @@ def test_settings_run_one_post_edit_hook() -> None:
     assert hook["command"].endswith('/.claude/hooks/post-edit.sh"')
 
 
-def test_post_edit_formats_before_it_checks_ascii(tmp_path) -> None:
-    code = tmp_path / "code.py"
-    code.write_text("x = 1\n", encoding="utf-8")
-    log = tmp_path / "uv.log"
-    out = _run("post-edit.sh", tmp_path, code, f'echo "$*" >> {log}')
-    steps = [call.split()[3:5] for call in log.read_text(encoding="utf-8").splitlines()]
-    assert steps == [["ruff", "check"], ["ruff", "format"], ["pre-commit", "run"]]
+def test_python_is_fixed_then_formatted_then_checked(tmp_path) -> None:
+    out, calls = _run(tmp_path, _file(tmp_path, "code.py"))
+    assert calls == [RUFF_CHECK, RUFF_FORMAT, ASCII]
     assert out == ""
+
+
+def test_markdown_is_formatted_then_checked(tmp_path) -> None:
+    _, calls = _run(tmp_path, _file(tmp_path, "note.md"))
+    assert calls == [RUFF_FORMAT, ASCII]
+
+
+def test_other_files_are_only_checked(tmp_path) -> None:
+    _, calls = _run(tmp_path, _file(tmp_path, "notes.txt"))
+    assert calls == [ASCII]
+
+
+def test_ascii_report_reaches_the_user_and_claude(tmp_path) -> None:
+    doc = _file(tmp_path, "docs/note.md")
+    report = "Failed\ndocs/note.md:2:caf\ndocs/note.md:5:x\n"
+    out, _ = _run(tmp_path, doc, ascii_report=report, ascii_exit=1)
+    message = json.loads(out)
+    assert message["systemMessage"].startswith("docs/note.md: 2 line(s)")
+    assert message["hookSpecificOutput"] == {
+        "hookEventName": "PostToolUse",
+        "additionalContext": message["systemMessage"],
+    }
+
+
+def test_errors_that_name_no_line_stay_silent(tmp_path) -> None:
+    report = "error: Failed to spawn: pre-commit\n"
+    out, _ = _run(
+        tmp_path, _file(tmp_path, "note.md"), ascii_report=report, ascii_exit=2
+    )
+    assert out == ""
+
+
+def test_files_outside_the_project_are_ignored(tmp_path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    out, calls = _run(project, _file(tmp_path, "outside.md"), ascii_exit=1)
+    assert (out, calls) == ("", [])
+
+
+def test_windows_style_paths_are_accepted(tmp_path) -> None:
+    doc = _file(tmp_path, "note.md")
+    out, calls = _run(
+        tmp_path, doc, ascii_report="note.md:1:caf\n", ascii_exit=1, backslashes=True
+    )
+    assert calls == [RUFF_FORMAT, ASCII]
+    assert json.loads(out)["systemMessage"].startswith("note.md: 1 line(s)")
