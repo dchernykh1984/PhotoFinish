@@ -76,7 +76,7 @@ image instead of by eye:
 ```python
 w.resize(1400, 900)
 w.show()
-app.processEvents()
+QApplication.processEvents()  # static; no local named app, which is the package
 w.grab().save("window.png")
 ```
 
