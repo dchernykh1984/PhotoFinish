@@ -46,7 +46,8 @@ explained and re-checked after the race.
 
 PhotoFinish reads crossing lines `number#time#action#`, which every chronometer writes and
 FinishProtocolGeneratorPython reads. The time is `D H:M:S[.mmm]`: days since 1970-01-01 in
-local time, then hours, minutes and seconds without zero padding, and milliseconds, always
+local standard time (no daylight-saving shift, unless the desktop chronometer's summer-time
+option adds one), then hours, minutes and seconds without zero padding, and milliseconds, always
 three digits, when the chronometer records them. The corrected copy keeps every line it does not correct byte for
 byte and writes a corrected time the way the chronometers do, so the generator reads it
 unchanged. Files from the older tools are read as UTF-8, then cp1251, then Latin-1. A new field, a different separator or time format is a

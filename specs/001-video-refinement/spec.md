@@ -108,6 +108,9 @@ whose own error is below a frame.
   written.
 - A recording made at a variable frame rate (phones): times come from each frame's own
   timestamp, not from its index.
+- Daylight saving time: the chronometers keep local standard time, so in summer their clock
+  can be an hour off the wall-clock time a camera stamps. The offsets of Story 3 absorb it;
+  nothing assumes the two clocks agree.
 
 ## Requirements *(mandatory)*
 
@@ -116,7 +119,7 @@ whose own error is below a frame.
 - **FR-001**: PhotoFinish MUST open the timing files it reads for reading only, and MUST
   NOT write, rename, truncate or lock them.
 - **FR-002**: PhotoFinish MUST read crossing lines `number#time#action#`, the time as
-  `D H:M:S[.mmm]` (hours, minutes and seconds not zero-padded; milliseconds, when recorded,
+  `D H:M:S[.mmm]` in local standard time (hours, minutes and seconds not zero-padded; milliseconds, when recorded,
   always three digits), from any
   chronometer of the set -- desktop or Android, by hand, by beam or
   by chips -- including files from the older C++ tools (UTF-8, then cp1251, then Latin-1).
