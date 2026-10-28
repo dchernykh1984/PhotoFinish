@@ -10,7 +10,8 @@ each commit: `uv run pre-commit run --all-files` and `uv run pytest`.
 - [ ] T002 `app/lines.py`: parse and format crossing lines and times (summer-time option), read a
   file's complete lines with the encodings of the older tools. -- `feat(lines): read and write crossing lines and times`
 - [ ] T003 `app/session.py`: load and save `data/session.json` through `app_path`, defaults,
-  unknown keys kept. -- `feat(session): keep the session next to the program`
+  unknown keys kept, written in one step (temporary file and rename) because recorders read it
+  while the window writes it. -- `feat(session): keep the session next to the program`
 - [ ] T004 [US4] `app/output_list.py`: output lines in time order, atomic writes, `state.json`,
   journal, add/time/number/remove, outside changes kept in a backup and journaled.
   -- `feat(output): keep the referee's crossings in their file with a journal`
@@ -37,7 +38,10 @@ each commit: `uv run pre-commit run --all-files` and `uv run pytest`.
 ## Phase 3: viewing (US1)
 
 - [ ] T010 [US1] `app/video_index.py` and `app/decoder.py`: closed segments, frame times, gaps;
-  decode the frame nearest a time. -- `feat(video): index recorded frames and decode any of them`
+  decode the frame nearest a time. Tests measure, with the test camera, that a frame is indexed
+  within 2 s of capture and that a seek in a one-hour index decodes within 0.5 s (SC-006; a looser
+  bound on CI runners, the real one on the maintainer's laptop).
+  -- `feat(video): index recorded frames and decode any of them`
 - [ ] T011 [US1] Camera view, zoomable timeline, transport and Live, decode worker, keyboard
   stepping; camera list with add/remove and recorder state. Qt tests.
   -- `feat(window): scroll a camera while it records`

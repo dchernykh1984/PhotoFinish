@@ -23,8 +23,9 @@ onnxruntime added with this feature; wheels checked for all five release platfor
 **Storage**: `video/<camera>/<segment>.activity.json` per segment; `video/<camera>/suggestions.jsonl`
 
 **Testing**: synthetic scenes from the test camera (swaying patch, passing figure); a constant-output
-ONNX model built in the tests with `onnx.helper` (dev dependency) to check loading and decoding; a
-fake detector for the pipeline
+ONNX model built in the tests with `onnx.helper` (dev dependency) to check loading and decoding --
+or, if `onnx` has no wheel for Python 3.14 on the CI runner, the same few-hundred-byte model
+generated once by a script in `tests/` and committed; a fake detector for the pipeline
 
 **Performance Goals**: index within 10 s of recording on two cameras on a laptop CPU, sampled at
 5 fps for motion and 2 fps for the detector

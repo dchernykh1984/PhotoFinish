@@ -47,7 +47,8 @@ video/<camera id>/
 | `method` | `input`, `frame`, `interpolated`, `hand`, `typed` |
 | `removed_from_input` | the input line it came from is gone |
 
-The output file is the `text` of every line, sorted by time, stable.
+The output file is the `text` of every line, sorted by time, stable; lines without a readable time
+follow, in the order they were taken.
 
 ## Session (`data/session.json`)
 
