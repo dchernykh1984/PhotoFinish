@@ -23,13 +23,17 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-def _run(hook: str, project: Path, file: Path, fake_uv: str) -> str:
+def _run(
+    hook: str, project: Path, file: Path, fake_uv: str, *, backslashes: bool = False
+) -> str:
     bin_dir = project / "bin"
     bin_dir.mkdir(exist_ok=True)
     uv = bin_dir / "uv"
     uv.write_text(f"#!/bin/sh\n{fake_uv}\n", encoding="utf-8")
     uv.chmod(0o755)
-    payload = json.dumps({"tool_input": {"file_path": str(file)}})
+    # Claude Code on Windows passes native paths with backslashes.
+    style = (lambda p: str(p).replace("/", "\\")) if backslashes else str
+    payload = json.dumps({"tool_input": {"file_path": style(file)}})
     result = subprocess.run(  # noqa: S603
         ["bash", str(HOOKS / hook)],  # noqa: S607
         input=payload,
@@ -37,7 +41,7 @@ def _run(hook: str, project: Path, file: Path, fake_uv: str) -> str:
         text=True,
         env={
             **os.environ,
-            "CLAUDE_PROJECT_DIR": str(project),
+            "CLAUDE_PROJECT_DIR": style(project),
             "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
         },
         check=True,
@@ -106,3 +110,14 @@ def test_ruff_hook_ignores_other_files(tmp_path) -> None:
     log = tmp_path / "uv.log"
     _run("ruff-fix.sh", tmp_path, notes, f'echo "$*" >> {log}')
     assert not log.exists()
+
+
+def test_hooks_accept_windows_style_paths(tmp_path) -> None:
+    doc = tmp_path / "note.md"
+    doc.write_text("x\n", encoding="utf-8")
+    pygrep = "printf 'note.md:1:caf\\n'; exit 1"
+    out = _run("no-non-ascii.sh", tmp_path, doc, pygrep, backslashes=True)
+    assert json.loads(out)["systemMessage"].startswith("note.md: 1 line(s)")
+    log = tmp_path / "uv.log"
+    _run("ruff-fix.sh", tmp_path, doc, f'echo "$*" >> {log}', backslashes=True)
+    assert log.read_text(encoding="utf-8").split()[4] == "format"
