@@ -78,3 +78,13 @@ def test_ascii_hook_ignores_files_outside_the_project(tmp_path) -> None:
     outside.write_text("x\n", encoding="utf-8")
     pygrep = "printf 'outside.md:1:x\\n'; exit 1"
     assert _run("no-non-ascii.sh", project, outside, pygrep) == ""
+
+
+def test_ruff_hook_fixes_before_it_formats(tmp_path) -> None:
+    code = tmp_path / "code.py"
+    code.write_text("x = 1\n", encoding="utf-8")
+    log = tmp_path / "uv.log"
+    _run("ruff-fix.sh", tmp_path, code, f'echo "$*" >> {log}')
+    calls = log.read_text(encoding="utf-8").splitlines()
+    assert [call.split()[4] for call in calls] == ["check", "format"]
+    assert all(call.startswith("run --offline --no-sync ruff") for call in calls)

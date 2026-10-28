@@ -85,7 +85,8 @@ def format_python(paths: list[Path], root: Path) -> None:
     uv = shutil.which("uv")
     if not python_paths or uv is None:
         return
-    for action in (["format", "-q"], ["check", "-q", "--fix"]):
+    # Fix first, then format, as pre-commit does: a fix can change the layout.
+    for action in (["check", "-q", "--fix"], ["format", "-q"]):
         try:
             result = subprocess.run(  # noqa: S603
                 [
