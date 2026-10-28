@@ -1,4 +1,4 @@
 {
   "files": "\\.(py|ya?ml|md|toml|sh|json)$",
-  "exclude": "^(uv\\.lock|CHANGELOG\\.md)$"
+  "exclude": "^(uv\\.lock|CHANGELOG\\.md)$|^(\\.specify/(?!memory/constitution\\.md$)|\\.(claude|agents)/skills/speckit-[^/]+/)"
 }
