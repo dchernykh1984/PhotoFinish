@@ -107,10 +107,12 @@ force-push over a reviewed history.
 Only when explicitly asked. release-please opens a `chore(main): release X.Y.Z`
 PR after `feat:` or `fix:` commits land on `main`, and the same workflow run
 pushes a `chore: match uv.lock to the released version` commit onto that PR's
-branch. Merge only once that commit is there: CI and the release builds install
-with `uv sync --locked` and fail on a lock that lags `pyproject.toml`. Merging
-cuts the tag, builds the portable apps for every platform and attaches them to
-the GitHub release. Never bump `pyproject.toml` by hand.
+branch. Merge only once that commit is there, and check it yourself: CI does
+not run on the release PR, whose commits are pushed with `GITHUB_TOKEN`. A
+lock that lags `pyproject.toml` fails the tests job on `main` after the merge
+(`uv sync --locked`); the release builds still install the locked packages
+(`--frozen`). Merging cuts the tag, builds the portable apps for every platform
+and attaches them to the GitHub release. Never bump `pyproject.toml` by hand.
 
 Confirm the assets landed:
 

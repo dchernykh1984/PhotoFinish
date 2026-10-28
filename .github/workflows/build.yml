@@ -74,8 +74,10 @@ jobs:
             libegl1 libgl1 libxkbcommon0 libxcb-cursor0
 
       # Runtime dependencies only: the dev tools have no place in the build.
+      # --frozen installs exactly the lock even if its root version lags
+      # pyproject.toml, so a tag cut before its lock commit still builds.
       - name: Install dependencies
-        run: uv sync --locked --no-dev
+        run: uv sync --frozen --no-dev
 
       - name: Build portable app
         shell: bash
