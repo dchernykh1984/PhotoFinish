@@ -38,3 +38,11 @@ repos:
         # which may legitimately contain non-ASCII text.
         exclude: ^(uv\.lock|CHANGELOG\.md)$
 
+  - repo: local
+    hooks:
+      - id: coding-agent-hook-tests
+        name: coding agent hook tests
+        entry: python .codex/hooks/test_post_edit.py
+        language: python
+        files: ^\.codex/
+        pass_filenames: false
