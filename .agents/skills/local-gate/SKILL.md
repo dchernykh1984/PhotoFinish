@@ -29,8 +29,8 @@ uv run pytest tests/test_paths.py -q --no-cov -n0
 `CHANGELOG.md` (generated from commit text) and `uv.lock` are exempt, and so
 are Spec Kit's generated files (`.specify/` except the constitution, and the
 `speckit-*` skills), which no hook may rewrite. A typographic dash or a Russian
-word in a docstring fails the commit. A PostToolUse hook warns as soon as one
-lands in a file.
+word in a docstring fails the commit. The edit hooks run that same pre-commit
+rule on every file an agent edits and warn at once.
 
 **`mixed-line-ending --fix=lf`** plus `.gitattributes` (`* text=auto eol=lf`)
 keep the tree LF on every platform. Do not fight it from Windows.
@@ -46,13 +46,16 @@ ones that come up most:
 | `B` | No mutable default args, no bare `except`. |
 
 `tests/**` may use `assert` and fake secrets (`S101`, `S105`, `S106` ignored).
-A PostToolUse hook runs `ruff format` and `ruff check --fix` on every Python
-file that gets edited, so formatting complaints should not reach the commit.
+The edit hooks run `ruff check --fix` and then `ruff format` on every edited
+Python file, and `ruff format` on Markdown (its code blocks), so formatting
+complaints should not reach the commit.
 
-**One version of each tool.** ruff, mypy and commitizen run from `uv.lock`:
-pre-commit calls them through `uv run --frozen`, as do the edit hooks and CI,
-so a bump is one lock change and mypy sees PySide6's types
-(`ignore_missing_imports = true` covers the rest).
+**One version of each tool.** ruff, mypy and commitizen come from `uv.lock`:
+pre-commit and CI call them through `uv run --frozen`, which syncs the
+environment first, so a bump is one lock change and mypy sees PySide6's types
+(`ignore_missing_imports = true` covers the rest). The edit hooks run the ruff
+already installed (`--no-sync`: a hook never installs anything), so run
+`uv sync` after pulling a lock change, or they format with the previous ruff.
 
 ## Coverage
 
