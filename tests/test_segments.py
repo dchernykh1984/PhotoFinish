@@ -9,6 +9,8 @@ from pathlib import Path
 import av
 import pytest
 
+from app import files
+from app.recorder import segments as segments_module
 from app.recorder.segments import SegmentWriter
 from app.recorder.testcam import read_time, render
 
@@ -197,6 +199,27 @@ def test_closed_segments_are_listed_and_a_restart_lists_any_a_crash_missed(
         f.write(cut + "\n")  # the last name cut short: the one before has the times
     restarted = SegmentWriter(tmp_path, fps=30)
     assert restarted._before_ms == START + 39 * 33
+
+
+def test_a_segment_the_list_refused_is_listed_with_the_next(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    writer = SegmentWriter(tmp_path, fps=30)
+    refused = [OSError(5, "Input/output error")]
+
+    def listing(path: Path, data: bytes) -> None:
+        if refused and path.name == "segments.txt":
+            raise refused.pop()
+        files.append(path, data)
+
+    monkeypatch.setattr(segments_module, "append", listing)
+    with pytest.raises(OSError):
+        record(writer, START, 40)  # the first segment closed, its name refused
+    record(writer, START + 2000, 10)  # the recorder goes on, as it does
+    writer.close()
+    listed = (tmp_path / "segments.txt").read_text().split()
+    assert listed == [p.stem for p in segments(tmp_path)]
+    assert len(listed) == 2
 
 
 def test_a_restart_on_a_clock_set_back_records_rather_than_waits(

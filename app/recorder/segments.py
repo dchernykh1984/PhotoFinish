@@ -52,6 +52,7 @@ class SegmentWriter:
         self._before_ms = _last_recorded(folder, closed)
         self.gap_reason = "restart" if self._before_ms is not None else "no frames"
         self._open: _Encoded | _Remuxed | None = None
+        self._unlisted: list[str] = []  # closed, the list refused their names so far
 
     def write(self, image: np.ndarray | av.VideoFrame, ms: int) -> None:
         """A frame taken at ``ms``; frames must come in time order."""
@@ -122,7 +123,10 @@ class SegmentWriter:
         name = f"{stamp}-{n:04d}"
         (self.folder / "current.times").replace(self.folder / f"{name}.times")
         (self.folder / "current.mkv").replace(self.folder / f"{name}.mkv")
-        append(self.folder / SEGMENTS, f"{name}\n".encode("ascii"))
+        self._unlisted.append(name)  # a list that refuses it now takes it next time
+        listed = "".join(f"{closed}\n" for closed in self._unlisted)
+        append(self.folder / SEGMENTS, listed.encode("ascii"))
+        self._unlisted = []
 
     def _gap(self, start: int, end: int) -> None:
         line = f"{start} {end} {self.gap_reason}\n"
