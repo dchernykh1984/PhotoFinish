@@ -16,6 +16,10 @@ def main() -> None:
         from app.recorder import run
 
         sys.exit(run(sys.argv[2]))
+    if len(sys.argv) == 3 and sys.argv[1] == "--analyzer":
+        from app.analysis.analyzer import run as analyze
+
+        sys.exit(analyze(sys.argv[2]))
     # Qt only for the window: a recorder process does without it.
     from PySide6.QtGui import QIcon
     from PySide6.QtWidgets import QApplication
