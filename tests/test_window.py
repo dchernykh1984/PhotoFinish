@@ -1339,3 +1339,26 @@ def test_the_suggestion_chosen_stays_chosen_as_others_arrive(
     item = win.suggestion_list.currentItem()
     assert item is not None
     assert item.data(Qt.ItemDataRole.UserRole)[1]["id"] == f"cam1-{START + 2000}"
+
+
+def test_a_crossing_written_whose_journal_failed_is_not_written_twice(
+    recording: Path,
+    make_window: Callable[[], mw.MainWindow],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session.save({**session.load(), "output": "out.txt"})
+    win = make_window()
+    wait_until(lambda: win.place is not None)
+
+    def held(path: Path, data: bytes) -> None:
+        raise OSError("journal held")
+
+    monkeypatch.setattr(output_list, "_append", held)
+    win.number.setText("15")
+    win.add_crossing()
+    assert "the journal cannot take it" in win.statusBar().currentMessage()
+    assert win.number.text() == ""  # done: Enter again would add it twice
+    assert len((recording / "out.txt").read_text().splitlines()) == 1
+    win.output_view.selectRow(0)
+    assert win._correct(lambda output: output.set_number(0, "16"))
+    assert "Written; the journal" in win.statusBar().currentMessage()

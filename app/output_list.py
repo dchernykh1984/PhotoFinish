@@ -20,6 +20,7 @@ import copy
 import functools
 import json
 import os
+import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
@@ -27,6 +28,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from app import files
 from app.files import write_in_one_step as _write_in_one_step
 from app.lines import parse_line, scale_time, text_lines
 
@@ -41,6 +43,11 @@ class OutputLine:
     origin: dict[str, Any]
     method: str
     removed_from_input: bool = False
+
+
+class JournalError(OSError):
+    """The change is written to the output and its state; its journal entries are
+    not. Not a failed change: doing it again would do it twice."""
 
 
 @dataclass
@@ -176,7 +183,10 @@ class OutputList:
             raise
         entries, self._pending = self._pending, None
         if entries:
-            _append(self.journal_path, b"".join(entries))
+            try:
+                _append(self.journal_path, b"".join(entries))
+            except OSError as error:
+                raise JournalError(str(error)) from error
 
     def _replace(
         self, index: int, text: str, op: str, change: Change, taken: str | None = None
@@ -397,14 +407,21 @@ def _aside(path: Path, why: str) -> Path:
 
 def _append(path: Path, data: bytes) -> None:
     """``data`` at the end of ``path``, synced; after a line a crash cut short, on a
-    line of its own."""
+    line of its own. A file held a moment (Windows) is tried again."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a+b") as f:
-        end = f.seek(0, os.SEEK_END)
-        if end:
-            f.seek(end - 1)
-            if f.read(1) != b"\n":
-                data = b"\n" + data
-        f.write(data)
-        f.flush()
-        os.fsync(f.fileno())
+    for attempt in range(files.TRIES):
+        try:
+            with path.open("a+b") as f:
+                end = f.seek(0, os.SEEK_END)
+                if end:
+                    f.seek(end - 1)
+                    if f.read(1) != b"\n":
+                        data = b"\n" + data
+                f.write(data)
+                f.flush()
+                os.fsync(f.fileno())
+            return
+        except PermissionError:
+            if attempt == files.TRIES - 1:
+                raise
+            time.sleep(files.PAUSE_S)

@@ -37,7 +37,7 @@ from app.analysis.suggestions import Suggestions
 from app.input_follow import InputFollow
 from app.interpolation import Point, between, crossing, finish_line
 from app.lines import parse_line, parse_time, scale_time, to_epoch, to_line_scale
-from app.output_list import Change, OutputLine, OutputList
+from app.output_list import Change, JournalError, OutputLine, OutputList
 from app.paths import app_path
 from app.recorder import folder_of
 from app.recorder.launcher import Watchdog, command, describe, heartbeat, package_root
@@ -434,6 +434,8 @@ class MainWindow(QMainWindow):
         except ValueError:
             self._say("That line is as it was taken")
             return
+        except JournalError as error:
+            self._say(f"Copied; the journal cannot take it: {error}")
         except OSError as error:
             self._say(f"The output file cannot be written: {error}")
             return
@@ -486,6 +488,9 @@ class MainWindow(QMainWindow):
                     "The output file was changed outside PhotoFinish: kept beside it"
                 )
                 self._show_lists()
+        except JournalError as error:  # the lines are taken, written
+            self._say(f"Input lines taken; the journal cannot take them: {error}")
+            self._show_lists()
         except OSError as error:
             self._say(f"The files cannot be followed: {error}")
 
@@ -533,15 +538,18 @@ class MainWindow(QMainWindow):
             self._say("There is no frame to time the crossing on")
             return
         line_ms, change = timed
+        said = f"Added {self.number.text().strip()} at {scale_time(line_ms)}"
         try:
             self.output.add(self.number.text(), line_ms, self._action(), change)
         except ValueError:
             self._say("Type the rider's number first")
             return
+        except JournalError as error:
+            said += f"; the journal cannot take it: {error}"
         except OSError as error:
             self._say(f"The output file cannot be written: {error}")
             return
-        self._say(f"Added {self.number.text().strip()} at {scale_time(line_ms)}")
+        self._say(said)
         self.number.clear()
         self._show_lists()
 
@@ -952,6 +960,9 @@ class MainWindow(QMainWindow):
         except ValueError:
             self._say("A crossing needs a number")
             return False
+        except JournalError as error:  # written: done, whatever the journal says
+            self._say(f"Written; the journal cannot take it: {error}")
+            moved = None
         except OSError as error:
             self._say(f"The output file cannot be written: {error}")
             return False
