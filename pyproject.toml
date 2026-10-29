@@ -4,7 +4,11 @@ version = "0.1.0"
 description = "Photo finish for offline race timing: refine chronometer crossing times from video"
 authors = [{ name = "Denis Chernykh", email = "education03@mail.ru" }]
 requires-python = ">=3.14,<3.15"
-dependencies = ["PySide6>=6.8"]
+dependencies = [
+    "av>=19,<20",
+    "numpy>=2.3",
+    "PySide6>=6.8",
+]
 
 [dependency-groups]
 dev = [
