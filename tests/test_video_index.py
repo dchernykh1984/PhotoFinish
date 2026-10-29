@@ -278,3 +278,21 @@ def test_a_segment_listed_without_a_frame_adds_none(tmp_path: Path) -> None:
     assert not index.refresh()
     assert len(index) == 40
     assert empty.with_suffix(".mkv") not in index.paths
+
+
+def test_an_hour_of_segments_is_appended_without_copying_it_each_time(
+    tmp_path: Path,
+) -> None:
+    import numpy as np
+
+    index = VideoIndex(tmp_path)
+    index.paths = [tmp_path / "a.mkv"]
+    started = time.perf_counter()
+    for second in range(3600):
+        moments = START + second * 1000 + np.arange(30, dtype=np.int64) * 33
+        index._append(moments, np.arange(30, dtype=np.int64), np.zeros(30, np.int32))
+    assert time.perf_counter() - started < (5.0 if ON_CI else 2.0)
+    assert len(index) == 108_000
+    assert index.frame(107_999).ms == START + 3599 * 1000 + 29 * 33
+    index._append(np.empty(0, np.int64), np.empty(0, np.int64), np.empty(0, np.int32))
+    assert len(index) == 108_000

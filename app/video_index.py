@@ -45,9 +45,17 @@ class VideoIndex:
         self.folder = folder
         self.paths: list[Path] = []
         self.gaps: list[Gap] = []
-        self.ms = np.empty(0, np.int64)  # every frame's moment, ascending
-        self._pts = np.empty(0, np.int64)
-        self._segment = np.empty(0, np.int32)  # into paths
+        # Every frame's moment ascending, its pts, its segment (into paths): views of
+        # buffers that double as they fill, so a new segment copies only itself.
+        self._buffers: list[np.ndarray] = [
+            np.empty(0, np.int64),
+            np.empty(0, np.int64),
+            np.empty(0, np.int32),
+        ]
+        self._size = 0
+        self.ms: np.ndarray = self._buffers[0]
+        self._pts: np.ndarray = self._buffers[1]
+        self._segment: np.ndarray = self._buffers[2]
         self._names: set[str] = set()
         self._gaps_size = 0
         self._listed = Appended(folder / SEGMENTS)
@@ -112,14 +120,26 @@ class VideoIndex:
         )
 
     def _append(self, ms: np.ndarray, pts: np.ndarray, segment: np.ndarray) -> None:
+        if not ms.size:
+            return
         later = not len(self) or ms.min() >= self.ms[-1]
-        self.ms = np.concatenate([self.ms, ms])
-        self._pts = np.concatenate([self._pts, pts])
-        self._segment = np.concatenate([self._segment, segment])
+        size, end = self._size, self._size + ms.size
+        if end > self._buffers[0].size:
+            room = max(end, 2 * self._buffers[0].size, 4096)
+            grown = []
+            for old in self._buffers:
+                new = np.empty(room, old.dtype)
+                new[:size] = old[:size]
+                grown.append(new)
+            self._buffers = grown
+        for buffer, values in zip(self._buffers, (ms, pts, segment), strict=True):
+            buffer[size:end] = values
+        self._size = end
         if not later or not np.all(ms[:-1] <= ms[1:]):
-            order = np.argsort(self.ms, kind="stable")
-            self.ms, self._pts = self.ms[order], self._pts[order]
-            self._segment = self._segment[order]
+            order = np.argsort(self._buffers[0][:end], kind="stable")
+            for buffer in self._buffers:
+                buffer[:end] = buffer[:end][order]
+        self.ms, self._pts, self._segment = (b[:end] for b in self._buffers)  # views
 
     def _read_gaps(self) -> None:
         path = self.folder / "gaps.txt"

@@ -303,3 +303,15 @@ def test_the_choice_follows_its_line_when_rows_move() -> None:
     assert view.chosen() == 2
     view.show_rows(rows("x", "a", "c"))  # the line chosen is gone
     assert view.chosen() is None
+
+
+def test_the_timeline_puts_a_camera_on_the_video_time_by_its_offset() -> None:
+    timeline = Timeline()
+    timeline.resize(1000, 48)
+    moments = START + np.arange(300, dtype=np.int64) * 33
+    timeline.set_recording(moments, [], offset=-1234)
+    assert (timeline.start, timeline.end) == (START - 1234, int(moments[-1]) - 1234)
+    timeline.zoom(0.0001, timeline.x_at(START - 1234 + 50))
+    assert timeline.between_frames(START - 1234 + 50)
+    assert not timeline.between_frames(START - 1234 - 500)  # before its first frame
+    timeline.grab()
