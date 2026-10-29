@@ -2,9 +2,10 @@
 
 Every frame shows its moment as a clock the referee reads (local standard time, the
 scale of the chronometers' files) and as a strip of black and white blocks along the
-bottom that a test reads back after encoding. Scenes add
-a bar crossing the frame once a second (sub-frame timing), a flash for the first
-100 ms of every 5 s (aligning two cameras) or a swaying patch (motion).
+bottom that a test reads back after encoding. Scenes add a bar crossing the frame
+once a second (sub-frame timing), a flash for the first 100 ms of every 5 s (aligning
+two cameras), leaves swaying in place (motion that is no rider), or those leaves and
+a rider passing every 10 s (finding riders).
 """
 
 from __future__ import annotations
@@ -15,7 +16,9 @@ from collections.abc import Callable, Iterator
 
 import numpy as np
 
-SCENES = ("clock", "bar", "flash", "sway")
+SCENES = ("clock", "bar", "flash", "sway", "passes")
+PASS_EVERY_MS, PASS_START_MS, PASS_MS = 10_000, 2_000, 1_500  # a rider's passes
+_LEAVES = ((0.25, 0.35, 1000), (0.5, 0.3, 1300), (0.7, 0.55, 800))  # x, y, period
 _BITS = 44  # Unix milliseconds until the year 2527
 _STRIP = 16  # the strip's height in pixels
 _FONT = {  # 3 x 5 glyphs, rows top to bottom
@@ -46,13 +49,41 @@ def render(ms: int, width: int, height: int, scene: str = "clock") -> np.ndarray
     elif scene == "bar":
         x = ms * width // 1000 % width  # the leading edge crosses once a second
         image[:, max(x - width // 40, 0) : x] = 255
-    elif scene == "sway":
-        side = height // 4
-        x = int(width / 2 + width / 4 * math.sin(2 * math.pi * ms / 2000))
-        image[height // 3 : height // 3 + side, x - side // 2 : x + side // 2] = 200
+    elif scene in ("sway", "passes"):
+        _draw_leaves(image, ms)
+        front = rider_front(ms, width) if scene == "passes" else None
+        if front is not None:
+            back = max(round(front) - width // 8, 0)
+            image[
+                int(height * 0.45) : int(height * 0.85), back : max(round(front), 0)
+            ] = 30
     _draw_clock(image, ms)
     _draw_strip(image, ms)
     return image
+
+
+def rider_front(ms: int, width: int) -> float | None:
+    """Where the passing rider's front is, in pixels from the left; None between
+    passes. A pass crosses the whole picture in PASS_MS."""
+    into = ms % PASS_EVERY_MS - PASS_START_MS
+    if not 0 <= into < PASS_MS:
+        return None
+    body = width // 8
+    return -body + into * (width + body) / PASS_MS
+
+
+def _draw_leaves(image: np.ndarray, ms: int) -> None:
+    """Patches swaying in place, a little, as leaves in the wind."""
+    height, width = image.shape[:2]
+    side = height // 8
+    for x, y, period in _LEAVES:
+        sway = width * 0.015 * math.sin(2 * math.pi * ms / period)
+        cx, cy = int(width * x + sway), int(height * y)
+        image[cy - side // 2 : cy + side // 2, cx - side // 2 : cx + side // 2] = (
+            60,
+            140,
+            60,
+        )
 
 
 def read_time(image: np.ndarray) -> int:

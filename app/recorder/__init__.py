@@ -31,7 +31,7 @@ from app.recorder.sources import CameraSettingsError, Source, open_source
 
 LOW_DISK = 2 * 1024**3
 STALE_MS = 5000  # a heartbeat older than this: the recorder is gone
-_CAMERA_ID = re.compile(r"[A-Za-z0-9_-]+")
+CAMERA_ID = re.compile(r"[A-Za-z0-9_-]+")
 
 
 def folder_of(camera_id: str) -> Path:
@@ -120,7 +120,7 @@ def run(
     sleep: Callable[[float], None] = time.sleep,
 ) -> int:
     """Record the camera until ``stop.request``; the process's exit code."""
-    if not _CAMERA_ID.fullmatch(camera_id):
+    if not CAMERA_ID.fullmatch(camera_id):
         return 2
     folder = folder_of(camera_id)
     folder.mkdir(parents=True, exist_ok=True)
