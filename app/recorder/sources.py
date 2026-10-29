@@ -46,7 +46,7 @@ def open_source(
     sleep: Callable[[float], None] = time.sleep,
 ) -> Source:
     """The camera's connection, ready to give frames; ``clock`` gives moments."""
-    found = cameras.problems(camera)
+    found = cameras.recording_problems(camera)  # a line or zone drawn: not here
     if found:
         raise CameraSettingsError("; ".join(found))
     settings = camera.get("settings") or {}

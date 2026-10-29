@@ -47,6 +47,17 @@ def test_a_camera_that_cannot_record_is_refused_with_the_reason() -> None:
         open_source({"connection": "test", "settings": {"scene": "rain"}}, lambda: 0)
 
 
+def test_what_only_the_window_uses_never_stops_a_recording() -> None:
+    camera = {
+        "connection": "test",
+        "settings": {"fps": 10},
+        "finish_line": [[0.5, 0.5], [0.5, 0.5]],
+        "zone": [[0.3, 0.2], [0.3, 0.8]],
+        "offset_ms": "soon",
+    }
+    assert next(open_source(camera, lambda: START).frames()) is not None
+
+
 def test_moments_follow_the_camera_timestamps_from_the_first() -> None:
     now = {"ms": START}
     anchor = Anchor(lambda: now["ms"])

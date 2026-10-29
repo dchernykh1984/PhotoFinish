@@ -35,7 +35,7 @@ from app import analysis, paths, session
 from app.analysis.activity import Activity
 from app.analysis.suggestions import Suggestions
 from app.input_follow import InputFollow
-from app.interpolation import Point, between, crossing, finish_line
+from app.interpolation import Point, between, crossing, finish_line, points
 from app.lines import (
     parse_line,
     parse_time,
@@ -680,6 +680,15 @@ class MainWindow(QMainWindow):
     def _draw(self, camera: Camera, drawing: list[Point], point: Point) -> None:
         drawing.append(point)
         if len(drawing) < 2:
+            return
+        zone = self.drawn == "zone"
+        if not (analysis.valid_zone(drawing) if zone else points(drawing)):
+            drawing.pop()  # a double click, say: the first end stays, the other asked
+            self._say(
+                "Click the opposite corner: the zone needs width and height"
+                if zone
+                else "Click the other end of the line, apart from the first"
+            )
             return
         camera.settings[self.drawn] = [list(end) for end in drawing]
         self._save_session()
