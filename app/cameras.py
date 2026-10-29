@@ -14,6 +14,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
+from app import analysis
 from app.recorder.testcam import SCENES
 
 CONNECTIONS = ("usb", "rtsp", "rtmp", "test", "file")
@@ -73,6 +74,8 @@ def problems(camera: dict[str, Any]) -> list[str]:
         found.append("the finish line must be two different points within the picture")
     if not isinstance(camera.get("offset_ms", 0), int):
         found.append("the offset must be whole milliseconds")
+    if camera.get("zone") is not None and not analysis.valid_zone(camera["zone"]):
+        found.append("the zone must be two corners of a part of the picture")
     return found
 
 

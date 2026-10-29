@@ -26,6 +26,7 @@ DEFAULTS: dict[str, Any] = {
     "finish_mode": False,
     "source_offset_ms": 0,
     "cameras": [],
+    "analysis": {"on": False, "model": ""},  # specs/002: experimental, off by default
 }
 
 
