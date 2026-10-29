@@ -60,7 +60,7 @@ class VideoIndex:
         self._pts: np.ndarray = self._buffers[1]
         self._segment: np.ndarray = self._buffers[2]
         self._names: set[str] = set()
-        self._gaps_size = 0
+        self._gaps = Appended(folder / "gaps.txt")
         self._listed = Appended(folder / SEGMENTS)
         self._unread: dict[str, int] = {}  # listed, times not read yet: the tries
         self.unreadable: list[str] = []  # given up: their frames are not here
@@ -129,9 +129,12 @@ class VideoIndex:
         return min(max(place + frames, 0), len(self) - 1)
 
     def step_ms(self, place: int, ms: int) -> int:
-        """The place of the frame nearest ``ms`` on from the frame at ``place``."""
+        """The place of the frame nearest ``ms`` on from the frame at ``place``; at
+        least the next frame that way, so a gap in the recording is stepped over."""
         nearest = self.nearest(int(self.ms[place]) + ms)
-        return place if nearest is None else nearest
+        if nearest is None or (nearest == place and ms):
+            return self.step(place, 1 if ms > 0 else -1)
+        return nearest
 
     def find(self, frame: Frame) -> int | None:
         """A frame's place now: after the frames were sorted anew, it may differ."""
@@ -174,21 +177,14 @@ class VideoIndex:
         self.ms, self._pts, self._segment = (b[:end] for b in self._buffers)  # views
 
     def _read_gaps(self) -> None:
-        path = self.folder / "gaps.txt"
-        try:
-            size = path.stat().st_size
-        except OSError:
-            return
-        if size == self._gaps_size:
-            return
-        self._gaps_size = size
-        gaps = []
-        for line in path.read_text(encoding="ascii", errors="replace").splitlines():
+        """The gaps noted since the last read, read from where it stopped."""
+        # shortcut: a gaps.txt edited shorter is read again whole, its gaps listed
+        # twice -- drawn twice, harmless; the recorder only appends to it.
+        for line in self._gaps.new_lines():
             start, _, rest = line.partition(" ")
             end, _, reason = rest.partition(" ")
             if start.isdigit() and end.isdigit():
-                gaps.append(Gap(int(start), int(end), reason))
-        self.gaps = gaps
+                self.gaps.append(Gap(int(start), int(end), reason))
 
 
 def read_times(path: Path) -> np.ndarray | None:
