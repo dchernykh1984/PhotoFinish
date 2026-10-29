@@ -12,6 +12,7 @@ from PySide6.QtGui import QFont, QImage, QWheelEvent
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QFileDialog
 
+from app import cameras
 from app.recorder.segments import SegmentWriter
 from app.recorder.testcam import render
 from app.widgets.camera_dialog import CameraDialog
@@ -49,6 +50,24 @@ def test_the_dialog_fills_a_preset_in_and_says_untested() -> None:
     assert dialog.address.text().endswith(":1935/live/sj10pro")
     dialog.preset.setCurrentIndex(0)  # back to none: the fields stay
     assert dialog.kind() == "rtmp"
+
+
+def test_the_dialog_looks_this_computer_up_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    looked: list[str] = []
+
+    def here() -> str:
+        looked.append("10.0.0.5")
+        return looked[-1]
+
+    monkeypatch.setattr(cameras, "this_computer", here)
+    dialog = CameraDialog(None, "cam1", [])
+    dialog.connection.setCurrentIndex(2)  # RTMP
+    for typed in ("live/a", "live/ab", "live/abc"):
+        dialog.path.setText(typed)
+    assert dialog.address.text() == "rtmp://10.0.0.5:1935/live/abc"
+    assert len(looked) == 1
 
 
 def test_the_dialog_keeps_ok_off_while_the_camera_cannot_record(

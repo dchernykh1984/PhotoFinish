@@ -8,6 +8,7 @@ above 0.4, overlaps over 0.45 suppressed. It runs on the CPU; nothing is fetched
 
 from __future__ import annotations
 
+import functools
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -85,6 +86,17 @@ class Detector:
 def decode(raw: np.ndarray, height: int, width: int) -> np.ndarray:
     """YOLOX's raw boxes on the input's pixels: centres from grid offsets, sizes
     from their logarithms; scores as they are."""
+    grid, step = _grid(height, width)
+    found = raw.copy()
+    found[:, :2] = (found[:, :2] + grid) * step
+    found[:, 2:4] = np.exp(found[:, 2:4]) * step
+    return found
+
+
+@functools.cache
+def _grid(height: int, width: int) -> tuple[np.ndarray, np.ndarray]:
+    """Each cell's column and row on the three grids, and its stride: the same for
+    every frame of a model, so made once."""
     grids, steps = [], []
     for stride in STRIDES:
         rows, columns = np.meshgrid(
@@ -92,11 +104,7 @@ def decode(raw: np.ndarray, height: int, width: int) -> np.ndarray:
         )
         grids.append(np.stack([columns.ravel(), rows.ravel()], axis=1))
         steps.append(np.full((rows.size, 1), stride))
-    grid, step = np.concatenate(grids), np.concatenate(steps)
-    found = raw.copy()
-    found[:, :2] = (found[:, :2] + grid) * step
-    found[:, 2:4] = np.exp(found[:, 2:4]) * step
-    return found
+    return np.concatenate(grids), np.concatenate(steps)
 
 
 def riders(found: np.ndarray, ratio: float, width: int, height: int) -> list[Box]:
