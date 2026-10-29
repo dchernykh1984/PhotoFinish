@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from fractions import Fraction
 from pathlib import Path
+from typing import Any
 
 import av
 import numpy as np
@@ -31,6 +32,10 @@ class Frame:
     path: Path
     pts: int
     ms: int
+
+    def ref(self) -> list[Any]:
+        """The frame as the journal names it: ``[segment, pts, ms]``."""
+        return [self.path.name, self.pts, self.ms]
 
 
 @dataclass(frozen=True)

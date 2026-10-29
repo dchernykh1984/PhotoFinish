@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import os
 import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -27,26 +28,12 @@ def write_in_one_step(path: Path, data: bytes) -> None:
         f.write(data)
         f.flush()
         os.fsync(f.fileno())
-    for attempt in range(TRIES):
-        try:
-            tmp.replace(path)
-            return
-        except PermissionError:
-            if attempt == TRIES - 1:
-                raise
-            time.sleep(PAUSE_S)
+    _retried(lambda: tmp.replace(path))
 
 
 def read_bytes(path: Path) -> bytes:
     """The file's bytes, read again while another process is replacing it."""
-    for attempt in range(TRIES):
-        try:
-            return path.read_bytes()
-        except PermissionError:
-            if attempt == TRIES - 1:
-                raise
-            time.sleep(PAUSE_S)
-    raise AssertionError("unreachable")  # pragma: no cover
+    return _retried(path.read_bytes)
 
 
 def read_json(path: Path) -> dict[str, Any] | None:
@@ -64,22 +51,29 @@ def append(path: Path, data: bytes) -> None:
     line of its own, so the two are not read as one. A file held a moment (Windows)
     is tried again."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    for attempt in range(TRIES):
+
+    def once() -> None:
+        with path.open("a+b") as f:
+            end, start = f.seek(0, os.SEEK_END), b""
+            if end:
+                f.seek(end - 1)
+                start = b"" if f.read(1) == b"\n" else b"\n"  # after a line cut short
+            f.write(start + data)  # "a" mode: at the end, wherever it was read
+            f.flush()
+            os.fsync(f.fileno())
+
+    _retried(once)
+
+
+def _retried[T](act: Callable[[], T]) -> T:
+    """``act`` done; tried again while another process holds the file a moment
+    (Windows), its error raised at the last try."""
+    for _ in range(TRIES - 1):
         try:
-            with path.open("a+b") as f:
-                end = f.seek(0, os.SEEK_END)
-                if end:
-                    f.seek(end - 1)
-                    if f.read(1) != b"\n":
-                        data = b"\n" + data
-                f.write(data)
-                f.flush()
-                os.fsync(f.fileno())
-            return
+            return act()
         except PermissionError:
-            if attempt == TRIES - 1:
-                raise
             time.sleep(PAUSE_S)
+    return act()
 
 
 class Appended:

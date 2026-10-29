@@ -28,6 +28,7 @@ ChronometerPython issue #49.
 | `app/recorder/` | The recorder process: sources, segments, test camera, launcher. |
 | `app/video_index.py`, `app/decoder.py` | Recorded frames found by time; one decoded. |
 | `app/interpolation.py` | The finish line and the caliper reading. |
+| `app/shared_event.py` | Cameras in step on an event they all show. |
 | `app/paths.py` | Resolves where data lives (see below). |
 | `tests/` | pytest; `conftest.py` holds the offscreen Qt fixtures. |
 | `specs/` | Specifications; `specs/app/` is the program as built; the principles are in `.specify/memory/constitution.md`. |

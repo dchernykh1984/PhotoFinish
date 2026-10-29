@@ -70,3 +70,19 @@ def _joined(pieces: list[tuple[int, int]]) -> list[tuple[int, int]]:
         else:
             joined.append((start, end))
     return joined
+
+
+UP_TO_DATE_MS = 3000  # an analyser this close behind the newest frame keeps up
+
+
+def how_far(progress: dict[str, Any] | None, newest_ms: int | None) -> str:
+    """How far a camera's analyser has got (FR-009), as the camera list says it:
+    its failure, nothing yet, or how far behind the newest frame recorded."""
+    progress = progress or {}
+    if progress.get("state") == "failed":
+        return str(progress.get("detail") or "cannot be found")
+    done = progress.get("done_ms")
+    if done is None:
+        return "not found yet"
+    behind = 0 if newest_ms is None else newest_ms - int(done)
+    return "up to date" if behind <= UP_TO_DATE_MS else f"{behind // 1000} s behind"
