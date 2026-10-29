@@ -13,6 +13,7 @@ standard input closes.
 
 from __future__ import annotations
 
+import copy
 import json
 import os
 import sys
@@ -45,7 +46,8 @@ SUGGESTIONS = "suggestions.jsonl"
 
 class Watch(Protocol):
     """How frames are looked at: every frame seen, the samples fed; a sample's
-    moment of a rider, or None; the crossings it suggests."""
+    moment of a rider, or None; the crossings it suggests. What it has seen is
+    kept before a segment and put back when the segment fails partway."""
 
     method: str
     every_ms: int
@@ -54,6 +56,10 @@ class Watch(Protocol):
     def see(self, frame: av.VideoFrame, ref: Ref) -> None: ...
 
     def feed(self, frame: av.VideoFrame, ref: Ref) -> int | None: ...
+
+    def kept(self) -> Any: ...
+
+    def back_to(self, kept: Any) -> None: ...
 
 
 class MotionWatch:
@@ -70,6 +76,12 @@ class MotionWatch:
         height = max(round(WIDTH * frame.height / frame.width), 1)
         grey = frame.reformat(width=WIDTH, height=height, format="gray")
         return self.motion.feed(grey.to_ndarray(), ref[2])
+
+    def kept(self) -> Any:
+        return copy.deepcopy(self.motion)
+
+    def back_to(self, kept: Any) -> None:
+        self.motion = kept
 
 
 class ModelWatch:
@@ -99,7 +111,10 @@ class ModelWatch:
         for found in self.tracker.feed(boxes, ref):
             timed = refine(found, self.frames, self.detector.riders, self.line)
             if timed is not None:
+                # Riders abreast may cross at one millisecond: their ids still differ.
                 name = f"{self.camera_id}-{timed['ms']}"
+                same = sum(s["ms"] == timed["ms"] for s in self.suggestions)
+                name += f"-{same + 1}" if same else ""
                 self.suggestions.append(
                     {"id": name, "camera": self.camera_id, "model": self.detector.name}
                     | timed
@@ -110,6 +125,13 @@ class ModelWatch:
             if box.x1 < x1 and box.x2 > x0 and box.y1 < y1 and box.y2 > y0:
                 return ref[2]
         return None
+
+    def kept(self) -> Any:
+        return copy.deepcopy(self.tracker), list(self.frames), len(self.suggestions)
+
+    def back_to(self, kept: Any) -> None:
+        self.tracker, self.frames, suggested = kept
+        del self.suggestions[suggested:]
 
 
 def run(
@@ -147,12 +169,14 @@ def run(
             continue
         while todo and not stop():
             name = todo.popleft()
+            before = watch.kept()
             try:
                 sample = _analyse(folder / f"{name}.mkv", watch, sample)
             except OSError as error:  # held by another process a moment: later
+                watch.back_to(before)  # tried again as if never begun
                 failures[name] = failures.get(name, 0) + 1
                 if failures[name] < TRIES:
-                    todo.append(name)
+                    todo.appendleft(name)  # before the segments after it
                     sleep(1)
                     continue
                 _record(folder / f"{name}.mkv", {"version": 1, "error": str(error)})
