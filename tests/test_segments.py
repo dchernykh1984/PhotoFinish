@@ -1,0 +1,113 @@
+"""Recording into short segments, each with the time of every frame."""
+
+from __future__ import annotations
+
+import re
+import time
+from pathlib import Path
+
+import av
+import pytest
+
+from app.recorder.segments import SegmentWriter
+from app.recorder.testcam import read_time, render
+
+START = 1_761_716_129_587
+NAME = re.compile(r"\d{8}-\d{6}-\d{4}")
+
+
+def record(writer: SegmentWriter, start: int, frames: int, step: int = 33) -> None:
+    for k in range(frames):
+        writer.write(render(start + k * step, 640, 360), start + k * step)
+
+
+def segments(folder: Path) -> list[Path]:
+    return sorted(p for p in folder.glob("*.mkv") if NAME.fullmatch(p.stem))
+
+
+def times(path: Path) -> list[tuple[int, int]]:
+    lines = path.with_suffix(".times").read_text().splitlines()
+    return [(int(pts), int(ms)) for pts, ms in (line.split() for line in lines)]
+
+
+def test_frames_go_into_two_second_segments_with_their_times(tmp_path: Path) -> None:
+    writer = SegmentWriter(tmp_path, fps=30)
+    record(writer, START, 150)
+    assert len(segments(tmp_path)) == 2
+    assert (tmp_path / "current.mkv").exists()
+    writer.close()
+    closed = segments(tmp_path)
+    assert len(closed) == 3
+    assert (writer.segments, writer.frames) == (3, 150)
+    assert not (tmp_path / "current.mkv").exists()
+    stamp = time.strftime("%Y%m%d-%H%M%S", time.localtime(START / 1000))
+    assert closed[0].stem == f"{stamp}-0001"
+    for path in closed:
+        frames = times(path)
+        assert frames[-1][1] - frames[0][1] < 2000
+        with av.open(str(path)) as container:
+            packets = [p for p in container.demux(video=0) if p.pts is not None]
+            assert packets[0].is_keyframe
+        with av.open(str(path)) as container:
+            decoded = [
+                (f.pts, read_time(f.to_ndarray(format="rgb24")))
+                for f in container.decode(video=0)
+            ]
+        assert decoded == frames
+    assert not (tmp_path / "gaps.txt").exists()
+
+
+def test_a_stretch_without_frames_is_a_gap(tmp_path: Path) -> None:
+    writer = SegmentWriter(tmp_path, fps=30)
+    record(writer, START, 3)
+    writer.write(render(START + 66 + 101, 640, 360), START + 66 + 101)
+    writer.write(render(START + 66 + 101, 640, 360), START + 66 + 101)
+    writer.close()
+    assert (
+        tmp_path / "gaps.txt"
+    ).read_text() == f"{START + 66} {START + 167} no frames\n"
+    assert writer.frames == 4
+
+
+def test_a_restart_keeps_what_a_crash_left_and_marks_the_gap(tmp_path: Path) -> None:
+    writer = SegmentWriter(tmp_path, fps=30)
+    record(writer, START, 70)
+    writer.close()
+    last = times(segments(tmp_path)[-1])[-1][1]
+    record(writer, START + 5000, 10)
+    del writer  # a crash: the open segment stays as it was
+    again = SegmentWriter(tmp_path, fps=30)
+    assert {p.suffix for p in tmp_path.glob("crashed-*")} == {".mkv", ".times"}
+    record(again, START + 9000, 3)
+    again.close()
+    gaps = (tmp_path / "gaps.txt").read_text().splitlines()
+    assert gaps[-1] == f"{last} {START + 9000} restart"
+    assert len(segments(tmp_path)) == 3
+
+
+@pytest.mark.parametrize("fps", [25, 29.97, 60])
+def test_the_frame_rate_is_kept_as_the_stream_rate(tmp_path: Path, fps: float) -> None:
+    writer = SegmentWriter(tmp_path, fps=fps)
+    record(writer, START, 3, step=round(1000 / fps))
+    writer.close()
+    with av.open(str(segments(tmp_path)[0])) as container:
+        assert container.streams.video[0].codec_context.name == "mpeg4"
+
+
+def test_a_video_frame_is_written_as_it_comes(tmp_path: Path) -> None:
+    writer = SegmentWriter(tmp_path, fps=30)
+    frame = av.VideoFrame.from_ndarray(render(START, 640, 360), format="rgb24")
+    writer.write(frame.reformat(format="yuv420p"), START)
+    writer.close()
+    assert times(segments(tmp_path)[0]) == [(0, START)]
+
+
+def test_closing_twice_or_onto_a_name_taken_loses_nothing(tmp_path: Path) -> None:
+    writer = SegmentWriter(tmp_path, fps=30)
+    writer.close()
+    stamp = time.strftime("%Y%m%d-%H%M%S", time.localtime(START / 1000))
+    (tmp_path / f"{stamp}-0001.mkv").write_bytes(b"kept")
+    record(writer, START, 2)
+    writer.close()
+    assert (tmp_path / f"{stamp}-0001.mkv").read_bytes() == b"kept"
+    assert times(tmp_path / f"{stamp}-0002.mkv") == [(0, START), (33, START + 33)]
