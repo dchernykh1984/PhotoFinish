@@ -797,6 +797,10 @@ class MainWindow(QMainWindow):
         line does. The number first: a line added stays chosen, and the next rider
         must not take its time."""
         offered = scale_time(line_ms)
+        chosen = self.output_view.chosen()  # the line itself: it may move meanwhile
+        target = (
+            None if chosen is None or not self.output else self.output.lines[chosen]
+        )
         text, ok = QInputDialog.getText(
             self, "The crossing time", "Accept it, or adjust it first", text=offered
         )
@@ -813,9 +817,9 @@ class MainWindow(QMainWindow):
             if self._correct(lambda output: output.add(number, ms, action, change)):
                 self.number.clear()
             return
-        chosen = self.output_view.chosen()
-        if chosen is not None:
-            self._correct(lambda output: output.set_time(chosen, ms, change))
+        at = None if target is None else self._index_of(target)  # said when gone
+        if at is not None:
+            self._correct(lambda output: output.set_time(at, ms, change))
 
     def _show_marks(self) -> None:
         """Each view: its camera's finish line, the points clicked on its frame."""

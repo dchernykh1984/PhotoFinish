@@ -1395,6 +1395,17 @@ def test_a_correction_hits_the_line_chosen_though_lines_moved_meanwhile(
     assert (
         win.statusBar().currentMessage() == "That crossing is no longer in the output"
     )
+    win.output_view.selectRow(0)  # a caliper time offered to the chosen line
+    win.statusBar().clearMessage()
+    assert win.output is not None
+    left = win.output.texts()[1:]
+    offered = parse_time(typed)
+    assert offered is not None
+    win._offer(offered + 1234, output_list.Change("caliper"))
+    assert (
+        win.statusBar().currentMessage() == "That crossing is no longer in the output"
+    )
+    assert win.output.texts() == left  # no other crossing took the time
 
 
 def test_a_suggestion_that_could_not_be_written_stays_offered(
