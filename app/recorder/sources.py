@@ -74,14 +74,22 @@ def open_source(
     )
 
 
+SLEW = 0.001  # the share of the time passed by which a clock may be brought nearer
+LEAP_MS = 2000  # clocks further apart than this are not drifting: one jumped, or lags
+
+
+def slewed(skew: float, error: float, elapsed_ms: float) -> float:
+    """``skew`` brought nearer ``error`` by SLEW of the time elapsed at most: one
+    clock following another slowly as their oscillators drift apart."""
+    most = elapsed_ms * SLEW
+    return skew + max(-most, min(most, error))
+
+
 class Anchor:
     """Moments from a camera's timestamps: anchored on the clock at the first one,
     then following the clock slowly -- by a millisecond a second at most, so arrival
     jitter averages out -- as the camera's oscillator and the computer's drift apart
     over a race day."""
-
-    SLEW = 0.001  # the share of the time passed by which it may be brought nearer
-    LEAP_MS = 2000  # further apart than this, the camera is late, not drifting
 
     def __init__(self, clock: Callable[[], int]) -> None:
         self.clock = clock
@@ -102,9 +110,8 @@ class Anchor:
             self._stamp, self._moment, self._skew = stamp_ms, now, 0.0
         moment = self._moment + (stamp_ms - self._stamp) + self._skew
         late = now - moment
-        if abs(late) <= self.LEAP_MS:
-            most = max(stamp_ms - self._last, 0.0) * self.SLEW
-            self._skew += max(-most, min(most, late))
+        if abs(late) <= LEAP_MS:
+            self._skew = slewed(self._skew, late, max(stamp_ms - self._last, 0.0))
         self._last = stamp_ms
         return round(self._moment + (stamp_ms - self._stamp) + self._skew)
 
