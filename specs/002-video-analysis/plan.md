@@ -50,25 +50,32 @@ No violation.
   background inside the zone; pixels above a threshold form a mask; a stretch is active while the
   mask's area exceeds 0.5% of the zone and its centroid travels at least a quarter of the zone's
   width across the finish line's direction within 2 s. Leaves move in place, so they fail the
-  travel test.
+  travel test; when the moving area falls to under half, the travel is measured afresh, so leaves
+  swaying after a rider do not lengthen its stretch.
 - **Detector** (`app/analysis/detector.py`): YOLOX-format ONNX (`yolox_s.onnx`, Apache-2.0,
   downloaded by the referee from the YOLOX releases); letterbox to the model's input, decode grids
   at strides 8/16/32, keep classes person (0) and bicycle (1) above 0.4, non-maximum suppression at
   0.45.
-- **Tracker** (`app/analysis/tracks.py`): greedy IoU matching between sampled frames; a track's
-  front is the box edge nearest the line in its direction of travel.
+- **Tracker** (`app/analysis/tracks.py`): greedy matching between samples by the nearest box
+  centres, up to half the picture apart -- half a second apart a fast rider's boxes do not
+  overlap; between frames in a row, when a crossing is refined, by overlap. A track's front is
+  the box edge that leads across the line the way it travels, measured from its second sample.
 - **Suggestions**: when a track's front changes side of the finish line between two samples, the
   recorded frames between them are decoded and the detector re-run on them; the two frames around the
   crossing give the time by `app/interpolation.py`.
-- **Analyser process** (`--analyzer <camera>`, a `QProcess` child of the window: it may die with
-  it) writes `activity.json` per segment and appends to `suggestions.jsonl`; progress in
-  `analyzer.json` like the recorder's heartbeat.
+- **Analyser process** (`app/analysis/analyzer.py`, `--analyzer <camera>`, a `QProcess` child of
+  the window that ends when its standard input closes) writes `activity.json` per segment and
+  appends to `suggestions.jsonl`; progress in `analyzer.json` like the recorder's heartbeat. The
+  referee's decisions on suggestions go to `suggestions.done.jsonl`.
 
 ## Project Structure
 
 ```text
 app/analysis/
-  __init__.py      analyser main loop, progress file
+  __init__.py      settings and the zone
+  analyzer.py      analyser main loop, progress file
+  activity.py      the stretches as the window reads them
+  suggestions.py   suggestions as the window reads them, and the decisions
   motion.py        motion stretches
   detector.py      ONNX detector and YOLOX decoding
   tracks.py        tracks and line crossings

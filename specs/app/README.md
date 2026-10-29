@@ -16,7 +16,9 @@ FinishProtocolGeneratorPython reads as a finish file. Built by
 | `video/<camera>/recorder.json`, `recorder.lock`, `recorder.log`, `stop.request` | The recorder's heartbeat, its lock, its output, the window's request to stop. |
 | `<output>` | The referee's crossings, `number#time#action#`, in time order. |
 | `<output>.state.json` | Where each output line came from, how its time was had, and the input as last taken. |
-| `<output>.journal.txt` | One JSON object per change: what, before and after, the input line, the camera and frames, the method, the offsets. |
+| `<output>.journal.txt` | One JSON object per change: what, before and after, the input line, the camera and frames, the method, the offsets; the model, for a suggestion accepted. |
+| `video/<camera>/<segment>.activity.json`, `analyzer.json` | Finding riders (experimental): the stretches with a rider in view per segment; how far the analyser has got. |
+| `video/<camera>/suggestions.jsonl`, `suggestions.done.jsonl` | Crossings a detection model suggested; those the referee accepted or dismissed. |
 
 Formats: [output and journal](../001-video-refinement/contracts/output-and-journal.md),
 [recorder](../001-video-refinement/contracts/recorder.md),
@@ -85,6 +87,30 @@ or a swaying patch.
 - **Outside changes.** An output file changed by something else is kept in a backup beside it,
   journaled, and written again from the referee's list.
 
+## Finding riders (experimental, off by default)
+
+Built by [002-video-analysis](../002-video-analysis/spec.md). Timing stays by hand; this only
+helps find the moments to look at.
+
+- **Find riders** starts an analyser process per recording camera: below the recorder in
+  priority, a child of the window that ends with it. It reads closed segments only, so recording
+  and timing never wait for it, and a segment it has indexed is not indexed again.
+- **Without a model** a rider is motion inside the camera's **Zone** (two clicks; by default a band
+  around the finish line) that travels at least a quarter of the zone across the line within
+  2 s: leaves and grass swaying in place mark nothing.
+- **With a model** -- a YOLOX COCO detector in ONNX, such as `yolox_s.onnx` (Apache-2.0) from the
+  YOLOX releases, downloaded beforehand and chosen with **Model...**; nothing is fetched -- a
+  rider is a person or a bicycle overlapping the zone, looked for twice a second on the CPU. A
+  model that cannot be used is said in the camera list and the analysis stops.
+- The timeline shows the stretches with a rider in view; **Next rider** and **Previous rider**
+  (PageDown, PageUp) jump between their starts; the camera list says how far each camera's
+  analysis has got.
+- **Suggested crossings** (with a model): a rider followed from sample to sample whose front
+  changes side of the finish line is looked for again on the frames between, and the two
+  around the line give the moment, as the caliper does. Pick one to see it; **Accept with the
+  number** adds the crossing through the output's usual path, journaled with the model;
+  **Dismiss** drops it. Neither comes back.
+
 ## Known limits
 
 - The Linux builds cannot capture USB cameras (PyAV's Linux wheels have no video4linux2): the
@@ -93,6 +119,9 @@ or a swaying patch.
   tenths of a second over a long day: align again when it shows.
 - A stream whose keyframes are farther apart than a second makes segments that long, and its
   newest frames wait that long.
+- Finding riders: a zone drawn or a model chosen applies from then on; segments already
+  indexed keep their stretches. Riders in a bunch can be taken for one another, and night, rain
+  or a low sun can hide them: scroll by hand, as always.
 - On Windows the portable build is one file that unpacks itself; a recorder started from it first
   waits for that. Whether it leaves the window's job on every Windows setup is still to be seen
   on the maintainer's machines.
