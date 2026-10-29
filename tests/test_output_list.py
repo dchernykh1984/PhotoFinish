@@ -362,7 +362,7 @@ def test_a_journal_that_refuses_a_change_written_is_an_error(
         raise OSError("disk full")
 
     monkeypatch.setattr(output_list, "_append", full)
-    with pytest.raises(OSError, match="disk full"):
+    with pytest.raises(output_list.JournalError, match="disk full"):
         take(out, TAKEN)
     assert path.read_text() == TAKEN + "\n"  # the change is written
 
@@ -440,3 +440,22 @@ def test_a_line_whose_time_stays_keeps_its_place_among_its_ties(path: Path) -> N
     assert out.set_time(0, ms("0 1:0:0.000"), Change("typed")) == 0
     assert out.texts()[0] == "21#0 1:0:0.000#finish#"
     assert out.set_time(0, ms("0 1:0:6.000"), Change("typed")) == 2  # a new time moves
+
+
+def test_a_journal_held_a_moment_is_written_after_all(
+    path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    out = OutputList(path)
+    real = Path.open
+    held: list[bool] = [True]
+
+    def opening(self: Path, *args: Any, **kwargs: Any) -> Any:
+        if self == out.journal_path and held:
+            held.pop()
+            raise PermissionError("held")
+        return real(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", opening)
+    monkeypatch.setattr(files.time, "sleep", lambda seconds: None)
+    take(out, TAKEN)
+    assert [e["op"] for e in journal(out)] == ["take"]
