@@ -70,6 +70,7 @@ class OutputList:
         self.journal_path = path.with_name(path.name + ".journal.txt")
         self.lines: list[OutputLine] = []
         self.taken: list[str] = []  # the input as last taken, in its order
+        self._pending: list[bytes] | None = None  # journal entries of a change
         self._written: bytes | None = None  # the output file as this list wrote it
         self._load()
 
@@ -156,16 +157,24 @@ class OutputList:
 
     @contextmanager
     def _change(self) -> Iterator[None]:
-        """One change, written at once. A version of the file something else wrote is
-        kept first; a change that cannot be written leaves the list as it was."""
+        """One change, written at once and then journaled. A version of the file
+        something else wrote is kept first. A change that cannot be written leaves
+        the list as it was, its state file too, and nothing in the journal; a journal
+        that cannot take the entries of a change written is an error said, the
+        change kept."""
         self._keep_outside_version()
         kept = copy.deepcopy((self.lines, self.taken))
+        self._pending = []
         try:
             yield
             self._write()
         except BaseException:
-            self.lines, self.taken = kept
+            self.lines, self.taken, self._pending = kept[0], kept[1], None
+            self._write_state_back()
             raise
+        entries, self._pending = self._pending, None
+        if entries:
+            _append(self.journal_path, b"".join(entries))
 
     def _replace(
         self, index: int, text: str, op: str, change: Change, taken: str | None = None
@@ -263,13 +272,23 @@ class OutputList:
     def _write(self) -> None:
         """The state, then the output file, each in one step: after a crash between
         the two, the state is ahead and writes the file again at the next start."""
-        lines = [asdict(line) for line in self.lines]
-        state = {"version": _STATE_VERSION, "lines": lines, "input_taken": self.taken}
-        text = json.dumps(state, ensure_ascii=False) + "\n"
-        _write_in_one_step(self.state_path, text.encode())
+        _write_in_one_step(self.state_path, self._state())
         body = self._body()
         _write_in_one_step(self.path, body)
         self._written = body
+
+    def _state(self) -> bytes:
+        lines = [asdict(line) for line in self.lines]
+        state = {"version": _STATE_VERSION, "lines": lines, "input_taken": self.taken}
+        return (json.dumps(state, ensure_ascii=False) + "\n").encode()
+
+    def _write_state_back(self) -> None:
+        """After a change that failed: the state as the list is again, so a restart
+        does not bring back what the referee was told was not written."""
+        try:
+            _write_in_one_step(self.state_path, self._state())
+        except OSError:
+            pass  # the disk itself refuses: the state is as the last change left it
 
     def _body(self) -> bytes:
         return "".join(f"{text}\n" for text in self.texts()).encode()
@@ -303,9 +322,11 @@ class OutputList:
             }
         entry["backup"] = backup
         kept = {key: value for key, value in entry.items() if value is not None}
-        _append(
-            self.journal_path, (json.dumps(kept, ensure_ascii=False) + "\n").encode()
-        )
+        line = (json.dumps(kept, ensure_ascii=False) + "\n").encode()
+        if self._pending is None:
+            _append(self.journal_path, line)
+        else:
+            self._pending.append(line)  # journaled once the change is written
 
 
 def _number(number: str) -> str:

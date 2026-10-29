@@ -324,3 +324,43 @@ def test_a_rename_refused_for_good_fails(
     monkeypatch.setattr(files.time, "sleep", lambda _seconds: None)
     with pytest.raises(PermissionError):
         OutputList(path)
+
+
+def test_a_change_the_output_refuses_leaves_state_and_journal_as_they_were(
+    path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    out = OutputList(path)
+    take(out, TAKEN)
+    state, entries = out.state_path.read_bytes(), len(journal(out))
+    real = output_list._write_in_one_step
+
+    def locked(target: Path, data: bytes) -> None:
+        if target == path:
+            raise PermissionError("held by the protocol generator")
+        real(target, data)
+
+    monkeypatch.setattr(output_list, "_write_in_one_step", locked)
+    for _ in range(3):  # the input followed at every poll while it is held
+        with pytest.raises(PermissionError):
+            take(out, "16#20389 11:35:30.000#nextLap#")
+    assert out.state_path.read_bytes() == state
+    assert len(journal(out)) == entries
+    assert out.texts() == [TAKEN]
+    monkeypatch.setattr(output_list, "_write_in_one_step", real)
+    take(out, "16#20389 11:35:30.000#nextLap#")
+    assert [e["op"] for e in journal(out)[entries:]] == ["take"]
+    assert OutputList(path).texts() == out.texts()
+
+
+def test_a_journal_that_refuses_a_change_written_is_an_error(
+    path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    out = OutputList(path)
+
+    def full(target: Path, data: bytes) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(output_list, "_append", full)
+    with pytest.raises(OSError, match="disk full"):
+        take(out, TAKEN)
+    assert path.read_text() == TAKEN + "\n"  # the change is written

@@ -54,8 +54,10 @@ gone from the input is marked on its output line (`removed_from_input`).
 | `removed_from_input` | the input line it came from is gone |
 
 The output file is the `text` of every line, sorted by time, stable; lines without a readable time
-follow, in the order they were taken. Every change writes the state first, then the output file:
-after a crash between the two, the state is ahead and writes the file again at the next start.
+follow, in the order they were taken. Every change writes the state first, then the output file,
+then its journal entries: after a crash between the two files, the state is ahead and writes the
+file again at the next start. A change that cannot be written writes the state back as it was and
+leaves nothing in the journal.
 
 ## Session (`data/session.json`)
 
