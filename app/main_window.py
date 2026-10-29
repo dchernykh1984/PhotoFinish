@@ -59,6 +59,7 @@ from app.widgets.timeline import Timeline
 POLL_MS = 500
 NEAR_MS = 1000  # another camera's frame further from the moment than this: none
 STOP_MS = 3000  # an analyser stopped is killed if it has not ended by then
+OUTSIDE = "The output file was changed outside PhotoFinish: kept beside it"
 EVENT_S = 600  # a shared event not shown on the other cameras by then is forgotten
 
 
@@ -362,10 +363,12 @@ class MainWindow(QMainWindow):
         self.camera_list.addItem(item)
         view, worker = CameraView(), DecodeWorker()
         recorded = settings.get("record", True) or settings.get("connection") != "file"
+        given = settings.get("settings")  # a session edited by hand may lack it
+        path = given.get("path") if isinstance(given, dict) else None
         index = (
-            VideoIndex(folder_of(camera_id))
-            if recorded
-            else FileIndex(app_path(str(settings["settings"]["path"])))
+            FileIndex(app_path(str(path)))
+            if not recorded and path
+            else VideoIndex(folder_of(camera_id))
         )
         camera = Camera(
             settings,
@@ -472,6 +475,8 @@ class MainWindow(QMainWindow):
         if camera is None or self.place is None:
             self._say("Show the frame of the passing first")
             return
+        if not self._frame_on_screen():
+            return
         if self.follow is None or chosen is None:
             self._say("Choose the input line of the passing first")
             return
@@ -505,11 +510,12 @@ class MainWindow(QMainWindow):
         try:
             if self.follow is not None and self.follow.poll():
                 self._show_lists()
-            if self.output is not None and self.output.check_outside():
-                self._say(
-                    "The output file was changed outside PhotoFinish: kept beside it"
-                )
-                self._show_lists()
+            if self.output is not None:
+                self.output.check_outside()
+                if self.output.outside_kept:  # by this check, or by a change before
+                    self.output.outside_kept = False
+                    self._say(OUTSIDE)
+                    self._show_lists()
         except (
             JournalError
         ) as error:  # lines taken, or an outside version kept: written
@@ -1050,7 +1056,9 @@ class MainWindow(QMainWindow):
         frames = [[frame.path.name, frame.pts, frame.ms]]
         return line_ms, Change("frame", camera.id, frames, None, self._offsets())
 
-    def _open_output(self) -> None:
+    def _open_output(self, again: bool = False) -> None:
+        """The output chosen opened, and the input followed into it. One that cannot
+        be opened -- held a moment by another program -- is tried at every poll."""
         chosen = str(self.session.get("output") or "")
         self.output_button.setText(f"Output: {chosen}" if chosen else "Output file...")
         self.output = None
@@ -1058,6 +1066,8 @@ class MainWindow(QMainWindow):
             try:
                 self.output = OutputList(app_path(chosen))
             except OSError as error:
+                if again:
+                    return  # said when it was first tried
                 self._say(f"The output file cannot be opened: {error}")
             else:
                 refused = self.output.journal_error
@@ -1092,6 +1102,8 @@ class MainWindow(QMainWindow):
             self._label(camera)
         if suggested:
             self._show_suggestions()
+        if self.output is None and self.session.get("output"):
+            self._open_output(again=True)
         self._follow_files()
         self._refresh()
         current = self._camera()
@@ -1250,6 +1262,8 @@ class MainWindow(QMainWindow):
         camera = self._camera()
         if camera is None or self.place is None:
             self._say("Show the event on a camera first")
+            return
+        if not self._frame_on_screen():
             return
         name = camera.settings.get("name", camera.id)
         frame = camera.index.frame(self.place)
