@@ -1096,3 +1096,84 @@ def test_a_model_that_failed_is_said_and_left_until_another_is_chosen(
     )
     win._set_model("")  # motion only: started again at once
     assert len(analyzers) == 2
+
+
+def suggest(base: Path, *moments: int) -> None:
+    folder = base / "video" / "cam1"
+    lines = "".join(
+        json.dumps(
+            {
+                "id": f"cam1-{ms}",
+                "camera": "cam1",
+                "ms": ms,
+                "frames": [["a.mkv", 1, ms - 20], ["a.mkv", 2, ms + 13]],
+                "fraction": 0.6,
+                "model": "yolox_s.onnx",
+            }
+        )
+        + "\n"
+        for ms in moments
+    )
+    (folder / "suggestions.jsonl").write_text(lines)
+
+
+def test_suggested_crossings_are_accepted_with_a_number_or_dismissed(
+    recording: Path, make_window: Callable[[], mw.MainWindow]
+) -> None:
+    """002 US2: a list apart from the output, accepted through its usual path."""
+    out = recording / "out.txt"
+    analysis = {"on": True, "model": "yolox_s.onnx"}
+    session.save({**session.load(), "output": "out.txt", "analysis": analysis})
+    suggest(recording, START + 1000, START + 2000)
+    win = make_window()
+    rows = [
+        win.suggestion_list.item(i).text() for i in range(win.suggestion_list.count())
+    ]
+    clock = scale_time(to_line_scale(START + 1000, False)).split(" ")[1]
+    assert rows[0] == f"{clock}  Side"
+    win.accept_suggestion()
+    assert win.statusBar().currentMessage() == "Choose a suggested crossing first"
+    first = win.suggestion_list.item(0)
+    win.suggestion_list.setCurrentItem(first)
+    win._suggestion_picked(first)
+    wait_until(showing(win, START + 30 * 33))  # the frame nearest it
+    win.accept_suggestion()
+    assert "number first" in win.statusBar().currentMessage()
+    win.number.setText("15")
+    win.accept_suggestion()
+    assert (
+        out.read_text()
+        == f"15#{scale_time(to_line_scale(START + 1000, False))}#nextLap#\n"
+    )
+    entry = journal(out)[-1]
+    assert (entry["method"], entry["model"], entry["fraction"]) == (
+        "interpolated",
+        "yolox_s.onnx",
+        0.6,
+    )
+    assert entry["frames"] == [["a.mkv", 1, START + 980], ["a.mkv", 2, START + 1013]]
+    assert win.suggestion_list.count() == 1
+    win.suggestion_list.setCurrentRow(0)
+    win.dismiss_suggestion()
+    assert win.suggestion_list.count() == 0
+    assert len(out.read_text().splitlines()) == 1
+    again = make_window()
+    assert again.suggestion_list.count() == 0  # decided: not offered again
+
+
+def test_suggestions_need_a_model(
+    recording: Path, make_window: Callable[[], mw.MainWindow]
+) -> None:
+    session.save({**session.load(), "analysis": {"on": True, "model": ""}})
+    suggest(recording, START + 1000)
+    win = make_window()
+    assert (
+        win.suggestion_list.item(0)
+        .text()
+        .startswith("Suggestions need a detection model")
+    )
+    win.suggestion_list.setCurrentRow(0)
+    win.dismiss_suggestion()
+    win._suggestion_picked(win.suggestion_list.item(0))
+    win.analysis_box.setChecked(False)
+    assert win.suggestion_list.count() == 0

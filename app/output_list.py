@@ -53,6 +53,7 @@ class Change:
     frames: list[list[Any]] = field(default_factory=list)
     fraction: float | None = None
     offsets: dict[str, int] = field(default_factory=dict)
+    model: str | None = None  # a crossing a detection model suggested (002)
 
 
 def clean_number(number: str) -> str:
@@ -299,6 +300,7 @@ class OutputList:
                 "method": change.method,
                 "fraction": change.fraction,
                 "offsets": change.offsets or None,
+                "model": change.model,
             }
         entry["backup"] = backup
         kept = {key: value for key, value in entry.items() if value is not None}

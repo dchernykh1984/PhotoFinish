@@ -26,6 +26,7 @@ Append only, one JSON object per line:
 | `fraction` | for `interpolated`: where between the two frames |
 | `offsets` | `{"camera_ms": ..., "source_ms": ...}` in use |
 | `backup` | for `outside_change`: where the outside version was kept |
+| `model` | for a crossing accepted from a suggestion (specification 002): the model that suggested it |
 
 Example:
 
