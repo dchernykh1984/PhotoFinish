@@ -3,6 +3,7 @@ Qt-free modules (session, video_index, recorder) and the widgets."""
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -13,6 +14,7 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QFileDialog,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QListWidget,
     QListWidgetItem,
@@ -26,7 +28,7 @@ from PySide6.QtWidgets import (
 
 from app import session
 from app.input_follow import InputFollow
-from app.lines import scale_time, to_epoch, to_line_scale
+from app.lines import parse_line, parse_time, scale_time, to_epoch, to_line_scale
 from app.output_list import Change, OutputList
 from app.paths import app_path
 from app.recorder import folder_of
@@ -155,9 +157,20 @@ class MainWindow(QMainWindow):
         inputs.addWidget(self.input_button)
         inputs.addWidget(self.input_view)
         inputs.addWidget(copy)
+        corrections = QHBoxLayout()
+        for label, slot in (
+            ("Time from frame", self.time_from_frame),
+            ("Type time...", self.type_time),
+            ("Number...", self.change_number),
+            ("Remove...", self.remove_line),
+        ):
+            button = QPushButton(label)
+            button.clicked.connect(slot)
+            corrections.addWidget(button)
         outputs = QVBoxLayout()
         outputs.addWidget(QLabel("Output: the referee's crossings"))
         outputs.addWidget(self.output_view)
+        outputs.addLayout(corrections)
         right = QSplitter(Qt.Orientation.Vertical)
         for part in (cameras, inputs, outputs):
             holder = QWidget()
@@ -345,24 +358,15 @@ class MainWindow(QMainWindow):
 
     def add_crossing(self) -> None:
         """A crossing for the typed number at the frame shown."""
-        camera = self._camera()
         if self.output is None:
             self._say("Choose the output file first")
             return
-        if camera is None or self.place is None:
+        timed = self._frame_change()
+        if timed is None:
             self._say("There is no frame to time the crossing on")
             return
-        frame = camera.index.frame(self.place)
-        offsets = {
-            "camera_ms": self._offset(),
-            "source_ms": int(self.session.get("source_offset_ms", 0)),
-        }
-        moment = frame.ms + offsets["camera_ms"] + offsets["source_ms"]
-        line_ms = to_line_scale(moment, bool(self.session.get("summer_time")))
+        line_ms, change = timed
         action = "finish" if self.finish.isChecked() else "nextLap"
-        change = Change(
-            "frame", camera.id, [[frame.path.name, frame.pts, frame.ms]], None, offsets
-        )
         try:
             self.output.add(self.number.text(), line_ms, action, change)
         except ValueError:
@@ -374,6 +378,98 @@ class MainWindow(QMainWindow):
         self._say(f"Added {self.number.text().strip()} at {scale_time(line_ms)}")
         self.number.clear()
         self._show_lists()
+
+    def time_from_frame(self) -> None:
+        """The chosen output line takes the time of the frame shown."""
+        chosen = self._chosen_output()
+        timed = self._frame_change()
+        if chosen is None:
+            return
+        if timed is None:
+            self._say("There is no frame to take the time from")
+            return
+        self._correct(lambda output: output.set_time(chosen, *timed))
+
+    def type_time(self) -> None:
+        chosen = self._chosen_output()
+        if chosen is None or self.output is None:
+            return
+        fields = self.output.lines[chosen].text.split("#")
+        text, ok = QInputDialog.getText(
+            self,
+            "Type the time",
+            "D H:M:S.mmm",
+            text=fields[1] if len(fields) > 1 else "",
+        )
+        if not ok:
+            return
+        ms = parse_time(text)
+        if ms is None:
+            self._say(f"{text.strip()!r} is not a time like 20389 11:35:29.615")
+            return
+        self._correct(lambda output: output.set_time(chosen, ms, Change("typed")))
+
+    def change_number(self) -> None:
+        chosen = self._chosen_output()
+        if chosen is None or self.output is None:
+            return
+        number = parse_line(self.output.lines[chosen].text).number
+        text, ok = QInputDialog.getText(
+            self, "Change the number", "Number", text=number
+        )
+        if ok:
+            self._correct(lambda output: output.set_number(chosen, text))
+
+    def remove_line(self) -> None:
+        chosen = self._chosen_output()
+        if chosen is None or self.output is None:
+            return
+        text = self.output.lines[chosen].text
+        answer = QMessageBox.question(
+            self, "Remove the crossing", f"Remove {text}? The journal keeps it."
+        )
+        if answer == QMessageBox.StandardButton.Yes:
+            self._correct(lambda output: output.remove(chosen))
+
+    def _chosen_output(self) -> int | None:
+        chosen = self.output_view.chosen()
+        if self.output is None or chosen is None:
+            self._say("Choose a line of the output first")
+            return None
+        return chosen
+
+    def _correct(self, change: Callable[[OutputList], object]) -> None:
+        """One change of the output, shown, the line it moved to chosen."""
+        if self.output is None:
+            return
+        try:
+            moved = change(self.output)
+        except ValueError:
+            self._say("A crossing needs a number")
+            return
+        except OSError as error:
+            self._say(f"The output file cannot be written: {error}")
+            return
+        self._show_lists()
+        if isinstance(moved, int):
+            self.output_view.selectRow(moved)
+        else:
+            self.output_view.clearSelection()
+
+    def _frame_change(self) -> tuple[int, Change] | None:
+        """The frame shown as a time on the line scale, and how it was had."""
+        camera = self._camera()
+        if camera is None or self.place is None:
+            return None
+        frame = camera.index.frame(self.place)
+        offsets = {
+            "camera_ms": self._offset(),
+            "source_ms": int(self.session.get("source_offset_ms", 0)),
+        }
+        moment = frame.ms + offsets["camera_ms"] + offsets["source_ms"]
+        line_ms = to_line_scale(moment, bool(self.session.get("summer_time")))
+        frames = [[frame.path.name, frame.pts, frame.ms]]
+        return line_ms, Change("frame", camera.id, frames, None, offsets)
 
     def _open_output(self) -> None:
         chosen = str(self.session.get("output") or "")
