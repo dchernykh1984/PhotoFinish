@@ -908,9 +908,7 @@ class MainWindow(QMainWindow):
             return
         process.closeWriteChannel()
         QTimer.singleShot(STOP_MS, process, process.kill)
-        if camera.stopping is not None:  # ended before this one was started
-            camera.stopping.deleteLater()
-        camera.stopping = process
+        camera.stopping = process  # none before: _analyze cleared it to start this one
 
     def accept_suggestion(self) -> None:
         """The crossing suggested, with the typed number, through the output's
