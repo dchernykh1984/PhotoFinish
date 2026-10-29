@@ -704,6 +704,26 @@ def test_the_finish_line_is_drawn_with_two_clicks(
     assert win.drawing is None
 
 
+def test_a_line_or_zone_without_extent_is_not_kept(
+    bar: Path, make_window: Callable[[], mw.MainWindow]
+) -> None:
+    win = make_window()
+    wait_until(lambda: win.place == 5)
+    win.draw_finish_line()
+    win.picture_clicked((0.4, 0.1))
+    win.picture_clicked((0.4, 0.1))  # a double click
+    assert "apart from the first" in win.statusBar().currentMessage()
+    assert "finish_line" not in session.load()["cameras"][0]
+    win.picture_clicked((0.6, 0.9))
+    assert session.load()["cameras"][0]["finish_line"] == [[0.4, 0.1], [0.6, 0.9]]
+    win.draw_zone()
+    win.picture_clicked((0.3, 0.2))
+    win.picture_clicked((0.3, 0.8))  # no width
+    assert "zone" not in session.load()["cameras"][0]
+    win.picture_clicked((0.7, 0.8))
+    assert session.load()["cameras"][0]["zone"] == [[0.3, 0.2], [0.7, 0.8]]
+
+
 def test_a_finish_line_needs_a_camera(win: mw.MainWindow) -> None:
     win.draw_finish_line()
     assert win.statusBar().currentMessage() == "Add a camera first"

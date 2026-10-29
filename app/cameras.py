@@ -64,7 +64,7 @@ PRESETS = (
 )
 
 
-def problems(camera: dict[str, Any]) -> list[str]:
+def recording_problems(camera: dict[str, Any]) -> list[str]:
     """What keeps the camera from recording; empty when nothing does."""
     connection = camera.get("connection")
     if connection not in CONNECTIONS:
@@ -72,7 +72,13 @@ def problems(camera: dict[str, Any]) -> list[str]:
     settings = camera.get("settings") or {}
     if not isinstance(settings, dict):
         return ["settings must be a table"]
-    found = _CHECKS[connection](settings)
+    return _CHECKS[connection](settings)
+
+
+def problems(camera: dict[str, Any]) -> list[str]:
+    """What is wrong in the camera's settings: what keeps it from recording, and the
+    finish line, offset and zone the window uses, which never stop a recording."""
+    found = recording_problems(camera)
     line = camera.get("finish_line")
     if line is not None and points(line) is None:
         found.append("the finish line must be two different points within the picture")
