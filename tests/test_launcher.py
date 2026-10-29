@@ -209,6 +209,16 @@ def test_the_command_is_this_program(monkeypatch: pytest.MonkeyPatch) -> None:
     assert command("cam1") == [sys.executable, "--recorder", "cam1"]
 
 
+def test_a_frozen_build_starts_its_children_as_instances_of_their_own(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("PYINSTALLER_RESET_ENVIRONMENT", raising=False)
+    assert launcher.child_environment()["PYTHONPATH"] == launcher.package_root()
+    assert "PYINSTALLER_RESET_ENVIRONMENT" not in launcher.child_environment()
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    assert launcher.child_environment()["PYINSTALLER_RESET_ENVIRONMENT"] == "1"
+
+
 def test_a_spawned_recorder_runs_this_program_and_logs_beside_it(
     folder: Path,
 ) -> None:

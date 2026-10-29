@@ -39,18 +39,28 @@ def package_root() -> str:
     return str(Path(app.__file__).resolve().parents[1])
 
 
+def child_environment() -> dict[str, str]:
+    """This environment for a process of this program started from it: in
+    development the package on its path; frozen, an instance of its own -- a
+    onefile build otherwise runs it from this process's unpacked files, which are
+    deleted when this process ends."""
+    env = dict(os.environ)
+    if getattr(sys, "frozen", False):
+        env["PYINSTALLER_RESET_ENVIRONMENT"] = "1"
+    else:
+        env["PYTHONPATH"] = package_root()
+    return env
+
+
 def spawn(camera_id: str) -> subprocess.Popen[bytes]:
     """A recorder started apart from this process; its output goes to
     ``recorder.log`` in the camera's folder."""
     folder = folder_of(camera_id)
     folder.mkdir(parents=True, exist_ok=True)
-    env = dict(os.environ)
-    if not getattr(sys, "frozen", False):
-        env["PYTHONPATH"] = package_root()
     with (folder / "recorder.log").open("ab") as log:
         options: dict[str, Any] = {
             "cwd": paths.base_dir(),
-            "env": env,
+            "env": child_environment(),
             "stdin": subprocess.DEVNULL,
             "stdout": log,
             "stderr": log,

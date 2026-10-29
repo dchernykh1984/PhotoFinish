@@ -131,13 +131,28 @@ class Heartbeat:
             self.info["detail"] = "low disk" if low else ""
         self.info |= {"heartbeat_ms": time.time_ns() // 1_000_000, "free_bytes": free}
         # Not files.write_in_one_step: its pauses and sync would hold up the frames.
+        data = (json.dumps(self.info) + "\n").encode("ascii")
         tmp = self.path.with_name(self.path.name + ".tmp")
         try:
-            tmp.write_text(json.dumps(self.info) + "\n", encoding="ascii")
+            tmp.write_bytes(data)
             tmp.replace(self.path)
-        except OSError:
-            return  # the window reading it on Windows, or a full disk: the next frame
+        except OSError as error:
+            # A full disk takes no new file: written over in place, in the space it
+            # has, so "disk full" reaches the window. Else held on Windows: the next.
+            if error.errno != errno.ENOSPC or not _in_place(self.path, data):
+                return
         self._written = now
+
+
+def _in_place(path: Path, data: bytes) -> bool:
+    """``data`` over the file where it is, in the space it already has on disk."""
+    try:
+        with path.open("r+b") as f:
+            f.write(data)
+            f.truncate()
+    except OSError:
+        return False
+    return True
 
 
 class _DiskFullError(Exception):

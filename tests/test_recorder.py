@@ -208,6 +208,24 @@ def test_a_full_disk_stops_the_recorder_and_says_so(
     assert heartbeat(folder)["state"] == "disk_full"
 
 
+def test_a_full_disk_is_said_though_no_new_file_can_be_written(
+    folder: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    folder.mkdir(parents=True)
+    beat = Heartbeat(folder, "test")
+    beat.beat(state="recording")
+    real = Path.open
+
+    def full(self: Path, *args: Any, **kwargs: Any) -> Any:
+        if self.name.endswith(".tmp"):
+            raise OSError(errno.ENOSPC, "No space left on device")
+        return real(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", full)
+    beat.beat(state="disk_full", detail="the disk is full")
+    assert heartbeat(folder)["state"] == "disk_full"
+
+
 def test_low_disk_is_said_while_recording(
     folder: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
