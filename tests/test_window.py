@@ -823,6 +823,7 @@ def test_two_cameras_show_one_moment_once_aligned_on_a_flash(
     assert offset == FLASH + 28 - (FLASH + 20 + SKEW)  # -SKEW within a frame
     said = win.statusBar().currentMessage()
     assert said == f"Front is aligned on the event: {offset:+d} ms"
+    assert win.shared_event is None  # both aligned: the next mark is a new event
     win.camera_list.setCurrentRow(0)
     win.step(-3)
     wait_until(lambda: not bright(side.view) and not bright(front.view))
@@ -846,6 +847,21 @@ def test_a_crossing_timed_on_the_second_camera_names_it(
     win.number.setText("15")
     win.add_crossing()
     assert journal(base / "out.txt")[-1]["camera"] == "cam2"
+
+
+def test_an_event_left_unaligned_is_forgotten_after_a_while(
+    two: None, make_window: Callable[[], mw.MainWindow], base: Path
+) -> None:
+    win = make_window()
+    wait_until(lambda: win.place is not None)
+    win.mark_event()
+    assert win.shared_event is not None
+    win.shared_event.since -= mw.EVENT_S + 1  # an hour later, another event
+    win.camera_list.setCurrentRow(1)
+    settled(win)
+    win.mark_event()
+    assert win.statusBar().currentMessage().startswith("Event marked on")
+    assert "offset_ms" not in session.load()["cameras"][1]
 
 
 def test_an_event_needs_a_frame(win: mw.MainWindow) -> None:
