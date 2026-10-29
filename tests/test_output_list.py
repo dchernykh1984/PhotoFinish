@@ -401,6 +401,28 @@ def test_a_journal_that_refuses_a_change_written_is_an_error(
     assert path.read_text() == TAKEN + "\n"  # the change is written
 
 
+def test_an_outside_version_the_journal_refuses_is_kept_once_not_at_each_poll(
+    path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    out = OutputList(path)
+    take(out, TAKEN)
+    path.write_text("edited by hand\n")
+
+    def full(target: Path, data: bytes) -> None:
+        raise OSError("held by a spreadsheet")
+
+    monkeypatch.setattr(output_list, "_append", full)
+    with pytest.raises(output_list.JournalError):
+        out.check_outside()
+    assert path.read_text() == TAKEN + "\n"  # the list's version written back
+    assert not out.check_outside()
+    assert len(list(path.parent.glob("out.txt.outside-*"))) == 1
+    path.write_text("edited again\n")
+    with pytest.raises(output_list.JournalError):  # the change written all the same
+        take(out, "16#20389 11:35:30.000#nextLap#")
+    assert len(out.texts()) == 2
+
+
 def test_a_long_race_is_listed_without_a_wait(path: Path) -> None:
     import time
 

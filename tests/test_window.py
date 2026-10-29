@@ -462,6 +462,14 @@ def test_files_that_cannot_be_followed_are_said(
     monkeypatch.setattr(output_list, "_write_in_one_step", full)
     win.poll()
     assert "cannot be followed: disk full" in win.statusBar().currentMessage()
+    monkeypatch.undo()
+    monkeypatch.setattr(output_list, "_append", full)
+    out.write_text("edited again\n")
+    win.poll()
+    said = win.statusBar().currentMessage()
+    assert said == "Written; the journal cannot take it: disk full"
+    assert win.output is not None  # written back all the same
+    assert out.read_text().splitlines() == win.output.texts()
 
 
 def test_the_input_is_chosen_and_never_the_output(

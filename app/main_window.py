@@ -499,8 +499,10 @@ class MainWindow(QMainWindow):
                     "The output file was changed outside PhotoFinish: kept beside it"
                 )
                 self._show_lists()
-        except JournalError as error:  # the lines are taken, written
-            self._say(f"Input lines taken; the journal cannot take them: {error}")
+        except (
+            JournalError
+        ) as error:  # lines taken, or an outside version kept: written
+            self._say(f"Written; the journal cannot take it: {error}")
             self._show_lists()
         except OSError as error:
             self._say(f"The files cannot be followed: {error}")
