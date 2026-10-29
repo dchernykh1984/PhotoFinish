@@ -30,21 +30,21 @@ def times(path: Path) -> list[tuple[int, int]]:
     return [(int(pts), int(ms)) for pts, ms in (line.split() for line in lines)]
 
 
-def test_frames_go_into_two_second_segments_with_their_times(tmp_path: Path) -> None:
+def test_frames_go_into_one_second_segments_with_their_times(tmp_path: Path) -> None:
     writer = SegmentWriter(tmp_path, fps=30)
     record(writer, START, 150)
-    assert len(segments(tmp_path)) == 2
+    assert len(segments(tmp_path)) == 4
     assert (tmp_path / "current.mkv").exists()
     writer.close()
     closed = segments(tmp_path)
-    assert len(closed) == 3
-    assert (writer.segments, writer.frames) == (3, 150)
+    assert len(closed) == 5
+    assert (writer.segments, writer.frames) == (5, 150)
     assert not (tmp_path / "current.mkv").exists()
     stamp = time.strftime("%Y%m%d-%H%M%S", time.localtime(START / 1000))
     assert closed[0].stem == f"{stamp}-0001"
     for path in closed:
         frames = times(path)
-        assert frames[-1][1] - frames[0][1] < 2000
+        assert frames[-1][1] - frames[0][1] < 1000
         with av.open(str(path)) as container:
             packets = [p for p in container.demux(video=0) if p.pts is not None]
             assert packets[0].is_keyframe
@@ -82,7 +82,7 @@ def test_a_restart_keeps_what_a_crash_left_and_marks_the_gap(tmp_path: Path) -> 
     again.close()
     gaps = (tmp_path / "gaps.txt").read_text().splitlines()
     assert gaps[-1] == f"{last} {START + 9000} restart"
-    assert len(segments(tmp_path)) == 3
+    assert len(segments(tmp_path)) == 4
 
 
 @pytest.mark.parametrize("fps", [25, 29.97, 60])
@@ -144,7 +144,7 @@ def test_a_cameras_packets_are_kept_from_its_first_keyframe_on(tmp_path: Path) -
         writer.close()
     assert writer.frames == 1 + 120
     closed = segments(folder)
-    assert len(closed) == 3
+    assert len(closed) == 5
     for path in closed[1:]:
         with av.open(str(path)) as container:
             packets = [p for p in container.demux(video=0) if p.pts is not None]
@@ -152,4 +152,4 @@ def test_a_cameras_packets_are_kept_from_its_first_keyframe_on(tmp_path: Path) -
         with av.open(str(path)) as container:
             decoded = [f.pts for f in container.decode(video=0)]
         assert decoded == sorted(pts for pts, _ in times(path))
-        assert len(decoded) == 60
+        assert len(decoded) == 30

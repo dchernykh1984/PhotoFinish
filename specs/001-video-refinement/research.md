@@ -19,18 +19,19 @@
 ## 2. Recording in short Matroska segments with a time sidecar
 
 - **Decision**: each camera is written to `video/<camera>/<YYYYmmdd-HHMMSS>-<n>.mkv` segments of
-  about 2 s, cut at keyframes, each with a `.times` sidecar listing every frame's `pts` and its time
+  about 1 s, cut at keyframes, each with a `.times` sidecar listing every frame's `pts` and its time
   in milliseconds. The segment being written is `current.mkv` / `current.times` and is renamed when
   closed.
 - **Rationale**: a closed segment is a complete file, so the window never reads a file that is being
-  written, and a crash loses at most the open segment (principle VI). Two seconds keep the newest
-  frame viewable within the spec's 2 s for cameras with a short keyframe interval. The sidecar gives
+  written, and a crash loses at most the open segment (principle VI). A segment's first frame is
+  shown once the segment closes, about a second later, plus the window's 500 ms poll: within the
+  spec's 2 s for cameras with a keyframe at least every second. The sidecar gives
   each frame its own time, whatever the frame rate or a reconnect does.
 - **Alternatives**: one growing file (rejected: Matroska writes its index at the end, a crash leaves
   it unseekable, and reading a file being written is fragile); MPEG-TS (rejected: once segments are
   short and closed it gains nothing, while Matroska holds every codec used here with an index for
   seeking); HLS-style playlists (rejected: the sidecar already is the index).
-- **Known limit**: a stream whose keyframes are farther apart than 2 s makes segments as long as
+- **Known limit**: a stream whose keyframes are farther apart than 1 s makes segments as long as
   its keyframe interval, and the newest frames wait that long.
 
 ## 3. Encoding
@@ -75,7 +76,7 @@
   (numpy arrays, appended as segments close, polled every 500 ms). A decode worker thread opens the
   segment holding the wanted frame, seeks to the keyframe before it, decodes forward and hands a
   `QImage` to the view; the newest request wins.
-- **Rationale**: seeking within a 2 s segment decodes at most 14 frames for `mpeg4` and one GOP for
+- **Rationale**: seeking within a 1 s segment decodes at most 14 frames for `mpeg4` and one GOP for
   H.264; the interface thread never decodes.
 
 ## 7. Input and output lists

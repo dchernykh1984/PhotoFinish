@@ -208,7 +208,7 @@ def test_an_rtmp_push_is_received_and_kept_as_it_came(tmp_path: Path) -> None:
     assert got["packets"] == 90
     assert source.fps == 30
     closed = sorted(tmp_path.glob("*-*-*.mkv"))
-    assert len(closed) == 2
+    assert len(closed) == 3
     for path in closed:
         lines = path.with_suffix(".times").read_text().split("\n")[:-1]
         pts = [int(line.split()[0]) for line in lines]

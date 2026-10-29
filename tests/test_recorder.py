@@ -119,7 +119,7 @@ def test_a_stop_request_closes_the_segment_and_ends_the_recorder(
     assert beat["connection"] == "test"
     assert not (folder / "stop.request").exists()
     assert not (folder / "current.mkv").exists()
-    assert len(list(folder.glob("*-*-*.mkv"))) == 2
+    assert len(list(folder.glob("*-*-*.mkv"))) == 3
 
 
 def test_a_camera_that_fails_is_opened_again_and_the_gap_kept(
@@ -358,4 +358,4 @@ def test_a_network_camera_is_waited_for_and_its_packets_kept(
     assert run("cam1") == 0
     assert "waiting for rtmp://10.0.0.5:1935/live/x" in details
     assert heartbeat(folder)["frames"] == 70
-    assert len(list(folder.glob("*-*-*.mkv"))) == 2
+    assert len(list(folder.glob("*-*-*.mkv"))) == 3
