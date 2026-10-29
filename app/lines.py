@@ -81,11 +81,6 @@ def to_epoch(line_ms: int, summer_time: bool) -> int:
     return epoch
 
 
-def text_lines(data: bytes) -> list[str]:
-    """The lines of a file's bytes, without a byte order mark; see decoded_lines."""
-    return [text for text, _ in decoded_lines(data)]
-
-
 def decoded_lines(data: bytes) -> list[tuple[str, str]]:
     """The lines of a file's bytes, without a byte order mark, each with the encoding
     it was read in, so it can be written back as the same bytes. Each line is decoded
