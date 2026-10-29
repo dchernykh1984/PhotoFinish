@@ -41,7 +41,7 @@ from app.output_list import Change, JournalError, OutputLine, OutputList
 from app.paths import app_path
 from app.recorder import folder_of
 from app.recorder.launcher import Watchdog, command, describe, heartbeat, package_root
-from app.video_index import FileIndex, VideoIndex
+from app.video_index import FileIndex, Frame, VideoIndex
 from app.widgets.camera_dialog import CameraDialog
 from app.widgets.camera_view import CameraView
 from app.widgets.decode_worker import DecodeWorker
@@ -84,6 +84,7 @@ class MainWindow(QMainWindow):
         self.cameras: dict[str, Camera] = {}
         self.current: str | None = None
         self.place: int | None = None  # the frame shown, in the camera's index
+        self.moment: int | None = None  # the video's time shown, ms
         self.live = True
         self.shared_event: tuple[str, int] | None = None  # camera, its moment
 
@@ -94,7 +95,7 @@ class MainWindow(QMainWindow):
         self.grid.addWidget(self.placeholder, 0, 0)
         self.drawing: list[Point] | None = None  # the ends of what is drawn
         self.drawn = "finish_line"  # what it is: the finish line or the zone
-        self.caliper: list[tuple[str, int, Point]] = []  # camera, frame, point
+        self.caliper: list[tuple[str, Frame, Point]] = []  # camera, frame, point
         self.timeline = Timeline()
         self.timeline.seek.connect(self.seek_ms)
         self.timeline.picked.connect(self.pick_between)
@@ -659,7 +660,7 @@ class MainWindow(QMainWindow):
         if camera is None or self.place is None:
             return
         if self.drawing is None:
-            self._caliper(camera, self.place, point)
+            self._caliper(camera, camera.index.frame(self.place), point)
         else:
             self._draw(camera, self.drawing, point)
         self._show_marks()
@@ -678,15 +679,16 @@ class MainWindow(QMainWindow):
             "The zone is drawn" if self.drawn == "zone" else "The finish line is drawn"
         )
 
-    def _caliper(self, camera: Camera, place: int, point: Point) -> None:
+    def _caliper(self, camera: Camera, frame: Frame, point: Point) -> None:
         """A point of the rider on this frame; with one on another frame, the time
-        it crossed the line, offered to accept or adjust."""
-        others = [c for c in self.caliper if c[0] == camera.id and c[1] != place]
-        self.caliper = [*others[-1:], (camera.id, place, point)]
+        it crossed the line, offered to accept or adjust. Points keep their frames,
+        not their places in the index, which a late segment can move."""
+        others = [c for c in self.caliper if c[0] == camera.id and c[1] != frame]
+        self.caliper = [*others[-1:], (camera.id, frame, point)]
         if len(self.caliper) < 2:
             self._say("Now the same point on a frame on the other side of the line")
             return
-        (_, first, a), (_, second, b) = sorted(self.caliper, key=lambda c: c[1])
+        (_, first, a), (_, second, b) = sorted(self.caliper, key=lambda c: c[1].ms)
         fraction = crossing(finish_line(camera.settings.get("finish_line")), a, b)
         if fraction is None:
             self._say(
@@ -696,8 +698,8 @@ class MainWindow(QMainWindow):
             return
         if not self._has_target():
             return
-        frames = [camera.index.frame(first), camera.index.frame(second)]
-        moment = between(frames[0].ms, frames[1].ms, fraction) + self._offset()
+        frames = [first, second]
+        moment = between(first.ms, second.ms, fraction) + self._offset()
         change = Change(
             "interpolated",
             camera.id,
@@ -765,10 +767,9 @@ class MainWindow(QMainWindow):
     def _show_marks(self) -> None:
         """Each view: its camera's finish line, the points clicked on its frame."""
         for camera in self.cameras.values():
+            shown = None if camera.shown is None else camera.index.frame(camera.shown)
             marks = [
-                p
-                for c, place, p in self.caliper
-                if c == camera.id and place == camera.shown
+                p for c, frame, p in self.caliper if c == camera.id and frame == shown
             ]
             if camera.id == self.current:
                 marks += self.drawing or []
@@ -1063,16 +1064,24 @@ class MainWindow(QMainWindow):
         return "up to date" if behind <= 3000 else f"{behind // 1000} s behind"
 
     def step(self, frames: int) -> None:
-        camera = self._camera()
-        if camera is not None and self.place is not None:
+        camera, place = self._camera(), self._place()
+        if camera is not None and place is not None:
             self._leave_live()
-            self._go(camera.index.step(self.place, frames))
+            self._go(camera.index.step(place, frames))
 
     def step_ms(self, ms: int) -> None:
-        camera = self._camera()
-        if camera is not None and self.place is not None:
+        camera, place = self._camera(), self._place()
+        if camera is not None and place is not None:
             self._leave_live()
-            self._go(camera.index.step_ms(self.place, ms))
+            self._go(camera.index.step_ms(place, ms))
+
+    def _place(self) -> int | None:
+        """The frame stepped from: the one shown, or else, for a camera that did not
+        film the moment shown, its frame nearest that moment."""
+        camera = self._camera()
+        if self.place is not None or camera is None or self.moment is None:
+            return self.place
+        return camera.index.nearest(self.moment - self._offset())
 
     def seek_ms(self, ms: int) -> None:
         camera = self._camera()
@@ -1093,7 +1102,17 @@ class MainWindow(QMainWindow):
         self.timeline.following = False
 
     def _refresh(self, force: bool = False) -> None:
+        kept = {
+            c.id: (c.index.generation, self._frame_shown(c))
+            for c in self.cameras.values()
+        }
         grown = [other.index.refresh() for other in self.cameras.values()]
+        for other in self.cameras.values():
+            generation, frame = kept[other.id]
+            if other.index.generation != generation and frame is not None:
+                other.shown, other.wanted = other.index.find(frame), None  # sorted anew
+                if other.id == self.current:
+                    self.place, force = other.shown, True
         camera = self._camera()
         if camera is None:
             self.timeline.set_recording(np.empty(0, np.int64), [])
@@ -1103,8 +1122,14 @@ class MainWindow(QMainWindow):
         offset = self._offset()
         gaps = [(g.start_ms + offset, g.end_ms + offset) for g in camera.index.gaps]
         self.timeline.set_recording(camera.index.ms, gaps, offset)
-        if len(camera.index) and (self.live or self.place is None):
+        nothing_yet = self.place is None and self.moment is None
+        if len(camera.index) and (self.live or nothing_yet):
             self._go(len(camera.index) - 1)
+        elif self.place is not None:
+            self._go(self.place)  # the frame shown, maybe at a new place, asked again
+
+    def _frame_shown(self, camera: Camera) -> Frame | None:
+        return None if camera.shown is None else camera.index.frame(camera.shown)
 
     def _go(self, place: int) -> None:
         camera = self._camera()
@@ -1112,7 +1137,7 @@ class MainWindow(QMainWindow):
             return
         self.place = place
         frame = camera.index.frame(place)
-        moment = frame.ms + self._offset()
+        moment = self.moment = frame.ms + self._offset()
         self.timeline.set_position(moment)
         clock = scale_time(self._line_ms(moment)).split(" ")[1]
         self.time_label.setText(f"{clock} LIVE" if self.live else clock)

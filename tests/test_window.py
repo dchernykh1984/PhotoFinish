@@ -1382,3 +1382,36 @@ def test_a_line_half_drawn_is_given_up_when_another_camera_is_chosen(
     assert "Drawing stopped" in win.statusBar().currentMessage()
     assert win.caliper == []  # that click chose the camera, no more
     assert all("finish_line" not in c for c in session.load()["cameras"])
+
+
+def test_choosing_a_camera_that_did_not_film_the_moment_keeps_the_moment(
+    two: None, make_window: Callable[[], mw.MainWindow], base: Path
+) -> None:
+    win = make_window()
+    side, front = win.cameras["cam1"], win.cameras["cam2"]
+    wait_until(lambda: side.shown is not None)
+    win.seek_ms(FLASH - 400)  # Front has no frame then
+    assert front.shown is None
+    win.camera_list.setCurrentRow(1)
+    assert win.moment == side.index.frame(side.index.nearest(FLASH - 400) or 0).ms
+    assert side.shown is not None  # nobody jumped to Front's newest frame
+    assert side.index.frame(side.shown).ms < FLASH
+    win.step(1)  # from Front's frame nearest the moment
+    assert win.place == 1
+
+
+def test_the_frame_shown_and_its_caliper_point_stay_when_frames_are_sorted_anew(
+    recording: Path, make_window: Callable[[], mw.MainWindow]
+) -> None:
+    win = make_window()
+    view = win.cameras["cam1"].view
+    wait_until(showing(win, START + 69 * 33))
+    win.step(-9)  # frame 60
+    wait_until(showing(win, START + 60 * 33))
+    win.picture_clicked((0.25, 0.5))
+    assert view.marks == [(0.25, 0.5)]
+    record(recording, START - 5000, 10)  # an earlier segment, listed late
+    win.poll()
+    assert win.place == 70
+    wait_until(showing(win, START + 60 * 33))
+    assert view.marks == [(0.25, 0.5)]
