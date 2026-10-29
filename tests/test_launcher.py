@@ -299,6 +299,21 @@ def test_record_again_before_a_stop_is_heard_withdraws_it(folder: Path) -> None:
     assert spawns.processes == []
 
 
+def test_a_recorder_that_heard_the_stop_before_it_was_withdrawn_starts_again(
+    folder: Path, clock: dict[str, float]
+) -> None:
+    beat(folder, "recording")
+    spawns = Spawns()
+    watchdog = Watchdog("cam1", spawns)
+    watchdog.stop()
+    watchdog.start()  # attached: it records on, it seemed
+    beat(folder, "stopped")  # but it had heard the stop already
+    for moment in (1001, 1002):
+        clock["now"] = moment
+        watchdog.poll()
+    assert len(spawns.processes) == 1
+
+
 def test_a_heartbeat_being_replaced_is_read_again(
     folder: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

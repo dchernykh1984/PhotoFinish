@@ -48,7 +48,7 @@ class SegmentWriter:
         self._last_ms: int | None = None  # this run's newest frame: frames keep order
         # The run before's newest frame: a gap from it noted once, never a frame
         # dropped for it -- a clock set back between runs still records.
-        self._before_ms = _last_recorded(folder)
+        self._before_ms = _last_recorded(folder, closed)
         self.gap_reason = "restart" if self._before_ms is not None else "no frames"
         self._open: _Encoded | _Remuxed | None = None
 
@@ -217,11 +217,15 @@ def _keep_aside(folder: Path) -> None:
             left.replace(folder / f"crashed-{stamp}{suffix}")
 
 
-def _last_recorded(folder: Path) -> int | None:
-    """The time of the newest frame in a closed segment of ``folder``, if any."""
-    times = list(folder.glob(f"{CLOSED}.times"))
-    if not times:
-        return None
-    newest = max(times, key=lambda path: path.stat().st_mtime_ns)
-    lines = newest.read_text(encoding="ascii").split()
-    return int(lines[-1]) if lines else None
+def _last_recorded(folder: Path, closed: list[str]) -> int | None:
+    """The time of the run before's newest frame: the last of the segment closed
+    last. Taken from the list, not by looking at every segment of a long day."""
+    for name in reversed(
+        closed
+    ):  # a name a kill cut short has no times: the one before
+        try:
+            found = (folder / f"{name}.times").read_text(encoding="ascii").split()
+            return int(found[-1]) if found else None
+        except OSError, ValueError:
+            continue
+    return None

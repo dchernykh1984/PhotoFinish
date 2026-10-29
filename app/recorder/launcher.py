@@ -139,9 +139,12 @@ class Watchdog:
         return info
 
     def _ended_by_itself(self, info: dict[str, Any] | None) -> bool:
+        """Failed, or the disk full, since this window started it: left for the
+        referee. One that stopped heard a stop, maybe just before it was withdrawn:
+        started again while it is wanted."""
         return (
             info is not None
-            and info.get("state") in ENDED
+            and info.get("state") in ("failed", "disk_full")
             and int(info.get("heartbeat_ms", 0)) >= self._started_ms
         )
 

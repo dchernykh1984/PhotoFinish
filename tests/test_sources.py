@@ -154,6 +154,18 @@ def test_a_file_plays_as_if_filmed_now(tmp_path: Path) -> None:
     assert now["ms"] == START + 360
 
 
+def test_a_file_camera_s_path_is_found_in_the_event_folder(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app import paths
+
+    make_video(tmp_path / "race.mkv", 3)
+    monkeypatch.setattr(paths, "base_dir", lambda: tmp_path)  # not the working dir
+    camera = {"connection": "file", "settings": {"path": "race.mkv"}}
+    source = open_source(camera, lambda: START, lambda seconds: None)
+    assert len([item for item in source.frames() if item is not None]) == 3
+
+
 def test_a_stream_that_does_not_answer_fails_to_be_opened_again(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
