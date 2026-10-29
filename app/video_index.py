@@ -103,6 +103,14 @@ class VideoIndex:
             return i - 1
         return i
 
+    def around(self, ms: int) -> tuple[int, int] | None:
+        """The places of the two frames ``ms`` lies between -- on a frame, it and the
+        one before; None outside the recording."""
+        after = int(np.searchsorted(self.ms, ms))
+        if after == 0 or after >= len(self):
+            return None
+        return after - 1, after
+
     def step(self, place: int, frames: int) -> int:
         """The place ``frames`` on from ``place``, within the recording."""
         return min(max(place + frames, 0), len(self) - 1)

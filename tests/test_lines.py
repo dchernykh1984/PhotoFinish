@@ -68,3 +68,9 @@ def test_lines_are_read_each_in_its_encoding() -> None:
         "2#\xff\x98#",
         "3#0 0:0:3.000#nextLap#",
     ]
+
+
+def test_the_source_offset_is_the_line_moment_less_the_video_moment() -> None:
+    moment = 1_761_716_129_587
+    line_ms = lines.to_line_scale(moment + 2500, False)
+    assert lines.source_offset(line_ms, moment, False) == 2500

@@ -67,6 +67,12 @@ def to_line_scale(epoch_ms: int, summer_time: bool) -> int:
     return epoch_ms - time.timezone * 1000 + (_HOUR_MS if summer else 0)
 
 
+def source_offset(line_ms: int, moment: int, summer_time: bool) -> int:
+    """What, added to the video's moment of a passing, gives the moment the timing
+    source wrote for it in its line (Unix ms both)."""
+    return to_epoch(line_ms, summer_time) - moment
+
+
 def to_epoch(line_ms: int, summer_time: bool) -> int:
     """The moment (Unix ms) a line-scale time stands for: to_line_scale undone."""
     epoch = line_ms + time.timezone * 1000
