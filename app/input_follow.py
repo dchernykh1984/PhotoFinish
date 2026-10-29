@@ -11,6 +11,7 @@ while a stick is out.
 
 from __future__ import annotations
 
+import bisect
 import time
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
@@ -21,6 +22,7 @@ from app.lines import parse_line, text_lines
 from app.output_list import OutputList
 
 REST_NS = 2_000_000_000  # a last line left without its line break this long is done
+NEW_FILE_MS = 10 * 60_000  # a new file's crossings are further than this from the old
 
 
 @dataclass(frozen=True)
@@ -49,10 +51,11 @@ class Alignment:
 
 def align(taken: list[str], current: list[str]) -> Alignment:
     """``current`` against the input as last ``taken``. An input with no line in
-    common with it is a new file -- a new competition at the chronometer -- all new;
-    otherwise a line the chronometer edited keeps the content taken until copied."""
+    common with it and no crossing near one taken is a new file -- a new competition
+    at the chronometer -- all new; otherwise a line the chronometer edited keeps the
+    content taken until copied."""
     result = Alignment()
-    if taken and current and set(taken).isdisjoint(current):
+    if _new_file(taken, current):
         result.gone = list(taken)
         for text in current:
             result.add(text)
@@ -65,6 +68,24 @@ def align(taken: list[str], current: list[str]) -> Alignment:
         else:
             _pair(taken[i1:i2], current[j1:j2], result)
     return result
+
+
+def _new_file(taken: list[str], current: list[str]) -> bool:
+    """No line in common, and no crossing within NEW_FILE_MS of one taken: the
+    chronometer began a file anew. An edit keeps its crossings near their times."""
+    if not taken or not current or not set(taken).isdisjoint(current):
+        return False
+    before = sorted(ms for text in taken if (ms := parse_line(text).ms) is not None)
+    for text in current:
+        ms = parse_line(text).ms
+        if ms is None or not before:
+            continue
+        i = bisect.bisect_left(before, ms)
+        if min(abs(ms - before[j]) for j in (i - 1, i) if 0 <= j < len(before)) <= (
+            NEW_FILE_MS
+        ):
+            return False
+    return True
 
 
 def _pair(before: list[str], after: list[str], result: Alignment) -> None:

@@ -264,3 +264,15 @@ def test_a_last_line_left_without_its_line_break_is_taken_once_at_rest(
     write(source, A, tail=" \n")
     f.poll()
     assert not f._cut  # blanks after the last line break are no line
+
+
+def test_the_only_line_taken_edited_is_a_change_not_a_new_file() -> None:
+    taken = ["5#0 10:0:0.000#finish#"]
+    edited = ["5#0 10:0:1.000#finish#"]
+    result = align(taken, edited)
+    assert (result.new, result.gone) == ([], [])
+    assert result.shown == [InputLine(edited[0], taken[0])]
+    later = align(taken, ["5#0 11:0:0.000#finish#", "8##"])  # an hour on: a new race
+    assert (later.new, later.gone) == (["5#0 11:0:0.000#finish#", "8##"], taken)
+    timeless = align(["7##"], ["8##"])  # nothing to tell by: a new file
+    assert timeless.new == ["8##"]
