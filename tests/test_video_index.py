@@ -40,6 +40,9 @@ def test_frames_are_found_by_time_and_decoded(tmp_path: Path) -> None:
     assert index.nearest(START + 10**6) == 69
     assert index.nearest(START + 16) == 0  # as near to both: the earlier
     assert index.nearest(START + 17) == 1
+    assert index.nearest(START - 1000, within=1000) == 0
+    assert index.nearest(START - 1001, within=1000) is None  # filmed no such moment
+    assert index.nearest(START + 69 * 33 + 1001, within=1000) is None
     decoder = Decoder()
     for place in (0, 1, 2, 45, 46, 31, 69, 0):
         frame = index.frame(place)
