@@ -45,12 +45,16 @@
 ## 4. Frame times
 
 - **Decision**: a steady clock anchored to the wall clock when the recorder starts:
-  `wall = anchor_wall + (monotonic - anchor_monotonic)`. A USB or test frame takes the time it was
-  captured; a network frame takes the anchor of its first packet plus its `pts` distance from it,
-  re-anchored when the `pts` jumps back or by more than 5 s.
+  `wall = anchor_wall + (monotonic - anchor_monotonic)`. A test frame takes its due moment on that
+  clock. A USB, file or network frame takes the clock's moment of its first frame plus its own
+  timestamp's distance from it, anchored again when the timestamp jumps back by more than a second
+  (B-frames step back a little on their own) or forward by more than 5 s.
 - **Rationale**: frame times never move when the computer's clock is adjusted (spec edge case);
-  network jitter does not shake the timeline; the remaining constant delay of a network camera is
-  what the alignment of Story 7 absorbs.
+  arrival jitter does not shake the timeline; the remaining constant delay of a camera is what the
+  alignment of Story 7 absorbs.
+- **Known limit**: a network camera's timestamps follow its own clock, which can drift from the
+  computer's by tens of parts per million -- a few tenths of a second over a long day. Aligning
+  again (Story 7) corrects it; a USB camera's timestamps come from the computer's clock.
 
 ## 5. The recorder outlives the window
 

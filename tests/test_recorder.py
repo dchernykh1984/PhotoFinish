@@ -15,6 +15,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+import av
 import numpy as np
 import pytest
 
@@ -23,6 +24,7 @@ from app import paths, session
 from app.recorder import Backoff, Heartbeat, SteadyClock, run
 from app.recorder.segments import SegmentWriter
 from app.recorder.testcam import read_time, render
+from tests.test_segments import make_h264
 
 ROOT = Path(__file__).resolve().parents[1]
 START = 1_761_716_129_587
@@ -84,7 +86,7 @@ class Camera:
             raise self.then
 
 
-def cameras(monkeypatch: pytest.MonkeyPatch, *opened: Camera) -> list[str]:
+def cameras(monkeypatch: pytest.MonkeyPatch, *opened: Any) -> list[str]:
     """Each opening of the camera gives the next of ``opened``; the states the
     heartbeat went through are returned as they come."""
     queue = list(opened)
@@ -293,8 +295,6 @@ def test_a_recorder_process_records_the_test_camera(tmp_path: Path) -> None:
     assert max(b - a for a, b in itertools.pairwise(lines)) < 100
     assert not (folder / "gaps.txt").exists()
     first = min(folder.glob("*-*-*.mkv"))
-    import av
-
     with av.open(str(first)) as container:
         frame = next(container.decode(video=0))
         assert read_time(frame.to_ndarray(format="rgb24")) == lines[0]
@@ -319,3 +319,43 @@ def test_a_write_that_fails_otherwise_is_tried_again(
     monkeypatch.setattr(SegmentWriter, "write", flaky)
     assert run("cam1") == 0
     assert states[:3] == ["connecting", "reconnecting", "connecting"]
+
+
+class Network:
+    """A network camera: a wait for it to call in, then its packets."""
+
+    fps = 30.0
+    waiting = "waiting for rtmp://10.0.0.5:1935/live/x"
+
+    def __init__(self, folder: Path, path: Path) -> None:
+        self.folder, self.path = folder, path
+
+    def frames(self) -> Iterator[Any]:
+        yield None
+        with av.open(str(self.path)) as container:
+            stream = container.streams.video[0]
+            unit = float(stream.time_base or 0) * 1000
+            for packet in container.demux(stream):
+                if packet.pts is not None:
+                    yield packet, START + round(packet.pts * unit)
+        (self.folder / "stop.request").touch()
+        yield None
+
+
+def test_a_network_camera_is_waited_for_and_its_packets_kept(
+    folder: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    make_h264(tmp_path / "camera.mp4", 70)
+    cameras(monkeypatch, Network(folder, tmp_path / "camera.mp4"))
+    details: list[str] = []
+    real = Heartbeat.beat
+
+    def beat(self: Heartbeat, **changes: Any) -> None:
+        real(self, **changes)
+        details.append(self.info["detail"])
+
+    monkeypatch.setattr(Heartbeat, "beat", beat)
+    assert run("cam1") == 0
+    assert "waiting for rtmp://10.0.0.5:1935/live/x" in details
+    assert heartbeat(folder)["frames"] == 70
+    assert len(list(folder.glob("*-*-*.mkv"))) == 2

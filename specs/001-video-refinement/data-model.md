@@ -27,7 +27,7 @@ video/<camera id>/
 | `id` | folder name, `cam1`, `cam2`... |
 | `name` | shown to the referee |
 | `connection` | `usb`, `rtsp`, `rtmp`, `test`, `file` |
-| `settings` | per connection: device name, size and rate (`usb`); `url` (`rtsp`); `port`, `path` (`rtmp`); `fps`, `scene` (`test`); `path` (`file`) |
+| `settings` | per connection: `device`, `width`, `height`, `fps` (`usb`); `url`, `transport` `tcp` or `udp` (`rtsp`); `port`, `path` (`rtmp`); `fps`, `width`, `height`, `scene` (`test`); `path` (`file`) |
 | `preset` | `sjcam-hd1080p-usb`, `sjcam-hd1080p-wifi`, `sjcam-sj10pro-rtmp` or none |
 | `finish_line` | `[[x1, y1], [x2, y2]]`, 0-1 image coordinates; default the vertical centre line |
 | `offset_ms` | added to this camera's frame times to put it on the first camera's timeline |

@@ -3,10 +3,12 @@
 The segment being written is ``current.mkv`` with ``current.times``, one
 ``<pts> <Unix ms>`` line a frame. Once both are closed they are renamed
 ``<YYYYmmdd-HHMMSS>-<n>``, the times first, so a closed segment always has its
-times. A segment ends at the first frame two seconds after its start; each has an
-encoder of its own, so it starts with a keyframe (mpeg4, a keyframe every 15 frames,
-fixed quality 3). A stretch without frames longer than three frame intervals is
-appended to ``gaps.txt`` as ``<from ms> <to ms> <reason>``.
+times. A segment ends at the first frame two seconds after its start. Frames are
+encoded by an encoder of the segment's own, so it starts with a keyframe (mpeg4, a
+keyframe every 15 frames, fixed quality 3); a network camera's packets are stored as
+they came, a segment starting and ending at the camera's keyframes. A stretch
+without frames longer than three frame intervals is appended to ``gaps.txt`` as
+``<from ms> <to ms> <reason>``.
 """
 
 from __future__ import annotations
@@ -38,22 +40,45 @@ class SegmentWriter:
         self.frames = 0
         self._last_ms = _last_recorded(folder)
         self.gap_reason = "restart" if self._last_ms is not None else "no frames"
-        self._open: _Segment | None = None
+        self._open: _Encoded | _Remuxed | None = None
 
     def write(self, image: np.ndarray | av.VideoFrame, ms: int) -> None:
         """A frame taken at ``ms``; frames must come in time order."""
-        if self._last_ms is not None:
-            if ms <= self._last_ms:
-                return  # a frame out of order cannot be muxed; the next one can
-            if ms - self._last_ms > 3 * 1000 / self.fps:
-                self._gap(self._last_ms, ms)
-        if self._open is not None and ms - self._open.first_ms >= self.segment_ms:
+        if self._last_ms is not None and ms <= self._last_ms:
+            return  # a frame out of order cannot be muxed; the next one can
+        self._next(ms, cut=True)
+        if not isinstance(self._open, _Encoded):
             self.close()
-        if self._open is None:
-            self._open = _Segment(self.folder, image, ms, self.fps)
+            self._open = _Encoded(self.folder, image, ms, self.fps)
         self._open.add(image, ms)
-        self._last_ms = ms
         self.frames += 1
+
+    def write_packet(self, packet: av.Packet, ms: int) -> None:
+        """A packet of a network camera, its frame taken at ``ms``. A segment starts
+        at a keyframe; packets before the first are of no use and are dropped."""
+        if packet.pts is None or packet.dts is None or packet.stream is None:
+            return  # nothing to place it by
+        if not isinstance(self._open, _Remuxed) and not packet.is_keyframe:
+            return
+        self._next(ms, cut=packet.is_keyframe)
+        if not isinstance(self._open, _Remuxed):
+            self.close()
+            self._open = _Remuxed(self.folder, packet, packet.stream, ms)
+        self._open.add(packet, packet.pts, packet.dts, ms)
+        self.frames += 1
+
+    def _next(self, ms: int, cut: bool) -> None:
+        """A gap before ``ms`` noted; the open segment closed when it is long enough
+        and ``ms`` may start the next."""
+        if self._last_ms is not None and ms - self._last_ms > 3 * 1000 / self.fps:
+            self._gap(self._last_ms, ms)
+        if (
+            cut
+            and self._open is not None
+            and ms - self._open.first_ms >= self.segment_ms
+        ):
+            self.close()
+        self._last_ms = max(ms, self._last_ms or ms)
 
     def close(self) -> None:
         """End the open segment: both files closed, then renamed, the times first."""
@@ -76,7 +101,7 @@ class SegmentWriter:
         self.gap_reason = "no frames"
 
 
-class _Segment:
+class _Encoded:
     def __init__(
         self, folder: Path, first: np.ndarray | av.VideoFrame, ms: int, fps: float
     ) -> None:
@@ -108,6 +133,38 @@ class _Segment:
             self.container.mux(packet)
         self.container.close()
         self.times.close()
+
+
+class _Remuxed:
+    """A camera's packets stored as they came, from its first keyframe on."""
+
+    def __init__(
+        self, folder: Path, first: av.Packet, template: av.stream.Stream, ms: int
+    ) -> None:
+        self.first_ms = ms
+        self.base = first.dts or 0  # timestamps start at 0 in each segment
+        rate = first.time_base
+        self.time_base = Fraction(rate.numerator, rate.denominator)
+        self.container = av.open(str(folder / "current.mkv"), "w", format="matroska")
+        self.stream = self.container.add_stream_from_template(template)
+        self.times: TextIO = (folder / "current.times").open("w", encoding="ascii")
+
+    def add(self, packet: av.Packet, pts: int, dts: int, ms: int) -> None:
+        packet.pts, packet.dts = pts - self.base, dts - self.base
+        pts_ms = _in_ms(pts - self.base, self.time_base)
+        packet.stream = self.stream
+        self.container.mux(packet)
+        self.times.write(f"{pts_ms} {ms}\n")
+
+    def close(self) -> None:
+        self.container.close()
+        self.times.close()
+
+
+def _in_ms(value: int, time_base: Fraction) -> int:
+    """``value`` in ``time_base`` as whole milliseconds, rounded as the muxer rounds."""
+    scaled = value * time_base * 1000
+    return (2 * scaled.numerator + scaled.denominator) // (2 * scaled.denominator)
 
 
 def _size(image: np.ndarray | av.VideoFrame) -> tuple[int, int]:

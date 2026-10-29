@@ -85,6 +85,7 @@ class TestCamera:
     """Frames at a steady rate, each at its moment on ``clock`` (Unix ms)."""
 
     __test__ = False  # a camera, not a pytest class
+    waiting = ""  # it never waits
 
     def __init__(
         self,
