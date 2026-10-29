@@ -42,8 +42,11 @@ class SegmentWriter:
         closed = _list_missing(folder)
         self.segments = len(closed)
         self.frames = 0
-        self._last_ms = _last_recorded(folder)
-        self.gap_reason = "restart" if self._last_ms is not None else "no frames"
+        self._last_ms: int | None = None  # this run's newest frame: frames keep order
+        # The run before's newest frame: a gap from it noted once, never a frame
+        # dropped for it -- a clock set back between runs still records.
+        self._before_ms = _last_recorded(folder)
+        self.gap_reason = "restart" if self._before_ms is not None else "no frames"
         self._open: _Encoded | _Remuxed | None = None
 
     def write(self, image: np.ndarray | av.VideoFrame, ms: int) -> None:
@@ -76,8 +79,10 @@ class SegmentWriter:
     def _next(self, ms: int, cut: bool) -> None:
         """A gap before ``ms`` noted; the open segment closed when it is long enough
         and ``ms`` may start the next."""
-        if self._last_ms is not None and ms - self._last_ms > 3 * 1000 / self.fps:
-            self._gap(self._last_ms, ms)
+        last = self._last_ms if self._last_ms is not None else self._before_ms
+        self._before_ms = None
+        if last is not None and ms - last > 3 * 1000 / self.fps:
+            self._gap(last, ms)
         if (
             cut
             and self._open is not None

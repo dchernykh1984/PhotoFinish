@@ -41,25 +41,38 @@ def folder_of(camera_id: str) -> Path:
 class SteadyClock:
     """Unix milliseconds that never go back: the wall clock read at the start, then a
     steady clock, so frames keep their order when the computer's clock is set back.
-    The steady clock stands still while the computer sleeps: when the wall clock has
-    run ahead of it by more than LEAP_MS, it is read again, and the frames that
-    follow are on the computer's time, as the chronometer's are."""
+    Within LEAP_MS of the computer's clock it follows it slowly, a millisecond a
+    second at most, as the two oscillators drift apart over a race day. The steady
+    clock stands still while the computer sleeps: when the wall clock has run ahead
+    of it by more than LEAP_MS, it is read again, and the frames that follow are on
+    the computer's time, as the chronometer's are."""
 
     LEAP_MS = 2000
+    SLEW = 0.001  # the share of the time passed by which it may be brought nearer
 
     def __init__(self) -> None:
         self._anchor()
+        self._last = int(self._wall)
 
     def _anchor(self) -> None:
-        self._wall = time.time_ns() // 1_000_000
-        self._steady = time.monotonic_ns()
+        self._wall = time.time_ns() / 1_000_000
+        self._steady = self._then = time.monotonic_ns()
+        self._skew = 0.0
 
     def __call__(self) -> int:
-        steady = self._wall + (time.monotonic_ns() - self._steady) // 1_000_000
-        if time.time_ns() // 1_000_000 - steady > self.LEAP_MS:
+        now = time.monotonic_ns()
+        steady = self._wall + (now - self._steady) / 1_000_000 + self._skew
+        ahead = time.time_ns() / 1_000_000 - steady
+        if ahead > self.LEAP_MS:
             self._anchor()  # it slept, or its clock was set forward
-            return self._wall
-        return steady
+            steady = self._wall
+        elif ahead >= -self.LEAP_MS:  # drift; a clock set back is not followed
+            most = (now - self._then) / 1_000_000 * self.SLEW
+            self._skew += max(-most, min(most, ahead))
+            steady = self._wall + (now - self._steady) / 1_000_000 + self._skew
+        self._then = now
+        self._last = max(self._last, int(steady))
+        return self._last
 
 
 class Backoff:
@@ -217,9 +230,10 @@ class _Recording:
         else:
             _disk(writer.write, image, ms)
         self.backoff.running(time.monotonic())
-        self.beat.beat(
-            state="recording", detail="", frames=writer.frames, segments=writer.segments
-        )
+        counts: dict[str, Any] = {"frames": writer.frames, "segments": writer.segments}
+        if self.beat.info["state"] != "recording":
+            counts["detail"] = ""  # what was said while connecting is over
+        self.beat.beat(state="recording", **counts)
 
     def _wait(self, detail: str) -> bool:
         """The open segment closed, a pause before trying again; True when a stop

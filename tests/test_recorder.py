@@ -64,9 +64,26 @@ def test_the_steady_clock_keeps_order_and_wakes_up_with_the_computer(
     now["wall"] += 3_600_000_000_000 + 121_000_000_000  # slept two minutes
     now["steady"] += 1_000_000_000  # the steady clock did not count them
     assert clock() == first + 121_000  # read again: on the computer's time
-    now["wall"] += 1_500_000_000  # a little ahead is no sleep: steady still
+    now["wall"] += 1_500_000_000  # a little ahead is no sleep: followed slowly
     now["steady"] += 1_000_000_000
-    assert clock() == first + 122_000
+    assert clock() == first + 122_001  # a millisecond for the second passed
+
+
+def test_the_steady_clock_follows_a_drifting_computer_clock(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for drift in (1.00005, 0.99995):  # 50 ppm either way, a whole race day
+        now = {"wall": 2_000_000_000_000_000_000, "steady": 7_000_000_000}
+        monkeypatch.setattr(time, "time_ns", lambda now=now: now["wall"])
+        monkeypatch.setattr(time, "monotonic_ns", lambda now=now: now["steady"])
+        clock, last = SteadyClock(), 0
+        for _ in range(12 * 60):  # every minute for twelve hours
+            now["steady"] += 60_000_000_000
+            now["wall"] += round(60_000_000_000 * drift)
+            moment = clock()
+            assert moment > last
+            last = moment
+        assert abs(last - now["wall"] // 1_000_000) <= 1
 
 
 class Camera:
@@ -370,3 +387,25 @@ def test_a_network_camera_is_waited_for_and_its_packets_kept(
     assert "waiting for rtmp://10.0.0.5:1935/live/x" in details
     assert heartbeat(folder)["frames"] == 70
     assert len(list(folder.glob("*-*-*.mkv"))) == 3
+
+
+def test_low_disk_does_not_make_the_heartbeat_write_at_every_frame(
+    folder: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cameras(monkeypatch, Camera(folder, START, 60, stop_after=59))
+    monkeypatch.setattr(
+        shutil, "disk_usage", lambda path: SimpleNamespace(free=recorder.LOW_DISK - 1)
+    )
+    written: list[float] = []
+    real = Path.replace
+
+    def replace(self: Path, target: Path) -> Path:
+        if Path(target).name == "recorder.json":
+            written.append(time.monotonic())
+        return real(self, target)
+
+    monkeypatch.setattr(Path, "replace", replace)
+    started = time.monotonic()
+    assert run("cam1") == 0
+    seconds = time.monotonic() - started
+    assert len(written) <= 6 + 2 * seconds  # the changes of state, then once a second
