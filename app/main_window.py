@@ -1263,6 +1263,7 @@ def start_analyzer(camera_id: str, parent: QWidget) -> QProcess:
         environment.insert("PYTHONPATH", package_root())
     process.setProcessEnvironment(environment)
     process.setStandardOutputFile(QProcess.nullDevice())
+    process.setStandardErrorFile(QProcess.nullDevice())  # unread, it would pile up
     process.start()
     return process
 
