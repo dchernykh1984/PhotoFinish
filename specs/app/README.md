@@ -125,5 +125,6 @@ helps find the moments to look at.
   indexed keep their stretches. Riders in a bunch can be taken for one another, and night, rain
   or a low sun can hide them: scroll by hand, as always.
 - On Windows the portable build is one file that unpacks itself; a recorder started from it first
-  waits for that. Whether it leaves the window's job on every Windows setup is still to be seen
-  on the maintainer's machines.
+  waits for that: it unpacks a copy of its own (`PYINSTALLER_RESET_ENVIRONMENT`), not the window's,
+  which is deleted when the window closes. Whether it leaves the window's job on every Windows
+  setup is still to be seen on the maintainer's machines.

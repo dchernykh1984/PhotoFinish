@@ -4,7 +4,6 @@ Qt-free modules (session, video_index, recorder) and the widgets."""
 from __future__ import annotations
 
 import math
-import sys
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -47,7 +46,13 @@ from app.lines import (
 from app.output_list import Change, JournalError, OutputLine, OutputList
 from app.paths import app_path
 from app.recorder import folder_of
-from app.recorder.launcher import Watchdog, command, describe, heartbeat, package_root
+from app.recorder.launcher import (
+    Watchdog,
+    child_environment,
+    command,
+    describe,
+    heartbeat,
+)
 from app.video_index import FileIndex, Frame, VideoIndex
 from app.widgets.camera_dialog import CameraDialog
 from app.widgets.camera_view import CameraView
@@ -1310,9 +1315,9 @@ def start_analyzer(camera_id: str, parent: QWidget) -> QProcess:
     process.setProgram(program)
     process.setArguments(arguments)
     process.setWorkingDirectory(str(paths.base_dir()))
-    environment = QProcessEnvironment.systemEnvironment()
-    if not getattr(sys, "frozen", False):
-        environment.insert("PYTHONPATH", package_root())
+    environment = QProcessEnvironment()
+    for key, value in child_environment().items():
+        environment.insert(key, value)
     process.setProcessEnvironment(environment)
     process.setStandardOutputFile(QProcess.nullDevice())
     process.setStandardErrorFile(QProcess.nullDevice())  # unread, it would pile up
