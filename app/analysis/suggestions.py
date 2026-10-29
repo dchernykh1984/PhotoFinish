@@ -20,12 +20,17 @@ class Suggestions:
         self.folder = folder
         self.found: list[dict[str, Any]] = []
         self.done: set[str] = set()
+        self._ids: set[str] = set()  # those found: a segment analysed twice adds none
         self._found = Appended(folder / SUGGESTIONS)
         self._decided = Appended(folder / DONE)
 
     def refresh(self) -> bool:
         """Suggestions and decisions written since; True when there were any."""
-        found = _entries(self._found.new_lines())
+        found = []
+        for entry in _entries(self._found.new_lines()):
+            if str(entry.get("id")) not in self._ids:
+                self._ids.add(str(entry.get("id")))
+                found.append(entry)
         decided = _entries(self._decided.new_lines())
         self.found += found
         self.done |= {str(entry.get("id")) for entry in decided}

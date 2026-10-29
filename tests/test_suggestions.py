@@ -27,3 +27,13 @@ def test_suggestions_are_read_as_appended_and_decisions_kept(tmp_path: Path) -> 
     again.refresh()
     assert [s["id"] for s in again.pending()] == ["cam1-2000"]
     assert not again.refresh()
+
+
+def test_a_crossing_suggested_twice_is_offered_once(tmp_path: Path) -> None:
+    """The analyser killed between a segment's suggestions and its activity line
+    analyses the segment again on restart."""
+    line = json.dumps({"id": "cam1-1000", "ms": 1000}) + "\n"
+    (tmp_path / "suggestions.jsonl").write_text(line + line)
+    found = Suggestions(tmp_path)
+    found.refresh()
+    assert [s["id"] for s in found.pending()] == ["cam1-1000"]
