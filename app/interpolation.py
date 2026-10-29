@@ -39,7 +39,7 @@ def finish_line(drawn: object) -> Line:
 def crossing(line: Line, first: Point, second: Point) -> float | None:
     """Where between the two frames the point crossed ``line``: 0 at the first frame,
     1 at the second; None when both points lie on one side of it."""
-    a, b = _side(line, first), _side(line, second)
+    a, b = side(line, first), side(line, second)
     if a * b > 0 or a == b:
         return None
     return a / (a - b)
@@ -50,7 +50,7 @@ def between(first_ms: int, second_ms: int, fraction: float) -> int:
     return round(first_ms + fraction * (second_ms - first_ms))
 
 
-def _side(line: Line, point: Point) -> float:
+def side(line: Line, point: Point) -> float:
     """How far, and on which side, ``point`` lies from ``line`` (a cross product)."""
     (x1, y1), (x2, y2) = line
     return (x2 - x1) * (point[1] - y1) - (y2 - y1) * (point[0] - x1)

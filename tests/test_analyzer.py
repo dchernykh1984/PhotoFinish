@@ -41,6 +41,12 @@ def activity(folder: Path) -> list[dict[str, Any]]:
     return [json.loads(line) for line in lines]
 
 
+def unanalysed(folder: Path) -> set[str]:
+    """The segments listed and not analysed yet."""
+    listed = set((folder / "segments.txt").read_text().split())
+    return listed - analyzer.analysed(folder)
+
+
 def stretches(folder: Path) -> list[list[int]]:
     found: list[list[int]] = []
     for segment in activity(folder):
@@ -61,7 +67,7 @@ def base(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 def test_a_recording_with_three_passes_has_three_stretches(base: Path) -> None:
     folder = camera(base, "passes", 30)
     assert analyzer.run("cam1", stop=lambda: False, once=True) == 0
-    assert not analyzer.unanalysed(folder)
+    assert not unanalysed(folder)
     found = stretches(folder)
     assert len(found) == 3
     for n, (start, end) in enumerate(found):
@@ -115,7 +121,7 @@ def test_the_analyser_process_stops_when_its_window_is_gone(base: Path) -> None:
     )
     try:
         until = time.monotonic() + 30
-        while analyzer.unanalysed(folder):
+        while unanalysed(folder):
             assert time.monotonic() < until, "timed out"
             time.sleep(0.1)
         assert process.poll() is None  # it waits for more
