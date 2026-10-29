@@ -15,7 +15,7 @@ from app.decoder import Decoder
 from app.recorder import run
 from app.recorder.segments import SegmentWriter
 from app.recorder.testcam import read_time, render
-from app.video_index import FileIndex, Gap, VideoIndex
+from app.video_index import FileIndex, Frame, Gap, VideoIndex
 from tests.test_segments import make_h264
 
 START = 1_761_716_129_587
@@ -296,3 +296,20 @@ def test_an_hour_of_segments_is_appended_without_copying_it_each_time(
     assert index.frame(107_999).ms == START + 3599 * 1000 + 29 * 33
     index._append(np.empty(0, np.int64), np.empty(0, np.int64), np.empty(0, np.int32))
     assert len(index) == 108_000
+
+
+def test_a_frame_is_found_again_after_the_frames_were_sorted_anew(
+    tmp_path: Path,
+) -> None:
+    record(tmp_path, START, 40)
+    index = VideoIndex(tmp_path)
+    index.refresh()
+    frame = index.frame(35)
+    assert (index.generation, index.find(frame)) == (0, 35)
+    record(tmp_path, START - 5000, 10)  # an earlier segment, listed late
+    index.refresh()
+    assert index.generation == 1
+    assert index.find(frame) == 45
+    assert index.frame(45) == frame
+    assert index.find(Frame(tmp_path / "x.mkv", 0, 0)) is None
+    assert index.find(Frame(frame.path, 10**9, 0)) is None

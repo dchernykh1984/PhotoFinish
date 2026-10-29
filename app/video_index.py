@@ -53,6 +53,7 @@ class VideoIndex:
             np.empty(0, np.int32),
         ]
         self._size = 0
+        self.generation = 0  # counts the times the frames were sorted anew
         self.ms: np.ndarray = self._buffers[0]
         self._pts: np.ndarray = self._buffers[1]
         self._segment: np.ndarray = self._buffers[2]
@@ -111,6 +112,15 @@ class VideoIndex:
         nearest = self.nearest(int(self.ms[place]) + ms)
         return place if nearest is None else nearest
 
+    def find(self, frame: Frame) -> int | None:
+        """A frame's place now: after the frames were sorted anew, it may differ."""
+        try:
+            segment = self.paths.index(frame.path)
+        except ValueError:
+            return None
+        found = np.nonzero((self._segment == segment) & (self._pts == frame.pts))[0]
+        return int(found[0]) if found.size else None
+
     def frame(self, place: int) -> Frame:
         place = min(max(place, 0), len(self) - 1)
         return Frame(
@@ -139,6 +149,7 @@ class VideoIndex:
             order = np.argsort(self._buffers[0][:end], kind="stable")
             for buffer in self._buffers:
                 buffer[:end] = buffer[:end][order]
+            self.generation += 1  # places held before name other frames now
         self.ms, self._pts, self._segment = (b[:end] for b in self._buffers)  # views
 
     def _read_gaps(self) -> None:
