@@ -1084,7 +1084,7 @@ class MainWindow(QMainWindow):
             return
         offset = self._offset()
         gaps = [(g.start_ms + offset, g.end_ms + offset) for g in camera.index.gaps]
-        self.timeline.set_recording(camera.index.ms + offset, gaps)
+        self.timeline.set_recording(camera.index.ms, gaps, offset)
         if len(camera.index) and (self.live or self.place is None):
             self._go(len(camera.index) - 1)
 

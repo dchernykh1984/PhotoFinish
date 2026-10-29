@@ -27,16 +27,21 @@ class Timeline(QWidget):
         self.view = (0, 1)  # the span the widget shows
         self.position: int | None = None
         self.frames = np.empty(0, np.int64)
+        self.offset = 0  # frames + offset: the video's time
         self.gaps: list[tuple[int, int]] = []
         self.stretches: list[tuple[int, int]] = []  # riders in view (002)
         self.zoomed = False
         self.following = True  # the view slides with the newest frame (Live)
 
-    def set_recording(self, frames: np.ndarray, gaps: list[tuple[int, int]]) -> None:
-        """The frames recorded (moments, ascending) and the gaps between them."""
-        self.frames, self.gaps = frames, gaps
+    def set_recording(
+        self, frames: np.ndarray, gaps: list[tuple[int, int]], offset: int = 0
+    ) -> None:
+        """The frames recorded (moments on their camera's clock, ascending), the gaps
+        between them, and what puts them on the video's time: added as drawn, never
+        to a copy of every frame."""
+        self.frames, self.gaps, self.offset = frames, gaps, offset
         if frames.size:
-            self.start, self.end = int(frames[0]), int(frames[-1])
+            self.start, self.end = int(frames[0]) + offset, int(frames[-1]) + offset
         if not self.zoomed:
             self.view = (self.start, max(self.end, self.start + 1))
         elif self.following:
@@ -90,7 +95,7 @@ class Timeline(QWidget):
 
     def between_frames(self, ms: int) -> bool:
         """True when ``ms`` lies between two frames shown at least PICK_PX apart."""
-        after = int(np.searchsorted(self.frames, ms))
+        after = int(np.searchsorted(self.frames, ms - self.offset))
         if after == 0 or after >= self.frames.size:
             return False
         before = after - 1
@@ -125,13 +130,13 @@ class Timeline(QWidget):
 
     def _tick_frames(self, painter: QPainter) -> None:
         start, end = self.view
-        lo, hi = np.searchsorted(self.frames, [start, end])
+        lo, hi = np.searchsorted(self.frames, [start - self.offset, end - self.offset])
         shown = self.frames[lo:hi]
         if shown.size < 2 or self.width() / shown.size < _TICKS_PX:
             return
         painter.setPen(QColor(220, 220, 220))
         for ms in shown:
-            x = self.x_at(int(ms))
+            x = self.x_at(int(ms) + self.offset)
             painter.drawLine(
                 QPointF(x, self.height() - 14), QPointF(x, self.height() - 4)
             )
