@@ -284,3 +284,14 @@ def test_a_recorder_is_described_as_the_referee_needs() -> None:
         "disk full, recording stopped"
     )
     assert describe({"state": "stopped", "heartbeat_ms": 0}) == "stopped"
+
+
+def test_record_again_before_a_stop_is_heard_withdraws_it(folder: Path) -> None:
+    beat(folder, "recording")
+    spawns = Spawns()
+    watchdog = Watchdog("cam1", spawns)
+    watchdog.stop()
+    assert (folder / "stop.request").exists()
+    watchdog.start()  # the recorder has not stopped yet: it records on
+    assert not (folder / "stop.request").exists()
+    assert spawns.processes == []

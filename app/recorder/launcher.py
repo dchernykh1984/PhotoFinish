@@ -107,12 +107,13 @@ class Watchdog:
         self._retry_at: float | None = None
 
     def start(self) -> None:
-        """Record: attach to a running recorder, or start one."""
+        """Record: attach to a running recorder, or start one. A stop asked before,
+        and not yet heard, is withdrawn either way."""
         self.wanted = True
         self._retry_at = None
+        (folder_of(self.camera_id) / "stop.request").unlink(missing_ok=True)
         if alive(heartbeat(self.camera_id)):
             return
-        (folder_of(self.camera_id) / "stop.request").unlink(missing_ok=True)
         self._process = (self._spawn or spawn)(self.camera_id)
         self._started = time.monotonic()
         self._started_ms = time.time_ns() // 1_000_000

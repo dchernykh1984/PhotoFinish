@@ -47,7 +47,9 @@
 ## 4. Frame times
 
 - **Decision**: a steady clock anchored to the wall clock when the recorder starts:
-  `wall = anchor_wall + (monotonic - anchor_monotonic)`. A test frame takes its due moment on that
+  `wall = anchor_wall + (monotonic - anchor_monotonic)`, anchored again when the wall clock runs
+  more than 2 s ahead of it (the monotonic clock stands still while the computer sleeps); never
+  when it falls behind. A test frame takes its due moment on that
   clock. A USB, file or network frame takes the clock's moment of its first frame plus its own
   timestamp's distance from it, anchored again when the timestamp jumps back by more than a second
   (B-frames step back a little on their own) or forward by more than 5 s.

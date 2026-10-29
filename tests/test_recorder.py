@@ -49,14 +49,24 @@ def test_the_pause_doubles_to_thirty_seconds_and_resets_after_a_good_run() -> No
     assert backoff.failed(231) == 2
 
 
-def test_the_steady_clock_does_not_follow_the_computer_clock(
+def test_the_steady_clock_keeps_order_and_wakes_up_with_the_computer(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    now = {"wall": 1_000_000_000_000_000_000, "steady": 5_000_000_000}
+    monkeypatch.setattr(time, "time_ns", lambda: now["wall"])
+    monkeypatch.setattr(time, "monotonic_ns", lambda: now["steady"])
     clock = SteadyClock()
     first = clock()
-    assert abs(first - time.time() * 1000) < 1000
-    monkeypatch.setattr(time, "time_ns", lambda: 0)
-    assert clock() >= first
+    assert first == now["wall"] // 1_000_000
+    now["wall"] -= 3_600_000_000_000  # the clock set back an hour
+    now["steady"] += 1_000_000_000
+    assert clock() == first + 1000  # not followed: frames keep their order
+    now["wall"] += 3_600_000_000_000 + 121_000_000_000  # slept two minutes
+    now["steady"] += 1_000_000_000  # the steady clock did not count them
+    assert clock() == first + 121_000  # read again: on the computer's time
+    now["wall"] += 1_500_000_000  # a little ahead is no sleep: steady still
+    now["steady"] += 1_000_000_000
+    assert clock() == first + 122_000
 
 
 class Camera:
