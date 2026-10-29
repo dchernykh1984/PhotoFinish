@@ -36,6 +36,14 @@ def test_the_build_collects_pyav_with_its_ffmpeg_libraries() -> None:
     assert "--collect-all av" in WORKFLOW.read_text(encoding="utf-8")
 
 
+def test_the_build_records_the_test_camera_with_the_frozen_app() -> None:
+    # The recorder is the frozen app itself: every platform's build must record.
+    text = WORKFLOW.read_text(encoding="utf-8")
+    assert '"$app" --recorder smoke &' in text
+    assert '"connection": "test"' in text
+    assert "stop.request" in text
+
+
 def test_workflow_bundle_name_matches_the_app() -> None:
     # macOS shows the .app folder name in the dock and ignores the plist's
     # CFBundleName/CFBundleDisplayName, so the bundle name *is* the dock name.
