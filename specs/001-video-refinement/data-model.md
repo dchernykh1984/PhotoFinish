@@ -12,7 +12,7 @@ video/<camera id>/
   current.mkv, current.times       the segment being written
   gaps.txt                         "<from ms> <to ms> <reason>" per gap
 <output file>                      chosen by the referee
-<output file>.state.json           origin and marks of each output line
+<output file>.state.json           origin and marks of each output line, the input as last taken
 <output file>.journal.txt          one JSON object per change
 <output file>.outside-<stamp>      a version of the output something else wrote, kept
 <output file>.state.json.broken-<stamp>  a state that could not be read, kept
@@ -37,8 +37,9 @@ video/<camera id>/
 
 ## Input line (in memory)
 
-`index` in the input file, `text` (the line without its line break), `ms` (its time), state:
-`taken`, `changed` (with the content taken and the current content), `removed`.
+`text` (the line without its line break) and, when the chronometer changed it since it was taken,
+`taken`: the content taken, which the output keeps until the referee copies the change. A line
+gone from the input is marked on its output line (`removed_from_input`).
 
 ## Output line
 
@@ -64,8 +65,18 @@ after a crash between the two, the state is ahead and writes the file again at t
   "finish_mode": false,
   "source_offset_ms": 0,
   "cameras": [{"id": "cam1", "name": "Side", "connection": "test", "settings": {}, "preset": null,
-               "finish_line": [[0.5, 0.0], [0.5, 1.0]], "offset_ms": 0, "record": true}],
-  "input_taken": ["15#20389 11:35:29.615#nextLap#"],
-  "input_changes": [{"taken": "...", "current": "..."}]
+               "finish_line": [[0.5, 0.0], [0.5, 1.0]], "offset_ms": 0, "record": true}]
+}
+```
+
+## Output state (`<output file>.state.json`)
+
+```json
+{
+  "version": 1,
+  "lines": [{"text": "15#20389 11:35:29.594#nextLap#",
+             "origin": {"input": "15#20389 11:35:29.615#nextLap#"},
+             "method": "frame", "removed_from_input": false}],
+  "input_taken": ["15#20389 11:35:29.615#nextLap#"]
 }
 ```

@@ -26,8 +26,6 @@ DEFAULTS: dict[str, Any] = {
     "finish_mode": False,
     "source_offset_ms": 0,
     "cameras": [],
-    "input_taken": [],
-    "input_changes": [],
 }
 
 
