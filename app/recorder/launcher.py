@@ -11,7 +11,6 @@ Stopping is ``stop.request``.
 
 from __future__ import annotations
 
-import json
 import os
 import subprocess
 import sys
@@ -76,11 +75,7 @@ def spawn(camera_id: str) -> subprocess.Popen[bytes]:
 def heartbeat(camera_id: str) -> dict[str, Any] | None:
     """The recorder's last heartbeat, fresh or not; None when there is none. Read
     again while the recorder is replacing it (Windows): not a recorder gone."""
-    try:
-        info = json.loads(files.read_bytes(folder_of(camera_id) / "recorder.json"))
-    except OSError, ValueError:
-        return None
-    return info if isinstance(info, dict) else None
+    return files.read_json(folder_of(camera_id) / "recorder.json")
 
 
 def alive(info: dict[str, Any] | None) -> bool:

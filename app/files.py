@@ -8,9 +8,11 @@ of a second before they give up.
 
 from __future__ import annotations
 
+import json
 import os
 import time
 from pathlib import Path
+from typing import Any
 
 TRIES = 5
 PAUSE_S = 0.05
@@ -45,6 +47,16 @@ def read_bytes(path: Path) -> bytes:
                 raise
             time.sleep(PAUSE_S)
     raise AssertionError("unreachable")  # pragma: no cover
+
+
+def read_json(path: Path) -> dict[str, Any] | None:
+    """A JSON object file another process replaces, such as a heartbeat; None when
+    it is not there or not an object."""
+    try:
+        found = json.loads(read_bytes(path))
+    except OSError, ValueError:
+        return None
+    return found if isinstance(found, dict) else None
 
 
 def append(path: Path, data: bytes) -> None:

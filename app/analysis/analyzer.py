@@ -30,7 +30,7 @@ from app import analysis, session
 from app.analysis.detector import Detector, ModelError
 from app.analysis.motion import WIDTH, Motion, Stretches
 from app.analysis.tracks import Ref, Tracker, refine
-from app.files import Appended, append, write_in_one_step
+from app.files import Appended, append, read_json, write_in_one_step
 from app.interpolation import Line, finish_line
 from app.paths import app_path
 from app.recorder import CAMERA_ID, folder_of
@@ -263,10 +263,7 @@ def _progress(
     folder: Path, state: str, done_ms: int | None = None, detail: str = ""
 ) -> None:
     path = folder / "analyzer.json"
-    try:
-        before = json.loads(path.read_text(encoding="ascii"))
-    except OSError, ValueError:
-        before = {}
+    before = read_json(path) or {}
     info = {
         "pid": os.getpid(),
         "heartbeat_ms": time.time_ns() // 1_000_000,
