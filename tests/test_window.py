@@ -1177,3 +1177,83 @@ def test_suggestions_need_a_model(
     win._suggestion_picked(win.suggestion_list.item(0))
     win.analysis_box.setChecked(False)
     assert win.suggestion_list.count() == 0
+
+
+def arriving(results: Path, win: mw.MainWindow, answer: Any) -> Callable[..., Any]:
+    """A dialog during which the chronometer writes an earlier crossing and the
+    window's poll takes it in, as the timer does under a modal dialog."""
+
+    def dialog(*args: Any, **kwargs: Any) -> Any:
+        with results.open("a") as f:
+            f.write(line(5, 1) + "\n")
+        win.poll()
+        return answer
+
+    return dialog
+
+
+def test_a_correction_hits_the_line_chosen_though_lines_moved_meanwhile(
+    files: tuple[Path, Path],
+    make_window: Callable[[], mw.MainWindow],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    results, out = files
+    win = make_window()
+    win.output_view.selectRow(1)  # 8
+    monkeypatch.setattr(
+        QMessageBox,
+        "question",
+        arriving(results, win, QMessageBox.StandardButton.Yes),
+    )
+    win.remove_line()
+    assert [t.split("#")[0] for t in out.read_text().splitlines()] == ["5", "7", "9"]
+    win.output_view.selectRow(2)  # 9
+    monkeypatch.setattr(QInputDialog, "getText", arriving(results, win, ("21", True)))
+    win.change_number()
+    assert [t.split("#")[0] for t in out.read_text().splitlines()] == [
+        "5",
+        "5",
+        "7",
+        "21",
+    ]
+    win.output_view.selectRow(0)
+    typed = line(5, 1).split("#")[1]
+
+    def gone(*args: Any, **kwargs: Any) -> tuple[str, bool]:
+        assert win.output is not None
+        win.output.remove(0)  # removed meanwhile
+        return typed, True
+
+    monkeypatch.setattr(QInputDialog, "getText", gone)
+    win.type_time()
+    assert (
+        win.statusBar().currentMessage() == "That crossing is no longer in the output"
+    )
+
+
+def test_a_suggestion_that_could_not_be_written_stays_offered(
+    recording: Path,
+    make_window: Callable[[], mw.MainWindow],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session.save(
+        {
+            **session.load(),
+            "output": "out.txt",
+            "analysis": {"on": True, "model": "m.onnx"},
+        }
+    )
+    suggest(recording, START + 1000)
+    win = make_window()
+    win.suggestion_list.setCurrentRow(0)
+    win.number.setText("15")
+
+    def locked(path: Path, data: bytes) -> None:
+        raise PermissionError("held by the protocol generator")
+
+    monkeypatch.setattr(output_list, "_write_in_one_step", locked)
+    win.accept_suggestion()
+    assert "cannot be written" in win.statusBar().currentMessage()
+    assert win.suggestion_list.count() == 1
+    assert win.number.text() == "15"
+    assert not (recording / "video" / "cam1" / "suggestions.done.jsonl").exists()

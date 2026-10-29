@@ -37,7 +37,7 @@ from app.analysis.suggestions import Suggestions
 from app.input_follow import InputFollow
 from app.interpolation import Point, between, crossing, finish_line
 from app.lines import parse_line, parse_time, scale_time, to_epoch, to_line_scale
-from app.output_list import Change, OutputList
+from app.output_list import Change, OutputLine, OutputList
 from app.paths import app_path
 from app.recorder import folder_of
 from app.recorder.launcher import Watchdog, command, describe, heartbeat, package_root
@@ -557,7 +557,8 @@ class MainWindow(QMainWindow):
         chosen = self._chosen_output()
         if chosen is None or self.output is None:
             return
-        fields = self.output.lines[chosen].text.split("#")
+        line = self.output.lines[chosen]  # lines may move while the dialog is open
+        fields = line.text.split("#")
         text, ok = QInputDialog.getText(
             self,
             "Type the time",
@@ -570,29 +571,43 @@ class MainWindow(QMainWindow):
         if ms is None:
             self._say(f"{text.strip()!r} is not a time like 20389 11:35:29.615")
             return
-        self._correct(lambda output: output.set_time(chosen, ms, Change("typed")))
+        index = self._index_of(line)
+        if index is not None:
+            self._correct(lambda output: output.set_time(index, ms, Change("typed")))
 
     def change_number(self) -> None:
         chosen = self._chosen_output()
         if chosen is None or self.output is None:
             return
-        number = parse_line(self.output.lines[chosen].text).number
+        line = self.output.lines[chosen]
+        number = parse_line(line.text).number
         text, ok = QInputDialog.getText(
             self, "Change the number", "Number", text=number
         )
-        if ok:
-            self._correct(lambda output: output.set_number(chosen, text))
+        index = self._index_of(line) if ok else None
+        if index is not None:
+            self._correct(lambda output: output.set_number(index, text))
 
     def remove_line(self) -> None:
         chosen = self._chosen_output()
         if chosen is None or self.output is None:
             return
-        text = self.output.lines[chosen].text
+        line = self.output.lines[chosen]
         answer = QMessageBox.question(
-            self, "Remove the crossing", f"Remove {text}? The journal keeps it."
+            self, "Remove the crossing", f"Remove {line.text}? The journal keeps it."
         )
-        if answer == QMessageBox.StandardButton.Yes:
-            self._correct(lambda output: output.remove(chosen))
+        yes = answer == QMessageBox.StandardButton.Yes
+        index = self._index_of(line) if yes else None
+        if index is not None:
+            self._correct(lambda output: output.remove(index))
+
+    def _index_of(self, line: OutputLine) -> int | None:
+        """Where a line is in the output now: the list may have moved under a dialog."""
+        lines = [] if self.output is None else self.output.lines
+        found = next((i for i, other in enumerate(lines) if other is line), None)
+        if found is None:
+            self._say("That crossing is no longer in the output")
+        return found
 
     # -- the finish line and the caliper ----------------------------------------
 
@@ -727,8 +742,8 @@ class MainWindow(QMainWindow):
             return
         action = "finish" if self.finish.isChecked() else "nextLap"
         number = self.number.text()
-        self._correct(lambda output: output.add(number, ms, action, change))
-        self.number.clear()
+        if self._correct(lambda output: output.add(number, ms, action, change)):
+            self.number.clear()
 
     def _show_marks(self) -> None:
         """Each view: its camera's finish line, the points clicked on its frame."""
@@ -846,7 +861,10 @@ class MainWindow(QMainWindow):
             str(found.get("model", "")),
         )
         number, action = self.number.text(), self._action()
-        self._correct(lambda output: output.add(number, line_ms, action, change))
+        if not self._correct(
+            lambda output: output.add(number, line_ms, action, change)
+        ):
+            return  # not written: the suggestion stays offered, the number typed
         self.number.clear()
         camera.suggestions.decide(str(found["id"]), "accepted")
         self._show_suggestions()
@@ -916,23 +934,25 @@ class MainWindow(QMainWindow):
             return None
         return chosen
 
-    def _correct(self, change: Callable[[OutputList], object]) -> None:
-        """One change of the output, shown, the line it moved to chosen."""
+    def _correct(self, change: Callable[[OutputList], object]) -> bool:
+        """One change of the output, shown, the line it moved to chosen; True when
+        it was written."""
         if self.output is None:
-            return
+            return False
         try:
             moved = change(self.output)
         except ValueError:
             self._say("A crossing needs a number")
-            return
+            return False
         except OSError as error:
             self._say(f"The output file cannot be written: {error}")
-            return
+            return False
         self._show_lists()
         if isinstance(moved, int):
             self.output_view.selectRow(moved)
         else:
             self.output_view.clearSelection()
+        return True
 
     def _frame_change(self) -> tuple[int, Change] | None:
         """The frame shown as a time on the line scale, and how it was had."""

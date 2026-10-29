@@ -8,7 +8,8 @@ taken, an output line whose input line is gone, how an output time was had.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections import Counter
+from dataclasses import dataclass, replace
 
 from PySide6.QtCore import (
     QAbstractTableModel,
@@ -45,13 +46,16 @@ class Row:
     note: str
     ms: int | None  # the line's time, on the line scale
     warn: bool = False
+    key: object = None  # the line it shows: the choice follows it, not its row
 
 
 def input_rows(lines: list[InputLine]) -> list[Row]:
-    rows = []
+    rows, seen = [], Counter[str]()
     for line in lines:
         note = "" if line.taken is None else f"changed; taken as {line.taken}"
-        rows.append(_row(line.text, note, warn=line.taken is not None))
+        row = _row(line.text, note, warn=line.taken is not None)
+        seen[line.text] += 1  # twin lines: the first, the second...
+        rows.append(replace(row, key=(line.text, seen[line.text])))
     return rows
 
 
@@ -63,10 +67,8 @@ def output_rows(lines: list[OutputLine]) -> list[Row]:
             notes.append("removed from input")
         row = _row(line.text, "; ".join(n for n in notes if n), line.removed_from_input)
         if row.ms is None:
-            row = Row(
-                row.number, row.time, row.action, f"no time; {row.note}", None, True
-            )
-        rows.append(row)
+            row = replace(row, note=f"no time; {row.note}", warn=True)
+        rows.append(replace(row, key=id(line)))
     return rows
 
 
@@ -157,10 +159,19 @@ class LinesView(QTableView):
         self.clicked.connect(self._pick)
 
     def show_rows(self, rows: list[Row]) -> None:
+        """New rows; the line chosen stays chosen wherever it moved, and nothing is
+        chosen once it is gone."""
         chosen = self.chosen()
+        key = None if chosen is None else self.lines.rows[chosen].key
         self.lines.set_rows(rows)
-        if chosen is not None and chosen < len(rows):
-            self.selectRow(chosen)
+        found = next(
+            (i for i, row in enumerate(rows) if key is not None and row.key == key),
+            None,
+        )
+        if found is None:
+            self.clearSelection()
+        else:
+            self.selectRow(found)
 
     def chosen(self) -> int | None:
         rows = self.selectionModel().selectedRows()
