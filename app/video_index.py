@@ -84,6 +84,15 @@ class VideoIndex:
             return i - 1
         return i
 
+    def step(self, place: int, frames: int) -> int:
+        """The place ``frames`` on from ``place``, within the recording."""
+        return min(max(place + frames, 0), len(self) - 1)
+
+    def step_ms(self, place: int, ms: int) -> int:
+        """The place of the frame nearest ``ms`` on from the frame at ``place``."""
+        nearest = self.nearest(int(self.ms[place]) + ms)
+        return place if nearest is None else nearest
+
     def frame(self, place: int) -> Frame:
         place = min(max(place, 0), len(self) - 1)
         return Frame(
