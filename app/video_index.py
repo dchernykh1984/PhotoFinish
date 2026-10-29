@@ -9,6 +9,7 @@ its place in that order. Gaps come from ``gaps.txt``.
 
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from fractions import Fraction
@@ -60,11 +61,12 @@ class VideoIndex:
         self._read_gaps()
         names = self._unread + self._listed.new_lines()
         new = [self.folder / f"{n}.mkv" for n in names if f"{n}.mkv" not in self._names]
-        added = [(path, times) for path in new if (times := _times(path)) is not None]
-        for path, _ in added:
+        read = [(path, times) for path in new if (times := _times(path)) is not None]
+        for path, _ in read:
             self._names.add(path.name)
         # Times that cannot be read now -- held by their writer a moment -- next time.
         self._unread = [p.stem for p in new if p.name not in self._names]
+        added = [(path, times) for path, times in read if len(times)]  # no frame: none
         if not added:
             return False
         first = len(self.paths)
@@ -149,17 +151,34 @@ class FileIndex(VideoIndex):
     """A camera's own recording opened after the race: one file, read once and never
     written. Its frames are placed from the file's creation time (or, without one,
     its modification time less its length) by their own timestamps; aligning it on a
-    shared event puts it next to the live recordings."""
+    shared event puts it next to the live recordings. An hour of video takes a while
+    to read: it is read on a thread of its own, and refresh hands its frames over
+    once that is done."""
 
     def __init__(self, path: Path) -> None:
         super().__init__(path.parent)
         self.file = path
-        self._read = False
+        self._reading: threading.Thread | None = None
+        self._found: tuple[np.ndarray, np.ndarray] | None = None  # moments, pts
+        self._handed = False
 
     def refresh(self) -> bool:
-        if self._read:
+        if self._handed:
             return False
-        self._read = True
+        if self._reading is None:
+            self._reading = threading.Thread(target=self._read, daemon=True)
+            self._reading.start()
+        if self._reading.is_alive():
+            return False
+        self._handed = True
+        if self._found is None:
+            return False  # not a video: shown as a camera without frames
+        ms, pts = self._found
+        self.paths = [self.file]
+        self._append(ms, pts, np.zeros(pts.size, np.int32))
+        return True
+
+    def _read(self) -> None:
         try:
             with av.open(str(self.file)) as container:
                 stream = container.streams.video[0]
@@ -167,18 +186,16 @@ class FileIndex(VideoIndex):
                 unit = float(Fraction(rate.numerator, rate.denominator)) * 1000
                 found = [p.pts for p in container.demux(stream) if p.pts is not None]
                 created = container.metadata.get("creation_time")
+            if not found:
+                return
+            pts = np.array(sorted(found), np.int64)
+            since = np.round((pts - pts[0]) * unit).astype(np.int64)
+            start = _created_ms(created)
+            if start is None:
+                start = self.file.stat().st_mtime_ns // 1_000_000 - int(since[-1])
         except OSError, IndexError, av.FFmpegError:
-            return False  # not a video: shown as a camera without frames
-        if not found:
-            return False
-        pts = np.array(sorted(found), np.int64)
-        since = np.round((pts - pts[0]) * unit).astype(np.int64)
-        start = _created_ms(created)
-        if start is None:
-            start = self.file.stat().st_mtime_ns // 1_000_000 - int(since[-1])
-        self.paths = [self.file]
-        self._append(start + since, pts, np.zeros(pts.size, np.int32))
-        return True
+            return
+        self._found = start + since, pts
 
 
 def _created_ms(created: str | None) -> int | None:
