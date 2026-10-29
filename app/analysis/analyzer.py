@@ -157,6 +157,7 @@ def run(
         _progress(folder, "failed", detail=str(error))
         return 2
     sample, listed, done = 0, Appended(folder / SEGMENTS), analysed(folder)
+    fresh = watch.kept()  # as it starts: again for a segment earlier than the last
     todo: deque[str] = deque()
     failures: dict[str, int] = {}
     while not stop():
@@ -171,7 +172,7 @@ def run(
             name = todo.popleft()
             before = watch.kept()
             try:
-                sample = _analyse(folder / f"{name}.mkv", watch, sample)
+                sample = _analyse(folder / f"{name}.mkv", watch, sample, fresh)
             except OSError as error:  # held by another process a moment: later
                 watch.back_to(before)  # tried again as if never begun
                 failures[name] = failures.get(name, 0) + 1
@@ -203,13 +204,19 @@ def analysed(folder: Path) -> set[str]:
     return found
 
 
-def _analyse(segment: Path, watch: Watch, sample: int) -> int:
+def _analyse(segment: Path, watch: Watch, sample: int, fresh: Any) -> int:
     """One segment's stretches recorded; the next moment to look at. A segment that
-    cannot be read now raises OSError; one whose content cannot be read is noted."""
+    cannot be read now raises OSError; one whose content cannot be read is noted. A
+    segment earlier than the last -- listed late, or recorded after the clock was
+    set back -- is looked at from its start, the watch as it was at first."""
     pairs = read_times(segment)
     if pairs is None:
         raise OSError(f"the frame times of {segment.name} cannot be read")
     times = dict(pairs.tolist())
+    first = min(times.values(), default=sample)
+    if first < sample - watch.every_ms:
+        sample = first
+        watch.back_to(copy.deepcopy(fresh))
     stretches, seen = Stretches(), []
     try:
         with av.open(str(segment)) as container:

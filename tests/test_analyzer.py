@@ -254,6 +254,21 @@ def test_a_line_a_kill_cut_short_does_not_swallow_the_next(base: Path) -> None:
     assert not unanalysed(folder)
 
 
+def test_a_segment_listed_after_later_ones_is_looked_at_all_the_same(
+    base: Path,
+) -> None:
+    folder = camera(base, "sway", 1)
+    writer = SegmentWriter(folder, fps=10)  # the clock set back, a restart
+    for k in range(10):
+        ms = START - 60_000 + k * 100
+        writer.write(render(ms, 640, 360, "sway"), ms)
+    writer.close()
+    assert analyzer.run("cam1", stop=lambda: False, once=True) == 0
+    found = activity(folder)
+    assert len(found) == 2
+    assert all(entry["first_ms"] is not None for entry in found)
+
+
 def test_a_segment_that_stays_unreadable_is_noted_after_its_tries(base: Path) -> None:
     folder = camera(base, "sway", 1)
     for times in folder.glob("*-*-*.times"):
