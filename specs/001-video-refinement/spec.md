@@ -251,7 +251,9 @@ an RTMP stream pushed from the same computer is received and recorded.
 
 ### Edge Cases
 
-- The input file's last line is still being written: it is taken once its line break is there.
+- The input file's last line is still being written: it is taken once its line break is there. A
+  last line left without its line break -- by an older tool, or by hand -- is taken once the file
+  has rested for 2 s.
 - An input line without a time PhotoFinish can read (`15##`, a slot saved without a time): taken
   with its bytes, kept at the end of the output in input order and marked, so nothing the
   chronometer wrote is dropped.

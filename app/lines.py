@@ -13,7 +13,6 @@ from __future__ import annotations
 import re
 import time
 from dataclasses import dataclass
-from pathlib import Path
 
 _TIME = re.compile(r"(\d+) (\d{1,2}):(\d{1,2}):(\d{1,2})(?:\.(\d{3}))?", re.ASCII)
 _HOUR_MS = 3_600_000
@@ -74,14 +73,6 @@ def to_epoch(line_ms: int, summer_time: bool) -> int:
     if summer_time and time.localtime((epoch - _HOUR_MS) / 1000).tm_isdst:
         epoch -= _HOUR_MS
     return epoch
-
-
-def read_lines(path: Path) -> list[str]:
-    """A file's complete lines, read at once and let go: a last line still being
-    written, without its line break yet, is left for the next read.
-    """
-    data = path.read_bytes()
-    return text_lines(data[: data.rfind(b"\n") + 1])
 
 
 def text_lines(data: bytes) -> list[str]:

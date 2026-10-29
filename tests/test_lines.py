@@ -54,13 +54,17 @@ def test_a_moment_goes_on_the_line_scale_and_back(zone) -> None:
     assert lines.to_epoch(lines.to_line_scale(moment, True), True) == moment
 
 
-def test_only_complete_lines_are_read_each_in_its_encoding(tmp_path) -> None:
-    path = tmp_path / "results.txt"
+def test_lines_are_read_each_in_its_encoding() -> None:
     rider = "15#" + chr(0x0418) + "#"
-    path.write_bytes(
+    data = (
         b"\xef\xbb\xbf1#0 0:0:1.000#nextLap#\r\n"
         + b"\n  \n"
         + rider.encode("cp1251")
         + b"\n2#\xff\x98#\n3#0 0:0:3.000#nextLap#"
     )
-    assert lines.read_lines(path) == ["1#0 0:0:1.000#nextLap#", rider, "2#\xff\x98#"]
+    assert lines.text_lines(data) == [
+        "1#0 0:0:1.000#nextLap#",
+        rider,
+        "2#\xff\x98#",
+        "3#0 0:0:3.000#nextLap#",
+    ]
