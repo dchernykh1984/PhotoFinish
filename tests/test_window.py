@@ -1415,3 +1415,18 @@ def test_the_frame_shown_and_its_caliper_point_stay_when_frames_are_sorted_anew(
     assert win.place == 70
     wait_until(showing(win, START + 60 * 33))
     assert view.marks == [(0.25, 0.5)]
+
+
+def test_a_decision_the_disk_refuses_is_said_and_the_suggestion_still_leaves(
+    recording: Path,
+    make_window: Callable[[], mw.MainWindow],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session.save({**session.load(), "analysis": {"on": True, "model": "m.onnx"}})
+    suggest(recording, START + 1000)
+    win = make_window()
+    win.suggestion_list.setCurrentRow(0)
+    (recording / "video" / "cam1" / "suggestions.done.jsonl").mkdir()  # cannot append
+    win.dismiss_suggestion()
+    assert "cannot be kept for a restart" in win.statusBar().currentMessage()
+    assert win.suggestion_list.count() == 0
