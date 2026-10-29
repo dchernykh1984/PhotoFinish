@@ -17,7 +17,7 @@ from typing import Any
 import numpy as np
 
 from app.analysis.detector import Box, iou
-from app.interpolation import Line, Point, between, crossing
+from app.interpolation import Line, Point, between, crossing, side
 
 LEAST_OVERLAP = 0.1  # boxes of one rider in two frames in a row overlap this much
 FURTHEST = 0.5  # of the picture: how far a rider moves from sample to sample
@@ -77,24 +77,18 @@ class Tracker:
     def _follow(self, track: Track, box: Box, ref: Ref) -> Crossing | None:
         """The track at its new box; a crossing when its front, measured the way
         it travels, changed side of the line since the box before."""
-        travel = side_of(self.line, centre(box)) - side_of(self.line, centre(track.box))
+        travel = side(self.line, centre(box)) - side(self.line, centre(track.box))
         if travel:
             track.moved = 1.0 if travel > 0 else -1.0
         earlier, earlier_ref = track.box, track.ref
         track.box, track.ms, track.ref = box, ref[2], ref
         if not track.moved:
             return None
-        before = side_of(self.line, front(earlier, self.line, track.moved))
-        after = side_of(self.line, front(box, self.line, track.moved))
+        before = side(self.line, front(earlier, self.line, track.moved))
+        after = side(self.line, front(box, self.line, track.moved))
         if before * after > 0 or before == after:
             return None
         return Crossing(earlier_ref, ref, earlier, box)
-
-
-def side_of(line: Line, point: Point) -> float:
-    """Which side of the line a point is, and how far: it grows the way across."""
-    (xa, ya), (xb, yb) = line
-    return (xb - xa) * (point[1] - ya) - (yb - ya) * (point[0] - xa)
 
 
 def centre(box: Box) -> Point:
@@ -118,9 +112,7 @@ def refine(
 ) -> dict[str, Any] | None:
     """The crossing's moment from the frames between its two samples: the rider
     looked for again on each, the two frames around the line interpolated."""
-    travel = side_of(line, centre(found.box_after)) - side_of(
-        line, centre(found.box_before)
-    )
+    travel = side(line, centre(found.box_after)) - side(line, centre(found.box_before))
     moved = 1.0 if travel > 0 else -1.0
     seen: list[tuple[Ref, Point]] = [
         (found.before, front(found.box_before, line, moved))

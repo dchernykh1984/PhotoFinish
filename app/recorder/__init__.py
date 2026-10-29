@@ -128,12 +128,13 @@ class Heartbeat:
         if low or self.info["detail"] == "low disk":
             self.info["detail"] = "low disk" if low else ""
         self.info |= {"heartbeat_ms": time.time_ns() // 1_000_000, "free_bytes": free}
+        # Not files.write_in_one_step: its pauses and sync would hold up the frames.
         tmp = self.path.with_name(self.path.name + ".tmp")
         try:
             tmp.write_text(json.dumps(self.info) + "\n", encoding="ascii")
             tmp.replace(self.path)
         except OSError:
-            return  # the window reading it on Windows, or a full disk: next time
+            return  # the window reading it on Windows, or a full disk: the next frame
         self._written = now
 
 

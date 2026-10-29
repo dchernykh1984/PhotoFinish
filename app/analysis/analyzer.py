@@ -30,7 +30,7 @@ from app import analysis, session
 from app.analysis.detector import Detector, ModelError
 from app.analysis.motion import WIDTH, Motion, Stretches
 from app.analysis.tracks import Ref, Tracker, refine
-from app.files import Appended
+from app.files import Appended, write_in_one_step
 from app.interpolation import Line, finish_line
 from app.paths import app_path
 from app.recorder import CAMERA_ID, folder_of
@@ -203,12 +203,6 @@ def analysed(folder: Path) -> set[str]:
     return found
 
 
-def unanalysed(folder: Path) -> list[str]:
-    """The segments listed and not analysed yet, as they were listed."""
-    done = analysed(folder)
-    return [n for n in Appended(folder / SEGMENTS).new_lines() if n not in done]
-
-
 def _analyse(segment: Path, watch: Watch, sample: int) -> int:
     """One segment's stretches recorded; the next moment to look at. A segment that
     cannot be read now raises OSError; one whose content cannot be read is noted."""
@@ -285,12 +279,10 @@ def _progress(
 
 
 def _write(path: Path, data: dict[str, Any]) -> None:
-    tmp = path.with_name(path.name + ".tmp")
     try:
-        tmp.write_text(json.dumps(data) + "\n", encoding="ascii")
-        tmp.replace(path)
+        write_in_one_step(path, (json.dumps(data) + "\n").encode("ascii"))
     except OSError:
-        return  # a full disk or a reader holding it: the next one
+        return  # a full disk, or a reader holding it for long: the next one
 
 
 def _window_gone() -> Callable[[], bool]:
