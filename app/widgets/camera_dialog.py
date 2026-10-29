@@ -121,6 +121,7 @@ class CameraDialog(QDialog):
         self.form.addRow(self.problems)
         self.form.addRow(self.buttons)
 
+        self._here: str | None = None  # this computer's address, looked up once
         self.preset.currentIndexChanged.connect(self._apply_preset)
         for box in (self.connection, self.device, self.transport, self.scene):
             box.currentTextChanged.connect(self._check)
@@ -191,9 +192,8 @@ class CameraDialog(QDialog):
             if cameras.problems({"connection": "rtmp", "settings": settings}):
                 self.address.setText("")
             else:
-                self.address.setText(
-                    cameras.rtmp_url(settings, cameras.this_computer())
-                )
+                self._here = self._here or cameras.this_computer()
+                self.address.setText(cameras.rtmp_url(settings, self._here))
         found = cameras.problems(self.camera())
         self.problems.setText("\n".join(found))
         ok = self.buttons.button(QDialogButtonBox.StandardButton.Ok)
