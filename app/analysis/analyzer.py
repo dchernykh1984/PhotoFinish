@@ -34,6 +34,7 @@ from app.interpolation import Line, finish_line
 from app.paths import app_path
 from app.recorder import CAMERA_ID, folder_of
 from app.recorder.segments import SEGMENTS
+from app.video_index import read_times
 
 SAMPLE_MS = 200  # frames looked at for motion: five a second
 MODEL_SAMPLE_MS = 500  # and by a model: twice a second
@@ -176,7 +177,8 @@ def unanalysed(folder: Path) -> list[str]:
 
 def _analyse(segment: Path, watch: Watch, sample: int) -> int:
     """One segment's stretches written beside it; the next moment to look at."""
-    times = _times(segment)
+    pairs = read_times(segment)
+    times = {} if pairs is None else dict(pairs.tolist())
     stretches, seen = Stretches(), []
     try:
         with av.open(str(segment)) as container:
@@ -223,16 +225,6 @@ def _suggest(folder: Path, suggestions: list[dict[str, Any]]) -> None:
         return
     with (folder / SUGGESTIONS).open("a", encoding="ascii") as f:
         f.writelines(json.dumps(s) + "\n" for s in suggestions)
-
-
-def _times(segment: Path) -> dict[int, int]:
-    try:
-        tokens = segment.with_suffix(".times").read_text(encoding="ascii").split()
-    except OSError:
-        return {}
-    return {
-        int(pts): int(ms) for pts, ms in zip(tokens[::2], tokens[1::2], strict=False)
-    }
 
 
 def _progress(
