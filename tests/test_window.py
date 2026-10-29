@@ -1289,3 +1289,53 @@ def test_a_removed_camera_s_analyser_stops_too(
     )
     win.remove_camera()
     assert not analyzers[0].running
+
+
+def test_a_frame_that_cannot_be_shown_is_said_not_left_as_another(
+    recording: Path,
+    make_window: Callable[[], mw.MainWindow],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.decoder import Decoder
+
+    win = make_window()
+    view = win.cameras["cam1"].view
+    wait_until(showing(win, START + 69 * 33))
+    monkeypatch.setattr(Decoder, "decode", lambda self, path, pts: None)
+    win.step(-3)
+    wait_until(lambda: view.image.isNull())
+    assert view.text == "This frame cannot be shown"
+    assert not view.waiting
+    view.show_image(QImage(16, 9, QImage.Format.Format_RGB888))
+    view.show_waiting()
+    view.grab()  # dimmed while the next frame is on its way
+    assert view.waiting
+
+
+def test_a_camera_that_did_not_film_the_moment_says_so(
+    two: None, make_window: Callable[[], mw.MainWindow], base: Path
+) -> None:
+    win = make_window()
+    side, front = win.cameras["cam1"], win.cameras["cam2"]
+    wait_until(lambda: side.shown is not None)
+    win.seek_ms(FLASH - 500)  # Front's clock is ahead: it starts later on this one
+    assert front.shown is None
+    assert front.view.text == "No frame at this moment"
+
+
+def test_the_suggestion_chosen_stays_chosen_as_others_arrive(
+    recording: Path, make_window: Callable[[], mw.MainWindow]
+) -> None:
+    session.save({**session.load(), "analysis": {"on": True, "model": "m.onnx"}})
+    suggest(recording, START + 1000, START + 2000)
+    win = make_window()
+    win.suggestion_list.setCurrentRow(1)
+    folder = recording / "video" / "cam1"
+    with (folder / "suggestions.jsonl").open("a") as f:
+        early = {"id": "cam1-500", "camera": "cam1", "ms": START + 500, "model": "m"}
+        f.write(json.dumps(early) + "\n")
+    win.poll()
+    assert win.suggestion_list.count() == 3
+    item = win.suggestion_list.currentItem()
+    assert item is not None
+    assert item.data(Qt.ItemDataRole.UserRole)[1]["id"] == f"cam1-{START + 2000}"
