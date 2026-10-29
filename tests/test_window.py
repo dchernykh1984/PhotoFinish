@@ -317,3 +317,161 @@ def test_an_output_that_cannot_be_opened_is_said(
     win = make_window()
     assert win.output is None
     assert "cannot be opened" in win.statusBar().currentMessage()
+
+
+def line(number: int, place: int, action: str = "nextLap") -> str:
+    """A chronometer's line for frame ``place`` of the recording."""
+    moment = scale_time(to_line_scale(START + place * 33, False))
+    return f"{number}#{moment}#{action}#"
+
+
+@pytest.fixture
+def files(recording: Path) -> tuple[Path, Path]:
+    results, out = recording / "results.txt", recording / "out.txt"
+    results.write_text(
+        "".join(f"{line(n, p)}\n" for n, p in ((7, 10), (8, 30), (9, 50)))
+    )
+    session.save(
+        {
+            **session.DEFAULTS,
+            "cameras": [CAMERA],
+            "input": "results.txt",
+            "output": "out.txt",
+        }
+    )
+    return results, out
+
+
+def test_input_lines_reach_the_output_and_both_lists_follow_the_video(
+    files: tuple[Path, Path], make_window: Callable[[], mw.MainWindow]
+) -> None:
+    results, out = files
+    win = make_window()
+    assert out.read_text().splitlines() == results.read_text().splitlines()
+    assert win.input_button.text() == "Input: results.txt"
+    rows = win.output_view.lines.rows
+    assert [(r.number, r.action, r.note) for r in rows] == [
+        ("7", "nextLap", ""),
+        ("8", "nextLap", ""),
+        ("9", "nextLap", ""),
+    ]
+    assert rows[0].time == line(7, 10).split("#")[1].split(" ")[1]
+    wait_until(showing(win, START + 69 * 33))
+    assert win.input_view.lines.near == 2
+    win.step(-40)  # frame 29: the second line is nearest
+    assert win.output_view.lines.near == 1
+    assert win.input_view.lines.near == 1
+    with results.open("a") as f:
+        f.write(line(10, 60) + "\n")
+    win.poll()
+    assert [r.number for r in win.output_view.lines.rows] == ["7", "8", "9", "10"]
+    assert out.read_text().splitlines()[-1] == line(10, 60)
+
+
+def test_picking_a_line_moves_the_video_to_its_time(
+    files: tuple[Path, Path], make_window: Callable[[], mw.MainWindow]
+) -> None:
+    win = make_window()
+    win.resize(1200, 800)
+    wait_until(showing(win, START + 69 * 33))
+    view = win.input_view
+    QTest.mouseClick(
+        view.viewport(),
+        Qt.MouseButton.LeftButton,
+        pos=view.visualRect(view.lines.index(1, 0)).center(),
+    )
+    wait_until(showing(win, START + 30 * 33))
+    assert not win.live
+    assert view.chosen() == 1
+
+
+def test_a_changed_input_line_waits_for_copy_to_output(
+    files: tuple[Path, Path], make_window: Callable[[], mw.MainWindow]
+) -> None:
+    results, out = files
+    win = make_window()
+    win.copy_input()
+    assert (
+        win.statusBar().currentMessage() == "Choose a changed line of the input first"
+    )
+    changed = line(8, 31)
+    results.write_text("".join(f"{t}\n" for t in (line(7, 10), changed, line(9, 50))))
+    win.poll()
+    assert out.read_text().splitlines()[1] == line(8, 30)
+    row = win.input_view.lines.rows[1]
+    assert row.warn
+    assert row.note == f"changed; taken as {line(8, 30)}"
+    win.input_view.selectRow(0)
+    win.copy_input()
+    assert win.statusBar().currentMessage() == "That line is as it was taken"
+    win.input_view.selectRow(1)
+    win.copy_input()
+    assert out.read_text().splitlines()[1] == changed
+    assert not win.input_view.lines.rows[1].warn
+    assert win.input_view.chosen() == 1
+    assert journal(out)[-1]["op"] == "copy"
+
+
+def test_a_copy_the_disk_refuses_is_said(
+    files: tuple[Path, Path],
+    make_window: Callable[[], mw.MainWindow],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    results, _ = files
+    win = make_window()
+    results.write_text(
+        "".join(f"{t}\n" for t in (line(7, 11), line(8, 30), line(9, 50)))
+    )
+    win.poll()
+    win.input_view.selectRow(0)
+
+    def full(path: Path, data: bytes) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(output_list, "_write_in_one_step", full)
+    win.copy_input()
+    assert "cannot be written: disk full" in win.statusBar().currentMessage()
+
+
+def test_files_that_cannot_be_followed_are_said(
+    files: tuple[Path, Path],
+    make_window: Callable[[], mw.MainWindow],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    results, out = files
+    win = make_window()
+    out.write_text("edited by hand\n")
+    win.poll()
+    assert "changed outside PhotoFinish" in win.statusBar().currentMessage()
+    assert out.read_text().splitlines() == results.read_text().splitlines()
+    with results.open("a") as f:
+        f.write(line(10, 60) + "\n")
+
+    def full(path: Path, data: bytes) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(output_list, "_write_in_one_step", full)
+    win.poll()
+    assert "cannot be followed: disk full" in win.statusBar().currentMessage()
+
+
+def test_the_input_is_chosen_and_never_the_output(
+    files: tuple[Path, Path],
+    make_window: Callable[[], mw.MainWindow],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    results, out = files
+    win = make_window()
+    for answer in ("", str(out)):
+        monkeypatch.setattr(
+            QFileDialog, "getOpenFileName", lambda *args, a=answer: (a, "")
+        )
+        win.choose_input()
+        assert session.load()["input"] == "results.txt"
+    assert win.statusBar().currentMessage() == "The input cannot be the output file"
+    other = results.with_name("other.txt")
+    other.write_text(line(20, 5) + "\n")
+    monkeypatch.setattr(QFileDialog, "getOpenFileName", lambda *args: (str(other), ""))
+    win.choose_input()
+    assert session.load()["input"] == str(other)
+    assert [r.number for r in win.input_view.lines.rows] == ["20"]

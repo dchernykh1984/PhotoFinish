@@ -25,7 +25,8 @@ from PySide6.QtWidgets import (
 )
 
 from app import session
-from app.lines import scale_time, to_line_scale
+from app.input_follow import InputFollow
+from app.lines import scale_time, to_epoch, to_line_scale
 from app.output_list import Change, OutputList
 from app.paths import app_path
 from app.recorder import folder_of
@@ -34,6 +35,7 @@ from app.video_index import VideoIndex
 from app.widgets.camera_dialog import CameraDialog
 from app.widgets.camera_view import CameraView
 from app.widgets.decode_worker import DecodeWorker
+from app.widgets.lists import LinesView, input_rows, output_rows
 from app.widgets.number_field import NumberField
 from app.widgets.timeline import Timeline
 
@@ -82,7 +84,13 @@ class MainWindow(QMainWindow):
         self.finish.toggled.connect(self._finish_mode)
         self.output_button = QPushButton()
         self.output_button.clicked.connect(self.choose_output)
+        self.input_button = QPushButton()
+        self.input_button.clicked.connect(self.choose_input)
+        self.input_view, self.output_view = LinesView(), LinesView()
+        self.input_view.picked.connect(self.seek_line)
+        self.output_view.picked.connect(self.seek_line)
         self.output: OutputList | None = None
+        self.follow: InputFollow | None = None
         self._open_output()
 
         self.setCentralWidget(self._layout())
@@ -136,13 +144,26 @@ class MainWindow(QMainWindow):
         buttons = QHBoxLayout()
         buttons.addWidget(add)
         buttons.addWidget(remove)
-        side = QVBoxLayout()
-        side.addWidget(QLabel("Cameras"))
-        side.addWidget(self.camera_list)
-        side.addLayout(buttons)
-        right = QWidget()
-        right.setLayout(side)
-        right.setMinimumWidth(260)
+        cameras = QVBoxLayout()
+        cameras.addWidget(QLabel("Cameras"))
+        cameras.addWidget(self.camera_list)
+        cameras.addLayout(buttons)
+        copy = QPushButton("Copy to output")
+        copy.setToolTip("Apply the chronometer's change of the chosen input line")
+        copy.clicked.connect(self.copy_input)
+        inputs = QVBoxLayout()
+        inputs.addWidget(self.input_button)
+        inputs.addWidget(self.input_view)
+        inputs.addWidget(copy)
+        outputs = QVBoxLayout()
+        outputs.addWidget(QLabel("Output: the referee's crossings"))
+        outputs.addWidget(self.output_view)
+        right = QSplitter(Qt.Orientation.Vertical)
+        for part in (cameras, inputs, outputs):
+            holder = QWidget()
+            holder.setLayout(part)
+            right.addWidget(holder)
+        right.setMinimumWidth(320)
 
         splitter = QSplitter()
         splitter.addWidget(left)
@@ -229,7 +250,83 @@ class MainWindow(QMainWindow):
     def _camera(self) -> Camera | None:
         return None if self.current is None else self.cameras.get(self.current)
 
-    # -- the output ------------------------------------------------------------
+    # -- the input and the output ----------------------------------------------
+
+    def choose_input(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            self, "The chronometer's results file", "", "Text (*.txt);;All (*)"
+        )
+        if not path:
+            return
+        output = str(self.session.get("output") or "")
+        if output and app_path(output).resolve() == app_path(path).resolve():
+            self._say("The input cannot be the output file")
+            return
+        self.session["input"] = path
+        session.save(self.session)
+        self._open_input()
+
+    def copy_input(self) -> None:
+        """ "Copy to output": the chronometer's change of the chosen input line."""
+        chosen = self.input_view.chosen()
+        if self.follow is None or chosen is None:
+            self._say("Choose a changed line of the input first")
+            return
+        try:
+            self.follow.copy(chosen)
+        except ValueError:
+            self._say("That line is as it was taken")
+            return
+        except OSError as error:
+            self._say(f"The output file cannot be written: {error}")
+            return
+        self._show_lists()
+
+    def seek_line(self, line_ms: int) -> None:
+        """The video at a line's time, through the offsets."""
+        epoch = to_epoch(line_ms, bool(self.session.get("summer_time")))
+        self.seek_ms(epoch - int(self.session.get("source_offset_ms", 0)))
+
+    def _open_input(self) -> None:
+        chosen = str(self.session.get("input") or "")
+        self.input_button.setText(f"Input: {chosen}" if chosen else "Input file...")
+        self.follow = None
+        if chosen and self.output is not None:
+            self.follow = InputFollow(app_path(chosen), self.output)
+        self._follow_files()
+        self._show_lists()
+
+    def _follow_files(self) -> None:
+        """New input lines taken; an output file changed outside kept and rewritten."""
+        try:
+            if self.follow is not None and self.follow.poll():
+                self._show_lists()
+            if self.output is not None and self.output.check_outside():
+                self._say(
+                    "The output file was changed outside PhotoFinish: kept beside it"
+                )
+                self._show_lists()
+        except OSError as error:
+            self._say(f"The files cannot be followed: {error}")
+
+    def _show_lists(self) -> None:
+        self.input_view.show_rows(input_rows(self.follow.lines) if self.follow else [])
+        self.output_view.show_rows(
+            output_rows(self.output.lines) if self.output else []
+        )
+        camera = self._camera()
+        if camera is not None and self.place is not None:
+            self._follow_lists(camera.index.frame(self.place).ms + self._offset())
+
+    def _follow_lists(self, moment: int) -> None:
+        line_ms = self._line_ms(moment)
+        self.input_view.follow(line_ms)
+        self.output_view.follow(line_ms)
+
+    def _line_ms(self, moment: int) -> int:
+        """A moment of the video on the timing source's scale."""
+        source = int(self.session.get("source_offset_ms", 0))
+        return to_line_scale(moment + source, bool(self.session.get("summer_time")))
 
     def choose_output(self) -> None:
         path, _ = QFileDialog.getSaveFileName(
@@ -276,17 +373,18 @@ class MainWindow(QMainWindow):
             return
         self._say(f"Added {self.number.text().strip()} at {scale_time(line_ms)}")
         self.number.clear()
+        self._show_lists()
 
     def _open_output(self) -> None:
         chosen = str(self.session.get("output") or "")
         self.output_button.setText(f"Output: {chosen}" if chosen else "Output file...")
         self.output = None
-        if not chosen:
-            return
-        try:
-            self.output = OutputList(app_path(chosen))
-        except OSError as error:
-            self._say(f"The output file cannot be opened: {error}")
+        if chosen:
+            try:
+                self.output = OutputList(app_path(chosen))
+            except OSError as error:
+                self._say(f"The output file cannot be opened: {error}")
+        self._open_input()
 
     def _same_as_input(self, path: str) -> bool:
         chosen = str(self.session.get("input") or "")
@@ -304,6 +402,7 @@ class MainWindow(QMainWindow):
     def poll(self) -> None:
         for camera in self.cameras.values():
             self._label(camera)
+        self._follow_files()
         self._refresh()
 
     def _label(self, camera: Camera) -> None:
@@ -367,9 +466,9 @@ class MainWindow(QMainWindow):
         frame = camera.index.frame(place)
         moment = frame.ms + self._offset()
         self.timeline.set_position(moment)
-        line_ms = to_line_scale(moment, bool(self.session.get("summer_time")))
-        clock = scale_time(line_ms).split(" ")[1]
+        clock = scale_time(self._line_ms(moment)).split(" ")[1]
         self.time_label.setText(f"{clock} LIVE" if self.live else clock)
+        self._follow_lists(moment)
         self._wanted = (camera.id, place)
         self.worker.request(frame.path, frame.pts, self._wanted)
 
