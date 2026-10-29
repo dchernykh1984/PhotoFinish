@@ -91,9 +91,9 @@ class Watchdog:
     def __init__(
         self,
         camera_id: str,
-        spawn: Callable[[str], subprocess.Popen[bytes]] = spawn,
+        spawn: Callable[[str], subprocess.Popen[bytes]] | None = None,
     ) -> None:
-        self.camera_id, self._spawn = camera_id, spawn
+        self.camera_id, self._spawn = camera_id, spawn  # None: this module's spawn
         self.wanted = False
         self.backoff = Backoff()
         self._process: subprocess.Popen[bytes] | None = None
@@ -108,7 +108,7 @@ class Watchdog:
         if alive(heartbeat(self.camera_id)):
             return
         (folder_of(self.camera_id) / "stop.request").unlink(missing_ok=True)
-        self._process = self._spawn(self.camera_id)
+        self._process = (self._spawn or spawn)(self.camera_id)
         self._started = time.monotonic()
         self._started_ms = time.time_ns() // 1_000_000
 
@@ -150,3 +150,20 @@ class Watchdog:
             and process.poll() is None
             and now - self._started < START_GRACE_S
         )
+
+
+_STATES = {"disk_full": "disk full, recording stopped"}
+
+
+def describe(info: dict[str, Any] | None) -> str:
+    """The recorder's state as the camera list says it."""
+    if info is None:
+        return "not started"
+    state, detail = str(info.get("state", "")), str(info.get("detail", ""))
+    if state not in ENDED and not alive(info):
+        return "not responding"
+    if state == "recording":
+        text = f"recording, {info.get('frames', 0)} frames"
+        return f"{text}, under 2 GB free" if detail == "low disk" else text
+    text = _STATES.get(state, state)
+    return f"{text}: {detail}" if detail else text

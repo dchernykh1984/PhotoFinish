@@ -1,7 +1,8 @@
 """The test camera: synthetic frames that carry their own time.
 
-Every frame shows its moment as a clock the referee reads and as a strip of black
-and white blocks along the bottom that a test reads back after encoding. Scenes add
+Every frame shows its moment as a clock the referee reads (local standard time, the
+scale of the chronometers' files) and as a strip of black and white blocks along the
+bottom that a test reads back after encoding. Scenes add
 a bar crossing the frame once a second (sub-frame timing), a flash for the first
 100 ms of every 5 s (aligning two cameras) or a swaying patch (motion).
 """
@@ -64,7 +65,8 @@ def read_time(image: np.ndarray) -> int:
 
 
 def _draw_clock(image: np.ndarray, ms: int) -> None:
-    moment = time.localtime(ms / 1000)
+    # Local standard time, as the chronometers write it and the window shows it.
+    moment = time.gmtime(ms / 1000 - time.timezone)
     text = time.strftime("%H:%M:%S", moment) + f".{ms % 1000:03d}"
     scale = max(image.shape[0] // 60, 1)
     x = y = 2 * scale

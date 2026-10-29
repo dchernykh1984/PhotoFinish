@@ -265,3 +265,22 @@ def test_a_recorder_outlives_the_window_that_started_it(tmp_path: Path) -> None:
             os.kill(pid, signal.SIGKILL)
     assert (folder / "recorder.log").exists()
     assert launcher.ENDED[0] == "stopped"
+
+
+def test_a_recorder_is_described_as_the_referee_needs() -> None:
+    from app.recorder.launcher import describe
+
+    fresh = now_ms()
+    assert describe(None) == "not started"
+    assert describe({"state": "recording", "heartbeat_ms": fresh, "frames": 5}) == (
+        "recording, 5 frames"
+    )
+    low = {"state": "recording", "heartbeat_ms": fresh, "detail": "low disk"}
+    assert describe(low) == "recording, 0 frames, under 2 GB free"
+    waiting = {"state": "connecting", "heartbeat_ms": fresh, "detail": "waiting for x"}
+    assert describe(waiting) == "connecting: waiting for x"
+    assert describe({"state": "recording", "heartbeat_ms": 0}) == "not responding"
+    assert describe({"state": "disk_full", "heartbeat_ms": 0}) == (
+        "disk full, recording stopped"
+    )
+    assert describe({"state": "stopped", "heartbeat_ms": 0}) == "stopped"
