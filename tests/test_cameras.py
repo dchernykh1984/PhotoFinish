@@ -11,6 +11,12 @@ from app import cameras
 from app.cameras import PRESETS, problems
 
 
+@pytest.fixture(autouse=True)
+def capture(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A computer that captures USB cameras, whatever this one does."""
+    monkeypatch.setattr(cameras, "usb_capture", lambda: "avfoundation")
+
+
 def test_the_presets_fill_in_cameras_that_can_record_and_say_untested() -> None:
     assert [p.id for p in PRESETS] == [
         "sjcam-hd1080p-usb",
@@ -80,6 +86,16 @@ def test_cameras_that_cannot_record_say_why(camera: dict[str, Any], said: str) -
     found = problems(camera)
     assert len(found) == 1
     assert said in found[0]
+
+
+def test_a_computer_without_usb_capture_says_so(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(cameras, "usb_capture", lambda: None)
+    assert problems({"connection": "usb", "settings": {"device": "0"}}) == [
+        "this build cannot capture USB cameras on this computer: "
+        "use the camera's stream or a file"
+    ]
 
 
 def test_the_rtmp_address_to_type_in_the_camera_app(

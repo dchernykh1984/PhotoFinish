@@ -7,6 +7,8 @@ import sys
 import av
 import numpy as np
 
+from app import cameras
+
 
 def test_the_recorder_s_encoder_and_container_are_there() -> None:
     assert "mpeg4" in av.codecs_available
@@ -18,11 +20,16 @@ def test_the_network_cameras_inputs_are_there() -> None:
     assert {"rtsp", "flv"} <= av.formats_available
 
 
-def test_this_platform_s_usb_capture_is_there() -> None:
-    wanted = {"darwin": {"avfoundation"}, "win32": {"dshow"}}.get(
-        sys.platform, {"video4linux2", "v4l2"}
-    )
-    assert wanted & av.formats_available
+def test_usb_cameras_are_captured_or_said_not_to_be() -> None:
+    # The macOS and Windows wheels capture cameras; the Linux ones have no v4l2.
+    if sys.platform in ("darwin", "win32"):
+        assert cameras.usb_capture() is not None
+    if cameras.usb_capture() is None:
+        found = cameras.problems({"connection": "usb", "settings": {"device": "0"}})
+        assert found == [
+            "this build cannot capture USB cameras on this computer: "
+            "use the camera's stream or a file"
+        ]
 
 
 def test_a_frame_goes_to_numpy_and_back() -> None:
