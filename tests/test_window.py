@@ -19,6 +19,7 @@ from PySide6.QtWidgets import QFileDialog, QInputDialog, QMessageBox
 from app import main_window as mw
 from app import output_list, session
 from app.lines import parse_time, scale_time, to_line_scale
+from app.main_window import start_analyzer
 from app.recorder.segments import SegmentWriter
 from app.recorder.testcam import read_time, render
 from app.widgets.camera_dialog import CameraDialog
@@ -972,3 +973,104 @@ def test_finding_riders_is_set_up_beside_the_video(
     assert view.zone == ((0.4, 0.1), (0.6, 0.9))
     assert win.statusBar().currentMessage() == "The zone is drawn"
     view.grab()
+
+
+def stretch_files(base: Path, stretches: list[list[int]]) -> None:
+    folder = base / "video" / "cam1"
+    (folder / "x.activity.json").write_text(json.dumps({"stretches": stretches}))
+    done = {"done_ms": START + 2277, "state": "waiting"}
+    (folder / "analyzer.json").write_text(json.dumps(done))
+
+
+def test_the_analysis_marks_riders_and_the_keys_jump_between_them(
+    recording: Path,
+    make_window: Callable[[], mw.MainWindow],
+    analyzers: list[Any],
+) -> None:
+    """002 US1: stretches on the timeline, Next and Previous rider, progress."""
+    first, second = (START + 600, START + 800), (START + 1900, START + 2100)
+    stretch_files(recording, [list(first), list(second)])
+    win = make_window()
+    win.show()
+    win.activateWindow()
+    wait_until(win.isActiveWindow)
+    wait_until(showing(win, START + 69 * 33))
+    win.next_rider()
+    assert win.statusBar().currentMessage() == "Turn on finding riders first"
+    assert analyzers == []
+    win.analysis_box.setChecked(True)
+    assert [a.camera_id for a in analyzers] == ["cam1"]
+    assert win.timeline.stretches == [first, second]
+    assert win.camera_list.item(0).text().endswith("; riders up to date")
+    win.seek_ms(START)
+    win.next_rider()
+    wait_until(showing(win, START + 18 * 33))  # the frame nearest the first start
+    QTest.keyClick(win, Qt.Key.Key_PageDown)
+    wait_until(showing(win, START + 58 * 33))  # nearest the second
+    win.next_rider()
+    assert win.statusBar().currentMessage() == "No rider after this moment"
+    QTest.keyClick(win, Qt.Key.Key_PageUp)
+    wait_until(showing(win, START + 18 * 33))
+    win.previous_rider()
+    assert win.statusBar().currentMessage() == "No rider before this"
+    win.analysis_box.setChecked(False)
+    assert not analyzers[0].running
+    assert win.timeline.stretches == []
+
+
+def test_an_analyser_that_dies_is_started_again_and_a_new_zone_restarts_it(
+    recording: Path,
+    make_window: Callable[[], mw.MainWindow],
+    analyzers: list[Any],
+) -> None:
+    session.save({**session.load(), "analysis": {"on": True, "model": ""}})
+    win = make_window()
+    camera = win.cameras["cam1"]
+    assert len(analyzers) == 1
+    assert win.camera_list.item(0).text().endswith("; riders not found yet")
+    analyzers[0].running = False  # it died
+    win.poll()
+    assert len(analyzers) == 1  # not again within 30 s
+    camera.analyzer_started -= 31
+    win.poll()
+    assert len(analyzers) == 2
+    wait_until(lambda: win.place is not None)
+    win.draw_zone()
+    win.picture_clicked((0.3, 0.2))
+    win.picture_clicked((0.7, 0.9))
+    assert not analyzers[1].running
+    assert len(analyzers) == 3
+    stretch_files(recording, [])
+    (recording / "video" / "cam1" / "analyzer.json").write_text(
+        json.dumps({"done_ms": START - 10_000})
+    )
+    win.poll()
+    assert win.camera_list.item(0).text().endswith("; riders 12 s behind")
+
+
+def test_the_real_analyser_finds_three_passes_from_the_window(
+    base: Path,
+    make_window: Callable[[], mw.MainWindow],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """002 SC-002 in small: the analyser runs beside the window and the recording."""
+    monkeypatch.setattr(mw, "start_analyzer", start_analyzer)
+    passes = 1_761_716_120_000
+    zone = [[0.35, 0.25], [0.65, 0.9]]
+    camera = {**CAMERA, "settings": {"fps": 10, "scene": "passes"}, "zone": zone}
+    session.save(
+        {**session.DEFAULTS, "cameras": [camera], "analysis": {"on": True, "model": ""}}
+    )
+    writer = SegmentWriter(base / "video" / "cam1", fps=10)
+    for k in range(300):
+        writer.write(render(passes + k * 100, 640, 360, "passes"), passes + k * 100)
+    writer.close()
+    beating(base)
+    win = make_window()
+    activity = win.cameras["cam1"].activity
+    wait_until(lambda: len(activity.stretches) == 3, seconds=60)
+    win.seek_ms(passes)
+    win.next_rider()
+    assert win.place is not None
+    shown = win.cameras["cam1"].index.frame(win.place).ms
+    assert passes + 2_000 <= shown <= passes + 3_500

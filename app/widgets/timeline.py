@@ -28,6 +28,7 @@ class Timeline(QWidget):
         self.position: int | None = None
         self.frames = np.empty(0, np.int64)
         self.gaps: list[tuple[int, int]] = []
+        self.stretches: list[tuple[int, int]] = []  # riders in view (002)
         self.zoomed = False
         self.following = True  # the view slides with the newest frame (Live)
 
@@ -41,6 +42,11 @@ class Timeline(QWidget):
         elif self.following:
             length = self.view[1] - self.view[0]
             self.view = (self.end - length, self.end)
+        self.update()
+
+    def set_stretches(self, stretches: list[tuple[int, int]]) -> None:
+        """Where the analysis saw a rider, drawn above the recording."""
+        self.stretches = stretches
         self.update()
 
     def set_position(self, ms: int | None) -> None:
@@ -104,6 +110,11 @@ class Timeline(QWidget):
             x1, x2 = self.x_at(gap_start), self.x_at(gap_end)
             painter.fillRect(
                 round(x1), 8, round(x2 - x1) + 1, height - 16, QColor(140, 60, 60)
+            )
+        for start, end in self.stretches:
+            x1, x2 = self.x_at(start), self.x_at(end)
+            painter.fillRect(
+                round(x1), 2, max(round(x2 - x1), 2), 6, QColor(80, 160, 255)
             )
         self._tick_frames(painter)
         if self.position is not None:

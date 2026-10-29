@@ -16,6 +16,7 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from PySide6.QtCore import QProcess
 from PySide6.QtWidgets import QApplication
 
 from app import main_window as mw
@@ -51,9 +52,43 @@ def spawned(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     return calls
 
 
+class Analyzer:
+    """An analyser process that would be running, until its input is closed."""
+
+    def __init__(self, camera_id: str) -> None:
+        self.camera_id, self.running = camera_id, True
+
+    def state(self) -> QProcess.ProcessState:
+        if self.running:
+            return QProcess.ProcessState.Running
+        return QProcess.ProcessState.NotRunning
+
+    def closeWriteChannel(self) -> None:  # noqa: N802 - QProcess's name
+        self.running = False
+
+    def waitForFinished(self, ms: int) -> bool:  # noqa: N802 - QProcess's name
+        return not self.running
+
+    def kill(self) -> None:
+        self.running = False
+
+
+@pytest.fixture
+def analyzers(monkeypatch: pytest.MonkeyPatch) -> list[Analyzer]:
+    """The analysers the window starts, none of them a process."""
+    started: list[Analyzer] = []
+
+    def start(camera_id: str, parent: object) -> Analyzer:
+        started.append(Analyzer(camera_id))
+        return started[-1]
+
+    monkeypatch.setattr(mw, "start_analyzer", start)
+    return started
+
+
 @pytest.fixture
 def make_window(
-    base: Path, spawned: list[str]
+    base: Path, spawned: list[str], analyzers: list[Analyzer]
 ) -> Iterator[Callable[[], mw.MainWindow]]:
     made: list[mw.MainWindow] = []
 

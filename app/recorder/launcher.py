@@ -28,11 +28,16 @@ ENDED = ("stopped", "failed", "disk_full")
 START_GRACE_S = 30  # a frozen onefile build unpacks itself before its first heartbeat
 
 
-def command(camera_id: str) -> list[str]:
-    """How this program runs a camera's recorder."""
+def command(camera_id: str, role: str = "--recorder") -> list[str]:
+    """How this program runs a camera's recorder, or its analyser."""
     if getattr(sys, "frozen", False):
-        return [sys.executable, "--recorder", camera_id]
-    return [sys.executable, "-m", "app.main", "--recorder", camera_id]
+        return [sys.executable, role, camera_id]
+    return [sys.executable, "-m", "app.main", role, camera_id]
+
+
+def package_root() -> str:
+    """Where the ``app`` package is, for a process run from the sources."""
+    return str(Path(app.__file__).resolve().parents[1])
 
 
 def spawn(camera_id: str) -> subprocess.Popen[bytes]:
@@ -42,7 +47,7 @@ def spawn(camera_id: str) -> subprocess.Popen[bytes]:
     folder.mkdir(parents=True, exist_ok=True)
     env = dict(os.environ)
     if not getattr(sys, "frozen", False):
-        env["PYTHONPATH"] = str(Path(app.__file__).resolve().parents[1])
+        env["PYTHONPATH"] = package_root()
     with (folder / "recorder.log").open("ab") as log:
         options: dict[str, Any] = {
             "cwd": paths.base_dir(),
