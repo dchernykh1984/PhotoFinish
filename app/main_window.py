@@ -4,13 +4,15 @@ Qt-free modules (session, video_index, recorder) and the widgets."""
 from __future__ import annotations
 
 import math
+import sys
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import numpy as np
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import QProcess, QProcessEnvironment, Qt, QTimer
 from PySide6.QtGui import QCloseEvent, QImage, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -29,14 +31,15 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app import analysis, session
+from app import analysis, paths, session
+from app.analysis.activity import Activity
 from app.input_follow import InputFollow
 from app.interpolation import Point, between, crossing, finish_line
 from app.lines import parse_line, parse_time, scale_time, to_epoch, to_line_scale
 from app.output_list import Change, OutputList
 from app.paths import app_path
 from app.recorder import folder_of
-from app.recorder.launcher import Watchdog, describe, heartbeat
+from app.recorder.launcher import Watchdog, command, describe, heartbeat, package_root
 from app.video_index import FileIndex, VideoIndex
 from app.widgets.camera_dialog import CameraDialog
 from app.widgets.camera_view import CameraView
@@ -59,8 +62,11 @@ class Camera:
     item: QListWidgetItem
     view: CameraView
     worker: DecodeWorker
+    activity: Activity
     shown: int | None = None  # the frame on its view, in its index
     wanted: tuple[str, int] | None = None  # the frame last asked for
+    analyzer: Any = None  # its analyser process, while finding riders is on
+    analyzer_started: float = -math.inf  # monotonic
 
     @property
     def id(self) -> str:
@@ -179,7 +185,15 @@ class MainWindow(QMainWindow):
         motion_only = QPushButton("Motion only")
         motion_only.setToolTip("Find riders by motion, without a model")
         motion_only.clicked.connect(lambda: self._set_model(""))
+        previous_rider = QPushButton("< Previous rider")
+        previous_rider.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        previous_rider.clicked.connect(self.previous_rider)
+        next_rider = QPushButton("Next rider >")
+        next_rider.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        next_rider.clicked.connect(self.next_rider)
         finding = QHBoxLayout()
+        finding.addWidget(previous_rider)
+        finding.addWidget(next_rider)
         finding.addWidget(self.analysis_box)
         finding.addWidget(zone_button)
         finding.addWidget(self.model_button)
@@ -257,6 +271,8 @@ class MainWindow(QMainWindow):
             ("Ctrl+Left", lambda: self.step_ms(-1000)),
             ("Ctrl+Right", lambda: self.step_ms(1000)),
             ("L", self.go_live),
+            ("PgUp", self.previous_rider),
+            ("PgDown", self.next_rider),
         ):
             QShortcut(QKeySequence(keys), self).activated.connect(slot)
 
@@ -317,6 +333,7 @@ class MainWindow(QMainWindow):
             item,
             view,
             worker,
+            Activity(folder_of(camera_id)),
         )
         view.clicked.connect(lambda point: self.picture_clicked(point, camera_id))
         worker.decoded.connect(lambda tag, image: self._show(camera, tag, image))
@@ -603,6 +620,9 @@ class MainWindow(QMainWindow):
             return
         camera.settings[self.drawn] = [list(end) for end in drawing]
         session.save(self.session)
+        if self.drawn == "zone" and self.analysis_box.isChecked():
+            self._stop_analyzer(camera)  # the new zone from here on
+            self._analyze(camera)
         self.drawing = None
         self._say(
             "The zone is drawn" if self.drawn == "zone" else "The finish line is drawn"
@@ -730,7 +750,55 @@ class MainWindow(QMainWindow):
     def _analysis_on(self, on: bool) -> None:
         self.session["analysis"] = {**analysis.settings(self.session), "on": on}
         session.save(self.session)
+        for camera in self.cameras.values():
+            if on:
+                self._analyze(camera)
+            else:
+                self._stop_analyzer(camera)
         self._show_marks()
+        self.poll()
+
+    def next_rider(self) -> None:
+        self._rider(after=True)
+
+    def previous_rider(self) -> None:
+        self._rider(after=False)
+
+    def _rider(self, after: bool) -> None:
+        """The video at the start of the next or previous stretch with a rider."""
+        camera = self._camera()
+        if not self.analysis_box.isChecked():
+            self._say("Turn on finding riders first")
+            return
+        if camera is None or self.place is None:
+            return
+        ms = camera.index.frame(self.place).ms
+        activity = camera.activity
+        found = activity.next_after(ms) if after else activity.previous_before(ms)
+        if found is None:
+            self._say("No rider after this moment" if after else "No rider before this")
+            return
+        self.seek_ms(found + self._offset())
+
+    def _analyze(self, camera: Camera) -> None:
+        """The camera's analyser running, started again 30 s after it last was."""
+        recorded = camera.settings.get("record", True)
+        running = camera.analyzer is not None and camera.analyzer.state() != (
+            QProcess.ProcessState.NotRunning
+        )
+        if not recorded or running or time.monotonic() - camera.analyzer_started < 30:
+            return
+        camera.analyzer = start_analyzer(camera.id, self)
+        camera.analyzer_started = time.monotonic()
+
+    def _stop_analyzer(self, camera: Camera) -> None:
+        """Its standard input closed, the analyser ends; killed if it does not."""
+        process, camera.analyzer = camera.analyzer, None
+        camera.analyzer_started = -math.inf
+        if process is not None and process.state() != QProcess.ProcessState.NotRunning:
+            process.closeWriteChannel()
+            if not process.waitForFinished(3000):
+                process.kill()
 
     def _offsets(self) -> dict[str, int]:
         return {
@@ -798,10 +866,18 @@ class MainWindow(QMainWindow):
     # -- moving through the video ----------------------------------------------
 
     def poll(self) -> None:
+        finding = self.analysis_box.isChecked()
         for camera in self.cameras.values():
+            if finding:
+                self._analyze(camera)
+                camera.activity.refresh()
             self._label(camera)
         self._follow_files()
         self._refresh()
+        current = self._camera()
+        stretches = current.activity.stretches if current and finding else []
+        offset = self._offset()
+        self.timeline.set_stretches([(a + offset, b + offset) for a, b in stretches])
 
     def _label(self, camera: Camera) -> None:
         """The camera's line in the list: its name and how its recorder is."""
@@ -811,7 +887,17 @@ class MainWindow(QMainWindow):
             state = describe(info)
         else:
             state = "starting" if watchdog.wanted else "not recording"
+        if self.analysis_box.isChecked() and camera.settings.get("record", True):
+            state += f"; riders {self._riders_progress(camera)}"
         camera.item.setText(f"{camera.settings.get('name', camera.id)}: {state}")
+
+    def _riders_progress(self, camera: Camera) -> str:
+        """How far the camera's analyser has got (FR-009)."""
+        done = (camera.activity.progress or {}).get("done_ms")
+        if done is None:
+            return "not found yet"
+        behind = int(camera.index.ms[-1]) - int(done) if len(camera.index) else 0
+        return "up to date" if behind <= 3000 else f"{behind // 1000} s behind"
 
     def step(self, frames: int) -> None:
         camera = self._camera()
@@ -922,7 +1008,25 @@ class MainWindow(QMainWindow):
         self.timer.stop()
         for camera in self.cameras.values():
             camera.worker.stop()
+            self._stop_analyzer(camera)
         super().closeEvent(event)
+
+
+def start_analyzer(camera_id: str, parent: QWidget) -> QProcess:
+    """A camera's analyser, a child of the window: it ends when its input closes,
+    and it may die with the window; the recordings do not."""
+    process = QProcess(parent)
+    program, *arguments = command(camera_id, "--analyzer")
+    process.setProgram(program)
+    process.setArguments(arguments)
+    process.setWorkingDirectory(str(paths.base_dir()))
+    environment = QProcessEnvironment.systemEnvironment()
+    if not getattr(sys, "frozen", False):
+        environment.insert("PYTHONPATH", package_root())
+    process.setProcessEnvironment(environment)
+    process.setStandardOutputFile(QProcess.nullDevice())
+    process.start()
+    return process
 
 
 def usb_cameras() -> list[str]:
