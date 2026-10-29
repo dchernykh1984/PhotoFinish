@@ -27,7 +27,13 @@ import numpy as np
 from app import session
 from app.paths import app_path
 from app.recorder.segments import SegmentWriter
-from app.recorder.sources import CameraSettingsError, Source, open_source
+from app.recorder.sources import (
+    LEAP_MS,
+    CameraSettingsError,
+    Source,
+    open_source,
+    slewed,
+)
 
 LOW_DISK = 2 * 1024**3
 # A heartbeat older than this: the recorder is gone. Longer than a camera open
@@ -49,9 +55,6 @@ class SteadyClock:
     of it by more than LEAP_MS, it is read again, and the frames that follow are on
     the computer's time, as the chronometer's are."""
 
-    LEAP_MS = 2000
-    SLEW = 0.001  # the share of the time passed by which it may be brought nearer
-
     def __init__(self) -> None:
         self._anchor()
         self._last = int(self._wall)
@@ -65,12 +68,11 @@ class SteadyClock:
         now = time.monotonic_ns()
         steady = self._wall + (now - self._steady) / 1_000_000 + self._skew
         ahead = time.time_ns() / 1_000_000 - steady
-        if ahead > self.LEAP_MS:
+        if ahead > LEAP_MS:
             self._anchor()  # it slept, or its clock was set forward
             steady = self._wall
-        elif ahead >= -self.LEAP_MS:  # drift; a clock set back is not followed
-            most = (now - self._then) / 1_000_000 * self.SLEW
-            self._skew += max(-most, min(most, ahead))
+        elif ahead >= -LEAP_MS:  # drift; a clock set back is not followed
+            self._skew = slewed(self._skew, ahead, (now - self._then) / 1_000_000)
             steady = self._wall + (now - self._steady) / 1_000_000 + self._skew
         self._then = now
         self._last = max(self._last, int(steady))

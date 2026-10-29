@@ -427,8 +427,7 @@ class MainWindow(QMainWindow):
         )
         if not path:
             return
-        output = str(self.session.get("output") or "")
-        if output and app_path(output).resolve() == app_path(path).resolve():
+        if _same_file(self.session.get("output"), path):
             self._say("The input cannot be the output file")
             return
         self.session["input"] = path
@@ -531,7 +530,7 @@ class MainWindow(QMainWindow):
         )
         if not path:
             return
-        if self._same_as_input(path):
+        if _same_file(self.session.get("input"), path):
             self._say(
                 "The output cannot be the chronometer's file: that one is only read"
             )
@@ -1033,10 +1032,6 @@ class MainWindow(QMainWindow):
                 self._say(f"The output file cannot be opened: {error}")
         self._open_input()
 
-    def _same_as_input(self, path: str) -> bool:
-        chosen = str(self.session.get("input") or "")
-        return bool(chosen) and app_path(chosen).resolve() == app_path(path).resolve()
-
     def _finish_mode(self, on: bool) -> None:
         self.session["finish_mode"] = on
         self._save_session()
@@ -1248,6 +1243,11 @@ class MainWindow(QMainWindow):
             camera.worker.stop()
             self._stop_analyzer(camera)
         super().closeEvent(event)
+
+
+def _same_file(chosen: object, path: str) -> bool:
+    """The session's file ``chosen`` is the one at ``path``; none chosen is none."""
+    return bool(chosen) and app_path(str(chosen)).resolve() == app_path(path).resolve()
 
 
 def start_analyzer(camera_id: str, parent: QWidget) -> QProcess:
