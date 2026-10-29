@@ -17,7 +17,9 @@ first.
 from __future__ import annotations
 
 import functools
+import hashlib
 import json
+import re
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
@@ -88,6 +90,9 @@ class OutputList:
         self._pending: list[bytes] | None = None  # journal entries of a change
         self._written: bytes | None = None  # the output file as this list wrote it
         self._written_stat: tuple[int, int, int] | None = None  # its size, time, inode
+        # The digest of what this list wrote before its last write: a file found with
+        # it at the next start is that write cut short by a crash.
+        self._before: str | None = None
         self._kept: object = _NOTHING  # the outside version kept, until written over
         self._outside: list[bytes] = []  # its journal entry, until a write gets through
         self.journal_error: JournalError | None = None  # opened; the journal refused
@@ -214,7 +219,7 @@ class OutputList:
         """True when something else wrote the output file: its version is kept in a
         backup and journaled, and the list is written again."""
         with self._journaled():
-            if not self._keep_outside_version():
+            if not self._keep_outside_version(polled=True):
                 return False
             self._write()
         return True
@@ -231,7 +236,7 @@ class OutputList:
             # The lines themselves are put back, not copies: the window knows them.
             # Their fields are kept as they are: an origin is replaced, never edited.
             kept = [(line, dict(vars(line))) for line in self.lines]
-            taken, removed = list(self.taken), list(self.removed)
+            taken, removed, before = list(self.taken), list(self.removed), self._before
             try:
                 yield
                 self._write()
@@ -239,7 +244,7 @@ class OutputList:
                 for line, fields in kept:
                     vars(line).update(fields)
                 self.lines, self.taken = [ln for ln, _ in kept], taken
-                self.removed = removed
+                self.removed, self._before = removed, before
                 self._write_state_back()
                 raise
 
@@ -331,7 +336,15 @@ class OutputList:
             self.state_path.replace(_aside(self.state_path, "broken"))
             self._start_from_file(_replay(self.journal_path))
             return
-        self._written = self._body()
+        found, body = _read(self.path), self._body()
+        self._before = state.get("output_before")
+        if found not in (None, body) and _digest(found) == self._before:
+            # A crash between the state and the file: the file the list wrote before,
+            # not one changed outside. Brought up to the state, nothing kept aside.
+            self._written = found
+            self._write()
+            return
+        self._written = body
         self.check_outside()
 
     def _start_from_file(self, journal: _Replayed | None = None) -> None:
@@ -354,21 +367,19 @@ class OutputList:
         if not self.check_outside():
             self._write()
 
-    def _keep_outside_version(self) -> bool:
-        # shortcut: a file rewritten in place, its size kept, within one tick of the
-        # file system's clock, is read at the next change; read on every poll then.
+    def _keep_outside_version(self, polled: bool = False) -> bool:
+        # shortcut: a poll trusts the size, time and inode: a file rewritten in place,
+        # its size kept, within one tick of the file system's clock, is read at the
+        # next change; read on every poll then.
         stat = _stat(self.path)
-        if stat is not None and stat == self._written_stat:
+        if polled and stat is not None and stat == self._written_stat:
             return False  # as this list wrote it: not read again
         current = _read(self.path)
         if current == self._written:
             self._written_stat = stat
             return False
         if current != self._kept:  # once, however often writing it over fails
-            backup = None
-            if current is not None:
-                backup = _aside(self.path, "outside")
-                _write_in_one_step(backup, current)
+            backup = None if current is None else _backup(self.path, current)
             self._kept, self.outside_kept = current, True
             name = backup.name if backup else None
             self._outside.append(_entry("outside_change", backup=name))
@@ -377,6 +388,7 @@ class OutputList:
     def _write(self) -> None:
         """The state, then the output file, each in one step: after a crash between
         the two, the state is ahead and writes the file again at the next start."""
+        self._before = _digest(self._written)
         _write_in_one_step(self.state_path, self._state())
         body = self._body()
         _write_in_one_step(self.path, body)
@@ -389,6 +401,7 @@ class OutputList:
             "lines": lines,
             "input_taken": self.taken,
             "removed_input": self.removed,
+            "output_before": self._before,
         }
         return (json.dumps(state, ensure_ascii=False) + "\n").encode()
 
@@ -530,6 +543,10 @@ def _stat(path: Path) -> tuple[int, int, int] | None:
     return found.st_size, found.st_mtime_ns, found.st_ino
 
 
+def _digest(data: bytes | None) -> str | None:
+    return None if data is None else hashlib.sha256(data).hexdigest()
+
+
 def _read(path: Path) -> bytes | None:
     """The file's bytes, read again while another program holds it; None when it
     is not there."""
@@ -537,6 +554,19 @@ def _read(path: Path) -> bytes | None:
         return files.read_bytes(path)
     except FileNotFoundError:
         return None
+
+
+def _backup(path: Path, data: bytes) -> Path:
+    """The outside version kept beside the file, unless the newest backup holds it
+    already: a list opened again at each poll while the file is held keeps it once."""
+    stamped = re.compile(re.escape(path.name) + r"\.outside-[\d-]+")
+    kept = [p for p in path.parent.iterdir() if stamped.fullmatch(p.name)]
+    newest = max(kept, key=lambda p: p.name, default=None)
+    if newest is not None and _read(newest) == data:
+        return newest
+    backup = _aside(path, "outside")
+    _write_in_one_step(backup, data)
+    return backup
 
 
 def _aside(path: Path, why: str) -> Path:

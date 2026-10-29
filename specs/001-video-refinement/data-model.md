@@ -85,9 +85,13 @@ leaves nothing in the journal.
              "origin": {"input": "15#20389 11:35:29.615#nextLap#"},
              "method": "frame", "removed_from_input": false, "encoding": "utf-8"}],
   "input_taken": ["15#20389 11:35:29.615#nextLap#"],
-  "removed_input": []
+  "removed_input": [],
+  "output_before": "<sha256 of the output file as the list wrote it before its last write>"
 }
 ```
 
 `removed_input` holds the input lines whose crossing the referee removed: such a line is not
-taken again when it leaves the input and comes back.
+taken again when it leaves the input and comes back. `output_before` tells, at the next start,
+the file a crash left between the state and the output (brought up to the state) from a file
+changed outside (kept beside it and journaled). An outside version whose write-over a crash cut
+short is that second kind: journaled at the next start, in the backup it already has.

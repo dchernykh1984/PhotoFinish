@@ -224,6 +224,22 @@ def test_a_change_keeps_an_outside_version_first(path: Path) -> None:
     assert (path.parent / entries[0]["backup"]).read_text() == "x\n"
 
 
+def test_a_change_reads_a_file_rewritten_as_quick_as_the_clock_ticks(
+    path: Path,
+) -> None:
+    out = OutputList(path)
+    take(out, TAKEN)
+    written = path.stat()
+    with path.open("r+b") as f:  # in place, its size kept
+        f.write(b"16")
+    os.utime(path, ns=(written.st_atime_ns, written.st_mtime_ns))  # in the same tick
+    assert not out.check_outside()  # a poll goes by the size and time
+    take(out, "17#20389 11:35:30.000#nextLap#")
+    entries = journal(out)
+    assert [entry["op"] for entry in entries] == ["take", "outside_change", "take"]
+    assert (path.parent / entries[1]["backup"]).read_text() == "16" + TAKEN[2:] + "\n"
+
+
 def test_a_deleted_output_is_written_again(path: Path) -> None:
     out = OutputList(path)
     take(out, TAKEN)
@@ -279,7 +295,11 @@ def test_after_a_crash_between_the_state_and_the_file_the_state_wins(
     path.write_bytes(old)
     again = OutputList(path)
     assert path.read_text().splitlines() == again.texts() == out.texts()
-    assert journal(again)[-1]["op"] == "outside_change"
+    assert [entry["op"] for entry in journal(again)] == ["take", "take"]  # its own
+    assert not again.outside_kept
+    assert not list(path.parent.glob("out.txt.outside-*"))
+    path.write_text("edited by hand\n")  # changed outside: kept, as ever
+    assert broken_or_not(path).outside_kept
 
 
 def test_a_change_that_cannot_be_written_is_undone(
@@ -447,6 +467,57 @@ def test_an_outside_version_that_cannot_be_written_over_is_kept_once(
     assert out.check_outside()
     ops = [entry["op"] for entry in journal(out)]
     assert ops == ["take", "outside_change"]
+
+
+def test_an_outside_version_held_while_the_list_is_opened_again_is_kept_once(
+    path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    take(OutputList(path), TAKEN)
+    path.write_text("edited, and held open by a spreadsheet\n")
+    real = output_list._write_in_one_step
+
+    def held(target: Path, data: bytes) -> None:
+        if target == path:
+            raise PermissionError("in use")
+        real(target, data)
+
+    monkeypatch.setattr(output_list, "_write_in_one_step", held)
+    for _ in range(3):  # the window opens it again at each poll
+        with pytest.raises(PermissionError):
+            OutputList(path)
+    monkeypatch.setattr(output_list, "_write_in_one_step", real)
+    again = OutputList(path)
+    (backup,) = path.parent.glob("out.txt.outside-*")
+    assert backup.read_text() == "edited, and held open by a spreadsheet\n"
+    assert [entry["op"] for entry in journal(again)] == ["take", "outside_change"]
+    assert journal(again)[-1]["backup"] == backup.name
+    assert again.outside_kept
+    assert path.read_text() == TAKEN + "\n"
+
+
+def test_an_outside_version_a_crash_left_is_journaled_at_the_next_start_once(
+    path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    out = OutputList(path)
+    take(out, TAKEN)
+    path.write_text("edited by hand\n")
+    real = output_list._write_in_one_step
+
+    def crash(target: Path, data: bytes) -> None:
+        if target == path:
+            raise SystemExit  # the process ends between the state and the output
+        real(target, data)
+
+    monkeypatch.setattr(output_list, "_write_in_one_step", crash)
+    with pytest.raises(SystemExit):
+        out.check_outside()
+    monkeypatch.setattr(output_list, "_write_in_one_step", real)
+    again = OutputList(path)
+    (backup,) = path.parent.glob("out.txt.outside-*")
+    assert [entry["op"] for entry in journal(again)] == ["take", "outside_change"]
+    assert journal(again)[-1]["backup"] == backup.name
+    assert again.outside_kept
+    assert path.read_text() == TAKEN + "\n"
 
 
 def test_an_output_whose_journal_refuses_opens_all_the_same(
@@ -623,6 +694,11 @@ def test_after_a_broken_state_lines_are_linked_to_their_input_again(
     current = "15#20389 11:35:29.700#nextLap#"
     again.copy_input(0, current)  # the chronometer's correction replaces its line
     assert again.texts() == [current, "16#20389 11:35:31.000#nextLap#"]
+
+
+def broken_or_not(path: Path) -> OutputList:
+    """The list opened again, its state as it is."""
+    return OutputList(path)
 
 
 def broken_state(path: Path) -> OutputList:
