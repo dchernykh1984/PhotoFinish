@@ -74,6 +74,24 @@ def test_segments_closed_later_are_added_and_kept_in_time_order(tmp_path: Path) 
     assert index.frame(len(index) - 1).path == late.with_suffix(".mkv")
 
 
+def test_a_segment_whose_times_stay_unreadable_is_given_up(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(video_index, "TRIES", 3)
+    index = VideoIndex(tmp_path)
+    broken = tmp_path / "20000101-000000-0001"
+    broken.with_suffix(".times").write_text("0 1 2")  # cut short by a power loss
+    broken.with_suffix(".mkv").write_bytes(b"")
+    (tmp_path / "segments.txt").write_text(f"{broken.name}\n")
+    for _ in range(2):
+        assert not index.refresh()
+        assert index.unreadable == []
+    assert not index.refresh()
+    assert index.unreadable == [broken.name]
+    assert not index.refresh()
+    assert index.unreadable == [broken.name]  # said once, not read again
+
+
 def test_a_cameras_own_stream_is_indexed_in_display_order(tmp_path: Path) -> None:
     make_h264(tmp_path / "camera.mp4", 40)
     folder = tmp_path / "cam1"

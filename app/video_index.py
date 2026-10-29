@@ -21,6 +21,8 @@ import numpy as np
 from app.files import Appended
 from app.recorder.segments import SEGMENTS
 
+TRIES = 20  # polls a listed segment's times are read again before it is given up
+
 
 @dataclass(frozen=True)
 class Frame:
@@ -60,7 +62,8 @@ class VideoIndex:
         self._names: set[str] = set()
         self._gaps_size = 0
         self._listed = Appended(folder / SEGMENTS)
-        self._unread: list[str] = []  # listed segments whose times were not read
+        self._unread: dict[str, int] = {}  # listed, times not read yet: the tries
+        self.unreadable: list[str] = []  # given up: their frames are not here
 
     def __len__(self) -> int:
         return int(self.ms.size)
@@ -68,15 +71,24 @@ class VideoIndex:
     def refresh(self) -> bool:
         """Segments closed since the last refresh added; True when any was."""
         self._read_gaps()
-        names = self._unread + self._listed.new_lines()
+        names = [*self._unread, *self._listed.new_lines()]
         new = [self.folder / f"{n}.mkv" for n in names if f"{n}.mkv" not in self._names]
         read = [
             (path, times) for path in new if (times := read_times(path)) is not None
         ]
         for path, _ in read:
             self._names.add(path.name)
-        # Times that cannot be read now -- held by their writer a moment -- next time.
-        self._unread = [p.stem for p in new if p.name not in self._names]
+        # Times that cannot be read now -- held by their writer a moment -- next time;
+        # still not after TRIES polls, the segment is given up and said.
+        unread = {}
+        for path in new:
+            if path.name not in self._names:
+                tries = self._unread.get(path.stem, 0) + 1
+                if tries < TRIES:
+                    unread[path.stem] = tries
+                else:
+                    self.unreadable.append(path.stem)
+        self._unread = unread
         added = [(path, times) for path, times in read if len(times)]  # no frame: none
         if not added:
             return False
