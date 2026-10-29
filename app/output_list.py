@@ -187,9 +187,10 @@ class OutputList:
     def check_outside(self) -> bool:
         """True when something else wrote the output file: its version is kept in a
         backup and journaled, and the list is written again."""
-        if not self._keep_outside_version():
-            return False
-        self._write()
+        with self._journaled():
+            if not self._keep_outside_version():
+                return False
+            self._write()
         return True
 
     # -- inside ----------------------------------------------------------------
@@ -198,23 +199,33 @@ class OutputList:
     def _change(self) -> Iterator[None]:
         """One change, written at once and then journaled. A version of the file
         something else wrote is kept first. A change that cannot be written leaves
-        the list as it was, its state file too, and nothing in the journal; a journal
-        that cannot take the entries of a change written is an error said, the
-        change kept."""
-        self._keep_outside_version()
-        # The lines themselves are put back, not copies: the window knows them so.
-        kept = [(line, copy.deepcopy(vars(line))) for line in self.lines]
-        taken, removed = list(self.taken), list(self.removed)
+        the list as it was, its state file too, and nothing in the journal."""
+        with self._journaled():
+            self._keep_outside_version()
+            # The lines themselves are put back, not copies: the window knows them.
+            kept = [(line, copy.deepcopy(vars(line))) for line in self.lines]
+            taken, removed = list(self.taken), list(self.removed)
+            try:
+                yield
+                self._write()
+            except BaseException:
+                for line, fields in kept:
+                    vars(line).update(fields)
+                self.lines, self.taken = [ln for ln, _ in kept], taken
+                self.removed = removed
+                self._write_state_back()
+                raise
+
+    @contextmanager
+    def _journaled(self) -> Iterator[None]:
+        """The journal entries made within appended once it is done, nothing when it
+        fails: a journal that cannot take them is an error said once the files are
+        written, which stay written."""
         self._pending = []
         try:
             yield
-            self._write()
         except BaseException:
-            for line, fields in kept:
-                vars(line).update(fields)
-            self.lines, self.taken, self._pending = [ln for ln, _ in kept], taken, None
-            self.removed = removed
-            self._write_state_back()
+            self._pending = None
             raise
         entries, self._pending = self._pending, None
         if entries:
