@@ -16,7 +16,7 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QProcess
+from PySide6.QtCore import QObject, QProcess
 from PySide6.QtWidgets import QApplication
 
 from app import main_window as mw
@@ -52,11 +52,18 @@ def spawned(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     return calls
 
 
-class Analyzer:
-    """An analyser process that would be running, until its input is closed."""
+class Analyzer(QObject):
+    """An analyser process that would be running, until its input is closed; one
+    ``slow`` still on its segment, until it is killed."""
 
     def __init__(self, camera_id: str) -> None:
-        self.camera_id, self.running = camera_id, True
+        super().__init__()
+        self.camera_id, self.running, self.slow, self.killed = (
+            camera_id,
+            True,
+            False,
+            False,
+        )
 
     def state(self) -> QProcess.ProcessState:
         if self.running:
@@ -64,13 +71,10 @@ class Analyzer:
         return QProcess.ProcessState.NotRunning
 
     def closeWriteChannel(self) -> None:  # noqa: N802 - QProcess's name
-        self.running = False
-
-    def waitForFinished(self, ms: int) -> bool:  # noqa: N802 - QProcess's name
-        return not self.running
+        self.running = self.running and self.slow
 
     def kill(self) -> None:
-        self.running = False
+        self.running, self.killed = False, True
 
 
 @pytest.fixture

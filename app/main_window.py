@@ -58,6 +58,7 @@ from app.widgets.timeline import Timeline
 
 POLL_MS = 500
 NEAR_MS = 1000  # another camera's frame further from the moment than this: none
+STOP_MS = 3000  # an analyser stopped is killed if it has not ended by then
 
 
 @dataclass
@@ -77,6 +78,7 @@ class Camera:
     wanted: tuple[str, int] | None = None  # the frame last asked for
     analyzer: Any = None  # its analyser process, while finding riders is on
     analyzer_started: float = -math.inf  # monotonic
+    stopping: Any = None  # the analyser stopped, while it ends its segment
 
     @property
     def id(self) -> str:
@@ -858,10 +860,12 @@ class MainWindow(QMainWindow):
         self.seek_ms(found + self._offset())
 
     def _analyze(self, camera: Camera) -> None:
-        """The camera's analyser running, started again 30 s after it last was."""
+        """The camera's analyser running, started again 30 s after it last was; not
+        beside the one stopped before, while that ends its segment."""
         recorded = camera.settings.get("record", True)
-        running = camera.analyzer is not None and camera.analyzer.state() != (
-            QProcess.ProcessState.NotRunning
+        running = any(
+            process is not None and process.state() != QProcess.ProcessState.NotRunning
+            for process in (camera.analyzer, camera.stopping)
         )
         failed = (camera.activity.progress or {}).get("state") == "failed"
         waited = time.monotonic() - camera.analyzer_started < 30
@@ -871,13 +875,14 @@ class MainWindow(QMainWindow):
         camera.analyzer_started = time.monotonic()
 
     def _stop_analyzer(self, camera: Camera) -> None:
-        """Its standard input closed, the analyser ends; killed if it does not."""
+        """Its standard input closed, the analyser ends after the segment it is on;
+        killed if it has not in STOP_MS. The window does not wait for it."""
         process, camera.analyzer = camera.analyzer, None
         camera.analyzer_started = -math.inf
         if process is not None and process.state() != QProcess.ProcessState.NotRunning:
             process.closeWriteChannel()
-            if not process.waitForFinished(3000):
-                process.kill()
+            QTimer.singleShot(STOP_MS, process, process.kill)
+            camera.stopping = process
 
     def accept_suggestion(self) -> None:
         """The crossing suggested, with the typed number, through the output's
