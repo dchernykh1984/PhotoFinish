@@ -11,12 +11,16 @@ while a stick is out.
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 from pathlib import Path
 
-from app.lines import parse_line, read_lines
+from app import files
+from app.lines import parse_line, text_lines
 from app.output_list import OutputList
+
+REST_NS = 2_000_000_000  # a last line left without its line break this long is done
 
 
 @dataclass(frozen=True)
@@ -96,24 +100,32 @@ class InputFollow:
         self.output = output
         self.lines: list[InputLine] = []
         self._seen: tuple[int, int, int] | None = None
+        self._cut = False  # the last read ended in a line without its line break
 
     def poll(self) -> bool:
-        """Read the input again when it changed; True when it did."""
+        """Read the input again when it changed, or when a last line without its line
+        break has been left as it is for REST_NS; True when it was read."""
         # shortcut: a rewrite keeping the size within one tick of the file system's
         # clock (15 ms on Windows) is seen at the next change; poll by content if a
         # chronometer ever edits that fast.
         try:
             stat = self.path.stat()
             seen = (stat.st_size, stat.st_mtime_ns, stat.st_ino)
-            if seen == self._seen:
+            at_rest = time.time_ns() - stat.st_mtime_ns > REST_NS
+            if seen == self._seen and not (self._cut and at_rest):
                 return False
-            current = read_lines(self.path)
+            data = files.read_bytes(self.path)
         except OSError:
             return False  # not there, or held by its writer a moment: next time
+        complete = data[: data.rfind(b"\n") + 1]
+        cut = len(complete) < len(data) and bool(data[len(complete) :].strip())
+        # A line still being written waits for its line break; one a tool or a hand
+        # left without it is taken once the file has rested.
+        current = text_lines(data if cut and at_rest else complete)
         result = align(self.output.taken, current)
         self.output.follow(result.taken, result.new, result.gone)
         self.lines = result.shown
-        self._seen = seen
+        self._seen, self._cut = seen, cut and not at_rest
         return True
 
     def copy(self, index: int) -> int:

@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from app import output_list
+from app import input_follow, output_list
 from app.input_follow import InputFollow, InputLine, align
 from app.output_list import OutputList
 
@@ -123,10 +123,12 @@ def test_the_input_is_only_read(files: tuple[Path, Path]) -> None:
 
 
 def test_a_line_still_being_written_waits_for_its_line_break(
-    files: tuple[Path, Path],
+    files: tuple[Path, Path], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     source, _ = files
     write(source, A, tail="2#20389 11:3")
+    written = source.stat().st_mtime_ns
+    monkeypatch.setattr(input_follow.time, "time_ns", lambda: written + 100_000_000)
     f = follow(files)
     f.poll()
     assert f.output.texts() == [A]
@@ -241,3 +243,24 @@ def test_lines_not_written_are_read_again_at_the_next_poll(
     monkeypatch.setattr(output_list, "_write_in_one_step", real)
     assert f.poll()
     assert f.output.texts() == [A]
+
+
+def test_a_last_line_left_without_its_line_break_is_taken_once_at_rest(
+    files: tuple[Path, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source, _ = files
+    write(source, A, tail=B)  # B without its line break, the file just written
+    now = source.stat().st_mtime_ns
+    clock = {"ns": now + 100_000_000}
+    monkeypatch.setattr(input_follow.time, "time_ns", lambda: clock["ns"])
+    f = follow(files)
+    assert f.poll()
+    assert f.output.texts() == [A]  # it may still be being written
+    assert not f.poll()
+    clock["ns"] = now + 3_000_000_000  # left so: the tool is done with it
+    assert f.poll()
+    assert f.output.texts() == [A, B]
+    assert not f.poll()
+    write(source, A, tail=" \n")
+    f.poll()
+    assert not f._cut  # blanks after the last line break are no line
