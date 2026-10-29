@@ -75,25 +75,38 @@ def open_source(
 
 
 class Anchor:
-    """Moments from a camera's timestamps: anchored on the clock at the first one."""
+    """Moments from a camera's timestamps: anchored on the clock at the first one,
+    then following the clock slowly -- by a millisecond a second at most, so arrival
+    jitter averages out -- as the camera's oscillator and the computer's drift apart
+    over a race day."""
+
+    SLEW = 0.001  # the share of the time passed by which it may be brought nearer
+    LEAP_MS = 2000  # further apart than this, the camera is late, not drifting
 
     def __init__(self, clock: Callable[[], int]) -> None:
         self.clock = clock
         self._stamp: float | None = None  # the timestamp anchored, ms
         self._moment = 0
         self._last = 0.0
+        self._skew = 0.0
 
     def __call__(self, stamp_ms: float | None) -> int:
         if stamp_ms is None:
             return self.clock()
+        now = self.clock()
         if (
             self._stamp is None
             or stamp_ms < self._last - 1000
             or stamp_ms > self._last + 5000
         ):
-            self._stamp, self._moment = stamp_ms, self.clock()
+            self._stamp, self._moment, self._skew = stamp_ms, now, 0.0
+        moment = self._moment + (stamp_ms - self._stamp) + self._skew
+        late = now - moment
+        if abs(late) <= self.LEAP_MS:
+            most = max(stamp_ms - self._last, 0.0) * self.SLEW
+            self._skew += max(-most, min(most, late))
         self._last = stamp_ms
-        return self._moment + round(stamp_ms - self._stamp)
+        return round(self._moment + (stamp_ms - self._stamp) + self._skew)
 
 
 class UsbCamera:

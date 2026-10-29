@@ -13,9 +13,9 @@ it keeps recording when the window is gone.
 ```
 
 `state`: `starting`, `connecting`, `recording`, `reconnecting`, `stopped`, `disk_full`, `failed`.
-A heartbeat older than 5 s means the recorder is gone. While an RTMP camera has not called in, the
-state is `connecting` with `detail` "waiting for rtmp://<this computer>:<port>/<path>", the address
-to type in the camera app.
+A heartbeat older than 15 s means the recorder is gone: a camera open blocks up to 10 s without
+one. While an RTMP camera has not called in, the state is `connecting` with `detail` "waiting for
+rtmp://<this computer>:<port>/<path>", the address to type in the camera app.
 
 ## Control
 

@@ -57,9 +57,10 @@
 - **Rationale**: frame times never move when the computer's clock is adjusted (spec edge case);
   arrival jitter does not shake the timeline; the remaining constant delay of a camera is what the
   alignment of Story 7 absorbs.
-- **Known limit**: a network camera's timestamps follow its own clock, which can drift from the
-  computer's by tens of parts per million -- a few tenths of a second over a long day. Aligning
-  again (Story 7) corrects it; a USB camera's timestamps come from the computer's clock.
+- **Drift**: a network camera's timestamps follow its own clock, which can drift from the
+  computer's by tens of parts per million -- a few tenths of a second over a long day. Its moments
+  follow the arrival times slowly, a millisecond a second at most, so arrival jitter averages out
+  and the drift does not build up; a USB camera's timestamps come from the computer's clock.
 
 ## 5. The recorder outlives the window
 

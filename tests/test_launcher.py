@@ -145,7 +145,7 @@ def test_an_attached_recorder_that_dies_is_started_again(
     spawns = Spawns()
     watchdog = Watchdog("cam1", spawns)
     watchdog.start()
-    beat(folder, "recording", age_ms=6000)
+    beat(folder, "recording", age_ms=16_000)
     for moment in (1001, 1002):
         clock["now"] = moment
         watchdog.poll()
@@ -176,7 +176,9 @@ def test_a_heartbeat_is_read_as_it_is(folder: Path) -> None:
     assert heartbeat("cam1") is None
     assert not alive(None)
     assert alive({"state": "connecting", "heartbeat_ms": now_ms()})
-    assert not alive({"state": "recording", "heartbeat_ms": now_ms() - 5001})
+    opening = {"state": "connecting", "heartbeat_ms": now_ms() - 11_000}
+    assert alive(opening)  # a camera open blocks up to 10 s without a heartbeat
+    assert not alive({"state": "recording", "heartbeat_ms": now_ms() - 15_001})
     assert not alive({"state": "stopped", "heartbeat_ms": now_ms()})
 
 
@@ -295,3 +297,24 @@ def test_record_again_before_a_stop_is_heard_withdraws_it(folder: Path) -> None:
     watchdog.start()  # the recorder has not stopped yet: it records on
     assert not (folder / "stop.request").exists()
     assert spawns.processes == []
+
+
+def test_a_heartbeat_being_replaced_is_read_again(
+    folder: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app import files
+
+    beat(folder, "recording")
+    real = Path.read_bytes
+    held = [PermissionError("being replaced")]
+
+    def read_bytes(self: Path) -> bytes:
+        if held:
+            raise held.pop()
+        return real(self)
+
+    monkeypatch.setattr(Path, "read_bytes", read_bytes)
+    monkeypatch.setattr(files.time, "sleep", lambda seconds: None)
+    info = heartbeat("cam1")
+    assert info is not None
+    assert info["state"] == "recording"

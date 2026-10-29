@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any
 
 import app
-from app import paths
+from app import files, paths
 from app.recorder import STALE_MS, Backoff, folder_of
 
 ENDED = ("stopped", "failed", "disk_full")
@@ -74,9 +74,10 @@ def spawn(camera_id: str) -> subprocess.Popen[bytes]:
 
 
 def heartbeat(camera_id: str) -> dict[str, Any] | None:
-    """The recorder's last heartbeat, fresh or not; None when there is none."""
+    """The recorder's last heartbeat, fresh or not; None when there is none. Read
+    again while the recorder is replacing it (Windows): not a recorder gone."""
     try:
-        info = json.loads((folder_of(camera_id) / "recorder.json").read_text())
+        info = json.loads(files.read_bytes(folder_of(camera_id) / "recorder.json"))
     except OSError, ValueError:
         return None
     return info if isinstance(info, dict) else None
