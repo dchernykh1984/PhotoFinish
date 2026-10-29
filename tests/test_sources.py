@@ -216,3 +216,20 @@ def test_an_rtmp_push_is_received_and_kept_as_it_came(tmp_path: Path) -> None:
         pts = [int(line.split()[0]) for line in lines]
         with av.open(str(path)) as container:
             assert [f.pts for f in container.decode(video=0)] == sorted(pts)
+
+
+def test_moments_follow_a_camera_whose_clock_drifts_from_the_computers() -> None:
+    for drift in (1.0001, 0.9999):  # 100 ppm either way, four hours
+        now = {"ms": float(START)}
+
+        def clock(now: dict[str, float] = now) -> int:
+            return round(now["ms"])
+
+        anchor = Anchor(clock)
+        last = 0
+        for second in range(4 * 3600):
+            now["ms"] += 1000 * drift + (37 if second % 7 == 0 else 0) - 37 / 7
+            moment = anchor(float(second * 1000))
+            assert moment >= last
+            last = moment
+        assert abs(last - now["ms"]) < 60  # within the jitter, not 1.4 s off

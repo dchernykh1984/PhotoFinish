@@ -30,7 +30,9 @@ from app.recorder.segments import SegmentWriter
 from app.recorder.sources import CameraSettingsError, Source, open_source
 
 LOW_DISK = 2 * 1024**3
-STALE_MS = 5000  # a heartbeat older than this: the recorder is gone
+# A heartbeat older than this: the recorder is gone. Longer than a camera open
+# blocks (OPEN_TIMEOUT_S), when no heartbeat is written.
+STALE_MS = 15_000
 CAMERA_ID = re.compile(r"[A-Za-z0-9_-]+")
 
 
@@ -250,8 +252,17 @@ class _Recording:
         return False
 
     def _close(self) -> None:
-        if self.writer is not None:
+        """The open segment closed. One that cannot be is left as it is -- kept aside
+        when the next segment starts -- and the recording goes on; a full disk
+        ends it."""
+        if self.writer is None:
+            return
+        try:
             _disk(self.writer.close)
+        except _DiskFullError:
+            raise
+        except (OSError, av.FFmpegError) as error:
+            self.beat.beat(detail=f"a segment could not be closed: {error}")
 
 
 def _disk(write: Callable[..., None], *args: Any) -> None:

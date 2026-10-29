@@ -409,3 +409,25 @@ def test_low_disk_does_not_make_the_heartbeat_write_at_every_frame(
     assert run("cam1") == 0
     seconds = time.monotonic() - started
     assert len(written) <= 6 + 2 * seconds  # the changes of state, then once a second
+
+
+def test_a_segment_that_cannot_be_closed_does_not_end_the_recording(
+    folder: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    states = cameras(
+        monkeypatch,
+        Camera(folder, START, 10, then=OSError("camera gone")),
+        Camera(folder, START + 5000, 10, stop_after=5),
+    )
+    real = SegmentWriter.close
+    broken = [av.FFmpegError(5, "flush failed")]
+
+    def close(self: SegmentWriter) -> None:
+        if broken:
+            raise broken.pop()
+        real(self)
+
+    monkeypatch.setattr(SegmentWriter, "close", close)
+    assert run("cam1") == 0
+    assert states[-1] == "stopped"
+    assert "reconnecting" in states

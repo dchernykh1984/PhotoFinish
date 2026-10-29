@@ -26,6 +26,7 @@ import numpy as np
 SEGMENT_MS = 1000  # a segment's first frame is shown once it closes: SC-006's 2 s
 CLOSED = "[0-9]*-[0-9]*-[0-9]*"  # a closed segment's name, without its suffix
 SEGMENTS = "segments.txt"  # the closed segments' names, in the order they closed
+KEYFRAME_SLACK_MS = 100  # a camera's keyframe this much short of a second still cuts
 _MS = Fraction(1, 1000)
 _GOP = 15
 _QUALITY = 3
@@ -68,7 +69,8 @@ class SegmentWriter:
             return  # nothing to place it by
         if not isinstance(self._open, _Remuxed) and not packet.is_keyframe:
             return
-        self._next(ms, cut=packet.is_keyframe)
+        # A camera's keyframes a second apart cut each one, a moment early or late.
+        self._next(ms, cut=packet.is_keyframe, slack=KEYFRAME_SLACK_MS)
         if not isinstance(self._open, _Remuxed):
             self.close()
             _keep_aside(self.folder)  # what a segment that failed to close left
@@ -76,7 +78,7 @@ class SegmentWriter:
         self._open.add(packet, packet.pts, packet.dts, ms)
         self.frames += 1
 
-    def _next(self, ms: int, cut: bool) -> None:
+    def _next(self, ms: int, cut: bool, slack: int = 0) -> None:
         """A gap before ``ms`` noted; the open segment closed when it is long enough
         and ``ms`` may start the next."""
         last = self._last_ms if self._last_ms is not None else self._before_ms
@@ -86,7 +88,7 @@ class SegmentWriter:
         if (
             cut
             and self._open is not None
-            and ms - self._open.first_ms >= self.segment_ms
+            and ms - self._open.first_ms >= self.segment_ms - slack
         ):
             self.close()
         self._last_ms = max(ms, self._last_ms or ms)
