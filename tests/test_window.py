@@ -110,6 +110,7 @@ def test_the_keys_step_and_go_live(
     win.show()
     win.activateWindow()
     wait_until(showing(win, START + 69 * 33))
+    wait_until(win.isActiveWindow)  # keys reach the shortcuts of the active window
     for key, modifier, place in (
         (Qt.Key.Key_Left, Qt.KeyboardModifier.NoModifier, 68),
         (Qt.Key.Key_Left, Qt.KeyboardModifier.ShiftModifier, 58),
@@ -247,6 +248,7 @@ def test_the_keys_move_the_video_while_a_number_is_typed(
     win.show()
     win.activateWindow()
     wait_until(showing(win, START + 69 * 33))
+    wait_until(win.isActiveWindow)  # keys reach the shortcuts of the active window
     win.number.setFocus()
     QTest.keyClicks(win.number, "15")
     QTest.keyClick(win.number, Qt.Key.Key_Left)
