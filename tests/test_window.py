@@ -1257,3 +1257,14 @@ def test_a_suggestion_that_could_not_be_written_stays_offered(
     assert win.suggestion_list.count() == 1
     assert win.number.text() == "15"
     assert not (recording / "video" / "cam1" / "suggestions.done.jsonl").exists()
+
+
+def test_a_session_the_disk_refuses_is_said(
+    win: mw.MainWindow, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def full(session: Any) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(mw.session, "save", full)
+    win.finish.setChecked(True)
+    assert win.statusBar().currentMessage() == "The session cannot be saved: disk full"

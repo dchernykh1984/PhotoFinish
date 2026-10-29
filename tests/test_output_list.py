@@ -9,7 +9,7 @@ from typing import Any
 
 import pytest
 
-from app import output_list
+from app import files, output_list
 from app.lines import parse_time
 from app.output_list import Change, OutputList
 
@@ -308,7 +308,7 @@ def test_a_rename_refused_for_a_moment_is_tried_again(
         return real(self, target)
 
     monkeypatch.setattr(Path, "replace", replace)
-    monkeypatch.setattr(output_list.time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(files.time, "sleep", lambda _seconds: None)
     OutputList(path)
     assert refused
     assert path.read_bytes() == b""
@@ -321,6 +321,6 @@ def test_a_rename_refused_for_good_fails(
         raise PermissionError("in use")
 
     monkeypatch.setattr(Path, "replace", refuse)
-    monkeypatch.setattr(output_list.time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(files.time, "sleep", lambda _seconds: None)
     with pytest.raises(PermissionError):
         OutputList(path)

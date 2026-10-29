@@ -301,7 +301,7 @@ class MainWindow(QMainWindow):
             return
         camera = dialog.camera()
         self.session["cameras"].append(camera)
-        session.save(self.session)
+        self._save_session()
         self._add(camera)
         self.camera_list.setCurrentRow(self.camera_list.count() - 1)
 
@@ -322,7 +322,7 @@ class MainWindow(QMainWindow):
         self.session["cameras"] = [
             c for c in self.session["cameras"] if c.get("id") != camera.id
         ]
-        session.save(self.session)
+        self._save_session()
         del self.cameras[camera.id]
         self.grid.removeWidget(camera.view)
         camera.view.deleteLater()
@@ -417,7 +417,7 @@ class MainWindow(QMainWindow):
             self._say("The input cannot be the output file")
             return
         self.session["input"] = path
-        session.save(self.session)
+        self._save_session()
         self._open_input()
 
     def copy_input(self) -> None:
@@ -455,7 +455,7 @@ class MainWindow(QMainWindow):
         moment = camera.index.frame(self.place).ms + self._offset()
         offset = to_epoch(line_ms, bool(self.session.get("summer_time"))) - moment
         self.session["source_offset_ms"] = offset
-        session.save(self.session)
+        self._save_session()
         self._say(f"The video is aligned with the timing source: {offset:+d} ms")
         self._go(self.place)
 
@@ -517,7 +517,7 @@ class MainWindow(QMainWindow):
             )
             return
         self.session["output"] = path
-        session.save(self.session)
+        self._save_session()
         self._open_output()
 
     def add_crossing(self) -> None:
@@ -651,7 +651,7 @@ class MainWindow(QMainWindow):
         if len(drawing) < 2:
             return
         camera.settings[self.drawn] = [list(end) for end in drawing]
-        session.save(self.session)
+        self._save_session()
         if self.drawn == "zone" and self.analysis_box.isChecked():
             self._stop_analyzer(camera)  # the new zone from here on
             self._analyze(camera)
@@ -772,7 +772,7 @@ class MainWindow(QMainWindow):
 
     def _set_model(self, path: str) -> None:
         self.session["analysis"] = {**analysis.settings(self.session), "model": path}
-        session.save(self.session)
+        self._save_session()
         self._show_model()
         self._show_suggestions()
         if self.analysis_box.isChecked():  # the model chosen from here on
@@ -786,7 +786,7 @@ class MainWindow(QMainWindow):
 
     def _analysis_on(self, on: bool) -> None:
         self.session["analysis"] = {**analysis.settings(self.session), "on": on}
-        session.save(self.session)
+        self._save_session()
         for camera in self.cameras.values():
             if on:
                 self._analyze(camera)
@@ -981,7 +981,14 @@ class MainWindow(QMainWindow):
 
     def _finish_mode(self, on: bool) -> None:
         self.session["finish_mode"] = on
-        session.save(self.session)
+        self._save_session()
+
+    def _save_session(self) -> None:
+        """The session on disk; a disk that refuses it is said, the window goes on."""
+        try:
+            session.save(self.session)
+        except OSError as error:
+            self._say(f"The session cannot be saved: {error}")
 
     def _say(self, text: str) -> None:
         self.statusBar().showMessage(text, 8000)
@@ -1124,7 +1131,7 @@ class MainWindow(QMainWindow):
             return
         offset = self.shared_event[1] - frame.ms
         camera.settings["offset_ms"] = offset
-        session.save(self.session)
+        self._save_session()
         self._say(f"{name} is aligned on the event: {offset:+d} ms")
         self._refresh(force=True)
         self._go(self.place)

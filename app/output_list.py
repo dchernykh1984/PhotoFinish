@@ -19,7 +19,6 @@ from __future__ import annotations
 import copy
 import json
 import os
-import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
@@ -27,10 +26,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from app.files import write_in_one_step as _write_in_one_step
 from app.lines import parse_line, scale_time, text_lines
 
 _STATE_VERSION = 1
-_RENAME_TRIES = 5
 
 
 @dataclass
@@ -331,26 +330,6 @@ def _read(path: Path) -> bytes | None:
 
 def _aside(path: Path, why: str) -> Path:
     return path.with_name(f"{path.name}.{why}-{datetime.now():%Y%m%d-%H%M%S-%f}")
-
-
-def _write_in_one_step(path: Path, data: bytes) -> None:
-    """A temporary file, flushed and synced, renamed over: a reader sees the old file
-    or the new one, never a mix."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(path.name + ".tmp")
-    with tmp.open("wb") as f:
-        f.write(data)
-        f.flush()
-        os.fsync(f.fileno())
-    for attempt in range(_RENAME_TRIES):
-        try:
-            tmp.replace(path)
-            return
-        except PermissionError:
-            # Windows refuses while a reader, or a virus scanner, holds the file.
-            if attempt == _RENAME_TRIES - 1:
-                raise
-            time.sleep(0.05)
 
 
 def _append(path: Path, data: bytes) -> None:

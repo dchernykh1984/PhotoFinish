@@ -9,11 +9,11 @@ from __future__ import annotations
 
 import copy
 import json
-import os
 import time
 from pathlib import Path
 from typing import Any
 
+from app import files
 from app.paths import app_path
 
 VERSION = 1
@@ -41,11 +41,12 @@ def load() -> dict[str, Any]:
     path = session_path()
     session = copy.deepcopy(DEFAULTS)
     try:
-        saved = json.loads(path.read_text(encoding="utf-8"))
+        saved = json.loads(files.read_bytes(path).decode("utf-8"))
     except FileNotFoundError:
         return session
-    except OSError, ValueError:
+    except ValueError:  # not JSON, or not UTF-8: not a session
         saved = None
+    # Any other OSError is raised: a file that cannot be read now is no broken one.
     if not isinstance(saved, dict):
         path.replace(path.with_name(f"{path.name}.broken-{int(time.time() * 1000)}"))
         return session
@@ -55,15 +56,8 @@ def load() -> dict[str, Any]:
 
 def save(session: dict[str, Any]) -> None:
     """Write the session in one step: a temporary file, flushed, then renamed over."""
-    path = session_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(path.name + ".tmp")
-    with tmp.open("w", encoding="utf-8") as f:
-        json.dump(session, f, indent=2, ensure_ascii=False)
-        f.write("\n")
-        f.flush()
-        os.fsync(f.fileno())
-    tmp.replace(path)
+    text = json.dumps(session, indent=2, ensure_ascii=False) + "\n"
+    files.write_in_one_step(session_path(), text.encode("utf-8"))
 
 
 def camera(session: dict[str, Any], camera_id: str) -> dict[str, Any] | None:
