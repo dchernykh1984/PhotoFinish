@@ -914,7 +914,7 @@ def test_an_event_left_unaligned_is_forgotten_after_a_while(
     wait_until(lambda: win.place is not None)
     win.mark_event()
     assert win.shared_event is not None
-    win.shared_event.since -= mw.EVENT_S + 1  # an hour later, another event
+    win.shared_event.since -= mw.shared_event.EVENT_S + 1  # an hour later
     win.camera_list.setCurrentRow(1)
     settled(win)
     win.mark_event()

@@ -54,3 +54,15 @@ def test_how_far_the_analyser_got(tmp_path: Path) -> None:
     (tmp_path / "analyzer.json").write_text("[1]")
     activity.refresh()
     assert activity.progress is None
+
+
+def test_how_far_the_analyser_has_got_is_said_in_words() -> None:
+    from app.analysis.activity import how_far
+
+    assert how_far(None, 10_000) == "not found yet"
+    failed = {"state": "failed", "detail": "the model cannot be loaded"}
+    assert how_far(failed, 10_000) == "the model cannot be loaded"
+    assert how_far({"state": "failed"}, None) == "cannot be found"
+    assert how_far({"done_ms": 7_000}, 10_000) == "up to date"
+    assert how_far({"done_ms": 6_999}, 10_000) == "3 s behind"
+    assert how_far({"done_ms": 7_000}, None) == "up to date"  # nothing recorded yet

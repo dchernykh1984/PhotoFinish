@@ -6,7 +6,7 @@ from __future__ import annotations
 import math
 import time
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -30,8 +30,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app import analysis, paths, session
-from app.analysis.activity import Activity
+from app import analysis, paths, session, shared_event
+from app.analysis.activity import Activity, how_far
 from app.analysis.suggestions import Suggestions
 from app.input_follow import InputFollow
 from app.interpolation import Point, between, crossing, finish_line, points
@@ -65,17 +65,6 @@ POLL_MS = 500
 NEAR_MS = 1000  # another camera's frame further from the moment than this: none
 STOP_MS = 3000  # an analyser stopped is killed if it has not ended by then
 OUTSIDE = "The output file was changed outside PhotoFinish: kept beside it"
-EVENT_S = 600  # a shared event not shown on the other cameras by then is forgotten
-
-
-@dataclass
-class SharedEvent:
-    """An event marked on one camera, for the other cameras to be aligned on."""
-
-    camera: str
-    moment: int  # on the video's time
-    since: float  # monotonic
-    aligned: set[str] = field(default_factory=set)
 
 
 @dataclass
@@ -112,7 +101,7 @@ class MainWindow(QMainWindow):
         self.place: int | None = None  # the frame shown, in the camera's index
         self.moment: int | None = None  # the video's time shown, ms
         self.live = True
-        self.shared_event: SharedEvent | None = None
+        self.shared_event: shared_event.SharedEvent | None = None
 
         self.placeholder = CameraView()
         self.views = QWidget()
@@ -748,7 +737,7 @@ class MainWindow(QMainWindow):
         change = Change(
             "interpolated",
             camera.id,
-            [[f.path.name, f.pts, f.ms] for f in frames],
+            [f.ref() for f in frames],
             round(fraction, 4),
             self._offsets(),
         )
@@ -768,7 +757,7 @@ class MainWindow(QMainWindow):
         change = Change(
             "hand",
             camera.id,
-            [[f.path.name, f.pts, f.ms] for f in frames],
+            [f.ref() for f in frames],
             None,
             self._offsets(),
         )
@@ -1062,7 +1051,7 @@ class MainWindow(QMainWindow):
             return None
         frame = camera.index.frame(self.place)
         line_ms = self._line_ms(frame.ms + self._offset())
-        frames = [[frame.path.name, frame.pts, frame.ms]]
+        frames = [frame.ref()]
         return line_ms, Change("frame", camera.id, frames, None, self._offsets())
 
     def _open_output(self, again: bool = False) -> None:
@@ -1138,14 +1127,8 @@ class MainWindow(QMainWindow):
 
     def _riders_progress(self, camera: Camera) -> str:
         """How far the camera's analyser has got (FR-009)."""
-        progress = camera.activity.progress or {}
-        if progress.get("state") == "failed":
-            return str(progress.get("detail") or "cannot be found")
-        done = progress.get("done_ms")
-        if done is None:
-            return "not found yet"
-        behind = int(camera.index.ms[-1]) - int(done) if len(camera.index) else 0
-        return "up to date" if behind <= 3000 else f"{behind // 1000} s behind"
+        newest = int(camera.index.ms[-1]) if len(camera.index) else None
+        return how_far(camera.activity.progress, newest)
 
     def step(self, frames: int) -> None:
         camera, place = self._camera(), self._place()
@@ -1266,10 +1249,7 @@ class MainWindow(QMainWindow):
     # -- cameras in step -------------------------------------------------------
 
     def mark_event(self) -> None:
-        """The shared event at the frame shown. The first camera it is marked on
-        sets its moment; each camera marked after takes the offset that shows the
-        event at that moment. Once every camera is aligned, or after EVENT_S, the
-        next mark is a new event."""
+        """The shared event at the frame shown (app/shared_event.py)."""
         camera = self._camera()
         if camera is None or self.place is None:
             self._say("Show the event on a camera first")
@@ -1278,17 +1258,19 @@ class MainWindow(QMainWindow):
             return
         name = camera.settings.get("name", camera.id)
         frame = camera.index.frame(self.place)
-        event, now = self.shared_event, time.monotonic()
-        if event is None or event.camera == camera.id or now - event.since > EVENT_S:
-            self.shared_event = SharedEvent(camera.id, frame.ms + self._offset(), now)
+        self.shared_event, offset = shared_event.mark(
+            self.shared_event,
+            camera.id,
+            frame.ms + self._offset(),
+            frame.ms,
+            time.monotonic(),
+            set(self.cameras),
+        )
+        if offset is None:
             self._say(f"Event marked on {name}: now show it on the other cameras")
             return
-        offset = event.moment - frame.ms
         camera.settings["offset_ms"] = offset
         self._save_session()
-        event.aligned.add(camera.id)
-        if event.aligned >= set(self.cameras) - {event.camera}:
-            self.shared_event = None  # every camera aligned on it
         self._say(f"{name} is aligned on the event: {offset:+d} ms")
         self._refresh(force=True)
         self._go(self.place)
