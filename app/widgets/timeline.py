@@ -1,5 +1,7 @@
 """The recording on a line: gaps shaded, the position marked, frames ticked when
-zoomed in. The wheel zooms around the pointer; a click moves the video there."""
+zoomed in. The wheel zooms around the pointer; a click moves the video there. Zoomed
+in until a frame interval is at least 100 pixels wide, a click between two frames
+picks that moment instead (US5)."""
 
 from __future__ import annotations
 
@@ -9,11 +11,13 @@ from PySide6.QtGui import QColor, QMouseEvent, QPainter, QPaintEvent, QWheelEven
 from PySide6.QtWidgets import QSizePolicy, QWidget
 
 LEAST_VIEW_MS = 100  # zoomed all the way in: a few frames across the widget
+PICK_PX = 100  # a frame interval this wide: a click picks a moment between frames
 _TICKS_PX = 4  # frames are ticked once they are this far apart
 
 
 class Timeline(QWidget):
     seek = Signal(object)  # a moment on the video's time, Unix ms: past 32 bits
+    picked = Signal(object)  # a moment picked between two frames, ms
 
     def __init__(self) -> None:
         super().__init__()
@@ -70,8 +74,22 @@ class Timeline(QWidget):
             self.zoom(0.8**notches, event.position().x())
 
     def mousePressEvent(self, event: QMouseEvent) -> None:  # noqa: N802 - Qt's name
-        if event.button() == Qt.MouseButton.LeftButton:
-            self.seek.emit(self.ms_at(event.position().x()))
+        if event.button() != Qt.MouseButton.LeftButton:
+            return
+        ms = self.ms_at(event.position().x())
+        if self.between_frames(ms):
+            self.picked.emit(ms)
+        else:
+            self.seek.emit(ms)
+
+    def between_frames(self, ms: int) -> bool:
+        """True when ``ms`` lies between two frames shown at least PICK_PX apart."""
+        after = int(np.searchsorted(self.frames, ms))
+        if after == 0 or after >= self.frames.size:
+            return False
+        before = after - 1
+        gap = self.x_at(int(self.frames[after])) - self.x_at(int(self.frames[before]))
+        return gap >= PICK_PX
 
     def paintEvent(self, event: QPaintEvent) -> None:  # noqa: N802 - Qt's name
         painter = QPainter(self)

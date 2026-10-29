@@ -10,7 +10,7 @@ from typing import Any
 
 import numpy as np
 import pytest
-from PySide6.QtCore import QPointF, Qt
+from PySide6.QtCore import QPoint, QPointF, Qt
 from PySide6.QtGui import QImage
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QFileDialog, QInputDialog, QMessageBox
@@ -702,3 +702,37 @@ def test_a_finish_line_needs_a_camera(win: mw.MainWindow) -> None:
     assert win.caliper == []
     win._show_marks()
     assert win.view.line is None
+
+
+def test_a_moment_picked_between_two_frames_is_a_hand_time(
+    bar: Path, make_window: Callable[[], mw.MainWindow], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """US5's second scenario: the timeline zoomed until a frame interval is wide."""
+    win = make_window()
+    win.resize(1200, 700)
+    wait_until(lambda: win.place == 5)
+    third = BAR + round(2 * 1000 / 60)
+    win.timeline.zoom(0.0001, win.timeline.x_at(third))
+    x = round(win.timeline.x_at(third + 8))
+    QTest.mouseClick(win.timeline, Qt.MouseButton.LeftButton, pos=QPoint(x, 20))
+    assert "type a number" in win.statusBar().currentMessage()
+    win.number.setText("15")
+    accepted: list[str] = []
+
+    def accept(*args: Any, text: str = "", **kw: Any) -> tuple[str, bool]:
+        accepted.append(text)
+        return text, True
+
+    monkeypatch.setattr(QInputDialog, "getText", accept)
+    QTest.mouseClick(win.timeline, Qt.MouseButton.LeftButton, pos=QPoint(x, 20))
+    picked = win.timeline.ms_at(x)
+    assert accepted == [scale_time(to_line_scale(picked, False))]
+    assert bar.read_text() == f"15#{accepted[0]}#nextLap#\n"
+    entry = journal(bar)[-1]
+    assert entry["method"] == "hand"
+    assert [f[2] for f in entry["frames"]] == [third, BAR + round(3 * 1000 / 60)]
+    assert win.output_view.lines.rows[0].note == "picked by hand"
+    exact = BAR + round(3 * 1000 / 60)
+    win.number.setText("16")
+    win.pick_between(exact)  # on a frame: between it and the one before
+    assert [f[2] for f in journal(bar)[-1]["frames"]] == [third, exact]

@@ -266,3 +266,22 @@ def test_a_click_on_the_picture_is_told_in_picture_coordinates() -> None:
     QTest.mouseClick(view, Qt.MouseButton.RightButton, pos=QPoint(100, 200))
     assert clicks == [(0.25, (200 - 87.5) / 225)]
     assert view.to_widget((0.25, 0.5)) == QPointF(100, 200)
+
+
+def test_zoomed_in_a_click_between_frames_picks_that_moment() -> None:
+    timeline = Timeline()
+    timeline.resize(1000, 48)
+    recording(timeline)  # a frame every 33 ms
+    sought: list[int] = []
+    picked: list[int] = []
+    timeline.seek.connect(sought.append)
+    timeline.picked.connect(picked.append)
+    QTest.mouseClick(timeline, Qt.MouseButton.LeftButton, pos=QPoint(500, 20))
+    assert len(sought) == 1  # not zoomed: a click seeks
+    timeline.zoom(0.0001, timeline.x_at(START + 50))
+    x = round(timeline.x_at(START + 50))
+    QTest.mouseClick(timeline, Qt.MouseButton.LeftButton, pos=QPoint(x, 20))
+    assert picked == [timeline.ms_at(x)]
+    assert START + 33 <= picked[0] <= START + 66
+    assert not timeline.between_frames(START - 10)
+    assert not timeline.between_frames(START + 10**6)
