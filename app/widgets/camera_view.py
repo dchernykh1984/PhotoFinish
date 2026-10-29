@@ -23,17 +23,23 @@ class CameraView(QWidget):
         self.line: Line | None = None
         self.marks: list[Point] = []
         self.zone: Zone | None = None
+        self.waiting = False  # the frame shown is not the one asked for yet
         self.chosen = False  # the camera the keys step through: framed
         self.setMinimumSize(320, 180)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
     def show_image(self, image: QImage) -> None:
-        self.image = image
+        self.image, self.waiting = image, False
         self.update()
 
     def show_text(self, text: str) -> None:
         """No frame to show: say why."""
-        self.image, self.text = QImage(), text
+        self.image, self.text, self.waiting = QImage(), text, False
+        self.update()
+
+    def show_waiting(self) -> None:
+        """Another frame is on its way: the one shown is dimmed until it comes."""
+        self.waiting = True
         self.update()
 
     def show_marks(
@@ -99,6 +105,8 @@ class CameraView(QWidget):
             centre = self.to_widget(mark)
             painter.drawEllipse(centre, 6, 6)
             painter.drawPoint(centre)
+        if self.waiting:
+            painter.fillRect(self.image_rect(), QColor(0, 0, 0, 140))
         if self.chosen:
             painter.setPen(QPen(QColor(80, 160, 255), 3))
             painter.drawRect(self.rect().adjusted(1, 1, -2, -2))

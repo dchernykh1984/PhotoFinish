@@ -50,6 +50,7 @@ from app.widgets.number_field import NumberField
 from app.widgets.timeline import Timeline
 
 POLL_MS = 500
+NEAR_MS = 1000  # another camera's frame further from the moment than this: none
 
 
 @dataclass
@@ -894,7 +895,11 @@ class MainWindow(QMainWindow):
         self.seek_ms(int(found["ms"]) + self._offset())
 
     def _show_suggestions(self) -> None:
-        """The crossings suggested and not decided, in time order."""
+        """The crossings suggested and not decided, in time order; the one chosen
+        stays chosen."""
+        item = self.suggestion_list.currentItem()
+        data = None if item is None else item.data(Qt.ItemDataRole.UserRole)
+        chosen = data[1].get("id") if data else None
         self.suggestion_list.clear()
         settings = analysis.settings(self.session)
         if not settings["on"]:
@@ -916,6 +921,8 @@ class MainWindow(QMainWindow):
             item.setToolTip(f"Suggested by {suggestion.get('model')}")
             item.setData(Qt.ItemDataRole.UserRole, (camera.id, suggestion))
             self.suggestion_list.addItem(item)
+            if chosen is not None and suggestion.get("id") == chosen:
+                self.suggestion_list.setCurrentItem(item)
 
     def _action(self) -> str:
         return "finish" if self.finish.isChecked() else "nextLap"
@@ -1099,19 +1106,36 @@ class MainWindow(QMainWindow):
         self._show_marks()
 
     def _show_at(self, camera: Camera, place: int | None, moment: int) -> None:
-        """The camera's frame at ``place``, or else its frame nearest ``moment``."""
+        """The camera's frame at ``place``, or else its frame nearest ``moment`` --
+        none when the nearest is more than NEAR_MS away: a camera that did not film
+        that moment says so instead of showing another."""
         if place is None:
-            offset = int(camera.settings.get("offset_ms", 0))
-            place = camera.index.nearest(moment - offset)
+            target = moment - int(camera.settings.get("offset_ms", 0))
+            place = camera.index.nearest(target)
+            if (
+                place is not None
+                and abs(camera.index.frame(place).ms - target) > NEAR_MS
+            ):
+                place = None
         camera.shown = place
-        if place is None or (camera.id, place) == camera.wanted:
+        if place is None:
+            camera.wanted = None
+            if len(camera.index):
+                camera.view.show_text("No frame at this moment")
+            return
+        if (camera.id, place) == camera.wanted:
             return
         camera.wanted = (camera.id, place)
         frame = camera.index.frame(place)
+        camera.view.show_waiting()  # no crossing timed on the frame before
         camera.worker.request(frame.path, frame.pts, camera.wanted)
 
     def _show(self, camera: Camera, tag: tuple[str, int], image: QImage) -> None:
-        if tag == camera.wanted and not image.isNull():
+        if tag != camera.wanted:
+            return  # an answer to a request since replaced
+        if image.isNull():
+            camera.view.show_text("This frame cannot be shown")
+        else:
             camera.view.show_image(image)
 
     # -- cameras in step -------------------------------------------------------
