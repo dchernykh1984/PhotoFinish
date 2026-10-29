@@ -872,3 +872,69 @@ def test_a_cameras_own_file_is_shown_beside_the_live_ones_once_aligned(
     win.seek_ms(FLASH + 28)
     wait_until(lambda: bright(side.view) and bright(own.view))
     assert card.read_bytes() == written
+
+
+AHEAD = 2500  # the chronometer's clock runs this much ahead of the video's
+
+
+def test_the_video_is_aligned_with_the_timing_source_on_one_passing(
+    recording: Path, make_window: Callable[[], mw.MainWindow]
+) -> None:
+    """US7's independent test: one input line and its frame align the rest."""
+    results, out = recording / "results.txt", recording / "out.txt"
+    passings = [(7, 10), (8, 30), (9, 50)]
+    results.write_text(
+        "".join(
+            f"{n}#{scale_time(to_line_scale(START + p * 33 + AHEAD, False))}#nextLap#\n"
+            for n, p in passings
+        )
+    )
+    session.save(
+        {
+            **session.DEFAULTS,
+            "cameras": [CAMERA],
+            "input": "results.txt",
+            "output": "out.txt",
+        }
+    )
+    win = make_window()
+    win.align_source()
+    assert (
+        win.statusBar().currentMessage() == "Choose the input line of the passing first"
+    )
+    win.input_view.selectRow(0)
+    win.seek_line(win.input_view.lines.rows[0].ms or 0)
+    wait_until(showing(win, START + 69 * 33))  # 2.5 s off: the newest frame is nearest
+    win.seek_ms(START + 10 * 33)  # the referee finds the passing by eye
+    win.align_source()
+    assert session.load()["source_offset_ms"] == AHEAD
+    assert win.source_label.text() == f"source {AHEAD:+d} ms"
+    win.seek_line(
+        win.input_view.lines.rows[2].ms or 0
+    )  # the third line opens on its rider
+    wait_until(showing(win, START + 50 * 33))
+    win.number.setText("21")
+    win.add_crossing()
+    added = out.read_text().splitlines()[-1]
+    assert (
+        added
+        == f"21#{scale_time(to_line_scale(START + 50 * 33 + AHEAD, False))}#nextLap#"
+    )
+    assert journal(out)[-1]["offsets"] == {"camera_ms": 0, "source_ms": AHEAD}
+
+
+def test_aligning_needs_a_frame_and_a_line_with_a_time(
+    files: tuple[Path, Path], make_window: Callable[[], mw.MainWindow], base: Path
+) -> None:
+    results, _ = files
+    win = make_window()
+    win.camera_list.setCurrentRow(-1)
+    win.align_source()
+    assert win.statusBar().currentMessage() == "Show the frame of the passing first"
+    win.camera_list.setCurrentRow(0)
+    with results.open("a") as f:
+        f.write("11##\n")
+    win.poll()
+    win.input_view.selectRow(3)
+    win.align_source()
+    assert win.statusBar().currentMessage() == "That line has no time to align on"

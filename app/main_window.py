@@ -88,6 +88,11 @@ class MainWindow(QMainWindow):
         self.timeline.seek.connect(self.seek_ms)
         self.timeline.picked.connect(self.pick_between)
         self.time_label = QLabel("--:--:--.---")
+        self.source_label = QLabel()
+        self.source_label.setToolTip(
+            "Added to the video's time to give the timing source's: set with "
+            "'Align with source'"
+        )
         self.camera_list = QListWidget()
         self.camera_list.setWordWrap(True)
         self.camera_list.currentRowChanged.connect(self._choose_camera)
@@ -139,6 +144,7 @@ class MainWindow(QMainWindow):
             button.clicked.connect(slot)
             transport.addWidget(button)
         transport.addStretch()
+        transport.addWidget(self.source_label)
         transport.addWidget(self.time_label)
         line_button = QPushButton("Finish line")
         line_button.setToolTip("Click the line's two ends on the picture")
@@ -179,10 +185,19 @@ class MainWindow(QMainWindow):
         copy = QPushButton("Copy to output")
         copy.setToolTip("Apply the chronometer's change of the chosen input line")
         copy.clicked.connect(self.copy_input)
+        align = QPushButton("Align with source")
+        align.setToolTip(
+            "The chosen input line and the frame shown are the same passing: the "
+            "video is aligned with the timing source on it"
+        )
+        align.clicked.connect(self.align_source)
+        input_buttons = QHBoxLayout()
+        input_buttons.addWidget(copy)
+        input_buttons.addWidget(align)
         inputs = QVBoxLayout()
         inputs.addWidget(self.input_button)
         inputs.addWidget(self.input_view)
-        inputs.addWidget(copy)
+        inputs.addLayout(input_buttons)
         corrections = QHBoxLayout()
         for label, slot in (
             ("Time from frame", self.time_from_frame),
@@ -363,6 +378,29 @@ class MainWindow(QMainWindow):
             self._say(f"The output file cannot be written: {error}")
             return
         self._show_lists()
+
+    def align_source(self) -> None:
+        """The chosen input line and the frame shown are the same passing: the
+        offset between the timing source and the video, kept and used both ways --
+        input lines open shifted by it, times set from frames are written back."""
+        camera = self._camera()
+        chosen = self.input_view.chosen()
+        if camera is None or self.place is None:
+            self._say("Show the frame of the passing first")
+            return
+        if self.follow is None or chosen is None:
+            self._say("Choose the input line of the passing first")
+            return
+        line_ms = parse_line(self.follow.lines[chosen].text).ms
+        if line_ms is None:
+            self._say("That line has no time to align on")
+            return
+        moment = camera.index.frame(self.place).ms + self._offset()
+        offset = to_epoch(line_ms, bool(self.session.get("summer_time"))) - moment
+        self.session["source_offset_ms"] = offset
+        session.save(self.session)
+        self._say(f"The video is aligned with the timing source: {offset:+d} ms")
+        self._go(self.place)
 
     def seek_line(self, line_ms: int) -> None:
         """The video at a line's time, through the offsets."""
@@ -767,6 +805,8 @@ class MainWindow(QMainWindow):
         self.timeline.set_position(moment)
         clock = scale_time(self._line_ms(moment)).split(" ")[1]
         self.time_label.setText(f"{clock} LIVE" if self.live else clock)
+        source = int(self.session.get("source_offset_ms", 0))
+        self.source_label.setText(f"source {source:+d} ms")
         self._follow_lists(moment)
         for other in self.cameras.values():
             self._show_at(other, place if other is camera else None, moment)
