@@ -6,8 +6,9 @@
    every second.
 3. Input file...: a chronometer's results file (any `number#time#action#` file). Output file...:
    a new file, e.g. `results_video.txt`. The output list fills with the input lines.
-4. Step with Left/Right (one frame), Shift+Left/Right (ten), Ctrl+Left/Right (one second), L for
-   Live. Type a number, Enter: a crossing at the frame shown.
+4. Step with Left/Right (one frame), Shift+Left/Right (ten), Ctrl+Left/Right (one second), End
+   for Live (L too, when no number is being typed). Type a number, Enter: a crossing at the frame
+   shown.
 5. Caliper: type a number (or choose an output line), click the bar's front on the frame before
    the centre line and on the frame after it; accept the time offered.
 6. Kill the window (not the recorder): start it again; recording went on, and the output and

@@ -63,7 +63,8 @@ or a swaying patch.
   chosen camera, framed in blue, is the one the keys step through. The timeline shows its
   recording and gaps; the wheel zooms around the pointer, a click moves there.
 - **Keys** (they work while a number is typed): Left/Right one frame, Shift ten, Ctrl one second,
-  L back to Live. Live follows the newest frame.
+  End back to Live (L too, when no number is being typed: a number may hold an L). Live follows
+  the newest frame.
 - **Input.** New lines of the chronometer's file arrive in the output within 2 s, as they are. A
   line the chronometer changes is held back, highlighted with both contents, until "Copy to
   output"; a line that is gone leaves its output line marked; a line the referee removed is not

@@ -257,11 +257,15 @@ def test_the_keys_move_the_video_while_a_number_is_typed(
     wait_until(showing(win, START + 68 * 33))
     QTest.keyClick(win.number, Qt.Key.Key_Left, Qt.KeyboardModifier.ShiftModifier)
     wait_until(showing(win, START + 58 * 33))
-    QTest.keyClick(win.number, Qt.Key.Key_L)
+    QTest.keyClick(win.number, Qt.Key.Key_End)
     wait_until(showing(win, START + 69 * 33))
     assert win.number.text() == "15"
+    win.step(-5)
+    QTest.keyClicks(win.number, "L")  # a number may hold an L: it is typed
+    assert win.number.text() == "15L"
+    assert not win.live
     QTest.keyClick(win.number, Qt.Key.Key_Backspace)
-    assert win.number.text() == "1"
+    assert win.number.text() == "15"
 
 
 def test_a_crossing_needs_an_output_a_frame_and_a_number(

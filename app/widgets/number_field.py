@@ -8,10 +8,11 @@ from PySide6.QtGui import QKeyEvent
 from PySide6.QtWidgets import QLineEdit
 
 # Keys the window's shortcuts use; a field would keep them for its cursor.
+# L is no key of theirs here: a number may hold one. End goes Live from the field.
 PASSED_ON = (
     Qt.Key.Key_Left,
     Qt.Key.Key_Right,
-    Qt.Key.Key_L,
+    Qt.Key.Key_End,
     Qt.Key.Key_PageUp,
     Qt.Key.Key_PageDown,
 )
