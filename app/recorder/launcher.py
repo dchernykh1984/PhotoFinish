@@ -109,7 +109,7 @@ class Watchdog:
         self.backoff = Backoff()
         self._process: subprocess.Popen[bytes] | None = None
         self._started = 0.0  # monotonic, when this window last started one
-        self._started_ms = 0  # wall clock, the same moment
+        self._started_ms = 0  # wall clock, when it last tried to
         self._retry_at: float | None = None
         self.error = ""  # why the recorder could not be started, until one is
 
@@ -121,6 +121,7 @@ class Watchdog:
         (folder_of(self.camera_id) / "stop.request").unlink(missing_ok=True)
         if alive(heartbeat(self.camera_id)):
             return
+        self._started_ms = time.time_ns() // 1_000_000  # an end before: not its own
         try:
             self._process = (self._spawn or spawn)(self.camera_id)
         except OSError as error:  # moved, or blocked: tried again after the pause
@@ -128,7 +129,6 @@ class Watchdog:
             return
         self.error = ""
         self._started = time.monotonic()
-        self._started_ms = time.time_ns() // 1_000_000
 
     def stop(self) -> None:
         """Ask the recorder to close its segment and end."""

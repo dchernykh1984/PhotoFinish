@@ -64,6 +64,7 @@ class Spawns:
 def test_a_recorder_that_cannot_be_started_is_tried_again_after_the_pause(
     folder: Path, clock: dict[str, float]
 ) -> None:
+    beat(folder, "disk_full", age_ms=86_400_000)  # yesterday's end, not this one's
     spawns = Spawns()
     refused = [OSError("blocked by an antivirus")]
 
