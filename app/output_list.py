@@ -19,8 +19,6 @@ from __future__ import annotations
 import copy
 import functools
 import json
-import os
-import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
@@ -29,6 +27,7 @@ from pathlib import Path
 from typing import Any
 
 from app import files
+from app.files import append as _append
 from app.files import write_in_one_step as _write_in_one_step
 from app.lines import format_line, parse_line, scale_time, text_lines
 
@@ -494,25 +493,3 @@ def _read(path: Path) -> bytes | None:
 
 def _aside(path: Path, why: str) -> Path:
     return path.with_name(f"{path.name}.{why}-{datetime.now():%Y%m%d-%H%M%S-%f}")
-
-
-def _append(path: Path, data: bytes) -> None:
-    """``data`` at the end of ``path``, synced; after a line a crash cut short, on a
-    line of its own. A file held a moment (Windows) is tried again."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    for attempt in range(files.TRIES):
-        try:
-            with path.open("a+b") as f:
-                end = f.seek(0, os.SEEK_END)
-                if end:
-                    f.seek(end - 1)
-                    if f.read(1) != b"\n":
-                        data = b"\n" + data
-                f.write(data)
-                f.flush()
-                os.fsync(f.fileno())
-            return
-        except PermissionError:
-            if attempt == files.TRIES - 1:
-                raise
-            time.sleep(files.PAUSE_S)

@@ -189,6 +189,10 @@ def test_closed_segments_are_listed_and_a_restart_lists_any_a_crash_missed(
     again = SegmentWriter(tmp_path, fps=30)
     assert (tmp_path / "segments.txt").read_text().split() == listed
     assert again.segments == len(listed)
+    cut = listed[0][:9]  # killed while writing a name
+    (tmp_path / "segments.txt").write_text(cut)
+    SegmentWriter(tmp_path, fps=30)
+    assert (tmp_path / "segments.txt").read_text().split() == [cut, *listed]
 
 
 def test_a_restart_on_a_clock_set_back_records_rather_than_waits(

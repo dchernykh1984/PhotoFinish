@@ -243,6 +243,13 @@ def test_a_segment_that_fails_partway_is_tried_again_as_if_never_begun(
     assert stretches(folder) == found
 
 
+def test_a_line_a_kill_cut_short_does_not_swallow_the_next(base: Path) -> None:
+    folder = camera(base, "sway", 1)
+    (folder / "activity.jsonl").write_text('{"segment": "x", "ver')
+    assert analyzer.run("cam1", stop=lambda: False, once=True) == 0
+    assert not unanalysed(folder)
+
+
 def test_a_segment_that_stays_unreadable_is_noted_after_its_tries(base: Path) -> None:
     folder = camera(base, "sway", 1)
     for times in folder.glob("*-*-*.times"):
