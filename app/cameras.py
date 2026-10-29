@@ -164,7 +164,9 @@ def _text(value: object) -> bool:
 
 
 def _size(settings: dict[str, Any], least_width: int) -> list[str]:
-    if "width" not in settings and "height" not in settings and least_width < 352:
+    if ("width" in settings) != ("height" in settings):
+        return ["the picture size needs its width and its height both"]
+    if "width" not in settings and least_width < 352:
         return []
     width, height = settings.get("width", 640), settings.get("height", 360)
     if not all(isinstance(v, int) and v >= 64 and v % 2 == 0 for v in (width, height)):
