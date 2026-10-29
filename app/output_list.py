@@ -91,6 +91,7 @@ class OutputList:
         self._kept: object = _NOTHING  # the outside version kept, until written over
         self._outside: list[bytes] = []  # its journal entry, until a write gets through
         self.journal_error: JournalError | None = None  # opened; the journal refused
+        self.outside_kept = False  # an outside version kept: for the window to say
         try:
             self._load()
         except JournalError as error:  # the files are written: the list is usable
@@ -368,7 +369,7 @@ class OutputList:
             if current is not None:
                 backup = _aside(self.path, "outside")
                 _write_in_one_step(backup, current)
-            self._kept = current
+            self._kept, self.outside_kept = current, True
             name = backup.name if backup else None
             self._outside.append(_entry("outside_change", backup=name))
         return True

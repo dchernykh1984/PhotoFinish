@@ -463,6 +463,43 @@ def test_an_output_whose_journal_refuses_is_opened_and_said(
     assert said[0] == "Opened; the journal cannot take it: read only"
 
 
+def test_an_output_held_when_the_window_starts_is_opened_at_a_later_poll(
+    files: tuple[Path, Path],
+    make_window: Callable[[], mw.MainWindow],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    real = mw.OutputList
+    held = [PermissionError("held by the protocol generator")]
+
+    def opening(path: Path) -> output_list.OutputList:
+        if held:
+            raise held.pop()
+        return real(path)
+
+    monkeypatch.setattr(mw, "OutputList", opening)
+    said: list[str] = []
+    monkeypatch.setattr(mw.MainWindow, "_say", lambda self, text: said.append(text))
+    win = make_window()
+    assert "cannot be opened" in said[0]
+    win.poll()
+    assert win.output is not None
+    assert win.follow is not None
+    assert len(win.output.texts()) == 3  # the input followed into it
+
+
+def test_an_outside_change_found_by_a_new_input_line_is_said_too(
+    files: tuple[Path, Path], make_window: Callable[[], mw.MainWindow]
+) -> None:
+    results, out = files
+    win = make_window()
+    out.write_text("edited by hand\n")
+    with results.open("a") as f:
+        f.write(line(10, 60) + "\n")  # taken in the same poll, before the check
+    win.poll()
+    assert "changed outside PhotoFinish" in win.statusBar().currentMessage()
+    assert len(list(out.parent.glob("out.txt.outside-*"))) == 1
+
+
 def test_files_that_cannot_be_followed_are_said(
     files: tuple[Path, Path],
     make_window: Callable[[], mw.MainWindow],
@@ -883,6 +920,29 @@ def test_an_event_left_unaligned_is_forgotten_after_a_while(
     win.mark_event()
     assert win.statusBar().currentMessage().startswith("Event marked on")
     assert "offset_ms" not in session.load()["cameras"][1]
+
+
+def test_nothing_is_aligned_on_a_frame_still_on_its_way(
+    files: tuple[Path, Path], make_window: Callable[[], mw.MainWindow]
+) -> None:
+    win = make_window()
+    win.poll()
+    win.input_view.selectRow(0)
+    win.view.show_waiting()  # stepped: the picture is the frame before
+    win.align_source()
+    assert "still on its way" in win.statusBar().currentMessage()
+    assert session.load()["source_offset_ms"] == 0  # nothing aligned
+    win.mark_event()
+    assert win.shared_event is None
+
+
+def test_a_file_camera_without_its_path_does_not_stop_the_window(
+    base: Path, make_window: Callable[[], mw.MainWindow]
+) -> None:
+    camera = {"id": "cam9", "name": "Card", "connection": "file", "record": False}
+    session.save({**session.DEFAULTS, "cameras": [camera]})  # edited by hand
+    win = make_window()
+    assert list(win.cameras) == ["cam9"]
 
 
 def test_an_event_needs_a_frame(win: mw.MainWindow) -> None:
