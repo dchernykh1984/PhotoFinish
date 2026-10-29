@@ -83,7 +83,7 @@ leaves nothing in the journal.
   "version": 1,
   "lines": [{"text": "15#20389 11:35:29.594#nextLap#",
              "origin": {"input": "15#20389 11:35:29.615#nextLap#"},
-             "method": "frame", "removed_from_input": false}],
+             "method": "frame", "removed_from_input": false, "encoding": "utf-8"}],
   "input_taken": ["15#20389 11:35:29.615#nextLap#"],
   "removed_input": []
 }

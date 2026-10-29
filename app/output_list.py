@@ -28,9 +28,10 @@ from typing import Any
 from app import files
 from app.files import append as _append
 from app.files import write_in_one_step as _write_in_one_step
-from app.lines import format_line, parse_line, scale_time, text_lines
+from app.lines import decoded_lines, format_line, parse_line, scale_time
 
 _STATE_VERSION = 1
+_NOTHING = object()  # no outside version kept
 
 
 @dataclass
@@ -41,6 +42,13 @@ class OutputLine:
     origin: dict[str, Any]
     method: str
     removed_from_input: bool = False
+    encoding: str = "utf-8"  # as it was read: a line taken keeps its bytes
+
+    def encoded(self) -> bytes:
+        try:
+            return self.text.encode(self.encoding)
+        except UnicodeEncodeError, LookupError:  # a change it cannot hold
+            return self.text.encode("utf-8")
 
 
 class JournalError(OSError):
@@ -80,14 +88,26 @@ class OutputList:
         self._pending: list[bytes] | None = None  # journal entries of a change
         self._written: bytes | None = None  # the output file as this list wrote it
         self._written_stat: tuple[int, int, int] | None = None  # its size, time, inode
-        self._load()
+        self._kept: object = _NOTHING  # the outside version kept, until written over
+        self._outside: list[bytes] = []  # its journal entry, until a write gets through
+        self.journal_error: JournalError | None = None  # opened; the journal refused
+        try:
+            self._load()
+        except JournalError as error:  # the files are written: the list is usable
+            self.journal_error = error
 
     def texts(self) -> list[str]:
         return [line.text for line in self.lines]
 
     # -- changes ---------------------------------------------------------------
 
-    def follow(self, taken: list[str], new: list[str], gone: list[str]) -> None:
+    def follow(
+        self,
+        taken: list[str],
+        new: list[str],
+        gone: list[str],
+        encodings: dict[str, str] | None = None,
+    ) -> None:
         """The input aligned (app/input_follow.py): ``gone`` lines marked on their
         output lines, ``new`` lines taken, ``taken`` the input as taken from now on.
         Gone first: a line that moved in the input is found again, not taken twice.
@@ -119,7 +139,9 @@ class OutputList:
                 elif text in removed:  # back, but the referee removed its crossing
                     continue
                 else:
-                    self._insert(OutputLine(text, {"input": text}, "input"))
+                    encoding = (encodings or {}).get(text, "utf-8")
+                    line = OutputLine(text, {"input": text}, "input", encoding=encoding)
+                    self._insert(line)
                 self._journal(
                     "take", after=text, input_text=text, change=Change("input")
                 )
@@ -160,7 +182,7 @@ class OutputList:
                 self.removed.append(taken)
             self._journal("remove", before=before, input_text=taken)
 
-    def copy_input(self, index: int, current: str) -> int:
+    def copy_input(self, index: int, current: str, encoding: str = "utf-8") -> int:
         """Line ``index`` of the input as taken changed to ``current``, applied by hand:
         its output line becomes ``current``, or ``current`` comes back when the referee
         had removed that line. Its index in the output."""
@@ -169,11 +191,15 @@ class OutputList:
         with self._change():
             self.taken[index] = current
             if found is not None:
+                self.lines[found].encoding = encoding
                 at = self._replace(
                     found, current, "copy", Change("input"), current, was=was
                 )
             else:
-                at = self._insert(OutputLine(current, {"input": current}, "input"))
+                line = OutputLine(
+                    current, {"input": current}, "input", encoding=encoding
+                )
+                at = self._insert(line)
                 self._journal(
                     "copy",
                     after=current,
@@ -227,7 +253,8 @@ class OutputList:
         except BaseException:
             self._pending = None
             raise
-        entries, self._pending = self._pending, None
+        entries, self._pending = self._outside + self._pending, None
+        self._outside, self._kept = [], _NOTHING  # written over: the next is new
         if entries:
             try:
                 _append(self.journal_path, b"".join(entries))
@@ -312,8 +339,10 @@ class OutputList:
         found = _read(self.path)
         journal = journal or _Replayed()
         self.lines, self.taken, self.removed = [], journal.taken, journal.removed
-        for text in text_lines(found or b""):
-            self._insert(OutputLine(text, {"outside": True}, "outside"))
+        for text, encoding in decoded_lines(found or b""):
+            self._insert(
+                OutputLine(text, {"outside": True}, "outside", False, encoding)
+            )
         outside = _by(self.lines, lambda ln: ln.text)
         for given, taken in journal.lines.items():  # linked again: a copy replaces it
             for text, method in taken:
@@ -334,11 +363,14 @@ class OutputList:
         if current == self._written:
             self._written_stat = stat
             return False
-        backup = None
-        if current is not None:
-            backup = _aside(self.path, "outside")
-            _write_in_one_step(backup, current)
-        self._journal("outside_change", backup=backup.name if backup else None)
+        if current != self._kept:  # once, however often writing it over fails
+            backup = None
+            if current is not None:
+                backup = _aside(self.path, "outside")
+                _write_in_one_step(backup, current)
+            self._kept = current
+            name = backup.name if backup else None
+            self._outside.append(_entry("outside_change", backup=name))
         return True
 
     def _write(self) -> None:
@@ -368,43 +400,47 @@ class OutputList:
             pass  # the disk itself refuses: the state is as the last change left it
 
     def _body(self) -> bytes:
-        return "".join(f"{text}\n" for text in self.texts()).encode()
+        return b"".join(line.encoded() + b"\n" for line in self.lines)
 
-    def _journal(
-        self,
-        op: str,
-        *,
-        before: str | None = None,
-        after: str | None = None,
-        input_text: str | None = None,
-        change: Change | None = None,
-        backup: str | None = None,
-        taken: str | None = None,
-    ) -> None:
-        at = datetime.now().astimezone().isoformat(timespec="milliseconds")
-        entry: dict[str, Any] = {
-            "at": at,
-            "op": op,
-            "before": before,
-            "after": after,
-            "input": input_text,
-        }
-        if change is not None:
-            entry |= {
-                "camera": change.camera,
-                "frames": change.frames or None,
-                "method": change.method,
-                "fraction": change.fraction,
-                "offsets": change.offsets or None,
-                "model": change.model,
-            }
-        entry["backup"], entry["taken"] = backup, taken
-        kept = {key: value for key, value in entry.items() if value is not None}
-        line = (json.dumps(kept, ensure_ascii=False) + "\n").encode()
+    def _journal(self, op: str, **fields: Any) -> None:
+        line = _entry(op, **fields)
         if self._pending is None:
             _append(self.journal_path, line)
         else:
             self._pending.append(line)  # journaled once the change is written
+
+
+def _entry(
+    op: str,
+    *,
+    before: str | None = None,
+    after: str | None = None,
+    input_text: str | None = None,
+    change: Change | None = None,
+    backup: str | None = None,
+    taken: str | None = None,
+) -> bytes:
+    """A journal line: what changed, how its time was had, the backup it made."""
+    at = datetime.now().astimezone().isoformat(timespec="milliseconds")
+    entry: dict[str, Any] = {
+        "at": at,
+        "op": op,
+        "before": before,
+        "after": after,
+        "input": input_text,
+    }
+    if change is not None:
+        entry |= {
+            "camera": change.camera,
+            "frames": change.frames or None,
+            "method": change.method,
+            "fraction": change.fraction,
+            "offsets": change.offsets or None,
+            "model": change.model,
+        }
+    entry["backup"], entry["taken"] = backup, taken
+    kept = {key: value for key, value in entry.items() if value is not None}
+    return (json.dumps(kept, ensure_ascii=False) + "\n").encode()
 
 
 def _number(number: str) -> str:

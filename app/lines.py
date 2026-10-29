@@ -82,19 +82,25 @@ def to_epoch(line_ms: int, summer_time: bool) -> int:
 
 
 def text_lines(data: bytes) -> list[str]:
-    """The lines of a file's bytes, without a byte order mark. Each line is decoded
+    """The lines of a file's bytes, without a byte order mark; see decoded_lines."""
+    return [text for text, _ in decoded_lines(data)]
+
+
+def decoded_lines(data: bytes) -> list[tuple[str, str]]:
+    """The lines of a file's bytes, without a byte order mark, each with the encoding
+    it was read in, so it can be written back as the same bytes. Each line is decoded
     on its own -- UTF-8, else cp1251 as the older C++ tools wrote, else Latin-1 --
     and blank lines are no crossings.
     """
     raw_lines = data.removeprefix(_BOM).split(b"\n")
     lines = (_decoded(raw.rstrip(b"\r")) for raw in raw_lines)
-    return [line for line in lines if line.strip()]
+    return [(text, encoding) for text, encoding in lines if text.strip()]
 
 
-def _decoded(raw: bytes) -> str:
+def _decoded(raw: bytes) -> tuple[str, str]:
     for encoding in ("utf-8", "cp1251"):
         try:
-            return raw.decode(encoding)
+            return raw.decode(encoding), encoding
         except UnicodeDecodeError:
             continue
-    return raw.decode("latin-1")
+    return raw.decode("latin-1"), "latin-1"

@@ -68,6 +68,8 @@ def test_lines_are_read_each_in_its_encoding() -> None:
         "2#\xff\x98#",
         "3#0 0:0:3.000#nextLap#",
     ]
+    encodings = [encoding for _, encoding in lines.decoded_lines(data)]
+    assert encodings == ["utf-8", "cp1251", "latin-1", "utf-8"]
 
 
 def test_the_source_offset_is_the_line_moment_less_the_video_moment() -> None:

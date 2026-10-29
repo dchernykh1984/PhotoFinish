@@ -443,6 +443,26 @@ def test_a_copy_the_disk_refuses_is_said(
     assert "cannot be written: disk full" in win.statusBar().currentMessage()
 
 
+def test_an_output_whose_journal_refuses_is_opened_and_said(
+    files: tuple[Path, Path],
+    make_window: Callable[[], mw.MainWindow],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _, out = files
+    out.write_text(line(5, 5) + "\n")
+
+    def full(path: Path, data: bytes) -> None:
+        raise OSError("read only")
+
+    monkeypatch.setattr(output_list, "_append", full)
+    said: list[str] = []
+    monkeypatch.setattr(mw.MainWindow, "_say", lambda self, text: said.append(text))
+    win = make_window()
+    assert win.output is not None
+    assert win.follow is not None  # the input is followed into it
+    assert said[0] == "Opened; the journal cannot take it: read only"
+
+
 def test_files_that_cannot_be_followed_are_said(
     files: tuple[Path, Path],
     make_window: Callable[[], mw.MainWindow],

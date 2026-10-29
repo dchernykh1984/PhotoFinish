@@ -342,6 +342,23 @@ def test_a_file_cut_short_while_it_is_rewritten_waits_until_it_rests(
     ]
 
 
+def test_an_older_tool_s_line_reaches_the_output_as_its_bytes(
+    files: tuple[Path, Path],
+) -> None:
+    source, out = files
+    rider = "17#20389 11:35:24.000#" + chr(0x0418) + "#"  # cp1251, as the C++ tools
+    source.write_bytes(f"{A}\r\n{rider}\r\n".encode("cp1251"))
+    f = follow(files)
+    assert f.poll()
+    assert out.read_bytes() == f"{A}\n{rider}\n".encode("cp1251")
+    edited = "17#20389 11:35:24.500#" + chr(0x0418) + "#"
+    source.write_bytes(f"{A}\r\n{edited}\r\n".encode("cp1251"))
+    os.utime(source, ns=(1_900_000_000 * 10**9,) * 2)
+    assert f.poll()
+    f.copy(1)
+    assert out.read_bytes() == f"{A}\n{edited}\n".encode("cp1251")
+
+
 def test_the_only_line_taken_edited_is_a_change_not_a_new_file() -> None:
     taken = ["5#0 10:0:0.000#finish#"]
     edited = ["5#0 10:0:1.000#finish#"]
