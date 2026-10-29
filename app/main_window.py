@@ -868,7 +868,10 @@ class MainWindow(QMainWindow):
         waited = time.monotonic() - camera.analyzer_started < 30
         if not recorded or running or waited or (failed and camera.analyzer):
             return
-        camera.analyzer = start_analyzer(camera.id, self)
+        for ended in (camera.analyzer, camera.stopping):
+            if ended is not None:
+                ended.deleteLater()  # not kept: one that crashes is restarted all day
+        camera.analyzer, camera.stopping = start_analyzer(camera.id, self), None
         camera.analyzer_started = time.monotonic()
 
     def _stop_analyzer(self, camera: Camera) -> None:
@@ -876,10 +879,16 @@ class MainWindow(QMainWindow):
         killed if it has not in STOP_MS. The window does not wait for it."""
         process, camera.analyzer = camera.analyzer, None
         camera.analyzer_started = -math.inf
-        if process is not None and process.state() != QProcess.ProcessState.NotRunning:
-            process.closeWriteChannel()
-            QTimer.singleShot(STOP_MS, process, process.kill)
-            camera.stopping = process
+        if process is None:
+            return
+        if process.state() == QProcess.ProcessState.NotRunning:
+            process.deleteLater()
+            return
+        process.closeWriteChannel()
+        QTimer.singleShot(STOP_MS, process, process.kill)
+        if camera.stopping is not None:  # ended before this one was started
+            camera.stopping.deleteLater()
+        camera.stopping = process
 
     def accept_suggestion(self) -> None:
         """The crossing suggested, with the typed number, through the output's

@@ -11,10 +11,11 @@ from typing import Any
 import av
 import numpy as np
 import pytest
-from PySide6.QtCore import QPoint, QPointF, Qt
+import shiboken6
+from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
 from PySide6.QtGui import QImage
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QFileDialog, QInputDialog, QMessageBox
+from PySide6.QtWidgets import QApplication, QFileDialog, QInputDialog, QMessageBox
 
 from app import main_window as mw
 from app import output_list, session
@@ -1040,6 +1041,8 @@ def test_an_analyser_that_dies_is_started_again_and_a_new_zone_restarts_it(
     camera.analyzer_started -= 31
     win.poll()
     assert len(analyzers) == 2
+    QApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    assert not shiboken6.isValid(analyzers[0])  # the one that died is let go
     wait_until(lambda: win.place is not None)
     win.draw_zone()
     win.picture_clicked((0.3, 0.2))
