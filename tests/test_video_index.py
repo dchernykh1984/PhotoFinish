@@ -95,6 +95,17 @@ def test_a_segment_whose_times_stay_unreadable_is_given_up(
     assert index.unreadable == [broken.name]  # said once, not read again
 
 
+def test_a_second_on_steps_over_a_gap_in_the_recording(tmp_path: Path) -> None:
+    record(tmp_path, START, 10)
+    record(tmp_path, START + 60_000, 10)  # the recorder was down for a minute
+    index = VideoIndex(tmp_path)
+    index.refresh()
+    assert index.step_ms(9, 1000) == 10  # over the gap, to the first frame after
+    assert index.step_ms(10, -1000) == 9
+    assert index.step_ms(19, 1000) == 19  # the newest frame: nowhere further
+    assert index.step_ms(0, 1000) == 9  # nearest within the stretch filmed
+
+
 def test_a_cameras_own_stream_is_indexed_in_display_order(tmp_path: Path) -> None:
     make_h264(tmp_path / "camera.mp4", 40)
     folder = tmp_path / "cam1"
