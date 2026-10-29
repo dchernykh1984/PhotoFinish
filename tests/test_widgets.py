@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 from PySide6.QtCore import QPoint, QPointF, Qt
-from PySide6.QtGui import QImage, QWheelEvent
+from PySide6.QtGui import QFont, QImage, QWheelEvent
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QFileDialog
 
@@ -187,3 +187,65 @@ def test_the_newest_request_is_decoded_and_a_bad_one_answered(tmp_path: Path) ->
     wait_until(lambda: answers[-1][0] == "missing")
     assert answers[-1] == ("missing", True)
     worker.stop()
+
+
+def test_rows_say_what_the_referee_must_notice() -> None:
+    from app.input_follow import InputLine
+    from app.output_list import OutputLine
+    from app.widgets.lists import input_rows, output_rows
+
+    taken = "15#20389 11:35:29.615#nextLap#"
+    rows = input_rows(
+        [InputLine(taken), InputLine("15#20389 11:35:29.500#nextLap#", taken)]
+    )
+    assert (rows[0].time, rows[0].warn, rows[0].note) == ("11:35:29.615", False, "")
+    assert rows[1].note == f"changed; taken as {taken}"
+    lines = [
+        OutputLine(taken, {"input": taken}, "input"),
+        OutputLine(taken, {"input": taken}, "interpolated", removed_from_input=True),
+        OutputLine("7##", {"outside": True}, "outside"),
+        OutputLine("8", {"added": True}, "hand"),
+    ]
+    notes = [(row.note, row.warn, row.time) for row in output_rows(lines)]
+    assert notes == [
+        ("", False, "11:35:29.615"),
+        ("between two frames; removed from input", True, "11:35:29.615"),
+        ("no time; found in the file", True, ""),
+        ("no time; picked by hand", True, ""),
+    ]
+
+
+def test_the_list_marks_the_line_nearest_the_video() -> None:
+    from app.widgets.lists import LinesView, Row
+
+    view = LinesView()
+    view.resize(400, 300)
+    rows = [Row(str(n), "", "", "", None if n == 2 else n * 1000) for n in range(5)]
+    view.show_rows([Row("x", "", "", "note", None, True), *rows])
+    model = view.lines
+    assert model.headerData(1, Qt.Orientation.Horizontal) == "Time"
+    assert model.headerData(1, Qt.Orientation.Vertical) is None
+    view.follow(2900)
+    assert model.near == 4
+    index = model.index(4, 0)
+    assert model.data(index) == "3"
+    assert model.data(index, Qt.ItemDataRole.BackgroundRole) is not None
+    font = model.data(index, Qt.ItemDataRole.FontRole)
+    assert isinstance(font, QFont)
+    assert font.bold()
+    assert model.data(model.index(0, 3), Qt.ItemDataRole.ToolTipRole) == "note"
+    assert model.data(model.index(0, 0), Qt.ItemDataRole.BackgroundRole) is not None
+    assert model.data(model.index(1, 0), Qt.ItemDataRole.BackgroundRole) is None
+    assert model.data(model.index(1, 0), Qt.ItemDataRole.ToolTipRole) is None
+    assert model.data(model.index(1, 0), Qt.ItemDataRole.EditRole) is None
+    view.follow(2950)
+    assert model.near == 4
+    picked: list[int] = []
+    view.picked.connect(picked.append)
+    view._pick(model.index(0, 0))
+    view._pick(model.index(2, 0))
+    assert picked == [1000]
+    view.show_rows([])
+    view.follow(0)
+    assert model.near is None
+    assert model.rowCount(model.index(0, 0)) == 0
