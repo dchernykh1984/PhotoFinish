@@ -30,7 +30,7 @@ from app import analysis, session
 from app.analysis.detector import Detector, ModelError
 from app.analysis.motion import WIDTH, Motion, Stretches
 from app.analysis.tracks import Ref, Tracker, refine
-from app.files import Appended, write_in_one_step
+from app.files import Appended, append, write_in_one_step
 from app.interpolation import Line, finish_line
 from app.paths import app_path
 from app.recorder import CAMERA_ID, folder_of
@@ -248,16 +248,15 @@ def _analyse(segment: Path, watch: Watch, sample: int) -> int:
 def _record(segment: Path, activity: dict[str, Any]) -> None:
     """A segment's activity appended: the list the window follows."""
     line = json.dumps({"segment": segment.stem} | activity) + "\n"
-    with (segment.parent / ACTIVITY).open("a", encoding="ascii") as f:
-        f.write(line)
+    append(segment.parent / ACTIVITY, line.encode("ascii"))
 
 
 def _suggest(folder: Path, suggestions: list[dict[str, Any]]) -> None:
     """Crossings suggested, appended for the window to list."""
     if not suggestions:
         return
-    with (folder / SUGGESTIONS).open("a", encoding="ascii") as f:
-        f.writelines(json.dumps(s) + "\n" for s in suggestions)
+    lines = "".join(json.dumps(s) + "\n" for s in suggestions)
+    append(folder / SUGGESTIONS, lines.encode("ascii"))
 
 
 def _progress(

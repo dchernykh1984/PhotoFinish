@@ -23,6 +23,8 @@ from typing import TextIO
 import av
 import numpy as np
 
+from app.files import append
+
 SEGMENT_MS = 1000  # a segment's first frame is shown once it closes: SC-006's 2 s
 CLOSED = "[0-9]*-[0-9]*-[0-9]*"  # a closed segment's name, without its suffix
 SEGMENTS = "segments.txt"  # the closed segments' names, in the order they closed
@@ -107,12 +109,11 @@ class SegmentWriter:
         name = f"{stamp}-{n:04d}"
         (self.folder / "current.times").replace(self.folder / f"{name}.times")
         (self.folder / "current.mkv").replace(self.folder / f"{name}.mkv")
-        with (self.folder / SEGMENTS).open("a", encoding="ascii") as f:
-            f.write(name + "\n")
+        append(self.folder / SEGMENTS, f"{name}\n".encode("ascii"))
 
     def _gap(self, start: int, end: int) -> None:
-        with (self.folder / "gaps.txt").open("a", encoding="ascii") as f:
-            f.write(f"{start} {end} {self.gap_reason}\n")
+        line = f"{start} {end} {self.gap_reason}\n"
+        append(self.folder / "gaps.txt", line.encode("ascii"))
         self.gap_reason = "no frames"
 
 
@@ -202,8 +203,7 @@ def _list_missing(folder: Path) -> list[str]:
         if path.stem not in known and path.with_suffix(".times").exists()
     )
     if missing:
-        with (folder / SEGMENTS).open("a", encoding="ascii") as f:
-            f.writelines(f"{name}\n" for name in missing)
+        append(folder / SEGMENTS, "".join(f"{n}\n" for n in missing).encode("ascii"))
     return listed + missing
 
 

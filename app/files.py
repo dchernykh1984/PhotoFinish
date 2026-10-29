@@ -47,6 +47,29 @@ def read_bytes(path: Path) -> bytes:
     raise AssertionError("unreachable")  # pragma: no cover
 
 
+def append(path: Path, data: bytes) -> None:
+    """``data`` at the end of ``path``, synced; after a line a crash cut short, on a
+    line of its own, so the two are not read as one. A file held a moment (Windows)
+    is tried again."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    for attempt in range(TRIES):
+        try:
+            with path.open("a+b") as f:
+                end = f.seek(0, os.SEEK_END)
+                if end:
+                    f.seek(end - 1)
+                    if f.read(1) != b"\n":
+                        data = b"\n" + data
+                f.write(data)
+                f.flush()
+                os.fsync(f.fileno())
+            return
+        except PermissionError:
+            if attempt == TRIES - 1:
+                raise
+            time.sleep(PAUSE_S)
+
+
 class Appended:
     """A file others append lines to, read a piece at a time: each call gives the
     complete lines added since the last, so a long race's lists are not read over

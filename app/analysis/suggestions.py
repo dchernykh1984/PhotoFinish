@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from app.analysis.analyzer import SUGGESTIONS
-from app.files import Appended
+from app.files import Appended, append
 
 DONE = "suggestions.done.jsonl"
 
@@ -38,8 +38,8 @@ class Suggestions:
         """``accepted`` or ``dismissed``: the suggestion is not offered again -- in
         this session even when the decision cannot be kept on disk, which raises."""
         self.done.add(name)
-        with (self.folder / DONE).open("a", encoding="ascii") as f:
-            f.write(json.dumps({"id": name, "done": how}) + "\n")
+        line = json.dumps({"id": name, "done": how}) + "\n"
+        append(self.folder / DONE, line.encode("ascii"))
 
 
 def _entries(lines: list[str]) -> list[dict[str, Any]]:
