@@ -45,3 +45,29 @@ def read_bytes(path: Path) -> bytes:
                 raise
             time.sleep(PAUSE_S)
     raise AssertionError("unreachable")  # pragma: no cover
+
+
+class Appended:
+    """A file others append lines to, read a piece at a time: each call gives the
+    complete lines added since the last, so a long race's lists are not read over
+    and over. A file that got shorter is read from its start again."""
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+        self.offset = 0
+
+    def new_lines(self) -> list[str]:
+        try:
+            with self.path.open("rb") as f:
+                if f.seek(0, os.SEEK_END) < self.offset:
+                    self.offset = 0
+                f.seek(self.offset)
+                data = f.read()
+        except OSError:
+            return []
+        complete = data[: data.rfind(b"\n") + 1]
+        self.offset += len(complete)
+        lines = (
+            raw.decode("utf-8", "replace").strip() for raw in complete.splitlines()
+        )
+        return [line for line in lines if line]

@@ -126,9 +126,8 @@ def test_with_a_model_the_index_is_where_it_sees_riders_in_the_zone(base: Path) 
             writer.write(render(1_000_000 + k * 100, 640, 360), 1_000_000 + k * 100)
         writer.close()
         assert analyzer.run("cam1", stop=lambda: False, once=True) == 0
-        activity = [
-            json.loads(p.read_text()) for p in sorted(folder.glob("*.activity.json"))
-        ]
+        lines = (folder / "activity.jsonl").read_text().splitlines()
+        activity = [json.loads(line) for line in lines]
         assert {a["method"] for a in activity} == {f"model:{chosen.name}"}
         found = [s for a in activity for s in a["stretches"]]
         assert len(found) == expected * len(activity)

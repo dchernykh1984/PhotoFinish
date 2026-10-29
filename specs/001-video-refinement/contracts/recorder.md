@@ -30,7 +30,9 @@ to type in the camera app.
 ## Output
 
 - Segments and `.times` files as `data-model.md` describes; a segment is renamed from `current.*`
-  only after both files are flushed and closed, the `.times` first. A `current.*` a crash left is
+  only after both files are flushed and closed, the `.times` first, and its name is then appended
+  to `segments.txt`, the list readers follow instead of the folder. A recorder that starts lists
+  any closed segment a crash left out. A `current.*` a crash left is
   kept as `crashed-<ms>.*` when the next recorder starts and is not shown.
 - `gaps.txt` gets a line for every stretch without frames longer than three frame intervals.
 - Below 2 GB free the state stays `recording` with `detail` "low disk"; on a failed write for lack

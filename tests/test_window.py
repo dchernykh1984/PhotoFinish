@@ -981,7 +981,8 @@ def test_finding_riders_is_set_up_beside_the_video(
 
 def stretch_files(base: Path, stretches: list[list[int]]) -> None:
     folder = base / "video" / "cam1"
-    (folder / "x.activity.json").write_text(json.dumps({"stretches": stretches}))
+    line = {"segment": "x", "stretches": stretches}
+    (folder / "activity.jsonl").write_text(json.dumps(line) + "\n")
     done = {"done_ms": START + 2277, "state": "waiting"}
     (folder / "analyzer.json").write_text(json.dumps(done))
 

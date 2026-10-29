@@ -11,13 +11,13 @@ FinishProtocolGeneratorPython reads as a finish file. Built by
 | File | What it holds |
 | --- | --- |
 | `data/session.json` | The input and output files chosen, the cameras with their settings, finish lines and offsets, the summer-time and finish-mode switches, the timing source's offset. |
-| `video/<camera>/<YYYYmmdd-HHMMSS>-<n>.mkv`, `.times` | A camera's recording in one-second segments; each frame's timestamp and moment. |
+| `video/<camera>/<YYYYmmdd-HHMMSS>-<n>.mkv`, `.times`, `segments.txt` | A camera's recording in one-second segments; each frame's timestamp and moment; the segments' names as they closed, the list readers follow. |
 | `video/<camera>/gaps.txt` | Stretches without frames: a restart, a reconnect, a camera that stalled. |
 | `video/<camera>/recorder.json`, `recorder.lock`, `recorder.log`, `stop.request` | The recorder's heartbeat, its lock, its output, the window's request to stop. |
 | `<output>` | The referee's crossings, `number#time#action#`, in time order. |
 | `<output>.state.json` | Where each output line came from, how its time was had, and the input as last taken. |
 | `<output>.journal.txt` | One JSON object per change: what, before and after, the input line, the camera and frames, the method, the offsets; the model, for a suggestion accepted. |
-| `video/<camera>/<segment>.activity.json`, `analyzer.json` | Finding riders (experimental): the stretches with a rider in view per segment; how far the analyser has got. |
+| `video/<camera>/activity.jsonl`, `analyzer.json` | Finding riders (experimental): the stretches with a rider in view, a line per segment; how far the analyser has got. |
 | `video/<camera>/suggestions.jsonl`, `suggestions.done.jsonl` | Crossings a detection model suggested; those the referee accepted or dismissed. |
 
 Formats: [output and journal](../001-video-refinement/contracts/output-and-journal.md),

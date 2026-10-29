@@ -46,3 +46,18 @@ def test_a_zone_that_spans_nothing_is_not_one(drawn: Any) -> None:
     if drawn is not None:
         found = cameras.problems({"connection": "test", "zone": drawn})
         assert found == ["the zone must be two corners of a part of the picture"]
+
+
+def test_lines_appended_are_read_once_each(tmp_path) -> None:
+    from app.files import Appended
+
+    path = tmp_path / "list.txt"
+    appended = Appended(path)
+    assert appended.new_lines() == []
+    path.write_text("a\nb\n\nc")
+    assert appended.new_lines() == ["a", "b"]
+    with path.open("a") as f:
+        f.write("d\n")
+    assert appended.new_lines() == ["cd"]
+    path.write_text("x\n")  # shorter: replaced, read from its start
+    assert appended.new_lines() == ["x"]

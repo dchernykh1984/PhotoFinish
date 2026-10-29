@@ -1,8 +1,9 @@
 """A camera's stretches with a rider in view, as its analyser wrote them.
 
-The window reads each segment's ``.activity.json`` once, joins the pieces of a
-stretch that crossed segments, and moves between stretches with "Next rider" and
-"Previous rider". ``analyzer.json`` tells how far the analyser has got.
+The window reads the lines the analyser appends to ``activity.jsonl``, each once,
+joins the pieces of a stretch that crossed segments, and moves between stretches
+with "Next rider" and "Previous rider". ``analyzer.json`` tells how far the
+analyser has got.
 """
 
 from __future__ import annotations
@@ -11,6 +12,9 @@ import bisect
 import json
 from pathlib import Path
 from typing import Any
+
+from app.analysis.analyzer import ACTIVITY
+from app.files import Appended
 
 JOIN_MS = 1000  # pieces this close are one stretch
 _STEP_MS = 300  # "next" from inside a stretch's first moments is the one after
@@ -22,20 +26,24 @@ class Activity:
         self.stretches: list[tuple[int, int]] = []
         self.progress: dict[str, Any] | None = None
         self._pieces: list[tuple[int, int]] = []
-        self._read: set[str] = set()
+        self._read: set[str] = set()  # segments read: a list read again adds none
+        self._lines = Appended(folder / ACTIVITY)
 
     def refresh(self) -> bool:
         """Activity written since the last refresh read; True when there was any."""
         self.progress = _json(self.folder / "analyzer.json")
-        new = [
-            p for p in self.folder.glob("*.activity.json") if p.name not in self._read
-        ]
-        for path in new:
-            found = _json(path)
-            if found is None:
-                continue  # half written: the next refresh
-            self._read.add(path.name)
-            self._pieces += [(int(a), int(b)) for a, b in found.get("stretches", [])]
+        new = False
+        for line in self._lines.new_lines():
+            try:
+                found = json.loads(line)
+                name = str(found["segment"])
+                pieces = [(int(a), int(b)) for a, b in found.get("stretches", [])]
+            except ValueError, KeyError, TypeError:
+                continue
+            if name not in self._read:
+                self._read.add(name)
+                self._pieces += pieces
+                new = True
         if not new:
             return False
         self.stretches = _joined(sorted(self._pieces))

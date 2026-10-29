@@ -1,13 +1,14 @@
 """The analyser: a process per camera that indexes where riders are in view.
 
 ``<photofinish> --analyzer <camera id>`` reads the camera's closed segments, oldest
-first, and writes beside each one ``<segment>.activity.json``: the stretches with a
-rider in view -- by motion at five frames a second, or, with a model chosen, where
-it sees a person or a bicycle in the zone, twice a second. A model that cannot be
-used is reported in ``analyzer.json`` and the analyser stops. A segment with its
-file is never analysed again, so a restart goes on where it stopped.
-``analyzer.json`` says how far it has got. It runs below the recorder in priority
-and stops when the window that started it is gone: its standard input closes.
+first as the recorder lists them in ``segments.txt``, and appends a line for each to
+``activity.jsonl``: the stretches with a rider in view -- by motion at five frames a
+second, or, with a model chosen, where it sees a person or a bicycle in the zone,
+twice a second. A model that cannot be used is reported in ``analyzer.json`` and the
+analyser stops. A segment with its line is never analysed again, so a restart goes
+on where it stopped. ``analyzer.json`` says how far it has got. It runs below the
+recorder in priority and stops when the window that started it is gone: its
+standard input closes.
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ import os
 import sys
 import threading
 import time
+from collections import deque
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Protocol
@@ -27,14 +29,15 @@ from app import analysis, session
 from app.analysis.detector import Detector, ModelError
 from app.analysis.motion import WIDTH, Motion, Stretches
 from app.analysis.tracks import Ref, Tracker, refine
+from app.files import Appended
 from app.interpolation import Line, finish_line
 from app.paths import app_path
 from app.recorder import CAMERA_ID, folder_of
-from app.recorder.segments import CLOSED
+from app.recorder.segments import SEGMENTS
 
 SAMPLE_MS = 200  # frames looked at for motion: five a second
 MODEL_SAMPLE_MS = 500  # and by a model: twice a second
-ACTIVITY = ".activity.json"
+ACTIVITY = "activity.jsonl"  # a line a segment, in the order they were analysed
 SUGGESTIONS = "suggestions.jsonl"
 
 
@@ -129,19 +132,20 @@ def run(
     except ModelError as error:
         _progress(folder, "failed", detail=str(error))
         return 2
-    sample = 0
+    sample, listed, done = 0, Appended(folder / SEGMENTS), analysed(folder)
+    todo: deque[str] = deque()
     while not stop():
-        todo = unanalysed(folder)
+        todo.extend(name for name in listed.new_lines() if name not in done)
         if not todo:
             _progress(folder, "waiting")
             if once:
                 return 0
             sleep(1)
             continue
-        for segment in todo:
-            if stop():
-                break
-            sample = _analyse(segment, watch, sample)
+        while todo and not stop():
+            name = todo.popleft()
+            sample = _analyse(folder / f"{name}.mkv", watch, sample)
+            done.add(name)
     return 0
 
 
@@ -153,13 +157,21 @@ def _watch(camera: dict[str, Any], model: str) -> Watch:
     return MotionWatch(Motion(zone, line))
 
 
-def unanalysed(folder: Path) -> list[Path]:
-    """The closed segments without their activity, oldest first."""
-    return sorted(
-        path
-        for path in folder.glob(f"{CLOSED}.mkv")
-        if not path.with_suffix(ACTIVITY).exists()
-    )
+def analysed(folder: Path) -> set[str]:
+    """The segments with their activity written: never analysed twice."""
+    found = set()
+    for line in Appended(folder / ACTIVITY).new_lines():
+        try:
+            found.add(str(json.loads(line)["segment"]))
+        except ValueError, KeyError, TypeError:
+            continue
+    return found
+
+
+def unanalysed(folder: Path) -> list[str]:
+    """The segments listed and not analysed yet, as they were listed."""
+    done = analysed(folder)
+    return [n for n in Appended(folder / SEGMENTS).new_lines() if n not in done]
 
 
 def _analyse(segment: Path, watch: Watch, sample: int) -> int:
@@ -181,9 +193,10 @@ def _analyse(segment: Path, watch: Watch, sample: int) -> int:
                 seen.append(ms)
                 sample = ms + watch.every_ms
     except (OSError, av.FFmpegError) as error:
-        _write(segment.with_suffix(ACTIVITY), {"version": 1, "error": str(error)})
+        _record(segment, {"version": 1, "error": str(error)})
         return sample
     activity = {
+        "segment": segment.stem,
         "version": 1,
         "method": watch.method,
         "first_ms": min(seen, default=None),
@@ -192,9 +205,16 @@ def _analyse(segment: Path, watch: Watch, sample: int) -> int:
     }
     _suggest(segment.parent, watch.suggestions)
     watch.suggestions.clear()
-    _write(segment.with_suffix(ACTIVITY), activity)
+    _record(segment, activity)
     _progress(segment.parent, "analysing", max(times.values(), default=None))
     return sample
+
+
+def _record(segment: Path, activity: dict[str, Any]) -> None:
+    """A segment's activity appended: the list the window follows."""
+    line = json.dumps({"segment": segment.stem} | activity) + "\n"
+    with (segment.parent / ACTIVITY).open("a", encoding="ascii") as f:
+        f.write(line)
 
 
 def _suggest(folder: Path, suggestions: list[dict[str, Any]]) -> None:

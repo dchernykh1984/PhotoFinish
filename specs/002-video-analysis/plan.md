@@ -20,7 +20,9 @@ rider's front crosses the finish line. Everything is off by default.
 **Primary Dependencies**: numpy (motion), onnxruntime 1.31 (detector; CPU), PyAV (decoding) --
 onnxruntime added with this feature; wheels checked for all five release platforms
 
-**Storage**: `video/<camera>/<segment>.activity.json` per segment; `video/<camera>/suggestions.jsonl`
+**Storage**: `video/<camera>/activity.jsonl`, a line per segment analysed, following the
+recorder's `segments.txt` (a folder of one-second segments grows by thousands of files an hour:
+no reader lists it); `video/<camera>/suggestions.jsonl`
 
 **Testing**: synthetic scenes from the test camera (swaying patch, passing figure); a constant-output
 ONNX model built in the tests with `onnx.helper` (dev dependency) to check loading and decoding --
@@ -64,8 +66,8 @@ No violation.
   recorded frames between them are decoded and the detector re-run on them; the two frames around the
   crossing give the time by `app/interpolation.py`.
 - **Analyser process** (`app/analysis/analyzer.py`, `--analyzer <camera>`, a `QProcess` child of
-  the window that ends when its standard input closes) writes `activity.json` per segment and
-  appends to `suggestions.jsonl`; progress in `analyzer.json` like the recorder's heartbeat. The
+  the window that ends when its standard input closes) appends a line per segment to
+  `activity.jsonl` and its suggestions to `suggestions.jsonl`; progress in `analyzer.json` like the recorder's heartbeat. The
   referee's decisions on suggestions go to `suggestions.done.jsonl`.
 
 ## Project Structure
