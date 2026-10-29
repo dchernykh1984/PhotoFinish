@@ -91,23 +91,52 @@ class FakeDetector:
         return [Box(max(lead - 80, 0) / 640, 0.45, min(lead, 640) / 640, 0.85, 0.9, 0)]
 
 
-def test_each_crossing_of_the_centre_line_is_suggested_once(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """002 SC-003: within one frame interval of the true crossing."""
-    monkeypatch.setattr(paths, "base_dir", lambda: tmp_path)
-    monkeypatch.setattr(analyzer, "Detector", FakeDetector)
+class TwoAbreast(FakeDetector):
+    """Two riders side by side: the same front, one above the other."""
+
+    def riders(self, frame: av.VideoFrame) -> list[Box]:
+        return [
+            Box(found.x1, top, found.x2, top + 0.3, found.score, found.kind)
+            for found in super().riders(frame)
+            for top in (0.1, 0.55)
+        ]
+
+
+def suggested_by(
+    detector: type[FakeDetector], frames: int, base: Path, monkeypatch: Any
+) -> list[dict[str, Any]]:
+    """The crossings suggested over the test camera's passes, 25 frames a second."""
+    monkeypatch.setattr(paths, "base_dir", lambda: base)
+    monkeypatch.setattr(analyzer, "Detector", detector)
     camera = {"id": "cam1", "connection": "test", "settings": {"fps": 25}}
     analysis = {"on": True, "model": "fake.onnx"}
     session.save({**session.DEFAULTS, "cameras": [camera], "analysis": analysis})
-    folder = tmp_path / "video" / "cam1"
+    folder = base / "video" / "cam1"
     writer = SegmentWriter(folder, fps=25)
-    for k in range(750):
+    for k in range(frames):
         writer.write(render(START + k * 40, 640, 360, "passes"), START + k * 40)
     writer.close()
     assert analyzer.run("cam1", stop=lambda: False, once=True) == 0
     lines = (folder / "suggestions.jsonl").read_text().splitlines()
-    suggested = [json.loads(line) for line in lines]
+    return [json.loads(line) for line in lines]
+
+
+def test_riders_crossing_abreast_are_suggested_apart(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    first, second = suggested_by(TwoAbreast, 150, tmp_path, monkeypatch)
+    assert first["ms"] == second["ms"]
+    assert (first["id"], second["id"]) == (
+        f"cam1-{first['ms']}",
+        f"cam1-{first['ms']}-2",
+    )
+
+
+def test_each_crossing_of_the_centre_line_is_suggested_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """002 SC-003: within one frame interval of the true crossing."""
+    suggested = suggested_by(FakeDetector, 750, tmp_path, monkeypatch)
     assert len(suggested) == 3
     for n, found in enumerate(suggested):
         true = START + n * 10_000 + 2_000 + 400 * 1500 / 720  # its front at 320 px

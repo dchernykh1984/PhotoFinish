@@ -180,6 +180,63 @@ def test_a_segment_held_a_moment_is_tried_again(
     assert [("error" in a) for a in activity(folder)] == [False]
 
 
+def test_a_segment_tried_again_comes_before_the_segments_after_it(
+    base: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    folder = camera(base, "sway", 2)
+    real = analyzer.av.open
+    held = [PermissionError(13, "held by a virus scanner")]
+
+    def opening(path: str, *args: Any, **kwargs: Any) -> Any:
+        if held:
+            raise held.pop()
+        return real(path, *args, **kwargs)
+
+    monkeypatch.setattr(analyzer.av, "open", opening)
+    assert (
+        analyzer.run("cam1", stop=lambda: False, once=True, sleep=lambda _: None) == 0
+    )
+    listed = (folder / "segments.txt").read_text().split()
+    analysed = activity(folder)
+    assert len(listed) > 1
+    assert [a["segment"] for a in analysed] == listed
+    assert all(a["first_ms"] is not None for a in analysed)  # its frames looked at
+
+
+def test_a_segment_that_fails_partway_is_tried_again_as_if_never_begun(
+    base: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    folder = camera(base, "passes", 3)
+    made: list[Any] = []
+    real_watch = analyzer._watch
+
+    def watch(*args: Any) -> Any:
+        made.append(real_watch(*args))
+        return made[-1]
+
+    monkeypatch.setattr(analyzer, "_watch", watch)
+    assert analyzer.run("cam1", stop=lambda: False, once=True) == 0
+    clean, found = made[-1].motion, stretches(folder)
+    (folder / "activity.jsonl").unlink()
+    real_feed = analyzer.MotionWatch.feed
+    fed = [0]
+
+    def feed(self: Any, frame: Any, ref: Any) -> int | None:
+        fed[0] += 1
+        if fed[0] == 8:  # in the second segment, once
+            raise OSError("read error")
+        return real_feed(self, frame, ref)
+
+    monkeypatch.setattr(analyzer.MotionWatch, "feed", feed)
+    assert (
+        analyzer.run("cam1", stop=lambda: False, once=True, sleep=lambda _: None) == 0
+    )
+    again = made[-1].motion
+    assert (again._background == clean._background).all()
+    assert again._track == clean._track
+    assert stretches(folder) == found
+
+
 def test_a_segment_that_stays_unreadable_is_noted_after_its_tries(base: Path) -> None:
     folder = camera(base, "sway", 1)
     for times in folder.glob("*-*-*.times"):
