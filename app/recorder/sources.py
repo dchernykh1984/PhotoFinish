@@ -21,6 +21,7 @@ import av
 import numpy as np
 
 from app import cameras
+from app.paths import app_path
 from app.recorder.testcam import TestCamera
 
 OPEN_TIMEOUT_S = 10.0
@@ -62,7 +63,7 @@ def open_source(
     if connection == "usb":
         return UsbCamera(settings, clock)
     if connection == "file":
-        return LiveFile(str(settings["path"]), clock, sleep)
+        return LiveFile(str(app_path(str(settings["path"]))), clock, sleep)
     if connection == "rtsp":
         options = {"rtsp_transport": settings.get("transport", "tcp")}
         return Stream(settings["url"], options, clock)
