@@ -41,8 +41,11 @@ class Timeline(QWidget):
         between them, and what puts them on the video's time: added as drawn, never
         to a copy of every frame."""
         self.frames, self.gaps, self.offset = frames, gaps, offset
-        if frames.size:
-            self.start, self.end = int(frames[0]) + offset, int(frames[-1]) + offset
+        self.start, self.end = (
+            (int(frames[0]) + offset, int(frames[-1]) + offset)
+            if frames.size
+            else (0, 0)
+        )
         if not self.zoomed:
             self.view = (self.start, max(self.end, self.start + 1))
         elif self.following:

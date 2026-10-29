@@ -81,7 +81,7 @@ class Camera:
     activity: Activity
     suggestions: Suggestions
     shown: int | None = None  # the frame on its view, in its index
-    wanted: tuple[str, int] | None = None  # the frame last asked for
+    wanted: tuple[str, Frame] | None = None  # the frame last asked for
     analyzer: Any = None  # its analyser process, while finding riders is on
     analyzer_started: float = -math.inf  # monotonic
     stopping: Any = None  # the analyser stopped, while it ends its segment
@@ -1177,7 +1177,7 @@ class MainWindow(QMainWindow):
         for other in self.cameras.values():
             generation, frame = kept[other.id]
             if other.index.generation != generation and frame is not None:
-                other.shown, other.wanted = other.index.find(frame), None  # sorted anew
+                other.shown = other.index.find(frame)  # sorted anew
                 if other.id == self.current:
                     self.place, force = other.shown, True
         camera = self._camera()
@@ -1228,14 +1228,14 @@ class MainWindow(QMainWindow):
             if len(camera.index):
                 camera.view.show_text("No frame at this moment")
             return
-        if (camera.id, place) == camera.wanted:
-            return
-        camera.wanted = (camera.id, place)
         frame = camera.index.frame(place)
+        if (camera.id, frame) == camera.wanted:
+            return
+        camera.wanted = (camera.id, frame)  # the frame, not its place: places move
         camera.view.show_waiting()  # no crossing timed on the frame before
         camera.worker.request(frame.path, frame.pts, camera.wanted)
 
-    def _decoded(self, tag: tuple[str, int], image: QImage) -> None:
+    def _decoded(self, tag: tuple[str, Frame], image: QImage) -> None:
         """A frame decoded, handed over in this window's thread: a lambda would run
         in the decoder's, where no widget may be touched."""
         camera = self.cameras.get(tag[0])

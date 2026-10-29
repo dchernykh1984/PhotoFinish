@@ -1622,6 +1622,29 @@ def test_the_frame_shown_and_its_caliper_point_stay_when_frames_are_sorted_anew(
     assert view.marks == [(0.25, 0.5)]
 
 
+def test_a_frame_asked_for_before_frames_were_sorted_anew_is_not_shown_for_another(
+    recording: Path,
+    make_window: Callable[[], mw.MainWindow],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    win = make_window()
+    camera = win.cameras["cam1"]
+    asked: list[Any] = []
+    monkeypatch.setattr(
+        camera.worker, "request", lambda path, pts, tag: asked.append(tag)
+    )
+    win._leave_live()
+    win._go(68)
+    win._go(69)  # frame 69 asked for, still decoding
+    on_its_way = asked[-1]
+    win._go(59)  # the referee steps on
+    record(recording, START - 5000, 10)  # an earlier segment, listed late
+    win._refresh()  # frame 59 is at place 69 now
+    assert camera.shown == 69
+    win._decoded(on_its_way, QImage(8, 8, QImage.Format.Format_RGB888))
+    assert camera.view.waiting  # frame 69's picture is not taken for frame 59
+
+
 def test_a_decision_the_disk_refuses_is_said_and_the_suggestion_still_leaves(
     recording: Path,
     make_window: Callable[[], mw.MainWindow],

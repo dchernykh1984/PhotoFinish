@@ -384,6 +384,8 @@ def test_the_timeline_puts_a_camera_on_the_video_time_by_its_offset() -> None:
     assert timeline.between_frames(START - 1234 + 50)
     assert not timeline.between_frames(START - 1234 - 500)  # before its first frame
     timeline.grab()
+    timeline.set_recording(np.empty(0, np.int64), [])  # a camera with no frame yet
+    assert (timeline.start, timeline.end) == (0, 0)  # not the camera's before
 
 
 @pytest.mark.parametrize("width", [640, 642, 1366])
