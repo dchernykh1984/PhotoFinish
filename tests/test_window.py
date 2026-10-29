@@ -1281,6 +1281,24 @@ def test_a_session_the_disk_refuses_is_said(
     assert win.statusBar().currentMessage() == "The session cannot be saved: disk full"
 
 
+def test_a_stopped_analyser_is_not_waited_for_nor_run_beside_the_next(
+    recording: Path,
+    make_window: Callable[[], mw.MainWindow],
+    analyzers: list[Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(mw, "STOP_MS", 50)
+    session.save({**session.load(), "analysis": {"on": True, "model": ""}})
+    win = make_window()
+    analyzers[0].slow = True  # on a long segment: it ends after it
+    win._set_model("")  # the analysers started again for the model chosen
+    assert analyzers[0].running
+    assert len(analyzers) == 1  # never two at once
+    wait_until(lambda: analyzers[0].killed)  # it did not end in time
+    win.poll()
+    assert len(analyzers) == 2
+
+
 def test_a_removed_camera_s_analyser_stops_too(
     recording: Path,
     make_window: Callable[[], mw.MainWindow],
