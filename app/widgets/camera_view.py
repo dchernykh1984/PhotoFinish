@@ -7,6 +7,7 @@ from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QImage, QMouseEvent, QPainter, QPaintEvent, QPen
 from PySide6.QtWidgets import QSizePolicy, QWidget
 
+from app.analysis import Zone
 from app.interpolation import Line, Point
 
 
@@ -21,6 +22,7 @@ class CameraView(QWidget):
         self.text = "No video yet"
         self.line: Line | None = None
         self.marks: list[Point] = []
+        self.zone: Zone | None = None
         self.chosen = False  # the camera the keys step through: framed
         self.setMinimumSize(320, 180)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
@@ -34,9 +36,12 @@ class CameraView(QWidget):
         self.image, self.text = QImage(), text
         self.update()
 
-    def show_marks(self, line: Line | None, marks: list[Point]) -> None:
-        """The finish line and the points clicked on the frame shown."""
-        self.line, self.marks = line, marks
+    def show_marks(
+        self, line: Line | None, marks: list[Point], zone: Zone | None = None
+    ) -> None:
+        """The finish line, the points clicked on the frame shown, and the zone
+        riders are looked for in, while that is on."""
+        self.line, self.marks, self.zone = line, marks, zone
         self.update()
 
     def image_rect(self) -> QRectF:
@@ -85,6 +90,10 @@ class CameraView(QWidget):
         if self.line is not None:
             painter.setPen(QPen(QColor(230, 40, 40), 2))
             painter.drawLine(self.to_widget(self.line[0]), self.to_widget(self.line[1]))
+        if self.zone is not None:
+            painter.setPen(QPen(QColor(80, 200, 255), 1, Qt.PenStyle.DashLine))
+            corners = QRectF(self.to_widget(self.zone[0]), self.to_widget(self.zone[1]))
+            painter.drawRect(corners)
         painter.setPen(QPen(QColor(255, 210, 0), 2))
         for mark in self.marks:
             centre = self.to_widget(mark)

@@ -6,6 +6,7 @@ from __future__ import annotations
 import math
 from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -28,7 +29,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app import session
+from app import analysis, session
 from app.input_follow import InputFollow
 from app.interpolation import Point, between, crossing, finish_line
 from app.lines import parse_line, parse_time, scale_time, to_epoch, to_line_scale
@@ -82,7 +83,8 @@ class MainWindow(QMainWindow):
         self.grid = QGridLayout(self.views)
         self.grid.setContentsMargins(0, 0, 0, 0)
         self.grid.addWidget(self.placeholder, 0, 0)
-        self.drawing: list[Point] | None = None  # the finish line's ends, while drawn
+        self.drawing: list[Point] | None = None  # the ends of what is drawn
+        self.drawn = "finish_line"  # what it is: the finish line or the zone
         self.caliper: list[tuple[str, int, Point]] = []  # camera, frame, point
         self.timeline = Timeline()
         self.timeline.seek.connect(self.seek_ms)
@@ -112,6 +114,12 @@ class MainWindow(QMainWindow):
         self.output: OutputList | None = None
         self.follow: InputFollow | None = None
         self._open_output()
+        self.analysis_box = QCheckBox("Find riders (experimental)")
+        self.analysis_box.setChecked(analysis.settings(self.session)["on"])
+        self.analysis_box.toggled.connect(self._analysis_on)
+        self.model_button = QPushButton()
+        self.model_button.clicked.connect(self.choose_model)
+        self._show_model()
 
         self.setCentralWidget(self._layout())
         self._shortcuts()
@@ -164,11 +172,25 @@ class MainWindow(QMainWindow):
         timing.addWidget(self.number, stretch=1)
         timing.addWidget(self.finish)
         timing.addWidget(self.output_button)
+        zone_button = QPushButton("Zone")
+        zone_button.setToolTip("Click two corners of where riders pass the line")
+        zone_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        zone_button.clicked.connect(self.draw_zone)
+        motion_only = QPushButton("Motion only")
+        motion_only.setToolTip("Find riders by motion, without a model")
+        motion_only.clicked.connect(lambda: self._set_model(""))
+        finding = QHBoxLayout()
+        finding.addWidget(self.analysis_box)
+        finding.addWidget(zone_button)
+        finding.addWidget(self.model_button)
+        finding.addWidget(motion_only)
+        finding.addStretch()
         video = QVBoxLayout()
         video.addWidget(self.views, stretch=1)
         video.addWidget(self.timeline)
         video.addLayout(transport)
         video.addLayout(timing)
+        video.addLayout(finding)
         left = QWidget()
         left.setLayout(video)
 
@@ -542,11 +564,23 @@ class MainWindow(QMainWindow):
 
     def draw_finish_line(self) -> None:
         """The next two clicks on the picture are the finish line's ends."""
+        self._start_drawing(
+            "finish_line", "Click one end of the finish line, then the other"
+        )
+
+    def draw_zone(self) -> None:
+        """The next two clicks on the picture are corners of the zone where riders
+        pass the line: motion elsewhere is not looked at."""
+        self._start_drawing(
+            "zone", "Click one corner of the zone, then the opposite one"
+        )
+
+    def _start_drawing(self, what: str, say: str) -> None:
         if self._camera() is None:
             self._say("Add a camera first")
             return
-        self.drawing = []
-        self._say("Click one end of the finish line, then the other")
+        self.drawing, self.drawn = [], what
+        self._say(say)
         self._show_marks()
 
     def picture_clicked(self, point: Point, camera_id: str | None = None) -> None:
@@ -567,10 +601,12 @@ class MainWindow(QMainWindow):
         drawing.append(point)
         if len(drawing) < 2:
             return
-        camera.settings["finish_line"] = [list(end) for end in drawing]
+        camera.settings[self.drawn] = [list(end) for end in drawing]
         session.save(self.session)
         self.drawing = None
-        self._say("The finish line is drawn")
+        self._say(
+            "The zone is drawn" if self.drawn == "zone" else "The finish line is drawn"
+        )
 
     def _caliper(self, camera: Camera, place: int, point: Point) -> None:
         """A point of the rider on this frame; with one on another frame, the time
@@ -668,7 +704,33 @@ class MainWindow(QMainWindow):
             if camera.id == self.current:
                 marks += self.drawing or []
             line = finish_line(camera.settings.get("finish_line"))
-            camera.view.show_marks(line, marks)
+            on = self.analysis_box.isChecked()
+            camera.view.show_marks(
+                line, marks, analysis.zone(camera.settings) if on else None
+            )
+
+    # -- finding riders (experimental) -------------------------------------------
+
+    def choose_model(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            self, "A detection model, downloaded beforehand", "", "ONNX model (*.onnx)"
+        )
+        if path:
+            self._set_model(path)
+
+    def _set_model(self, path: str) -> None:
+        self.session["analysis"] = {**analysis.settings(self.session), "model": path}
+        session.save(self.session)
+        self._show_model()
+
+    def _show_model(self) -> None:
+        model = analysis.settings(self.session)["model"]
+        self.model_button.setText(f"Model: {Path(model).name}" if model else "Model...")
+
+    def _analysis_on(self, on: bool) -> None:
+        self.session["analysis"] = {**analysis.settings(self.session), "on": on}
+        session.save(self.session)
+        self._show_marks()
 
     def _offsets(self) -> dict[str, int]:
         return {

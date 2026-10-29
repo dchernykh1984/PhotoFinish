@@ -32,6 +32,7 @@ video/<camera id>/
 | `finish_line` | `[[x1, y1], [x2, y2]]`, 0-1 image coordinates; default the vertical centre line |
 | `offset_ms` | added to this camera's frame times to put it on the first camera's timeline |
 | `record` | false for a file opened after the race |
+| `zone` | `[[x1, y1], [x2, y2]]`, two corners in 0-1 coordinates where riders are looked for (specification 002); default a band around the finish line |
 
 ## Frame
 
@@ -67,7 +68,8 @@ after a crash between the two, the state is ahead and writes the file again at t
   "finish_mode": false,
   "source_offset_ms": 0,
   "cameras": [{"id": "cam1", "name": "Side", "connection": "test", "settings": {}, "preset": null,
-               "finish_line": [[0.5, 0.0], [0.5, 1.0]], "offset_ms": 0, "record": true}]
+               "finish_line": [[0.5, 0.0], [0.5, 1.0]], "offset_ms": 0, "record": true}],
+  "analysis": {"on": false, "model": ""}
 }
 ```
 

@@ -938,3 +938,37 @@ def test_aligning_needs_a_frame_and_a_line_with_a_time(
     win.input_view.selectRow(3)
     win.align_source()
     assert win.statusBar().currentMessage() == "That line has no time to align on"
+
+
+def test_finding_riders_is_set_up_beside_the_video(
+    recording: Path,
+    make_window: Callable[[], mw.MainWindow],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """002's settings: off by default, a model or motion only, a zone drawn."""
+    win = make_window()
+    view = win.cameras["cam1"].view
+    wait_until(lambda: win.place is not None)
+    assert not win.analysis_box.isChecked()
+    assert view.zone is None
+    win.analysis_box.setChecked(True)
+    assert session.load()["analysis"] == {"on": True, "model": ""}
+    assert view.zone == ((0.35, 0.0), (0.65, 1.0))
+    model = recording / "yolox_s.onnx"
+    for chosen in ("", str(model)):
+        monkeypatch.setattr(
+            QFileDialog, "getOpenFileName", lambda *a, c=chosen: (c, "")
+        )
+        win.choose_model()
+    assert session.load()["analysis"]["model"] == str(model)
+    assert win.model_button.text() == "Model: yolox_s.onnx"
+    win._set_model("")
+    assert win.model_button.text() == "Model..."
+    win.draw_zone()
+    assert "corner of the zone" in win.statusBar().currentMessage()
+    win.picture_clicked((0.6, 0.9))
+    win.picture_clicked((0.4, 0.1))
+    assert session.load()["cameras"][0]["zone"] == [[0.6, 0.9], [0.4, 0.1]]
+    assert view.zone == ((0.4, 0.1), (0.6, 0.9))
+    assert win.statusBar().currentMessage() == "The zone is drawn"
+    view.grab()
