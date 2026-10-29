@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
 
 from app import session
 from app.input_follow import InputFollow
+from app.interpolation import Point, between, crossing, finish_line
 from app.lines import parse_line, parse_time, scale_time, to_epoch, to_line_scale
 from app.output_list import Change, OutputList
 from app.paths import app_path
@@ -70,6 +71,9 @@ class MainWindow(QMainWindow):
         self._wanted: tuple[str, int] | None = None
 
         self.view = CameraView()
+        self.view.clicked.connect(self.picture_clicked)
+        self.drawing: list[Point] | None = None  # the finish line's ends, while drawn
+        self.caliper: list[tuple[str, int, Point]] = []  # camera, frame, point
         self.timeline = Timeline()
         self.timeline.seek.connect(self.seek_ms)
         self.time_label = QLabel("--:--:--.---")
@@ -127,7 +131,12 @@ class MainWindow(QMainWindow):
             transport.addWidget(button)
         transport.addStretch()
         transport.addWidget(self.time_label)
+        line_button = QPushButton("Finish line")
+        line_button.setToolTip("Click the line's two ends on the picture")
+        line_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        line_button.clicked.connect(self.draw_finish_line)
         timing = QHBoxLayout()
+        timing.addWidget(line_button)
         timing.addWidget(QLabel("Number"))
         timing.addWidget(self.number, stretch=1)
         timing.addWidget(self.finish)
@@ -431,6 +440,112 @@ class MainWindow(QMainWindow):
         if answer == QMessageBox.StandardButton.Yes:
             self._correct(lambda output: output.remove(chosen))
 
+    # -- the finish line and the caliper ----------------------------------------
+
+    def draw_finish_line(self) -> None:
+        """The next two clicks on the picture are the finish line's ends."""
+        if self._camera() is None:
+            self._say("Add a camera first")
+            return
+        self.drawing = []
+        self._say("Click one end of the finish line, then the other")
+        self._show_marks()
+
+    def picture_clicked(self, point: Point) -> None:
+        camera = self._camera()
+        if camera is None or self.place is None:
+            return
+        if self.drawing is None:
+            self._caliper(camera, self.place, point)
+        else:
+            self._draw(camera, self.drawing, point)
+        self._show_marks()
+
+    def _draw(self, camera: Camera, drawing: list[Point], point: Point) -> None:
+        drawing.append(point)
+        if len(drawing) < 2:
+            return
+        camera.settings["finish_line"] = [list(end) for end in drawing]
+        session.save(self.session)
+        self.drawing = None
+        self._say("The finish line is drawn")
+
+    def _caliper(self, camera: Camera, place: int, point: Point) -> None:
+        """A point of the rider on this frame; with one on another frame, the time
+        it crossed the line, offered to accept or adjust."""
+        others = [c for c in self.caliper if c[0] == camera.id and c[1] != place]
+        self.caliper = [*others[-1:], (camera.id, place, point)]
+        if len(self.caliper) < 2:
+            self._say("Now the same point on a frame on the other side of the line")
+            return
+        (_, first, a), (_, second, b) = sorted(self.caliper, key=lambda c: c[1])
+        fraction = crossing(finish_line(camera.settings.get("finish_line")), a, b)
+        if fraction is None:
+            self._say(
+                "Both points are on one side of the finish line: "
+                "PhotoFinish interpolates, it does not extrapolate"
+            )
+            return
+        if self.output is None or (
+            self.output_view.chosen() is None and not self.number.text().strip()
+        ):
+            self._say("Choose a line of the output or type a number, then click again")
+            return
+        frames = [camera.index.frame(first), camera.index.frame(second)]
+        moment = between(frames[0].ms, frames[1].ms, fraction) + self._offset()
+        change = Change(
+            "interpolated",
+            camera.id,
+            [[f.path.name, f.pts, f.ms] for f in frames],
+            round(fraction, 4),
+            self._offsets(),
+        )
+        self.caliper = []
+        self._offer(self._line_ms(moment), change)
+
+    def _offer(self, line_ms: int, change: Change) -> None:
+        """The time offered, for the referee to accept or adjust; then the chosen
+        output line takes it, or a crossing for the typed number does."""
+        offered = scale_time(line_ms)
+        text, ok = QInputDialog.getText(
+            self, "The crossing time", "Accept it, or adjust it first", text=offered
+        )
+        if not ok:
+            return
+        ms = parse_time(text)
+        if ms is None:
+            self._say(f"{text.strip()!r} is not a time like {offered}")
+            return
+        if ms != line_ms:
+            change = Change("typed", change.camera, change.frames, None, change.offsets)
+        chosen = self.output_view.chosen()
+        if chosen is not None:
+            self._correct(lambda output: output.set_time(chosen, ms, change))
+            return
+        action = "finish" if self.finish.isChecked() else "nextLap"
+        number = self.number.text()
+        self._correct(lambda output: output.add(number, ms, action, change))
+        self.number.clear()
+
+    def _show_marks(self) -> None:
+        camera = self._camera()
+        if camera is None:
+            self.view.show_marks(None, [])
+            return
+        marks = [
+            p for c, place, p in self.caliper if c == camera.id and place == self.place
+        ]
+        self.view.show_marks(
+            finish_line(camera.settings.get("finish_line")),
+            marks + (self.drawing or []),
+        )
+
+    def _offsets(self) -> dict[str, int]:
+        return {
+            "camera_ms": self._offset(),
+            "source_ms": int(self.session.get("source_offset_ms", 0)),
+        }
+
     def _chosen_output(self) -> int | None:
         chosen = self.output_view.chosen()
         if self.output is None or chosen is None:
@@ -462,14 +577,9 @@ class MainWindow(QMainWindow):
         if camera is None or self.place is None:
             return None
         frame = camera.index.frame(self.place)
-        offsets = {
-            "camera_ms": self._offset(),
-            "source_ms": int(self.session.get("source_offset_ms", 0)),
-        }
-        moment = frame.ms + offsets["camera_ms"] + offsets["source_ms"]
-        line_ms = to_line_scale(moment, bool(self.session.get("summer_time")))
+        line_ms = self._line_ms(frame.ms + self._offset())
         frames = [[frame.path.name, frame.pts, frame.ms]]
-        return line_ms, Change("frame", camera.id, frames, None, offsets)
+        return line_ms, Change("frame", camera.id, frames, None, self._offsets())
 
     def _open_output(self) -> None:
         chosen = str(self.session.get("output") or "")
@@ -565,6 +675,7 @@ class MainWindow(QMainWindow):
         clock = scale_time(self._line_ms(moment)).split(" ")[1]
         self.time_label.setText(f"{clock} LIVE" if self.live else clock)
         self._follow_lists(moment)
+        self._show_marks()
         self._wanted = (camera.id, place)
         self.worker.request(frame.path, frame.pts, self._wanted)
 
