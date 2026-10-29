@@ -1045,6 +1045,11 @@ def test_an_analyser_that_dies_is_started_again_and_a_new_zone_restarts_it(
     win.picture_clicked((0.7, 0.9))
     assert not analyzers[1].running
     assert len(analyzers) == 3
+    win.draw_finish_line()  # the line too: the analyser times crossings of it
+    win.picture_clicked((0.4, 0.0))
+    win.picture_clicked((0.6, 1.0))
+    assert not analyzers[2].running
+    assert len(analyzers) == 4
     stretch_files(recording, [])
     (recording / "video" / "cam1" / "analyzer.json").write_text(
         json.dumps({"done_ms": START - 10_000})
@@ -1362,3 +1367,18 @@ def test_a_crossing_written_whose_journal_failed_is_not_written_twice(
     win.output_view.selectRow(0)
     assert win._correct(lambda output: output.set_number(0, "16"))
     assert "Written; the journal" in win.statusBar().currentMessage()
+
+
+def test_a_line_half_drawn_is_given_up_when_another_camera_is_chosen(
+    two: None, make_window: Callable[[], mw.MainWindow], base: Path
+) -> None:
+    win = make_window()
+    wait_until(lambda: win.place is not None)
+    win.draw_finish_line()
+    win.picture_clicked((0.4, 0.1))  # one end on Side
+    win.picture_clicked((0.6, 0.9), "cam2")  # then Front's picture
+    assert win.drawing is None
+    assert win.current == "cam2"
+    assert "Drawing stopped" in win.statusBar().currentMessage()
+    assert win.caliper == []  # that click chose the camera, no more
+    assert all("finish_line" not in c for c in session.load()["cameras"])

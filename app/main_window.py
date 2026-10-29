@@ -385,7 +385,11 @@ class MainWindow(QMainWindow):
         return f"cam{n}"
 
     def _choose_camera(self, row: int) -> None:
-        """Another camera to step through; the moment shown stays."""
+        """Another camera to step through; the moment shown stays. A line or zone
+        half drawn is given up: its ends must come from one camera's picture."""
+        if self.drawing is not None:
+            self.drawing = None
+            self._say("Drawing stopped: click both ends on one camera's picture")
         item = self.camera_list.item(row) if row >= 0 else None
         self.current = (
             None if item is None else str(item.data(Qt.ItemDataRole.UserRole))
@@ -647,7 +651,10 @@ class MainWindow(QMainWindow):
         """A click on a camera's picture: that camera is chosen, then the click is a
         point of the finish line being drawn or of the caliper."""
         if camera_id is not None and camera_id != self.current:
+            drawing = self.drawing is not None
             self.camera_list.setCurrentRow(list(self.cameras).index(camera_id))
+            if drawing:
+                return  # the drawing was stopped: this click chose the camera
         camera = self._camera()
         if camera is None or self.place is None:
             return
@@ -663,8 +670,8 @@ class MainWindow(QMainWindow):
             return
         camera.settings[self.drawn] = [list(end) for end in drawing]
         self._save_session()
-        if self.drawn == "zone" and self.analysis_box.isChecked():
-            self._stop_analyzer(camera)  # the new zone from here on
+        if self.analysis_box.isChecked():  # the new line or zone from here on
+            self._stop_analyzer(camera)
             self._analyze(camera)
         self.drawing = None
         self._say(
