@@ -225,6 +225,45 @@ def test_an_emptied_input_marks_its_lines_and_new_ones_arrive(
     assert not f.output.lines[2].removed_from_input
 
 
+def test_lines_taken_that_the_journal_cannot_take_are_shown_as_taken(
+    files: tuple[Path, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source, _ = files
+    f = follow(files)
+    write(source, A)
+
+    def full(_path: Path, _data: bytes) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(output_list, "_append", full)
+    with pytest.raises(output_list.JournalError):
+        f.poll()
+    assert f.output.texts() == [A]
+    assert f.lines == [InputLine(A)]
+    assert not f.poll()  # read: not again
+
+
+def test_a_copy_the_journal_cannot_take_is_shown_as_copied(
+    files: tuple[Path, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source, _ = files
+    write(source, A, B)
+    f = follow(files)
+    assert f.poll()
+    edited = "2#20389 11:35:21.500#nextLap#"
+    write(source, A, edited)
+    assert f.poll()
+
+    def full(_path: Path, _data: bytes) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(output_list, "_append", full)
+    with pytest.raises(output_list.JournalError):
+        f.copy(1)
+    assert f.output.texts() == [A, edited]
+    assert f.lines[1] == InputLine(edited)
+
+
 def test_lines_not_written_are_read_again_at_the_next_poll(
     files: tuple[Path, Path], monkeypatch: pytest.MonkeyPatch
 ) -> None:
