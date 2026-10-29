@@ -319,6 +319,7 @@ class MainWindow(QMainWindow):
             return
         camera.watchdog.stop()
         camera.worker.stop()
+        self._stop_analyzer(camera)
         self.session["cameras"] = [
             c for c in self.session["cameras"] if c.get("id") != camera.id
         ]
