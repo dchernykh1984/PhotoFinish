@@ -172,7 +172,13 @@ class _Recording:
         except CameraSettingsError as error:
             self.beat.beat(state="failed", detail=str(error))
             return 2
-        self.beat.beat(state="stopped", detail="")
+        writer = self.writer
+        counts = (
+            {}
+            if writer is None
+            else {"frames": writer.frames, "segments": writer.segments}
+        )
+        self.beat.beat(state="stopped", detail="", **counts)  # the last segment counted
         self.stop.unlink(missing_ok=True)
         return 0
 
