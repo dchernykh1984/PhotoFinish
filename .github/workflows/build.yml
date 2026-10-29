@@ -88,8 +88,9 @@ jobs:
           sep=":"; [ "$RUNNER_OS" = "Windows" ] && sep=";"
           # PyInstaller comes from the lock's build group, like every other tool.
           pyi=(uv run --frozen --no-dev --group build pyinstaller)
-          # PyAV ships FFmpeg's libraries inside its package: collect all of it.
-          common=(--noconfirm --windowed --collect-all av \
+          # PyAV ships FFmpeg's libraries inside its package, onnxruntime its
+          # runtime: collect all of both.
+          common=(--noconfirm --windowed --collect-all av --collect-all onnxruntime \
                   --collect-submodules app --add-data "app/app.ico${sep}app")
           if [ "$RUNNER_OS" = "macOS" ]; then
             # --name sets the .app folder name, which is what the dock shows.

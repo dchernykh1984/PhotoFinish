@@ -31,9 +31,12 @@ def _project_name() -> str:
     return match.group(1)
 
 
-def test_the_build_collects_pyav_with_its_ffmpeg_libraries() -> None:
-    # PyAV bundles FFmpeg's shared libraries; a frozen app without them cannot record.
-    assert "--collect-all av" in WORKFLOW.read_text(encoding="utf-8")
+def test_the_build_collects_pyav_and_onnxruntime_with_their_libraries() -> None:
+    # PyAV bundles FFmpeg's shared libraries, onnxruntime its runtime: a frozen app
+    # without them cannot record, or find riders with a model.
+    text = WORKFLOW.read_text(encoding="utf-8")
+    assert "--collect-all av" in text
+    assert "--collect-all onnxruntime" in text
 
 
 def test_the_build_records_the_test_camera_with_the_frozen_app() -> None:
