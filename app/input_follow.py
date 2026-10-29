@@ -23,6 +23,7 @@ from app.output_list import JournalError, OutputList
 
 REST_NS = 2_000_000_000  # a last line left without its line break this long is done
 NEW_FILE_MS = 10 * 60_000  # a new file's crossings are further than this from the old
+EDIT_MS = 10_000  # an edit at the chronometer moves a crossing's time this far at most
 
 
 @dataclass(frozen=True)
@@ -108,9 +109,14 @@ def _pair(before: list[str], after: list[str], result: Alignment) -> None:
 
 
 def _same_crossing(taken: str, current: str) -> bool:
-    """An edit at the chronometer keeps a crossing's number or its time."""
+    """An edit at the chronometer keeps a crossing's time, or its number with a time
+    near it: the same rider's lap later on is another crossing."""
     a, b = parse_line(taken), parse_line(current)
-    return a.number == b.number or (a.ms is not None and a.ms == b.ms)
+    if a.ms is not None and a.ms == b.ms:
+        return True
+    if a.number != b.number:
+        return False
+    return a.ms is None or b.ms is None or abs(a.ms - b.ms) <= EDIT_MS
 
 
 class InputFollow:
