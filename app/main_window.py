@@ -287,7 +287,8 @@ class MainWindow(QMainWindow):
             ("Shift+Right", lambda: self.step(10)),
             ("Ctrl+Left", lambda: self.step_ms(-1000)),
             ("Ctrl+Right", lambda: self.step_ms(1000)),
-            ("L", self.go_live),
+            ("End", self.go_live),
+            ("L", self.go_live),  # when no number is being typed
             ("PgUp", self.previous_rider),
             ("PgDown", self.next_rider),
         ):
