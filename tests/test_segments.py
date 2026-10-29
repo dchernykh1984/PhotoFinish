@@ -153,3 +153,39 @@ def test_a_cameras_packets_are_kept_from_its_first_keyframe_on(tmp_path: Path) -
             decoded = [f.pts for f in container.decode(video=0)]
         assert decoded == sorted(pts for pts, _ in times(path))
         assert len(decoded) == 30
+
+
+def test_a_segment_that_fails_to_close_is_kept_not_written_over(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.recorder import segments as written
+
+    writer = SegmentWriter(tmp_path, fps=30)
+    record(writer, START, 5)
+
+    def broken(self: object) -> None:
+        raise av.FFmpegError(5, "mux failed")
+
+    monkeypatch.setattr(written._Encoded, "close", broken)
+    with pytest.raises(av.FFmpegError):
+        writer.close()
+    monkeypatch.undo()
+    record(writer, START + 5000, 2)
+    (kept,) = tmp_path.glob("crashed-*.times")
+    assert len(kept.read_text().splitlines()) == 5  # the five frames, kept
+    writer.close()
+    assert times(segments(tmp_path)[-1]) == [(0, START + 5000), (33, START + 5033)]
+
+
+def test_closed_segments_are_listed_and_a_restart_lists_any_a_crash_missed(
+    tmp_path: Path,
+) -> None:
+    writer = SegmentWriter(tmp_path, fps=30)
+    record(writer, START, 40)
+    writer.close()
+    listed = (tmp_path / "segments.txt").read_text().split()
+    assert listed == [p.stem for p in segments(tmp_path)]
+    (tmp_path / "segments.txt").write_text(listed[0] + "\n")  # a crash lost the rest
+    again = SegmentWriter(tmp_path, fps=30)
+    assert (tmp_path / "segments.txt").read_text().split() == listed
+    assert again.segments == len(listed)

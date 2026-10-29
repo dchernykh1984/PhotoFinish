@@ -9,8 +9,9 @@ from app.analysis.activity import Activity
 
 
 def write(folder: Path, name: str, stretches: list[list[int]]) -> None:
-    path = folder / f"{name}.activity.json"
-    path.write_text(json.dumps({"version": 1, "stretches": stretches}))
+    line = {"segment": name, "version": 1, "stretches": stretches}
+    with (folder / "activity.jsonl").open("a") as f:
+        f.write(json.dumps(line) + "\n")
 
 
 def test_pieces_of_a_stretch_across_segments_are_one(tmp_path: Path) -> None:
@@ -18,14 +19,15 @@ def test_pieces_of_a_stretch_across_segments_are_one(tmp_path: Path) -> None:
     assert not activity.refresh()
     write(tmp_path, "a", [[1000, 1900]])
     write(tmp_path, "b", [[2400, 2600], [9000, 9500]])
-    (tmp_path / "c.activity.json").write_text("{half")
+    with (tmp_path / "activity.jsonl").open("a") as f:
+        f.write('not json\n{"stretches": []}\n{"segment": "c", "stretches": [[20')
     assert activity.refresh()
     assert activity.stretches == [(1000, 2600), (9000, 9500)]
-    (tmp_path / "c.activity.json").write_text(
-        json.dumps({"stretches": [[20000, 20100]]})
-    )
+    with (tmp_path / "activity.jsonl").open("a") as f:
+        f.write("000, 20100]]}\n")  # its line finished
     assert activity.refresh()
     assert activity.stretches[-1] == (20000, 20100)
+    write(tmp_path, "a", [[1000, 1900]])  # a segment listed twice counts once
     assert not activity.refresh()
 
 

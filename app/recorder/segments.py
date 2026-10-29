@@ -3,7 +3,9 @@
 The segment being written is ``current.mkv`` with ``current.times``, one
 ``<pts> <Unix ms>`` line a frame. Once both are closed they are renamed
 ``<YYYYmmdd-HHMMSS>-<n>``, the times first, so a closed segment always has its
-times. A segment ends at the first frame a second after its start. Frames are
+times, and its name is appended to ``segments.txt``: readers follow that list instead
+of the folder, which grows by thousands of files an hour. A segment ends at the first
+frame a second after its start. Frames are
 encoded by an encoder of the segment's own, so it starts with a keyframe (mpeg4, a
 keyframe every 15 frames, fixed quality 3); a network camera's packets are stored as
 they came, a segment starting and ending at the camera's keyframes. A stretch
@@ -23,6 +25,7 @@ import numpy as np
 
 SEGMENT_MS = 1000  # a segment's first frame is shown once it closes: SC-006's 2 s
 CLOSED = "[0-9]*-[0-9]*-[0-9]*"  # a closed segment's name, without its suffix
+SEGMENTS = "segments.txt"  # the closed segments' names, in the order they closed
 _MS = Fraction(1, 1000)
 _GOP = 15
 _QUALITY = 3
@@ -36,7 +39,8 @@ class SegmentWriter:
         self.folder, self.fps, self.segment_ms = folder, fps, segment_ms
         folder.mkdir(parents=True, exist_ok=True)
         _keep_aside(folder)
-        self.segments = sum(1 for _ in folder.glob(f"{CLOSED}.mkv"))
+        closed = _list_missing(folder)
+        self.segments = len(closed)
         self.frames = 0
         self._last_ms = _last_recorded(folder)
         self.gap_reason = "restart" if self._last_ms is not None else "no frames"
@@ -49,6 +53,7 @@ class SegmentWriter:
         self._next(ms, cut=True)
         if not isinstance(self._open, _Encoded):
             self.close()
+            _keep_aside(self.folder)  # what a segment that failed to close left
             self._open = _Encoded(self.folder, image, ms, self.fps)
         self._open.add(image, ms)
         self.frames += 1
@@ -63,6 +68,7 @@ class SegmentWriter:
         self._next(ms, cut=packet.is_keyframe)
         if not isinstance(self._open, _Remuxed):
             self.close()
+            _keep_aside(self.folder)  # what a segment that failed to close left
             self._open = _Remuxed(self.folder, packet, packet.stream, ms)
         self._open.add(packet, packet.pts, packet.dts, ms)
         self.frames += 1
@@ -94,6 +100,8 @@ class SegmentWriter:
         name = f"{stamp}-{n:04d}"
         (self.folder / "current.times").replace(self.folder / f"{name}.times")
         (self.folder / "current.mkv").replace(self.folder / f"{name}.mkv")
+        with (self.folder / SEGMENTS).open("a", encoding="ascii") as f:
+            f.write(name + "\n")
 
     def _gap(self, start: int, end: int) -> None:
         with (self.folder / "gaps.txt").open("a", encoding="ascii") as f:
@@ -173,8 +181,28 @@ def _size(image: np.ndarray | av.VideoFrame) -> tuple[int, int]:
     return image.shape[0], image.shape[1]
 
 
+def _list_missing(folder: Path) -> list[str]:
+    """Every closed segment's name, the list completed with any a crash closed but
+    did not list; once, when a recorder starts."""
+    try:
+        listed = (folder / SEGMENTS).read_text(encoding="ascii").split()
+    except OSError:
+        listed = []
+    known = set(listed)
+    missing = sorted(
+        path.stem
+        for path in folder.glob(f"{CLOSED}.mkv")
+        if path.stem not in known and path.with_suffix(".times").exists()
+    )
+    if missing:
+        with (folder / SEGMENTS).open("a", encoding="ascii") as f:
+            f.writelines(f"{name}\n" for name in missing)
+    return listed + missing
+
+
 def _keep_aside(folder: Path) -> None:
-    """A segment a crash left open is not one to show, but what it holds is kept."""
+    """A segment a crash, or a failed close, left open is not one to show, but what
+    it holds is kept."""
     stamp = time.time_ns() // 1_000_000
     for suffix in (".times", ".mkv"):
         left = folder / f"current{suffix}"

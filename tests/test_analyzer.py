@@ -36,10 +36,15 @@ def camera(base: Path, scene: str, seconds: int) -> Path:
     return folder
 
 
+def activity(folder: Path) -> list[dict[str, Any]]:
+    lines = (folder / "activity.jsonl").read_text().splitlines()
+    return [json.loads(line) for line in lines]
+
+
 def stretches(folder: Path) -> list[list[int]]:
     found: list[list[int]] = []
-    for path in sorted(folder.glob("*.activity.json")):
-        for start, end in json.loads(path.read_text())["stretches"]:
+    for segment in activity(folder):
+        for start, end in segment["stretches"]:
             if found and start <= found[-1][1] + 1000:
                 found[-1][1] = max(found[-1][1], end)
             else:
@@ -63,9 +68,12 @@ def test_a_recording_with_three_passes_has_three_stretches(base: Path) -> None:
         assert START + n * 10_000 + 2_000 <= start <= end <= START + n * 10_000 + 3_500
     progress = json.loads((folder / "analyzer.json").read_text())
     assert (progress["state"], progress["done_ms"]) == ("waiting", START + 29_900)
-    written = {p: p.stat().st_mtime_ns for p in folder.glob("*.activity.json")}
+    written = (folder / "activity.jsonl").read_bytes()
+    assert [a["segment"] for a in activity(folder)] == (
+        (folder / "segments.txt").read_text().split()
+    )
     analyzer.run("cam1", stop=lambda: False, once=True)  # nothing is done twice
-    assert {p: p.stat().st_mtime_ns for p in folder.glob("*.activity.json")} == written
+    assert (folder / "activity.jsonl").read_bytes() == written
 
 
 def test_leaves_alone_give_no_stretch(base: Path) -> None:
@@ -78,8 +86,12 @@ def test_a_segment_that_cannot_be_read_is_noted_and_left(base: Path) -> None:
     folder = camera(base, "sway", 2)
     broken = folder / "20000101-000000-9999.mkv"
     broken.write_bytes(b"not a video")
+    with (folder / "segments.txt").open("a") as f:
+        f.write(broken.stem + "\n")
     analyzer.run("cam1", stop=lambda: False, once=True)
-    assert "error" in json.loads(broken.with_suffix(".activity.json").read_text())
+    (noted,) = [a for a in activity(folder) if a["segment"] == broken.stem]
+    assert "error" in noted
+    assert broken.stem in analyzer.analysed(folder)
 
 
 def test_an_analyser_waits_for_segments_and_stops_when_asked(base: Path) -> None:
@@ -140,3 +152,10 @@ def test_progress_keeps_how_far_it_got(base: Path) -> None:
     analyzer._progress(folder, "waiting")
     info: dict[str, Any] = json.loads((folder / "analyzer.json").read_text())
     assert (info["state"], info["done_ms"]) == ("waiting", 1000)
+
+
+def test_lines_of_activity_that_name_no_segment_are_passed_over(tmp_path: Path) -> None:
+    (tmp_path / "activity.jsonl").write_text(
+        'not json\n{"stretches": []}\n{"segment": "a"}\n'
+    )
+    assert analyzer.analysed(tmp_path) == {"a"}

@@ -1,7 +1,8 @@
 """A camera's recorded frames: closed segments, frame times and gaps.
 
-The window refreshes a camera's index as it polls: segments closed since are read
-from their ``.times`` and appended. Frame times are kept in numpy arrays in time
+The window refreshes a camera's index as it polls: segments closed since -- the new
+names in the recorder's ``segments.txt`` -- are read from their ``.times`` and
+appended. Frame times are kept in numpy arrays in time
 order, so the frame nearest a moment is a binary search, and a frame is named by
 its place in that order. Gaps come from ``gaps.txt``.
 """
@@ -16,7 +17,8 @@ from pathlib import Path
 import av
 import numpy as np
 
-from app.recorder.segments import CLOSED
+from app.files import Appended
+from app.recorder.segments import SEGMENTS
 
 
 @dataclass(frozen=True)
@@ -47,6 +49,8 @@ class VideoIndex:
         self._segment = np.empty(0, np.int32)  # into paths
         self._names: set[str] = set()
         self._gaps_size = 0
+        self._listed = Appended(folder / SEGMENTS)
+        self._unread: list[str] = []  # listed segments whose times were not read
 
     def __len__(self) -> int:
         return int(self.ms.size)
@@ -54,14 +58,13 @@ class VideoIndex:
     def refresh(self) -> bool:
         """Segments closed since the last refresh added; True when any was."""
         self._read_gaps()
-        new = sorted(
-            path
-            for path in self.folder.glob(f"{CLOSED}.mkv")
-            if path.name not in self._names
-        )
+        names = self._unread + self._listed.new_lines()
+        new = [self.folder / f"{n}.mkv" for n in names if f"{n}.mkv" not in self._names]
         added = [(path, times) for path in new if (times := _times(path)) is not None]
         for path, _ in added:
             self._names.add(path.name)
+        # Times that cannot be read now -- held by their writer a moment -- next time.
+        self._unread = [p.stem for p in new if p.name not in self._names]
         if not added:
             return False
         first = len(self.paths)

@@ -59,13 +59,19 @@ def test_segments_closed_later_are_added_and_kept_in_time_order(tmp_path: Path) 
     record(tmp_path, START + 5000, 10)
     assert index.refresh()
     assert len(index) == 50
-    early = tmp_path / "20000101-000000-9999"  # named late, holding the earliest frame
+    early = tmp_path / "20000101-000000-9999"  # listed late, holding the earliest frame
     early.with_suffix(".times").write_text(f"0 {START - 1000}\n")
     early.with_suffix(".mkv").write_bytes(b"")
-    (tmp_path / "20000101-000000-9998.mkv").write_bytes(b"")  # no times yet
+    late = tmp_path / "20000101-000000-9998"  # its times not readable yet
+    late.with_suffix(".mkv").write_bytes(b"")
+    with (tmp_path / "segments.txt").open("a") as f:
+        f.write(f"{early.name}\n{late.name}\n")
     assert index.refresh()
     assert index.frame(0).path == early.with_suffix(".mkv")
     assert list(index.ms) == sorted(index.ms)
+    late.with_suffix(".times").write_text(f"0 {START + 9000}\n")
+    assert index.refresh()  # read once it could be
+    assert index.frame(len(index) - 1).path == late.with_suffix(".mkv")
 
 
 def test_a_cameras_own_stream_is_indexed_in_display_order(tmp_path: Path) -> None:
@@ -141,12 +147,15 @@ def test_a_seek_in_an_hour_of_recording_shows_its_frame_at_once(
     folder.mkdir()
     times = segment.with_suffix(".times").read_text().split()
     pts = times[0::2]
+    listed = []
     for second in range(3600):
         name = folder / f"20261029-{second // 60:04d}{second % 60:02d}-{second:04d}"
         os.link(segment, name.with_suffix(".mkv"))
         moments = [str(START + second * 1000 + int(p)) for p in pts]
         lines = "".join(f"{p} {ms}\n" for p, ms in zip(pts, moments, strict=True))
         name.with_suffix(".times").write_text(lines)
+        listed.append(name.name)
+    (folder / "segments.txt").write_text("".join(f"{n}\n" for n in listed))
     started = time.perf_counter()
     index = VideoIndex(folder)
     index.refresh()

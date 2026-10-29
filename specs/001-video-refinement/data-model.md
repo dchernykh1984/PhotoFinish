@@ -11,6 +11,7 @@ video/<camera id>/
   <YYYYmmdd-HHMMSS>-<n>.mkv        a closed segment
   <YYYYmmdd-HHMMSS>-<n>.times      its frames: "<pts> <time ms>" per line
   current.mkv, current.times       the segment being written
+  segments.txt                     the closed segments' names, one a line, as they closed
   crashed-<ms>.mkv, .times         a segment a crash left open, kept but not shown
   gaps.txt                         "<from ms> <to ms> <reason>" per gap
 <output file>                      chosen by the referee
