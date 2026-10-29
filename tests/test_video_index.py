@@ -191,12 +191,25 @@ def camera_file(path: Path, frames: int, created: str | None = None) -> None:
             container.mux(packet)
 
 
+def read(index: FileIndex) -> bool:
+    """The file's frames, once its own thread has read them."""
+    until = time.monotonic() + 30
+    while True:
+        if index.refresh():
+            return True
+        reading = index._reading
+        if reading is not None and not reading.is_alive() and index._handed:
+            return False
+        assert time.monotonic() < until, "timed out"
+        time.sleep(0.01)
+
+
 def test_a_cameras_own_file_is_placed_by_its_creation_time(tmp_path: Path) -> None:
     path = tmp_path / "DCIM0001.mp4"
     camera_file(path, 10, created="2025-10-29T05:35:29.000000Z")  # START, to the s
     written = path.read_bytes()
     index = FileIndex(path)
-    assert index.refresh()
+    assert read(index)
     assert not index.refresh()
     assert len(index) == 10
     assert index.ms[0] == START - 587
@@ -217,7 +230,7 @@ def test_without_a_creation_time_a_file_ends_when_it_was_written(
     camera_file(path, 5)
     os.utime(path, ns=(START * 1_000_000, START * 1_000_000))
     index = FileIndex(path)
-    index.refresh()
+    read(index)
     assert list(index.ms) == [START - 160 + k * 40 for k in range(5)]
     assert video_index._created_ms("2025-10-29 05:35:29") == START - 587  # UTC
     assert video_index._created_ms(None) is None
@@ -226,13 +239,42 @@ def test_without_a_creation_time_a_file_ends_when_it_was_written(
 def test_a_file_that_is_no_video_gives_no_frames(tmp_path: Path) -> None:
     text = tmp_path / "notes.txt"
     text.write_text("not a video")
-    assert not FileIndex(text).refresh()
-    assert not FileIndex(tmp_path / "missing.mp4").refresh()
+    assert not read(FileIndex(text))
+    assert not read(FileIndex(tmp_path / "missing.mp4"))
     empty = tmp_path / "empty.mkv"
     with av.open(str(empty), "w") as container:
         stream = container.add_stream("mpeg4", rate=25)
         stream.width, stream.height, stream.pix_fmt = 64, 64, "yuv420p"
         container.start_encoding()  # a header, and not one frame
     index = FileIndex(empty)
-    assert not index.refresh()
+    assert not read(index)
     assert len(index) == 0
+
+
+def test_a_far_frame_of_a_long_file_is_sought_not_decoded_to(tmp_path: Path) -> None:
+    path = tmp_path / "long.mkv"
+    camera_file(path, 250)  # ten seconds at 25 fps
+    index = FileIndex(path)
+    assert read(index)
+    decoder = Decoder()
+    for place, seeks in ((0, 1), (1, 1), (10, 1), (240, 2), (241, 2), (5, 3)):
+        frame = index.frame(place)
+        decoded = decoder.decode(frame.path, frame.pts)
+        assert decoded is not None
+        assert read_time(decoded.to_ndarray(format="rgb24")) == START + place * 40
+        assert decoder.seeks == seeks, place
+    decoder.close()
+
+
+def test_a_segment_listed_without_a_frame_adds_none(tmp_path: Path) -> None:
+    record(tmp_path, START, 40)
+    index = VideoIndex(tmp_path)
+    index.refresh()
+    empty = tmp_path / "20261029-235959-9999"
+    empty.with_suffix(".times").write_text("")
+    empty.with_suffix(".mkv").write_bytes(b"")
+    with (tmp_path / "segments.txt").open("a") as f:
+        f.write(empty.name + "\n")
+    assert not index.refresh()
+    assert len(index) == 40
+    assert empty.with_suffix(".mkv") not in index.paths

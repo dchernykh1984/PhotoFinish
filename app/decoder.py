@@ -1,6 +1,7 @@
 """Decode a recorded frame: open its segment, seek to the keyframe before it and
-decode forward. A request for a later frame of the same segment decodes on without
-seeking, so stepping is cheap. Used from one worker thread at a time.
+decode forward. A request for a frame a little later in the same file decodes on
+without seeking, so stepping is cheap; one more than FAR_S later -- in a camera's own
+long recording -- seeks. Used from one worker thread at a time.
 """
 
 from __future__ import annotations
@@ -11,6 +12,8 @@ from pathlib import Path
 import av
 from av.container import InputContainer
 
+FAR_S = 2.0  # further ahead than this, seeking beats decoding every frame between
+
 
 class Decoder:
     """Keeps the last segment open between requests."""
@@ -20,6 +23,7 @@ class Decoder:
         self._container: InputContainer | None = None
         self._frames: Iterator[av.VideoFrame] | None = None
         self._last = -1  # the timestamp last decoded
+        self.seeks = 0
 
     def decode(self, path: Path, pts: int) -> av.VideoFrame | None:
         """The frame at ``pts`` in segment ``path``, or the first after it; None
@@ -28,10 +32,13 @@ class Decoder:
             self.close()
             self._container = av.open(str(path))
             self._path = path
-        if self._frames is None or pts <= self._last:
-            stream = self._container.streams.video[0]
+        stream = self._container.streams.video[0]
+        rate = stream.time_base
+        far = FAR_S * rate.denominator / rate.numerator if rate else FAR_S * 1000
+        if self._frames is None or pts <= self._last or pts - self._last > far:
             self._container.seek(pts, stream=stream, backward=True, any_frame=False)
             self._frames = self._container.decode(stream)
+            self.seeks += 1
         for frame in self._frames:
             if frame.pts is None:
                 continue
