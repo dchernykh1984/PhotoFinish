@@ -736,3 +736,80 @@ def test_a_moment_picked_between_two_frames_is_a_hand_time(
     win.number.setText("16")
     win.pick_between(exact)  # on a frame: between it and the one before
     assert [f[2] for f in journal(bar)[-1]["frames"]] == [third, exact]
+
+
+FLASH = 1_761_716_130_000  # the test camera flashes for 100 ms every 5 s
+SKEW = 1234  # the second camera's clock runs this much ahead
+
+
+def bright(view: Any) -> bool:
+    """The picture is the flash: white in the middle."""
+    image = view.image.convertToFormat(QImage.Format.Format_RGB888)
+    return QImage.pixelColor(image, image.width() // 2, image.height() // 2).red() > 200
+
+
+@pytest.fixture
+def two(base: Path) -> None:
+    """Side at 30 fps and Front at 25 fps, its clock ahead: both film one flash."""
+    cameras = [
+        {"id": "cam1", "name": "Side", "connection": "test", "settings": {"fps": 30}},
+        {"id": "cam2", "name": "Front", "connection": "test", "settings": {"fps": 25}},
+    ]
+    session.save({**session.DEFAULTS, "cameras": cameras, "output": "out.txt"})
+    for camera_id, step, skew in (("cam1", 33, 0), ("cam2", 40, SKEW)):
+        writer = SegmentWriter(base / "video" / camera_id, fps=1000 / step)
+        for k in range(26):
+            true = FLASH - 500 + k * step
+            writer.write(render(true, 640, 360, "flash"), true + skew)
+        writer.close()
+        beating(base, camera_id)
+
+
+def test_two_cameras_show_one_moment_once_aligned_on_a_flash(
+    two: None, make_window: Callable[[], mw.MainWindow], base: Path
+) -> None:
+    """US6's independent test: the flash shows on both within one frame interval."""
+    win = make_window()
+    side, front = win.cameras["cam1"], win.cameras["cam2"]
+    wait_until(lambda: side.shown == 25 and front.shown is not None)
+    win.seek_ms(FLASH + 28)  # Side's flash frame: its frames are at -5 and +28
+    wait_until(lambda: bright(side.view))
+    assert not bright(front.view)  # not aligned yet: its flash is 1234 ms later
+    win.mark_event()
+    assert "now show it on the other cameras" in win.statusBar().currentMessage()
+    win.picture_clicked((0.5, 0.5), "cam2")  # choosing Front by its picture
+    assert win.current == "cam2"
+    win.seek_ms(FLASH + SKEW + 20)  # Front's flash frame, on its own clock
+    wait_until(lambda: bright(front.view))
+    win.mark_event()
+    offset = session.load()["cameras"][1]["offset_ms"]
+    assert offset == FLASH + 28 - (FLASH + 20 + SKEW)  # -SKEW within a frame
+    said = win.statusBar().currentMessage()
+    assert said == f"Front is aligned on the event: {offset:+d} ms"
+    win.camera_list.setCurrentRow(0)
+    win.step(-3)
+    wait_until(lambda: not bright(side.view) and not bright(front.view))
+    win.seek_ms(FLASH + 28)
+    wait_until(lambda: bright(side.view) and bright(front.view))
+    assert front.shown is not None
+    assert abs(front.index.frame(front.shown).ms + offset - (FLASH + 28)) < 40
+
+
+def test_a_crossing_timed_on_the_second_camera_names_it(
+    two: None, make_window: Callable[[], mw.MainWindow], base: Path
+) -> None:
+    win = make_window()
+    wait_until(lambda: win.place is not None)
+    win.mark_event()  # marking again on the same camera moves the event
+    win.mark_event()
+    win.camera_list.setCurrentRow(1)
+    assert win.cameras["cam2"].view.chosen
+    assert not win.cameras["cam1"].view.chosen
+    win.number.setText("15")
+    win.add_crossing()
+    assert journal(base / "out.txt")[-1]["camera"] == "cam2"
+
+
+def test_an_event_needs_a_frame(win: mw.MainWindow) -> None:
+    win.mark_event()
+    assert win.statusBar().currentMessage() == "Show the event on a camera first"

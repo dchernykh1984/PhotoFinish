@@ -3,6 +3,7 @@ Qt-free modules (session, video_index, recorder) and the widgets."""
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
@@ -13,6 +14,7 @@ from PySide6.QtGui import QCloseEvent, QImage, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QCheckBox,
     QFileDialog,
+    QGridLayout,
     QHBoxLayout,
     QInputDialog,
     QLabel,
@@ -47,12 +49,17 @@ POLL_MS = 500
 
 @dataclass
 class Camera:
-    """A camera of the session with its recording and its recorder."""
+    """A camera of the session: its recording, its recorder, its view, and the
+    thread that decodes its frames."""
 
     settings: dict[str, Any]
     index: VideoIndex
     watchdog: Watchdog
     item: QListWidgetItem
+    view: CameraView
+    worker: DecodeWorker
+    shown: int | None = None  # the frame on its view, in its index
+    wanted: tuple[str, int] | None = None  # the frame last asked for
 
     @property
     def id(self) -> str:
@@ -68,10 +75,13 @@ class MainWindow(QMainWindow):
         self.current: str | None = None
         self.place: int | None = None  # the frame shown, in the camera's index
         self.live = True
-        self._wanted: tuple[str, int] | None = None
+        self.shared_event: tuple[str, int] | None = None  # camera, its moment
 
-        self.view = CameraView()
-        self.view.clicked.connect(self.picture_clicked)
+        self.placeholder = CameraView()
+        self.views = QWidget()
+        self.grid = QGridLayout(self.views)
+        self.grid.setContentsMargins(0, 0, 0, 0)
+        self.grid.addWidget(self.placeholder, 0, 0)
         self.drawing: list[Point] | None = None  # the finish line's ends, while drawn
         self.caliper: list[tuple[str, int, Point]] = []  # camera, frame, point
         self.timeline = Timeline()
@@ -81,8 +91,6 @@ class MainWindow(QMainWindow):
         self.camera_list = QListWidget()
         self.camera_list.setWordWrap(True)
         self.camera_list.currentRowChanged.connect(self._choose_camera)
-        self.worker = DecodeWorker()
-        self.worker.decoded.connect(self._show)
         self.number = NumberField()
         self.number.returnPressed.connect(self.add_crossing)
         self.finish = QCheckBox("Finish")
@@ -136,14 +144,22 @@ class MainWindow(QMainWindow):
         line_button.setToolTip("Click the line's two ends on the picture")
         line_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         line_button.clicked.connect(self.draw_finish_line)
+        event_button = QPushButton("Mark event")
+        event_button.setToolTip(
+            "Mark one moment every camera shows -- a flash, a hand wave -- on each "
+            "camera in turn: they are aligned on it"
+        )
+        event_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        event_button.clicked.connect(self.mark_event)
         timing = QHBoxLayout()
         timing.addWidget(line_button)
+        timing.addWidget(event_button)
         timing.addWidget(QLabel("Number"))
         timing.addWidget(self.number, stretch=1)
         timing.addWidget(self.finish)
         timing.addWidget(self.output_button)
         video = QVBoxLayout()
-        video.addWidget(self.view, stretch=1)
+        video.addWidget(self.views, stretch=1)
         video.addWidget(self.timeline)
         video.addLayout(transport)
         video.addLayout(timing)
@@ -232,11 +248,15 @@ class MainWindow(QMainWindow):
         if answer != QMessageBox.StandardButton.Yes:
             return
         camera.watchdog.stop()
+        camera.worker.stop()
         self.session["cameras"] = [
             c for c in self.session["cameras"] if c.get("id") != camera.id
         ]
         session.save(self.session)
         del self.cameras[camera.id]
+        self.grid.removeWidget(camera.view)
+        camera.view.deleteLater()
+        self._arrange()
         self.camera_list.takeItem(self.camera_list.row(camera.item))
         if not self.cameras:
             self._choose_camera(-1)
@@ -246,13 +266,36 @@ class MainWindow(QMainWindow):
         item = QListWidgetItem(str(settings.get("name", camera_id)))
         item.setData(Qt.ItemDataRole.UserRole, camera_id)
         self.camera_list.addItem(item)
+        view, worker = CameraView(), DecodeWorker()
         camera = Camera(
-            settings, VideoIndex(folder_of(camera_id)), Watchdog(camera_id), item
+            settings,
+            VideoIndex(folder_of(camera_id)),
+            Watchdog(camera_id),
+            item,
+            view,
+            worker,
         )
+        view.clicked.connect(lambda point: self.picture_clicked(point, camera_id))
+        worker.decoded.connect(lambda tag, image: self._show(camera, tag, image))
         self.cameras[camera_id] = camera
+        self._arrange()
         if settings.get("record", True):
             camera.watchdog.start()
         self._label(camera)
+
+    def _arrange(self) -> None:
+        """The cameras' views side by side, as square a grid as they make."""
+        views = [camera.view for camera in self.cameras.values()] or [self.placeholder]
+        self.placeholder.setVisible(not self.cameras)
+        columns = math.ceil(math.sqrt(len(views)))
+        for n, view in enumerate(views):
+            self.grid.addWidget(view, n // columns, n % columns)
+
+    @property
+    def view(self) -> CameraView:
+        """The view of the camera chosen, or the one that says to add a camera."""
+        camera = self._camera()
+        return self.placeholder if camera is None else camera.view
 
     def _free_id(self) -> str:
         n = 1
@@ -261,14 +304,24 @@ class MainWindow(QMainWindow):
         return f"cam{n}"
 
     def _choose_camera(self, row: int) -> None:
+        """Another camera to step through; the moment shown stays."""
         item = self.camera_list.item(row) if row >= 0 else None
         self.current = (
             None if item is None else str(item.data(Qt.ItemDataRole.UserRole))
         )
-        self.place, self.live = None, True
-        self.timeline.zoomed, self.timeline.following = False, True
-        self.view.show_text("No video yet" if self.current else "Add a camera")
+        camera = self._camera()
+        for other in self.cameras.values():
+            other.view.chosen = other is camera
+            other.view.update()
+        self.place = None if camera is None else camera.shown
+        self.timeline.zoomed = False
+        if camera is None:
+            self.placeholder.show_text("Add a camera")
+        elif camera.shown is None:
+            camera.view.show_text("No video yet")
         self._refresh(force=True)
+        if self.place is not None and not self.live:
+            self._go(self.place)
 
     def _camera(self) -> Camera | None:
         return None if self.current is None else self.cameras.get(self.current)
@@ -452,7 +505,11 @@ class MainWindow(QMainWindow):
         self._say("Click one end of the finish line, then the other")
         self._show_marks()
 
-    def picture_clicked(self, point: Point) -> None:
+    def picture_clicked(self, point: Point, camera_id: str | None = None) -> None:
+        """A click on a camera's picture: that camera is chosen, then the click is a
+        point of the finish line being drawn or of the caliper."""
+        if camera_id is not None and camera_id != self.current:
+            self.camera_list.setCurrentRow(list(self.cameras).index(camera_id))
         camera = self._camera()
         if camera is None or self.place is None:
             return
@@ -557,17 +614,17 @@ class MainWindow(QMainWindow):
         self.number.clear()
 
     def _show_marks(self) -> None:
-        camera = self._camera()
-        if camera is None:
-            self.view.show_marks(None, [])
-            return
-        marks = [
-            p for c, place, p in self.caliper if c == camera.id and place == self.place
-        ]
-        self.view.show_marks(
-            finish_line(camera.settings.get("finish_line")),
-            marks + (self.drawing or []),
-        )
+        """Each view: its camera's finish line, the points clicked on its frame."""
+        for camera in self.cameras.values():
+            marks = [
+                p
+                for c, place, p in self.caliper
+                if c == camera.id and place == camera.shown
+            ]
+            if camera.id == self.current:
+                marks += self.drawing or []
+            line = finish_line(camera.settings.get("finish_line"))
+            camera.view.show_marks(line, marks)
 
     def _offsets(self) -> dict[str, int]:
         return {
@@ -681,11 +738,12 @@ class MainWindow(QMainWindow):
         self.timeline.following = False
 
     def _refresh(self, force: bool = False) -> None:
+        grown = [other.index.refresh() for other in self.cameras.values()]
         camera = self._camera()
         if camera is None:
             self.timeline.set_recording(np.empty(0, np.int64), [])
             return
-        if not camera.index.refresh() and not force:
+        if not any(grown) and not force:
             return
         offset = self._offset()
         gaps = [(g.start_ms + offset, g.end_ms + offset) for g in camera.index.gaps]
@@ -704,13 +762,48 @@ class MainWindow(QMainWindow):
         clock = scale_time(self._line_ms(moment)).split(" ")[1]
         self.time_label.setText(f"{clock} LIVE" if self.live else clock)
         self._follow_lists(moment)
+        for other in self.cameras.values():
+            self._show_at(other, place if other is camera else None, moment)
         self._show_marks()
-        self._wanted = (camera.id, place)
-        self.worker.request(frame.path, frame.pts, self._wanted)
 
-    def _show(self, tag: tuple[str, int], image: QImage) -> None:
-        if tag == self._wanted and not image.isNull():
-            self.view.show_image(image)
+    def _show_at(self, camera: Camera, place: int | None, moment: int) -> None:
+        """The camera's frame at ``place``, or else its frame nearest ``moment``."""
+        if place is None:
+            offset = int(camera.settings.get("offset_ms", 0))
+            place = camera.index.nearest(moment - offset)
+        camera.shown = place
+        if place is None or (camera.id, place) == camera.wanted:
+            return
+        camera.wanted = (camera.id, place)
+        frame = camera.index.frame(place)
+        camera.worker.request(frame.path, frame.pts, camera.wanted)
+
+    def _show(self, camera: Camera, tag: tuple[str, int], image: QImage) -> None:
+        if tag == camera.wanted and not image.isNull():
+            camera.view.show_image(image)
+
+    # -- cameras in step -------------------------------------------------------
+
+    def mark_event(self) -> None:
+        """The shared event at the frame shown. The first camera it is marked on
+        sets its moment; each camera marked after takes the offset that shows the
+        event at that moment."""
+        camera = self._camera()
+        if camera is None or self.place is None:
+            self._say("Show the event on a camera first")
+            return
+        name = camera.settings.get("name", camera.id)
+        frame = camera.index.frame(self.place)
+        if self.shared_event is None or self.shared_event[0] == camera.id:
+            self.shared_event = (camera.id, frame.ms + self._offset())
+            self._say(f"Event marked on {name}: now show it on the other cameras")
+            return
+        offset = self.shared_event[1] - frame.ms
+        camera.settings["offset_ms"] = offset
+        session.save(self.session)
+        self._say(f"{name} is aligned on the event: {offset:+d} ms")
+        self._refresh(force=True)
+        self._go(self.place)
 
     def _offset(self) -> int:
         camera = self._camera()
@@ -719,7 +812,8 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802 - Qt's name
         """The window goes; the recorders keep recording."""
         self.timer.stop()
-        self.worker.stop()
+        for camera in self.cameras.values():
+            camera.worker.stop()
         super().closeEvent(event)
 
 

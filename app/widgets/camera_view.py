@@ -21,6 +21,7 @@ class CameraView(QWidget):
         self.text = "No video yet"
         self.line: Line | None = None
         self.marks: list[Point] = []
+        self.chosen = False  # the camera the keys step through: framed
         self.setMinimumSize(320, 180)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
@@ -89,4 +90,7 @@ class CameraView(QWidget):
             centre = self.to_widget(mark)
             painter.drawEllipse(centre, 6, 6)
             painter.drawPoint(centre)
+        if self.chosen:
+            painter.setPen(QPen(QColor(80, 160, 255), 3))
+            painter.drawRect(self.rect().adjusted(1, 1, -2, -2))
         painter.end()
