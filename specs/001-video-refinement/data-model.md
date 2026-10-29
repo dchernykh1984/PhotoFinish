@@ -14,6 +14,8 @@ video/<camera id>/
 <output file>                      chosen by the referee
 <output file>.state.json           origin and marks of each output line
 <output file>.journal.txt          one JSON object per change
+<output file>.outside-<stamp>      a version of the output something else wrote, kept
+<output file>.state.json.broken-<stamp>  a state that could not be read, kept
 ```
 
 ## Camera
@@ -43,12 +45,13 @@ video/<camera id>/
 | Field | Meaning |
 | --- | --- |
 | `text` | `number#time#action#`, as written to the output file |
-| `origin` | `{"input": <the input text taken>}` or `{"added": true}` |
-| `method` | `input`, `frame`, `interpolated`, `hand`, `typed` |
+| `origin` | `{"input": <the input text taken>}`, `{"added": true}`, or `{"outside": true}` for a line found in the file when it was chosen |
+| `method` | `input`, `frame`, `interpolated`, `hand`, `typed`; `outside` for a line found in the file |
 | `removed_from_input` | the input line it came from is gone |
 
 The output file is the `text` of every line, sorted by time, stable; lines without a readable time
-follow, in the order they were taken.
+follow, in the order they were taken. Every change writes the state first, then the output file:
+after a crash between the two, the state is ahead and writes the file again at the next start.
 
 ## Session (`data/session.json`)
 

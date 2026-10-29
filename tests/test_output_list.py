@@ -1,0 +1,324 @@
+"""The referee's crossings: the output file, its state and its journal."""
+
+from __future__ import annotations
+
+import json
+from datetime import datetime
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+from app import output_list
+from app.lines import parse_time
+from app.output_list import Change, OutputList
+
+TAKEN = "15#20389 11:35:29.615#nextLap#"
+RIDER = "\u0418\u0432\u0430\u043d"  # Cyrillic, as the older C++ tools wrote it
+
+
+def ms(text: str) -> int:
+    value = parse_time(text)
+    assert value is not None
+    return value
+
+
+def journal(out: OutputList) -> list[dict[str, Any]]:
+    text = out.journal_path.read_text(encoding="utf-8")
+    return [json.loads(line) for line in text.splitlines()]
+
+
+def without_at(entry: dict[str, Any]) -> dict[str, Any]:
+    assert datetime.fromisoformat(entry["at"]).tzinfo is not None
+    return {key: value for key, value in entry.items() if key != "at"}
+
+
+@pytest.fixture
+def path(tmp_path: Path) -> Path:
+    return tmp_path / "out.txt"
+
+
+def test_a_new_output_starts_empty_and_journals_nothing(path: Path) -> None:
+    out = OutputList(path)
+    assert path.read_bytes() == b""
+    assert json.loads(out.state_path.read_text())["lines"] == []
+    assert not out.journal_path.exists()
+
+
+def test_lines_keep_time_order_and_lines_without_a_time_come_last(path: Path) -> None:
+    out = OutputList(path)
+    out.take(TAKEN)
+    out.take("7##")
+    assert out.take("3#20389 11:35:20.000#nextLap#") == 0
+    assert out.add("9", ms("20389 11:35:29.615"), "finish", Change("frame")) == 2
+    out.take("8#bad#nextLap#")
+    assert path.read_bytes().decode().splitlines() == [
+        "3#20389 11:35:20.000#nextLap#",
+        TAKEN,
+        "9#20389 11:35:29.615#finish#",
+        "7##",
+        "8#bad#nextLap#",
+    ]
+    assert path.read_bytes().endswith(b"#\n")
+
+
+def test_a_time_from_a_frame_moves_its_line_and_is_journaled(path: Path) -> None:
+    out = OutputList(path)
+    out.take(TAKEN)
+    out.take("16#20389 11:35:29.600#nextLap#")
+    frames: list[list[Any]] = [["a.mkv", 54321, 1761716129587], ["a.mkv", 54322, 1]]
+    offsets = {"camera_ms": 0, "source_ms": -12}
+    change = Change("interpolated", "cam1", frames, 0.41, offsets)
+    assert out.set_time(1, ms("20389 11:35:29.594"), change) == 0
+    after = "15#20389 11:35:29.594#nextLap#"
+    assert out.texts()[0] == after
+    assert (out.lines[0].origin, out.lines[0].method) == (
+        {"input": TAKEN},
+        "interpolated",
+    )
+    assert without_at(journal(out)[-1]) == {
+        "op": "time",
+        "before": TAKEN,
+        "after": after,
+        "input": TAKEN,
+        "camera": "cam1",
+        "frames": frames,
+        "method": "interpolated",
+        "fraction": 0.41,
+        "offsets": offsets,
+    }
+
+
+def test_a_line_without_a_time_field_gets_one(path: Path) -> None:
+    out = OutputList(path)
+    out.take("7##")
+    out.take("8")
+    out.set_time(0, ms("1 0:0:1"), Change("typed"))
+    out.set_time(1, ms("1 0:0:2"), Change("typed"))
+    assert out.texts() == ["7#1 0:0:1.000#", "8#1 0:0:2.000#"]
+
+
+def test_a_number_changes_in_place_and_cannot_break_the_line(path: Path) -> None:
+    assert output_list.clean_number(" 1#2\u20283\r\n") == "1 2 3"
+    out = OutputList(path)
+    out.take(TAKEN)
+    assert out.set_number(0, " 5#1\n") == 0
+    assert out.texts() == ["5 1#20389 11:35:29.615#nextLap#"]
+    with pytest.raises(ValueError, match="number"):
+        out.set_number(0, " # ")
+    with pytest.raises(ValueError, match="number"):
+        out.add("\n", 0, "finish", Change("typed"))
+    assert [entry["op"] for entry in journal(out)] == ["take", "number"]
+    assert journal(out)[-1]["method"] == "input"
+
+
+def test_a_removed_line_leaves_the_file_and_stays_in_the_journal(path: Path) -> None:
+    out = OutputList(path)
+    out.take(TAKEN)
+    out.add("9", ms("20389 11:35:30.000"), "finish", Change("hand"))
+    out.remove(0)
+    assert out.texts() == ["9#20389 11:35:30.000#finish#"]
+    assert without_at(journal(out)[-1]) == {
+        "op": "remove",
+        "before": TAKEN,
+        "input": TAKEN,
+    }
+    assert without_at(journal(out)[1]) == {
+        "op": "add",
+        "after": "9#20389 11:35:30.000#finish#",
+        "method": "hand",
+    }
+
+
+def test_copy_to_output_applies_a_changed_input_line(path: Path) -> None:
+    out = OutputList(path)
+    out.take("14#20389 11:35:29.550#nextLap#")
+    out.take(TAKEN)
+    out.mark_removed(TAKEN)
+    current = "15#20389 11:35:29.500#nextLap#"
+    assert out.copy_input(TAKEN, current) == 0
+    line = out.lines[0]
+    assert (line.text, line.origin, line.removed_from_input) == (
+        current,
+        {"input": current},
+        False,
+    )
+    assert without_at(journal(out)[-1]) == {
+        "op": "copy",
+        "before": TAKEN,
+        "after": current,
+        "input": current,
+        "method": "input",
+    }
+
+
+def test_copy_to_output_brings_back_a_line_the_referee_removed(path: Path) -> None:
+    out = OutputList(path)
+    out.take(TAKEN)
+    out.remove(0)
+    current = "15#20389 11:35:29.500#nextLap#"
+    assert out.copy_input(TAKEN, current) == 0
+    assert out.lines[0].origin == {"input": current}
+    assert without_at(journal(out)[-1]) == {
+        "op": "copy",
+        "after": current,
+        "input": current,
+        "method": "input",
+    }
+
+
+def test_of_twin_lines_copy_changes_the_one_the_referee_left(path: Path) -> None:
+    out = OutputList(path)
+    out.take(TAKEN)
+    out.take(TAKEN)
+    out.set_time(0, ms("20389 11:35:29.700"), Change("frame"))
+    out.copy_input(TAKEN, "15#20389 11:35:29.620#nextLap#")
+    assert out.texts() == [
+        "15#20389 11:35:29.620#nextLap#",
+        "15#20389 11:35:29.700#nextLap#",
+    ]
+
+
+def test_the_list_comes_back_with_its_origins_and_marks(path: Path) -> None:
+    out = OutputList(path)
+    out.take(TAKEN)
+    out.take(TAKEN)
+    out.add("9", ms("20389 11:35:30.000"), "finish", Change("hand"))
+    out.mark_removed(TAKEN)
+    out.mark_removed(TAKEN)
+    out.mark_removed(TAKEN)
+    out.mark_removed("never taken")
+    again = OutputList(path)
+    assert again.lines == out.lines
+    assert [line.removed_from_input for line in again.lines] == [True, True, False]
+    assert len(journal(again)) == 3
+
+
+def test_an_outside_change_is_kept_and_the_list_written_again(path: Path) -> None:
+    out = OutputList(path)
+    out.take(TAKEN)
+    assert not out.check_outside()
+    path.write_text("edited by hand\n")
+    assert out.check_outside()
+    entry = journal(out)[-1]
+    assert entry["op"] == "outside_change"
+    assert (path.parent / entry["backup"]).read_text() == "edited by hand\n"
+    assert path.read_text() == TAKEN + "\n"
+
+
+def test_a_change_keeps_an_outside_version_first(path: Path) -> None:
+    out = OutputList(path)
+    path.write_text("x\n")
+    out.take(TAKEN)
+    entries = journal(out)
+    assert [entry["op"] for entry in entries] == ["outside_change", "take"]
+    assert (path.parent / entries[0]["backup"]).read_text() == "x\n"
+
+
+def test_a_deleted_output_is_written_again(path: Path) -> None:
+    out = OutputList(path)
+    out.take(TAKEN)
+    path.unlink()
+    assert out.check_outside()
+    assert "backup" not in journal(out)[-1]
+    assert path.read_text() == TAKEN + "\n"
+
+
+def test_crossings_in_a_chosen_file_start_the_list(path: Path) -> None:
+    original = (
+        b"\xef\xbb\xbf2#20389 11:35:30.000#finish#\r\n"
+        + f"1#20389 11:35:29.000#{RIDER}#\r\n\r\n".encode("cp1251")
+        + b"3##"
+    )
+    path.write_bytes(original)
+    out = OutputList(path)
+    assert out.texts() == [
+        f"1#20389 11:35:29.000#{RIDER}#",
+        "2#20389 11:35:30.000#finish#",
+        "3##",
+    ]
+    assert {(line.method, line.origin["outside"]) for line in out.lines} == {
+        ("outside", True)
+    }
+    entries = journal(out)
+    assert [entry["op"] for entry in entries] == ["outside_change"]
+    assert (path.parent / entries[0]["backup"]).read_bytes() == original
+    assert path.read_text(encoding="utf-8").splitlines() == out.texts()
+    OutputList(path)
+    assert len(journal(out)) == 1
+
+
+def test_a_state_that_cannot_be_read_is_kept_aside(path: Path) -> None:
+    out = OutputList(path)
+    out.take(TAKEN)
+    out.state_path.write_text("{not json")
+    again = OutputList(path)
+    assert again.lines[0].origin == {"outside": True}
+    (broken,) = path.parent.glob("out.txt.state.json.broken-*")
+    assert broken.read_text() == "{not json"
+
+
+def test_after_a_crash_between_the_state_and_the_file_the_state_wins(
+    path: Path,
+) -> None:
+    out = OutputList(path)
+    out.take(TAKEN)
+    old = path.read_bytes()
+    out.take("16#20389 11:35:30.000#nextLap#")
+    path.write_bytes(old)
+    again = OutputList(path)
+    assert path.read_text().splitlines() == again.texts() == out.texts()
+    assert journal(again)[-1]["op"] == "outside_change"
+
+
+def test_a_change_that_cannot_be_written_is_undone(
+    path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    out = OutputList(path)
+    out.take(TAKEN)
+
+    def full(_path: Path, _data: bytes) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(output_list, "_write_in_one_step", full)
+    with pytest.raises(OSError, match="disk full"):
+        out.remove(0)
+    assert out.texts() == [TAKEN]
+
+
+def test_a_journal_line_cut_short_does_not_swallow_the_next(path: Path) -> None:
+    out = OutputList(path)
+    out.journal_path.write_text('{"op": "ta')
+    out.take(TAKEN)
+    assert json.loads(out.journal_path.read_text().splitlines()[-1])["op"] == "take"
+
+
+def test_a_rename_refused_for_a_moment_is_tried_again(
+    path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    real = Path.replace
+    refused: list[Path] = []
+
+    def replace(self: Path, target: Path) -> Path:
+        if not refused:
+            refused.append(self)
+            raise PermissionError("in use")
+        return real(self, target)
+
+    monkeypatch.setattr(Path, "replace", replace)
+    monkeypatch.setattr(output_list.time, "sleep", lambda _seconds: None)
+    OutputList(path)
+    assert refused
+    assert path.read_bytes() == b""
+
+
+def test_a_rename_refused_for_good_fails(
+    path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def refuse(self: Path, target: Path) -> Path:
+        raise PermissionError("in use")
+
+    monkeypatch.setattr(Path, "replace", refuse)
+    monkeypatch.setattr(output_list.time, "sleep", lambda _seconds: None)
+    with pytest.raises(PermissionError):
+        OutputList(path)

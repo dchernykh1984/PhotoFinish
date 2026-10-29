@@ -78,13 +78,19 @@ def to_epoch(line_ms: int, summer_time: bool) -> int:
 
 def read_lines(path: Path) -> list[str]:
     """A file's complete lines, read at once and let go: a last line still being
-    written, without its line break yet, is left for the next read. Each line is
-    decoded on its own -- UTF-8, else cp1251 as the older C++ tools wrote, else
-    Latin-1 -- and blank lines are no crossings.
+    written, without its line break yet, is left for the next read.
     """
-    data = path.read_bytes().removeprefix(_BOM)
-    complete = data[: data.rfind(b"\n") + 1]
-    lines = (_decoded(raw.rstrip(b"\r")) for raw in complete.split(b"\n")[:-1])
+    data = path.read_bytes()
+    return text_lines(data[: data.rfind(b"\n") + 1])
+
+
+def text_lines(data: bytes) -> list[str]:
+    """The lines of a file's bytes, without a byte order mark. Each line is decoded
+    on its own -- UTF-8, else cp1251 as the older C++ tools wrote, else Latin-1 --
+    and blank lines are no crossings.
+    """
+    raw_lines = data.removeprefix(_BOM).split(b"\n")
+    lines = (_decoded(raw.rstrip(b"\r")) for raw in raw_lines)
     return [line for line in lines if line.strip()]
 
 
