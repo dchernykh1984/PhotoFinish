@@ -7,7 +7,7 @@ import math
 import sys
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -59,6 +59,17 @@ from app.widgets.timeline import Timeline
 POLL_MS = 500
 NEAR_MS = 1000  # another camera's frame further from the moment than this: none
 STOP_MS = 3000  # an analyser stopped is killed if it has not ended by then
+EVENT_S = 600  # a shared event not shown on the other cameras by then is forgotten
+
+
+@dataclass
+class SharedEvent:
+    """An event marked on one camera, for the other cameras to be aligned on."""
+
+    camera: str
+    moment: int  # on the video's time
+    since: float  # monotonic
+    aligned: set[str] = field(default_factory=set)
 
 
 @dataclass
@@ -95,7 +106,7 @@ class MainWindow(QMainWindow):
         self.place: int | None = None  # the frame shown, in the camera's index
         self.moment: int | None = None  # the video's time shown, ms
         self.live = True
-        self.shared_event: tuple[str, int] | None = None  # camera, its moment
+        self.shared_event: SharedEvent | None = None
 
         self.placeholder = CameraView()
         self.views = QWidget()
@@ -1234,20 +1245,25 @@ class MainWindow(QMainWindow):
     def mark_event(self) -> None:
         """The shared event at the frame shown. The first camera it is marked on
         sets its moment; each camera marked after takes the offset that shows the
-        event at that moment."""
+        event at that moment. Once every camera is aligned, or after EVENT_S, the
+        next mark is a new event."""
         camera = self._camera()
         if camera is None or self.place is None:
             self._say("Show the event on a camera first")
             return
         name = camera.settings.get("name", camera.id)
         frame = camera.index.frame(self.place)
-        if self.shared_event is None or self.shared_event[0] == camera.id:
-            self.shared_event = (camera.id, frame.ms + self._offset())
+        event, now = self.shared_event, time.monotonic()
+        if event is None or event.camera == camera.id or now - event.since > EVENT_S:
+            self.shared_event = SharedEvent(camera.id, frame.ms + self._offset(), now)
             self._say(f"Event marked on {name}: now show it on the other cameras")
             return
-        offset = self.shared_event[1] - frame.ms
+        offset = event.moment - frame.ms
         camera.settings["offset_ms"] = offset
         self._save_session()
+        event.aligned.add(camera.id)
+        if event.aligned >= set(self.cameras) - {event.camera}:
+            self.shared_event = None  # every camera aligned on it
         self._say(f"{name} is aligned on the event: {offset:+d} ms")
         self._refresh(force=True)
         self._go(self.place)

@@ -81,7 +81,8 @@ or a swaying patch.
   centre. Zoomed in until a frame interval is 100 pixels wide, a click on the timeline between two
   frames offers that moment, picked by hand.
 - **Cameras in step.** "Mark event" on a moment every camera shows -- a flash, a hand wave -- on
-  each camera in turn: each takes the offset that shows it at the first one's moment.
+  each camera in turn: each takes the offset that shows it at the first one's moment. Once every
+  camera is aligned, or 10 minutes on, the next mark starts a new event.
 - **Timing source.** "Align with source" on an input line and the frame of the same passing: from
   then on lines open at the right frame, and times set from frames are written on the
   chronometer's clock. The offset is shown beside the time and journaled with every change.
