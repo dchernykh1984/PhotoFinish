@@ -147,6 +147,36 @@ jobs:
           fi
           echo "Frozen app started cleanly."
 
+      # The recorder is the frozen app run with --recorder: it must find PyAV's
+      # FFmpeg libraries, encode, and stop on request on every platform.
+      - name: Record the test camera with the frozen app
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The frozen app keeps its data next to itself; on macOS, next to the .app.
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            app="dist/${APP_BUNDLE_NAME}.app/Contents/MacOS/${APP_BUNDLE_NAME}"
+          else
+            app="$ASSET"
+          fi
+          mkdir -p dist/data
+          echo '{"cameras": [{"id": "smoke", "connection": "test", "settings": {"fps": 10}}]}' \
+            > dist/data/session.json
+          "$app" --recorder smoke &
+          pid=$!
+          folder=dist/video/smoke
+          for _ in $(seq 120); do
+            if compgen -G "$folder/*-*-*.mkv" > /dev/null; then break; fi
+            sleep 1
+          done
+          ls -l "$folder"
+          compgen -G "$folder/*-*-*.mkv" > /dev/null
+          touch "$folder/stop.request"
+          wait "$pid"
+          cat "$folder/recorder.json"
+          grep -q '"state": "stopped"' "$folder/recorder.json"
+          rm -rf dist/data dist/video
+
       - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.name }}
