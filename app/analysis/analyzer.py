@@ -38,6 +38,7 @@ from app.video_index import read_times
 
 SAMPLE_MS = 200  # frames looked at for motion: five a second
 MODEL_SAMPLE_MS = 500  # and by a model: twice a second
+TRIES = 5  # a segment that cannot be read is tried this often, a second apart
 ACTIVITY = "activity.jsonl"  # a line a segment, in the order they were analysed
 SUGGESTIONS = "suggestions.jsonl"
 
@@ -135,6 +136,7 @@ def run(
         return 2
     sample, listed, done = 0, Appended(folder / SEGMENTS), analysed(folder)
     todo: deque[str] = deque()
+    failures: dict[str, int] = {}
     while not stop():
         todo.extend(name for name in listed.new_lines() if name not in done)
         if not todo:
@@ -145,7 +147,15 @@ def run(
             continue
         while todo and not stop():
             name = todo.popleft()
-            sample = _analyse(folder / f"{name}.mkv", watch, sample)
+            try:
+                sample = _analyse(folder / f"{name}.mkv", watch, sample)
+            except OSError as error:  # held by another process a moment: later
+                failures[name] = failures.get(name, 0) + 1
+                if failures[name] < TRIES:
+                    todo.append(name)
+                    sleep(1)
+                    continue
+                _record(folder / f"{name}.mkv", {"version": 1, "error": str(error)})
             done.add(name)
     return 0
 
@@ -176,9 +186,12 @@ def unanalysed(folder: Path) -> list[str]:
 
 
 def _analyse(segment: Path, watch: Watch, sample: int) -> int:
-    """One segment's stretches written beside it; the next moment to look at."""
+    """One segment's stretches recorded; the next moment to look at. A segment that
+    cannot be read now raises OSError; one whose content cannot be read is noted."""
     pairs = read_times(segment)
-    times = {} if pairs is None else dict(pairs.tolist())
+    if pairs is None:
+        raise OSError(f"the frame times of {segment.name} cannot be read")
+    times = dict(pairs.tolist())
     stretches, seen = Stretches(), []
     try:
         with av.open(str(segment)) as container:
@@ -194,7 +207,9 @@ def _analyse(segment: Path, watch: Watch, sample: int) -> int:
                 stretches.add(ms, watch.feed(frame, ref))
                 seen.append(ms)
                 sample = ms + watch.every_ms
-    except (OSError, av.FFmpegError) as error:
+    except OSError:
+        raise  # held a moment, or not there: tried again
+    except av.FFmpegError as error:  # what is in it cannot be read: noted, passed
         _record(segment, {"version": 1, "error": str(error)})
         return sample
     activity = {
