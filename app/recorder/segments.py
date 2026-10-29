@@ -3,7 +3,7 @@
 The segment being written is ``current.mkv`` with ``current.times``, one
 ``<pts> <Unix ms>`` line a frame. Once both are closed they are renamed
 ``<YYYYmmdd-HHMMSS>-<n>``, the times first, so a closed segment always has its
-times. A segment ends at the first frame two seconds after its start. Frames are
+times. A segment ends at the first frame a second after its start. Frames are
 encoded by an encoder of the segment's own, so it starts with a keyframe (mpeg4, a
 keyframe every 15 frames, fixed quality 3); a network camera's packets are stored as
 they came, a segment starting and ending at the camera's keyframes. A stretch
@@ -21,7 +21,7 @@ from typing import TextIO
 import av
 import numpy as np
 
-SEGMENT_MS = 2000
+SEGMENT_MS = 1000  # a segment's first frame is shown once it closes: SC-006's 2 s
 CLOSED = "[0-9]*-[0-9]*-[0-9]*"  # a closed segment's name, without its suffix
 _MS = Fraction(1, 1000)
 _GOP = 15
