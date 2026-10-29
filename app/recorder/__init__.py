@@ -261,9 +261,7 @@ class _Recording:
         if self.writer is None:
             return
         try:
-            _disk(self.writer.close)
-        except _DiskFullError:
-            raise
+            _disk(self.writer.close)  # a full disk raises _DiskFullError: not caught
         except (OSError, av.FFmpegError) as error:
             self.beat.beat(detail=f"a segment could not be closed: {error}")
 

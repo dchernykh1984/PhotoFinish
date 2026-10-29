@@ -16,6 +16,7 @@ without frames longer than three frame intervals is appended to ``gaps.txt`` as
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from fractions import Fraction
 from pathlib import Path
 from typing import TextIO
@@ -57,11 +58,10 @@ class SegmentWriter:
         if self._last_ms is not None and ms <= self._last_ms:
             return  # a frame out of order cannot be muxed; the next one can
         self._next(ms, cut=True)
-        if not isinstance(self._open, _Encoded):
-            self.close()
-            _keep_aside(self.folder)  # what a segment that failed to close left
-            self._open = _Encoded(self.folder, image, ms, self.fps)
-        self._open.add(image, ms)
+        opened = self._segment(
+            _Encoded, lambda: _Encoded(self.folder, image, ms, self.fps)
+        )
+        opened.add(image, ms)
         self.frames += 1
 
     def write_packet(self, packet: av.Packet, ms: int) -> None:
@@ -73,12 +73,25 @@ class SegmentWriter:
             return
         # A camera's keyframes a second apart cut each one, a moment early or late.
         self._next(ms, cut=packet.is_keyframe, slack=KEYFRAME_SLACK_MS)
-        if not isinstance(self._open, _Remuxed):
-            self.close()
-            _keep_aside(self.folder)  # what a segment that failed to close left
-            self._open = _Remuxed(self.folder, packet, packet.stream, ms)
-        self._open.add(packet, packet.pts, packet.dts, ms)
+        stream = packet.stream
+        opened = self._segment(
+            _Remuxed, lambda: _Remuxed(self.folder, packet, stream, ms)
+        )
+        opened.add(packet, packet.pts, packet.dts, ms)
         self.frames += 1
+
+    def _segment[T: (_Encoded, _Remuxed)](
+        self, kind: type[T], begun: Callable[[], T]
+    ) -> T:
+        """The open segment when it is of ``kind``; else the open one closed, what one
+        that failed to close left kept aside, and a new one begun."""
+        opened = self._open if isinstance(self._open, kind) else None
+        if opened is None:
+            self.close()
+            _keep_aside(self.folder)
+            opened = begun()
+            self._open = opened
+        return opened
 
     def _next(self, ms: int, cut: bool, slack: int = 0) -> None:
         """A gap before ``ms`` noted; the open segment closed when it is long enough

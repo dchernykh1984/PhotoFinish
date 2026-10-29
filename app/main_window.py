@@ -1115,7 +1115,9 @@ class MainWindow(QMainWindow):
         """The camera's line in the list: its name and how its recorder is."""
         watchdog = camera.watchdog
         info = (watchdog.poll() if watchdog.wanted else None) or heartbeat(camera.id)
-        if info is not None:
+        if watchdog.wanted and watchdog.error:
+            state = f"the recorder cannot be started: {watchdog.error}"
+        elif info is not None:
             state = describe(info)
         else:
             state = "starting" if watchdog.wanted else "not recording"
