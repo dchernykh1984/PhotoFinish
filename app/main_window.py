@@ -545,6 +545,8 @@ class MainWindow(QMainWindow):
         if self.output is None:
             self._say("Choose the output file first")
             return
+        if not self._frame_on_screen():
+            return
         timed = self._frame_change()
         if timed is None:
             self._say("There is no frame to time the crossing on")
@@ -567,6 +569,8 @@ class MainWindow(QMainWindow):
 
     def time_from_frame(self) -> None:
         """The chosen output line takes the time of the frame shown."""
+        if not self._frame_on_screen():
+            return
         chosen = self._chosen_output()
         timed = self._frame_change()
         if chosen is None:
@@ -667,6 +671,8 @@ class MainWindow(QMainWindow):
         if camera is None or self.place is None:
             return
         if self.drawing is None:
+            if not self._frame_on_screen():
+                return
             self._caliper(camera, camera.index.frame(self.place), point)
         else:
             self._draw(camera, self.drawing, point)
@@ -736,8 +742,16 @@ class MainWindow(QMainWindow):
         )
         self._offer(self._line_ms(ms), change)
 
+    def _frame_on_screen(self) -> bool:
+        """False, said, while the frame stepped to is still on its way: the picture
+        on screen is the one before, and timing on it would time another frame."""
+        if self.view.waiting:
+            self._say("The frame is still on its way: try again in a moment")
+            return False
+        return True
+
     def _has_target(self) -> bool:
-        """An output line chosen, or a number typed, to give a time to."""
+        """A number typed, or an output line chosen, to give a time to."""
         if self.output is not None and (
             self.output_view.chosen() is not None or self.number.text().strip()
         ):
@@ -746,8 +760,10 @@ class MainWindow(QMainWindow):
         return False
 
     def _offer(self, line_ms: int, change: Change) -> None:
-        """The time offered, for the referee to accept or adjust; then the chosen
-        output line takes it, or a crossing for the typed number does."""
+        """The time offered, for the referee to accept or adjust; then a crossing
+        for the typed number takes it, or, with no number typed, the chosen output
+        line does. The number first: a line added stays chosen, and the next rider
+        must not take its time."""
         offered = scale_time(line_ms)
         text, ok = QInputDialog.getText(
             self, "The crossing time", "Accept it, or adjust it first", text=offered
@@ -760,13 +776,14 @@ class MainWindow(QMainWindow):
             return
         if ms != line_ms:
             change = Change("typed", change.camera, change.frames, None, change.offsets)
+        action, number = self._action(), self.number.text()
+        if number.strip():
+            if self._correct(lambda output: output.add(number, ms, action, change)):
+                self.number.clear()
+            return
         chosen = self.output_view.chosen()
         if chosen is not None:
             self._correct(lambda output: output.set_time(chosen, ms, change))
-            return
-        action, number = self._action(), self.number.text()
-        if self._correct(lambda output: output.add(number, ms, action, change)):
-            self.number.clear()
 
     def _show_marks(self) -> None:
         """Each view: its camera's finish line, the points clicked on its frame."""

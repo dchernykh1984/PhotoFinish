@@ -23,7 +23,7 @@ from app.main_window import start_analyzer
 from app.recorder.segments import SegmentWriter
 from app.recorder.testcam import read_time, render
 from app.widgets.camera_dialog import CameraDialog
-from tests.conftest import wait_until
+from tests.conftest import settled, wait_until
 
 START = 1_761_716_129_587
 CAMERA = {"id": "cam1", "name": "Side", "connection": "test", "settings": {"fps": 30}}
@@ -811,6 +811,7 @@ def test_a_crossing_timed_on_the_second_camera_names_it(
     win.mark_event()  # marking again on the same camera moves the event
     win.mark_event()
     win.camera_list.setCurrentRow(1)
+    settled(win)
     assert win.cameras["cam2"].view.chosen
     assert not win.cameras["cam1"].view.chosen
     win.number.setText("15")
@@ -1430,3 +1431,36 @@ def test_a_decision_the_disk_refuses_is_said_and_the_suggestion_still_leaves(
     win.dismiss_suggestion()
     assert "cannot be kept for a restart" in win.statusBar().currentMessage()
     assert win.suggestion_list.count() == 0
+
+
+def test_two_riders_timed_in_a_row_with_the_caliper_are_two_crossings(
+    bar: Path, make_window: Callable[[], mw.MainWindow], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    win = make_window()
+    wait_until(lambda: win.place == 5)
+    monkeypatch.setattr(QInputDialog, "getText", lambda *a, text="", **kw: (text, True))
+    for number in ("12", "34"):
+        win.number.setText(number)
+        win.seek_ms(BAR + round(2 * 1000 / 60))  # frame 2
+        win.picture_clicked(edge(2))
+        win.step(1)
+        win.picture_clicked(edge(3))
+    numbers = [t.split("#")[0] for t in bar.read_text().splitlines()]
+    assert sorted(numbers) == ["12", "34"]  # 34 added, 12's time kept
+
+
+def test_nothing_is_timed_on_a_frame_still_on_its_way(
+    recording: Path, make_window: Callable[[], mw.MainWindow]
+) -> None:
+    session.save({**session.load(), "output": "out.txt"})
+    win = make_window()
+    wait_until(showing(win, START + 69 * 33))
+    win.view.show_waiting()  # the next frame asked for, the last one dimmed
+    win.number.setText("15")
+    for timing in (win.add_crossing, win.time_from_frame):
+        timing()
+        assert win.statusBar().currentMessage().startswith("The frame is still on")
+    win.picture_clicked((0.5, 0.5))
+    assert win.caliper == []
+    assert win.number.text() == "15"
+    assert (recording / "out.txt").read_text() == ""

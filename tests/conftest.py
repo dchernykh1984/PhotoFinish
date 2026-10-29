@@ -93,8 +93,14 @@ def make_window(
     made: list[mw.MainWindow] = []
 
     def make() -> mw.MainWindow:
-        made.append(mw.MainWindow())
-        return made[-1]
+        window = mw.MainWindow()
+        # As a referee does, the tests look at a frame once it is on screen: the
+        # window refuses to time on a picture still on its way.
+        for name in MOVES:
+            setattr(window, name, _settling(window, getattr(window, name)))
+        settled(window)
+        made.append(window)
+        return window
 
     yield make
     for window in made:
@@ -106,6 +112,34 @@ def make_window(
 def win(make_window: Callable[[], mw.MainWindow]) -> mw.MainWindow:
     """A MainWindow under the offscreen platform, in a folder of its own."""
     return make_window()
+
+
+MOVES = (
+    "step",
+    "step_ms",
+    "seek_ms",
+    "seek_line",
+    "go_live",
+    "next_rider",
+    "previous_rider",
+    "poll",
+)
+
+
+def settled(window: mw.MainWindow) -> None:
+    """Every camera's frame on screen, none on its way."""
+    wait_until(lambda: not any(c.view.waiting for c in window.cameras.values()))
+
+
+def _settling(
+    window: mw.MainWindow, move: Callable[..., object]
+) -> Callable[..., object]:
+    def moved(*args: object, **kwargs: object) -> object:
+        done = move(*args, **kwargs)
+        settled(window)
+        return done
+
+    return moved
 
 
 def wait_until(condition: Callable[[], bool], seconds: float = 10) -> None:

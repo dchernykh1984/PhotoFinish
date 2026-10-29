@@ -76,7 +76,7 @@ or a swaying patch.
   line moves the video to its time.
 - **Caliper.** Click the same point of the rider -- the front of the wheel -- on a frame before the
   finish line and on one after it: the time it crossed is offered to accept or adjust, and goes to
-  the chosen output line or a crossing for the typed number. Points on one side give nothing.
+  a crossing for the typed number or, with no number typed, to the chosen output line. Points on one side give nothing.
   "Finish line" draws a camera's line with two clicks; the default is the picture's vertical
   centre. Zoomed in until a frame interval is 100 pixels wide, a click on the timeline between two
   frames offers that moment, picked by hand.
