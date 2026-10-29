@@ -53,3 +53,44 @@ def test_a_file_that_is_no_session_is_moved_aside(folder, text) -> None:
     assert kept.read_text(encoding="utf-8") == text
     session.save(session.load())
     assert json.loads((folder / "data" / "session.json").read_text())["version"] == 1
+
+
+def test_a_session_being_replaced_is_read_again_not_moved_aside(
+    folder, monkeypatch
+) -> None:
+    from pathlib import Path
+
+    from app import files
+
+    session.save({**session.DEFAULTS, "input": "results.txt"})
+    real = Path.read_bytes
+    refused: list[Path] = []
+
+    def read_bytes(self):
+        if not refused:
+            refused.append(self)
+            raise PermissionError("being replaced")
+        return real(self)
+
+    monkeypatch.setattr(Path, "read_bytes", read_bytes)
+    monkeypatch.setattr(files.time, "sleep", lambda seconds: None)
+    assert session.load()["input"] == "results.txt"
+    assert refused
+
+
+def test_a_session_that_cannot_be_read_is_left_where_it_is(folder, monkeypatch) -> None:
+    from pathlib import Path
+
+    from app import files
+
+    session.save(session.DEFAULTS)
+
+    def refuse(self):
+        raise PermissionError("held")
+
+    monkeypatch.setattr(Path, "read_bytes", refuse)
+    monkeypatch.setattr(files.time, "sleep", lambda seconds: None)
+    with pytest.raises(PermissionError):
+        session.load()
+    assert session.session_path().exists()
+    assert not list(folder.glob("data/session.json.broken-*"))
