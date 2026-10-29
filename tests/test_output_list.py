@@ -11,7 +11,7 @@ from typing import Any
 import pytest
 
 from app import files, output_list
-from app.lines import parse_time
+from app.lines import parse_time, text_lines
 from app.output_list import Change, OutputList
 
 TAKEN = "15#20389 11:35:29.615#nextLap#"
@@ -252,7 +252,9 @@ def test_crossings_in_a_chosen_file_start_the_list(path: Path) -> None:
     entries = journal(out)
     assert [entry["op"] for entry in entries] == ["outside_change"]
     assert (path.parent / entries[0]["backup"]).read_bytes() == original
-    assert path.read_text(encoding="utf-8").splitlines() == out.texts()
+    assert text_lines(path.read_bytes()) == out.texts()
+    rider = f"1#20389 11:35:29.000#{RIDER}#\n".encode("cp1251")
+    assert path.read_bytes().startswith(rider)  # its bytes kept, its line end LF
     OutputList(path)
     assert len(journal(out)) == 1
 
@@ -421,6 +423,60 @@ def test_an_outside_version_the_journal_refuses_is_kept_once_not_at_each_poll(
     with pytest.raises(output_list.JournalError):  # the change written all the same
         take(out, "16#20389 11:35:30.000#nextLap#")
     assert len(out.texts()) == 2
+
+
+def test_an_outside_version_that_cannot_be_written_over_is_kept_once(
+    path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    out = OutputList(path)
+    take(out, TAKEN)
+    path.write_text("edited, and held open by a spreadsheet\n")
+    real = output_list._write_in_one_step
+
+    def held(target: Path, data: bytes) -> None:
+        if ".outside-" not in target.name:
+            raise PermissionError("in use")
+        real(target, data)
+
+    monkeypatch.setattr(output_list, "_write_in_one_step", held)
+    for _ in range(3):  # three polls
+        with pytest.raises(PermissionError):
+            out.check_outside()
+    assert len(list(path.parent.glob("out.txt.outside-*"))) == 1
+    monkeypatch.setattr(output_list, "_write_in_one_step", real)
+    assert out.check_outside()
+    ops = [entry["op"] for entry in journal(out)]
+    assert ops == ["take", "outside_change"]
+
+
+def test_an_output_whose_journal_refuses_opens_all_the_same(
+    path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path.write_text(TAKEN + "\n")  # lines already there: kept and journaled
+
+    def full(target: Path, data: bytes) -> None:
+        raise OSError("read only")
+
+    monkeypatch.setattr(output_list, "_append", full)
+    out = OutputList(path)
+    assert out.texts() == [TAKEN]
+    assert out.journal_error is not None
+    assert OutputList(path).journal_error is None  # nothing new to journal
+
+
+def test_a_line_taken_keeps_its_bytes_until_the_referee_changes_it(
+    path: Path,
+) -> None:
+    taken = f"15#20389 11:35:29.615#{RIDER}#"
+    out = OutputList(path)
+    out.follow([taken], [taken], [], {taken: "cp1251"})
+    assert path.read_bytes() == taken.encode("cp1251") + b"\n"
+    assert OutputList(path)._body() == path.read_bytes()  # its state keeps it so
+    out.set_time(0, ms("20389 11:35:29.594"), Change("frame"))
+    changed = f"15#20389 11:35:29.594#{RIDER}#"
+    assert path.read_bytes() == changed.encode("cp1251") + b"\n"
+    out.add("16", ms("20389 11:35:30.000"), "finish", Change("hand"))
+    assert path.read_bytes().endswith(b"\n16#20389 11:35:30.000#finish#\n")
 
 
 def test_a_long_race_is_listed_without_a_wait(path: Path) -> None:

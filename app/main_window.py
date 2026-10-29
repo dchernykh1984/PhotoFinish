@@ -1059,6 +1059,10 @@ class MainWindow(QMainWindow):
                 self.output = OutputList(app_path(chosen))
             except OSError as error:
                 self._say(f"The output file cannot be opened: {error}")
+            else:
+                refused = self.output.journal_error
+                if refused is not None:
+                    self._say(f"Opened; the journal cannot take it: {refused}")
         self._open_input()
 
     def _finish_mode(self, on: bool) -> None:

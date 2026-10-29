@@ -2,8 +2,10 @@
 
 ## Output file
 
-- One crossing per line, `number#time#action#`, `\n` line ends, UTF-8, in time order.
-- A line taken from the input keeps its bytes until the referee changes it.
+- One crossing per line, `number#time#action#`, `\n` line ends, in time order.
+- A line taken from the input keeps its bytes until the referee changes it: each line is written in
+  the encoding it was read in (UTF-8, cp1251 from the older C++ tools, or Latin-1), and keeps it
+  through the referee's changes. A line PhotoFinish adds is UTF-8.
 - A time PhotoFinish sets is `D H:M:S.mmm` in local standard time (plus an hour with the summer-time
   option during daylight saving), hours, minutes and seconds without zero padding.
 - FinishProtocolGeneratorPython reads it as a finish file; nothing else is in it.

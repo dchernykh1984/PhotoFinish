@@ -18,7 +18,7 @@ from difflib import SequenceMatcher
 from pathlib import Path
 
 from app import files
-from app.lines import parse_line, text_lines
+from app.lines import decoded_lines, parse_line
 from app.output_list import JournalError, OutputList
 
 REST_NS = 2_000_000_000  # a last line left without its line break this long is done
@@ -124,6 +124,7 @@ class InputFollow:
         self._looked: tuple[int, int, int] | None = None  # as last looked at
         self._since = 0  # this computer's steady clock, ns: when it was first so
         self._cut = False  # the last read ended in a line without its line break
+        self.encodings: dict[str, str] = {}  # each line read, the encoding it came in
 
     def poll(self) -> bool:
         """Read the input again when it changed, or when a last line without its line
@@ -151,11 +152,13 @@ class InputFollow:
         cut = len(complete) < len(data) and bool(data[len(complete) :].strip())
         # A line still being written waits for its line break; one a tool or a hand
         # left without it is taken once the file has rested.
-        current = text_lines(data if cut and at_rest else complete)
+        found = decoded_lines(data if cut and at_rest else complete)
+        current = [text for text, _ in found]
+        self.encodings = {text: encoding for text, encoding in found}
         result = align(self.output.taken, current)
         journal = None
         try:
-            self.output.follow(result.taken, result.new, result.gone)
+            self.output.follow(result.taken, result.new, result.gone, self.encodings)
         except JournalError as error:  # the lines are taken all the same
             journal = error
         self.lines = result.shown
@@ -172,7 +175,8 @@ class InputFollow:
             raise ValueError("the line is as it was taken")
         journal, at = None, index
         try:
-            at = self.output.copy_input(index, line.text)
+            encoding = self.encodings.get(line.text, "utf-8")
+            at = self.output.copy_input(index, line.text, encoding)
         except JournalError as error:  # copied all the same
             journal = error
         self.lines[index] = InputLine(line.text)
