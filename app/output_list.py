@@ -78,6 +78,7 @@ class OutputList:
         self.journal_path = path.with_name(path.name + ".journal.txt")
         self.lines: list[OutputLine] = []
         self.taken: list[str] = []  # the input as last taken, in its order
+        self.removed: list[str] = []  # input lines whose crossing was removed
         self._pending: list[bytes] | None = None  # journal entries of a change
         self._written: bytes | None = None  # the output file as this list wrote it
         self._written_stat: tuple[int, int, int] | None = None  # its size, time, inode
@@ -109,6 +110,7 @@ class OutputList:
             outside = _by(
                 self.lines, lambda ln: ln.text if ln.origin.get("outside") else None
             )
+            removed = set(self.removed)
             for text in new:
                 if back.get(text):  # marked gone, its input line back
                     back[text].pop(0).removed_from_input = False
@@ -116,6 +118,8 @@ class OutputList:
                 if outside.get(text):  # in the file when it was chosen
                     line = outside[text].pop(0)
                     line.origin, line.method = {"input": text}, "input"
+                elif text in removed:  # back, but the referee removed its crossing
+                    continue
                 else:
                     self._insert(OutputLine(text, {"input": text}, "input"))
                 self._journal(
@@ -134,7 +138,7 @@ class OutputList:
     def set_time(self, index: int, ms: int, change: Change) -> int:
         """A line's time, its other fields as they are; its new index."""
         fields = self.lines[index].text.split("#")
-        fields += [""] * (3 - len(fields))  # a line without a time field gets one
+        fields += [""] * (4 - len(fields))  # short of fields: number#time#action#
         fields[1] = scale_time(ms)
         with self._change():
             at = self._replace(index, "#".join(fields), "time", change)
@@ -154,6 +158,8 @@ class OutputList:
         with self._change():
             line = self.lines.pop(index)
             before, taken = line.text, line.origin.get("input")
+            if taken is not None:  # not taken again if its input line comes back
+                self.removed.append(taken)
             self._journal("remove", before=before, input_text=taken)
 
     def copy_input(self, index: int, current: str) -> int:
@@ -197,13 +203,18 @@ class OutputList:
         that cannot take the entries of a change written is an error said, the
         change kept."""
         self._keep_outside_version()
-        kept = copy.deepcopy((self.lines, self.taken))
+        # The lines themselves are put back, not copies: the window knows them so.
+        kept = [(line, copy.deepcopy(vars(line))) for line in self.lines]
+        taken, removed = list(self.taken), list(self.removed)
         self._pending = []
         try:
             yield
             self._write()
         except BaseException:
-            self.lines, self.taken, self._pending = kept[0], kept[1], None
+            for line, fields in kept:
+                vars(line).update(fields)
+            self.lines, self.taken, self._pending = [ln for ln, _ in kept], taken, None
+            self.removed = removed
             self._write_state_back()
             raise
         entries, self._pending = self._pending, None
@@ -270,26 +281,35 @@ class OutputList:
             state = json.loads(self.state_path.read_text(encoding="utf-8"))
             self.lines = [OutputLine(**entry) for entry in state["lines"]]
             self.taken = [str(text) for text in state["input_taken"]]
+            self.removed = [str(text) for text in state.get("removed_input", [])]
         except FileNotFoundError:
             self._start_from_file()
             return
         except ValueError, KeyError, TypeError:
             # Not a state: kept aside. The file's crossings start the list again, and
             # the input as taken is what the journal says was taken, so a line the
-            # referee corrected does not come back beside its correction.
+            # referee corrected does not come back beside its correction, nor one
+            # whose crossing the referee removed.
             self.state_path.replace(_aside(self.state_path, "broken"))
-            self._start_from_file(_taken_in(self.journal_path))
+            self._start_from_file(_replay(self.journal_path))
             return
         self._written = self._body()
         self.check_outside()
 
-    def _start_from_file(self, taken: list[str] | None = None) -> None:
+    def _start_from_file(self, journal: _Replayed | None = None) -> None:
         """No state: crossings already in the file start the list, in time order, and
         the file as it was is kept in a backup and journaled."""
         found = _read(self.path)
-        self.lines, self.taken = [], taken or []
+        journal = journal or _Replayed()
+        self.lines, self.taken, self.removed = [], journal.taken, journal.removed
         for text in text_lines(found or b""):
             self._insert(OutputLine(text, {"outside": True}, "outside"))
+        outside = _by(self.lines, lambda ln: ln.text)
+        for given, taken in journal.lines.items():  # linked again: a copy replaces it
+            for text, method in taken:
+                if outside.get(text):
+                    line = outside[text].pop(0)
+                    line.origin, line.method = {"input": given}, method
         self._written = None if self.lines else found
         if not self.check_outside():
             self._write()
@@ -321,7 +341,12 @@ class OutputList:
 
     def _state(self) -> bytes:
         lines = [asdict(line) for line in self.lines]
-        state = {"version": _STATE_VERSION, "lines": lines, "input_taken": self.taken}
+        state = {
+            "version": _STATE_VERSION,
+            "lines": lines,
+            "input_taken": self.taken,
+            "removed_input": self.removed,
+        }
         return (json.dumps(state, ensure_ascii=False) + "\n").encode()
 
     def _write_state_back(self) -> None:
@@ -398,10 +423,35 @@ def _input(line: OutputLine) -> str | None:
     return None if taken is None else str(taken)
 
 
-def _taken_in(journal: Path) -> list[str]:
-    """The input lines the journal says were taken, in order; a copy in place of the
-    line it changed."""
-    taken: list[str] = []
+@dataclass
+class _Replayed:
+    """The input as the journal tells it: the lines taken, in order, a copy in place
+    of the line it changed; those whose crossing the referee removed; the output's
+    lines by the input line each was taken as, with how its time was had."""
+
+    taken: list[str] = field(default_factory=list)
+    removed: list[str] = field(default_factory=list)
+    lines: dict[str, list[tuple[str, str]]] = field(default_factory=dict)
+
+    def follow(self, op: str, entry: dict[str, Any]) -> None:
+        """The output line an entry changed, followed by its input line."""
+        given, before, after = (
+            entry.get("input"),
+            entry.get("before"),
+            entry.get("after"),
+        )
+        was = entry.get("taken", before) if op == "copy" else given
+        kept = self.lines.get(was, []) if was else []
+        at = next((i for i, (text, _) in enumerate(kept) if text == before), None)
+        if before is not None and at is not None:
+            kept.pop(at)
+        if op in ("take", "copy", "time", "number") and given and after is not None:
+            method = str(entry.get("method") or "input")
+            self.lines.setdefault(given, []).append((after, method))
+
+
+def _replay(journal: Path) -> _Replayed:
+    found = _Replayed()
     for raw in (_read(journal) or b"").splitlines():
         try:
             entry = json.loads(raw)
@@ -409,11 +459,14 @@ def _taken_in(journal: Path) -> list[str]:
         except ValueError, AttributeError:
             continue
         was = entry.get("taken", entry.get("before")) if op == "copy" else None
-        if was is not None and given and was in taken:
-            taken[taken.index(was)] = given
+        if was is not None and given and was in found.taken:
+            found.taken[found.taken.index(was)] = given
         elif op in ("take", "copy") and given:
-            taken.append(given)
-    return taken
+            found.taken.append(given)
+        elif op == "remove" and given:
+            found.removed.append(given)
+        found.follow(op, entry)
+    return found
 
 
 @functools.lru_cache(maxsize=1 << 16)

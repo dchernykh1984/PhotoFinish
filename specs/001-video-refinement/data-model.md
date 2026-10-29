@@ -84,6 +84,10 @@ leaves nothing in the journal.
   "lines": [{"text": "15#20389 11:35:29.594#nextLap#",
              "origin": {"input": "15#20389 11:35:29.615#nextLap#"},
              "method": "frame", "removed_from_input": false}],
-  "input_taken": ["15#20389 11:35:29.615#nextLap#"]
+  "input_taken": ["15#20389 11:35:29.615#nextLap#"],
+  "removed_input": []
 }
 ```
+
+`removed_input` holds the input lines whose crossing the referee removed: such a line is not
+taken again when it leaves the input and comes back.
