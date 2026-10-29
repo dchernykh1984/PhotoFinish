@@ -288,3 +288,18 @@ def test_zoomed_in_a_click_between_frames_picks_that_moment() -> None:
     assert START + 33 <= picked[0] <= START + 66
     assert not timeline.between_frames(START - 10)
     assert not timeline.between_frames(START + 10**6)
+
+
+def test_the_choice_follows_its_line_when_rows_move() -> None:
+    from app.widgets.lists import LinesView, Row
+
+    def rows(*keys: str) -> list[Row]:
+        return [Row(k, "", "", "", None, key=k) for k in keys]
+
+    view = LinesView()
+    view.show_rows(rows("a", "b", "c"))
+    view.selectRow(1)
+    view.show_rows(rows("x", "a", "b", "c"))  # a line came in above
+    assert view.chosen() == 2
+    view.show_rows(rows("x", "a", "c"))  # the line chosen is gone
+    assert view.chosen() is None
