@@ -31,6 +31,11 @@ def _project_name() -> str:
     return match.group(1)
 
 
+def test_the_build_collects_pyav_with_its_ffmpeg_libraries() -> None:
+    # PyAV bundles FFmpeg's shared libraries; a frozen app without them cannot record.
+    assert "--collect-all av" in WORKFLOW.read_text(encoding="utf-8")
+
+
 def test_workflow_bundle_name_matches_the_app() -> None:
     # macOS shows the .app folder name in the dock and ignores the plist's
     # CFBundleName/CFBundleDisplayName, so the bundle name *is* the dock name.
