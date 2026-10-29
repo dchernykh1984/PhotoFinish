@@ -8,6 +8,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+import av
 import numpy as np
 import pytest
 from PySide6.QtCore import QPoint, QPointF, Qt
@@ -109,8 +110,8 @@ def test_the_keys_step_and_go_live(
     win = make_window()
     win.show()
     win.activateWindow()
-    wait_until(showing(win, START + 69 * 33))
     wait_until(win.isActiveWindow)  # keys reach the shortcuts of the active window
+    wait_until(showing(win, START + 69 * 33))
     for key, modifier, place in (
         (Qt.Key.Key_Left, Qt.KeyboardModifier.NoModifier, 68),
         (Qt.Key.Key_Left, Qt.KeyboardModifier.ShiftModifier, 58),
@@ -247,8 +248,8 @@ def test_the_keys_move_the_video_while_a_number_is_typed(
     win = make_window()
     win.show()
     win.activateWindow()
-    wait_until(showing(win, START + 69 * 33))
     wait_until(win.isActiveWindow)  # keys reach the shortcuts of the active window
+    wait_until(showing(win, START + 69 * 33))
     win.number.setFocus()
     QTest.keyClicks(win.number, "15")
     QTest.keyClick(win.number, Qt.Key.Key_Left)
@@ -815,3 +816,59 @@ def test_a_crossing_timed_on_the_second_camera_names_it(
 def test_an_event_needs_a_frame(win: mw.MainWindow) -> None:
     win.mark_event()
     assert win.statusBar().currentMessage() == "Show the event on a camera first"
+
+
+def test_a_cameras_own_file_is_shown_beside_the_live_ones_once_aligned(
+    base: Path, make_window: Callable[[], mw.MainWindow], spawned: list[str]
+) -> None:
+    """US8's fourth scenario: a recording from a camera's card, after the race."""
+    card = base / "DCIM0001.mkv"
+    with av.open(str(card), "w") as container:
+        container.metadata["creation_time"] = "2020-01-01T00:00:00Z"
+        stream = container.add_stream("mpeg4", rate=25)
+        stream.width, stream.height, stream.pix_fmt = 640, 360, "yuv420p"
+        for k in range(26):
+            picture = render(FLASH - 500 + k * 40, 640, 360, "flash")
+            frame = av.VideoFrame.from_ndarray(picture)
+            frame.pts = k
+            for packet in stream.encode(frame):
+                container.mux(packet)
+        for packet in stream.encode(None):
+            container.mux(packet)
+    written = card.read_bytes()
+    cameras = [
+        {"id": "cam1", "name": "Side", "connection": "test", "settings": {"fps": 30}},
+        {
+            "id": "cam2",
+            "name": "Card",
+            "connection": "file",
+            "settings": {"path": "DCIM0001.mkv"},
+            "record": False,
+        },
+    ]
+    session.save({**session.DEFAULTS, "cameras": cameras})
+    writer = SegmentWriter(base / "video" / "cam1", fps=30)
+    for k in range(26):
+        true = FLASH - 500 + k * 33
+        writer.write(render(true, 640, 360, "flash"), true)
+    writer.close()
+    beating(base, "cam1")
+    win = make_window()
+    side, own = win.cameras["cam1"], win.cameras["cam2"]
+    assert spawned == []  # the file is not recorded
+    assert own.item.text() == "Card: not recording"
+    wait_until(lambda: side.shown is not None)
+    win.seek_ms(FLASH + 28)
+    wait_until(lambda: bright(side.view))
+    win.mark_event()
+    win.camera_list.setCurrentRow(1)
+    created = 1_577_836_800_000  # its creation time: frames start there
+    win.seek_ms(created + 520)  # its flash frame: k = 13
+    wait_until(lambda: bright(own.view))
+    win.mark_event()
+    win.camera_list.setCurrentRow(0)
+    win.seek_ms(FLASH - 400)
+    wait_until(lambda: not bright(side.view) and not bright(own.view))
+    win.seek_ms(FLASH + 28)
+    wait_until(lambda: bright(side.view) and bright(own.view))
+    assert card.read_bytes() == written

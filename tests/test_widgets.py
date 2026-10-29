@@ -71,6 +71,9 @@ def test_the_dialog_keeps_ok_off_while_the_camera_cannot_record(
     )
     dialog._choose_file()
     assert dialog.camera()["settings"] == {"path": "/videos/race.mp4"}
+    assert dialog.camera()["record"] is False  # a camera's own file, after the race
+    dialog.live.setChecked(True)
+    assert dialog.camera()["record"] is True  # played as live, recorded
     assert ok.isEnabled()
     monkeypatch.setattr(QFileDialog, "getOpenFileName", lambda *args: ("", ""))
     dialog._choose_file()

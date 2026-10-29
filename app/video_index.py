@@ -9,8 +9,11 @@ its place in that order. Gaps come from ``gaps.txt``.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC, datetime
+from fractions import Fraction
 from pathlib import Path
 
+import av
 import numpy as np
 
 from app.recorder.segments import CLOSED
@@ -137,3 +140,50 @@ def _times(path: Path) -> np.ndarray | None:
     except OSError, ValueError:
         return None
     return pairs[np.argsort(pairs[:, 1], kind="stable")]
+
+
+class FileIndex(VideoIndex):
+    """A camera's own recording opened after the race: one file, read once and never
+    written. Its frames are placed from the file's creation time (or, without one,
+    its modification time less its length) by their own timestamps; aligning it on a
+    shared event puts it next to the live recordings."""
+
+    def __init__(self, path: Path) -> None:
+        super().__init__(path.parent)
+        self.file = path
+        self._read = False
+
+    def refresh(self) -> bool:
+        if self._read:
+            return False
+        self._read = True
+        try:
+            with av.open(str(self.file)) as container:
+                stream = container.streams.video[0]
+                rate = stream.time_base or Fraction(1, 1000)
+                unit = float(Fraction(rate.numerator, rate.denominator)) * 1000
+                found = [p.pts for p in container.demux(stream) if p.pts is not None]
+                created = container.metadata.get("creation_time")
+        except OSError, IndexError, av.FFmpegError:
+            return False  # not a video: shown as a camera without frames
+        if not found:
+            return False
+        pts = np.array(sorted(found), np.int64)
+        since = np.round((pts - pts[0]) * unit).astype(np.int64)
+        start = _created_ms(created)
+        if start is None:
+            start = self.file.stat().st_mtime_ns // 1_000_000 - int(since[-1])
+        self.paths = [self.file]
+        self._append(start + since, pts, np.zeros(pts.size, np.int32))
+        return True
+
+
+def _created_ms(created: str | None) -> int | None:
+    """The creation time a camera wrote into its file, as Unix ms."""
+    try:
+        moment = datetime.fromisoformat(str(created))
+    except ValueError:
+        return None
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=UTC)
+    return round(moment.timestamp() * 1000)

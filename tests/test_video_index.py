@@ -10,12 +10,12 @@ from pathlib import Path
 import av
 import pytest
 
-from app import paths, session
+from app import paths, session, video_index
 from app.decoder import Decoder
 from app.recorder import run
 from app.recorder.segments import SegmentWriter
 from app.recorder.testcam import read_time, render
-from app.video_index import Gap, VideoIndex
+from app.video_index import FileIndex, Gap, VideoIndex
 from tests.test_segments import make_h264
 
 START = 1_761_716_129_587
@@ -164,3 +164,66 @@ def test_a_seek_in_an_hour_of_recording_shows_its_frame_at_once(
     assert read_time(decoded.to_ndarray(format="rgb24")) == START + 495  # its picture
     assert shown <= (2.0 if ON_CI else 0.5)
     assert loaded <= (20.0 if ON_CI else 5.0)
+
+
+def camera_file(path: Path, frames: int, created: str | None = None) -> None:
+    """A camera's own recording: 25 fps, the test camera's frames from START."""
+    with av.open(str(path), "w") as container:
+        if created is not None:
+            container.metadata["creation_time"] = created
+        stream = container.add_stream("mpeg4", rate=25)
+        stream.width, stream.height, stream.pix_fmt = 640, 360, "yuv420p"
+        for k in range(frames):
+            frame = av.VideoFrame.from_ndarray(render(START + k * 40, 640, 360))
+            frame.pts = k
+            for packet in stream.encode(frame):
+                container.mux(packet)
+        for packet in stream.encode(None):
+            container.mux(packet)
+
+
+def test_a_cameras_own_file_is_placed_by_its_creation_time(tmp_path: Path) -> None:
+    path = tmp_path / "DCIM0001.mp4"
+    camera_file(path, 10, created="2025-10-29T05:35:29.000000Z")  # START, to the s
+    written = path.read_bytes()
+    index = FileIndex(path)
+    assert index.refresh()
+    assert not index.refresh()
+    assert len(index) == 10
+    assert index.ms[0] == START - 587
+    assert list(index.ms[1:] - index.ms[:-1]) == [40] * 9
+    decoder = Decoder()
+    frame = index.frame(index.step(0, 7))
+    decoded = decoder.decode(frame.path, frame.pts)
+    assert decoded is not None
+    assert read_time(decoded.to_ndarray(format="rgb24")) == START + 7 * 40
+    decoder.close()
+    assert path.read_bytes() == written  # never changed
+
+
+def test_without_a_creation_time_a_file_ends_when_it_was_written(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "race.mkv"
+    camera_file(path, 5)
+    os.utime(path, ns=(START * 1_000_000, START * 1_000_000))
+    index = FileIndex(path)
+    index.refresh()
+    assert list(index.ms) == [START - 160 + k * 40 for k in range(5)]
+    assert video_index._created_ms("2025-10-29 05:35:29") == START - 587  # UTC
+    assert video_index._created_ms(None) is None
+
+
+def test_a_file_that_is_no_video_gives_no_frames(tmp_path: Path) -> None:
+    text = tmp_path / "notes.txt"
+    text.write_text("not a video")
+    assert not FileIndex(text).refresh()
+    assert not FileIndex(tmp_path / "missing.mp4").refresh()
+    empty = tmp_path / "empty.mkv"
+    with av.open(str(empty), "w") as container:
+        stream = container.add_stream("mpeg4", rate=25)
+        stream.width, stream.height, stream.pix_fmt = 64, 64, "yuv420p"
+        container.start_encoding()  # a header, and not one frame
+    index = FileIndex(empty)
+    assert not index.refresh()
+    assert len(index) == 0
