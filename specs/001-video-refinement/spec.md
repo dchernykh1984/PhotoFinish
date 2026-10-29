@@ -334,8 +334,10 @@ an RTMP stream pushed from the same computer is received and recorded.
   source and the video; it applies both ways and is shown.
 - **FR-016**: Stepping one frame, ten frames and one second each way, "Live", and adding a crossing
   for the typed number work from the keyboard.
-- **FR-017**: The session -- input and output files, cameras and their settings, finish lines,
-  offsets and the input as last taken -- is saved next to the program, and a restart resumes it.
+- **FR-017**: The session -- input and output files, cameras and their settings, finish lines and
+  offsets -- is saved next to the program; the input as last taken is saved with the output's
+  state, in the same step as the output lines, so a crash cannot take a line twice or lose one. A
+  restart resumes both.
 - **FR-018**: PhotoFinish talks to no site and needs no internet; it talks to cameras over USB or
   the local network only.
 

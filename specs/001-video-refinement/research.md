@@ -85,6 +85,13 @@
   lines mark their output lines "removed from input". The output file holds its lines in time order
   and is replaced atomically on every change; `<output>.state.json` keeps each line's origin and
   marks; `<output>.journal.txt` gets one JSON object per change.
+- **The input as last taken** is kept in `<output>.state.json`, written in the same step as the
+  output lines, so a crash cannot take a line twice or lose one; a different output file takes the
+  input afresh. In a stretch that differs, a line taken pairs, in order, with the next line that
+  keeps its number or its time (an edit at the chronometer); the others are gone or new. An input
+  with no line in common with the input as taken is a new file: its lines are new, the old ones
+  gone. A line that comes back after it was gone -- a chronometer rewriting its file without a
+  temporary file, read halfway -- clears its output line's mark instead of adding a second one.
 - **Rationale**: FR-009 and FR-011; the output file stays a plain finish file that
   FinishProtocolGenerator reads, while the state and the journal carry what it cannot.
 - **An output file chosen with lines in it** and no `state.json`: its lines become the output list

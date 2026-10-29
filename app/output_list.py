@@ -3,7 +3,8 @@
 The output file holds ``number#time#action#`` lines in time order, stable, the lines
 without a readable time after them in the order they came: FinishProtocolGenerator
 reads it as a finish file. Beside it, ``<output>.state.json`` keeps each line's
-origin and marks, and ``<output>.journal.txt`` gets one JSON object per change
+origin and marks with the input as last taken, so the two are written together, and
+``<output>.journal.txt`` gets one JSON object per change
 (contracts/output-and-journal.md). A line taken from the input keeps its text until
 the referee changes it.
 
@@ -68,6 +69,7 @@ class OutputList:
         self.state_path = path.with_name(path.name + ".state.json")
         self.journal_path = path.with_name(path.name + ".journal.txt")
         self.lines: list[OutputLine] = []
+        self.taken: list[str] = []  # the input as last taken, in its order
         self._written: bytes | None = None  # the output file as this list wrote it
         self._load()
 
@@ -76,12 +78,22 @@ class OutputList:
 
     # -- changes ---------------------------------------------------------------
 
-    def take(self, text: str) -> int:
-        """An input line, taken as it is; its index."""
+    def follow(self, taken: list[str], new: list[str], gone: list[str]) -> None:
+        """The input aligned (app/input_follow.py): ``gone`` lines marked on their
+        output lines, ``new`` lines taken, ``taken`` the input as taken from now on.
+        Gone first: a line that moved in the input is found again, not taken twice."""
+        if taken == self.taken and not new and not gone:
+            return
         with self._change():
-            at = self._insert(OutputLine(text, {"input": text}, "input"))
-            self._journal("take", after=text, input_text=text, change=Change("input"))
-        return at
+            for text in gone:
+                self._mark_gone(text)
+            for text in new:
+                if not self._found_again(text):
+                    self._insert(OutputLine(text, {"input": text}, "input"))
+                    self._journal(
+                        "take", after=text, input_text=text, change=Change("input")
+                    )
+            self.taken = list(taken)
 
     def add(self, number: str, ms: int, action: str, change: Change) -> int:
         """A crossing the referee timed, ``ms`` on the line scale; its index."""
@@ -96,14 +108,18 @@ class OutputList:
         fields = self.lines[index].text.split("#")
         fields += [""] * (3 - len(fields))  # a line without a time field gets one
         fields[1] = scale_time(ms)
-        return self._replace(index, "#".join(fields), "time", change)
+        with self._change():
+            at = self._replace(index, "#".join(fields), "time", change)
+        return at
 
     def set_number(self, index: int, number: str) -> int:
         """A line's number, its other fields as they are; its index."""
         line = self.lines[index]
         fields = line.text.split("#")
         fields[0] = _number(number)
-        return self._replace(index, "#".join(fields), "number", Change(line.method))
+        with self._change():
+            at = self._replace(index, "#".join(fields), "number", Change(line.method))
+        return at
 
     def remove(self, index: int) -> None:
         """A false crossing leaves the output; the journal keeps it."""
@@ -112,27 +128,21 @@ class OutputList:
             before, taken = line.text, line.origin.get("input")
             self._journal("remove", before=before, input_text=taken)
 
-    def copy_input(self, taken: str, current: str) -> int:
-        """A changed input line applied by hand: the output line taken as ``taken``
-        becomes ``current``, or ``current`` comes back when the referee had removed
-        that line. Its index."""
-        index = self._from_input(taken)
-        if index is not None:
-            return self._replace(index, current, "copy", Change("input"), current)
+    def copy_input(self, index: int, current: str) -> int:
+        """Line ``index`` of the input as taken changed to ``current``, applied by hand:
+        its output line becomes ``current``, or ``current`` comes back when the referee
+        had removed that line. Its index in the output."""
+        found = self._from_input(self.taken[index])
         with self._change():
-            at = self._insert(OutputLine(current, {"input": current}, "input"))
-            self._journal(
-                "copy", after=current, input_text=current, change=Change("input")
-            )
+            self.taken[index] = current
+            if found is not None:
+                at = self._replace(found, current, "copy", Change("input"), current)
+            else:
+                at = self._insert(OutputLine(current, {"input": current}, "input"))
+                self._journal(
+                    "copy", after=current, input_text=current, change=Change("input")
+                )
         return at
-
-    def mark_removed(self, taken: str) -> None:
-        """The input line ``taken`` is gone: its output line stays, marked."""
-        for line in self.lines:
-            if line.origin.get("input") == taken and not line.removed_from_input:
-                line.removed_from_input = True
-                self._write_state()
-                return
 
     def check_outside(self) -> bool:
         """True when something else wrote the output file: its version is kept in a
@@ -149,31 +159,49 @@ class OutputList:
         """One change, written at once. A version of the file something else wrote is
         kept first; a change that cannot be written leaves the list as it was."""
         self._keep_outside_version()
-        kept = copy.deepcopy(self.lines)
+        kept = copy.deepcopy((self.lines, self.taken))
         try:
             yield
             self._write()
         except BaseException:
-            self.lines = kept
+            self.lines, self.taken = kept
             raise
 
     def _replace(
         self, index: int, text: str, op: str, change: Change, taken: str | None = None
     ) -> int:
-        with self._change():
-            line = self.lines.pop(index)
-            before, line.text, line.method = line.text, text, change.method
-            if taken is not None:
-                line.origin, line.removed_from_input = {"input": taken}, False
-            at = self._insert(line)
-            self._journal(
-                op,
-                before=before,
-                after=text,
-                input_text=line.origin.get("input"),
-                change=change,
-            )
+        line = self.lines.pop(index)
+        before, line.text, line.method = line.text, text, change.method
+        if taken is not None:
+            line.origin, line.removed_from_input = {"input": taken}, False
+        at = self._insert(line)
+        self._journal(
+            op,
+            before=before,
+            after=text,
+            input_text=line.origin.get("input"),
+            change=change,
+        )
         return at
+
+    def _found_again(self, text: str) -> bool:
+        """A new input line the output has already: one marked gone whose input line
+        is back, or one found in the file when it was chosen. No second line."""
+        for line in self.lines:
+            if line.origin.get("input") == text and line.removed_from_input:
+                line.removed_from_input = False
+                return True
+        for line in self.lines:
+            if line.origin.get("outside") and line.text == text:
+                line.origin, line.method = {"input": text}, "input"
+                return True
+        return False
+
+    def _mark_gone(self, text: str) -> None:
+        for line in self.lines:
+            if line.origin.get("input") == text and not line.removed_from_input:
+                line.removed_from_input = True
+                return
 
     def _from_input(self, taken: str) -> int | None:
         """The output line taken as ``taken``. Of two taken alike, one the referee left
@@ -198,22 +226,23 @@ class OutputList:
         try:
             state = json.loads(self.state_path.read_text(encoding="utf-8"))
             self.lines = [OutputLine(**entry) for entry in state["lines"]]
+            self.taken = [str(text) for text in state["input_taken"]]
         except FileNotFoundError:
-            self._adopt()
+            self._start_from_file()
             return
         except ValueError, KeyError, TypeError:
             # Not a state: kept aside, and the file's crossings start the list again.
             self.state_path.replace(_aside(self.state_path, "broken"))
-            self._adopt()
+            self._start_from_file()
             return
         self._written = self._body()
         self.check_outside()
 
-    def _adopt(self) -> None:
+    def _start_from_file(self) -> None:
         """No state: crossings already in the file start the list, in time order, and
         the file as it was is kept in a backup and journaled."""
         found = _read(self.path)
-        self.lines = []
+        self.lines, self.taken = [], []
         for text in text_lines(found or b""):
             self._insert(OutputLine(text, {"outside": True}, "outside"))
         self._written = None if self.lines else found
@@ -234,16 +263,13 @@ class OutputList:
     def _write(self) -> None:
         """The state, then the output file, each in one step: after a crash between
         the two, the state is ahead and writes the file again at the next start."""
-        self._write_state()
+        lines = [asdict(line) for line in self.lines]
+        state = {"version": _STATE_VERSION, "lines": lines, "input_taken": self.taken}
+        text = json.dumps(state, ensure_ascii=False) + "\n"
+        _write_in_one_step(self.state_path, text.encode())
         body = self._body()
         _write_in_one_step(self.path, body)
         self._written = body
-
-    def _write_state(self) -> None:
-        lines = [asdict(line) for line in self.lines]
-        state = {"version": _STATE_VERSION, "lines": lines}
-        text = json.dumps(state, ensure_ascii=False) + "\n"
-        _write_in_one_step(self.state_path, text.encode())
 
     def _body(self) -> bytes:
         return "".join(f"{text}\n" for text in self.texts()).encode()

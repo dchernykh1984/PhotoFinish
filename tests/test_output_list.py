@@ -23,6 +23,10 @@ def ms(text: str) -> int:
     return value
 
 
+def take(out: OutputList, *texts: str) -> None:
+    out.follow([*out.taken, *texts], list(texts), [])
+
+
 def journal(out: OutputList) -> list[dict[str, Any]]:
     text = out.journal_path.read_text(encoding="utf-8")
     return [json.loads(line) for line in text.splitlines()]
@@ -41,17 +45,17 @@ def path(tmp_path: Path) -> Path:
 def test_a_new_output_starts_empty_and_journals_nothing(path: Path) -> None:
     out = OutputList(path)
     assert path.read_bytes() == b""
-    assert json.loads(out.state_path.read_text())["lines"] == []
+    state = json.loads(out.state_path.read_text())
+    assert (state["lines"], state["input_taken"]) == ([], [])
     assert not out.journal_path.exists()
 
 
 def test_lines_keep_time_order_and_lines_without_a_time_come_last(path: Path) -> None:
     out = OutputList(path)
-    out.take(TAKEN)
-    out.take("7##")
-    assert out.take("3#20389 11:35:20.000#nextLap#") == 0
+    take(out, TAKEN)
+    take(out, "7##", "3#20389 11:35:20.000#nextLap#")
     assert out.add("9", ms("20389 11:35:29.615"), "finish", Change("frame")) == 2
-    out.take("8#bad#nextLap#")
+    take(out, "8#bad#nextLap#")
     assert path.read_bytes().decode().splitlines() == [
         "3#20389 11:35:20.000#nextLap#",
         TAKEN,
@@ -64,8 +68,8 @@ def test_lines_keep_time_order_and_lines_without_a_time_come_last(path: Path) ->
 
 def test_a_time_from_a_frame_moves_its_line_and_is_journaled(path: Path) -> None:
     out = OutputList(path)
-    out.take(TAKEN)
-    out.take("16#20389 11:35:29.600#nextLap#")
+    take(out, TAKEN)
+    take(out, "16#20389 11:35:29.600#nextLap#")
     frames: list[list[Any]] = [["a.mkv", 54321, 1761716129587], ["a.mkv", 54322, 1]]
     offsets = {"camera_ms": 0, "source_ms": -12}
     change = Change("interpolated", "cam1", frames, 0.41, offsets)
@@ -91,8 +95,8 @@ def test_a_time_from_a_frame_moves_its_line_and_is_journaled(path: Path) -> None
 
 def test_a_line_without_a_time_field_gets_one(path: Path) -> None:
     out = OutputList(path)
-    out.take("7##")
-    out.take("8")
+    take(out, "7##")
+    take(out, "8")
     out.set_time(0, ms("1 0:0:1"), Change("typed"))
     out.set_time(1, ms("1 0:0:2"), Change("typed"))
     assert out.texts() == ["7#1 0:0:1.000#", "8#1 0:0:2.000#"]
@@ -101,7 +105,7 @@ def test_a_line_without_a_time_field_gets_one(path: Path) -> None:
 def test_a_number_changes_in_place_and_cannot_break_the_line(path: Path) -> None:
     assert output_list.clean_number(" 1#2\u20283\r\n") == "1 2 3"
     out = OutputList(path)
-    out.take(TAKEN)
+    take(out, TAKEN)
     assert out.set_number(0, " 5#1\n") == 0
     assert out.texts() == ["5 1#20389 11:35:29.615#nextLap#"]
     with pytest.raises(ValueError, match="number"):
@@ -114,7 +118,7 @@ def test_a_number_changes_in_place_and_cannot_break_the_line(path: Path) -> None
 
 def test_a_removed_line_leaves_the_file_and_stays_in_the_journal(path: Path) -> None:
     out = OutputList(path)
-    out.take(TAKEN)
+    take(out, TAKEN)
     out.add("9", ms("20389 11:35:30.000"), "finish", Change("hand"))
     out.remove(0)
     assert out.texts() == ["9#20389 11:35:30.000#finish#"]
@@ -132,11 +136,12 @@ def test_a_removed_line_leaves_the_file_and_stays_in_the_journal(path: Path) -> 
 
 def test_copy_to_output_applies_a_changed_input_line(path: Path) -> None:
     out = OutputList(path)
-    out.take("14#20389 11:35:29.550#nextLap#")
-    out.take(TAKEN)
-    out.mark_removed(TAKEN)
+    take(out, "14#20389 11:35:29.550#nextLap#", TAKEN)
+    out.follow(out.taken, [], [TAKEN])
+    assert out.lines[1].removed_from_input
     current = "15#20389 11:35:29.500#nextLap#"
-    assert out.copy_input(TAKEN, current) == 0
+    assert out.copy_input(1, current) == 0
+    assert out.taken[1] == current
     line = out.lines[0]
     assert (line.text, line.origin, line.removed_from_input) == (
         current,
@@ -154,10 +159,10 @@ def test_copy_to_output_applies_a_changed_input_line(path: Path) -> None:
 
 def test_copy_to_output_brings_back_a_line_the_referee_removed(path: Path) -> None:
     out = OutputList(path)
-    out.take(TAKEN)
+    take(out, TAKEN)
     out.remove(0)
     current = "15#20389 11:35:29.500#nextLap#"
-    assert out.copy_input(TAKEN, current) == 0
+    assert out.copy_input(0, current) == 0
     assert out.lines[0].origin == {"input": current}
     assert without_at(journal(out)[-1]) == {
         "op": "copy",
@@ -169,10 +174,9 @@ def test_copy_to_output_brings_back_a_line_the_referee_removed(path: Path) -> No
 
 def test_of_twin_lines_copy_changes_the_one_the_referee_left(path: Path) -> None:
     out = OutputList(path)
-    out.take(TAKEN)
-    out.take(TAKEN)
+    take(out, TAKEN, TAKEN)
     out.set_time(0, ms("20389 11:35:29.700"), Change("frame"))
-    out.copy_input(TAKEN, "15#20389 11:35:29.620#nextLap#")
+    out.copy_input(1, "15#20389 11:35:29.620#nextLap#")
     assert out.texts() == [
         "15#20389 11:35:29.620#nextLap#",
         "15#20389 11:35:29.700#nextLap#",
@@ -181,22 +185,18 @@ def test_of_twin_lines_copy_changes_the_one_the_referee_left(path: Path) -> None
 
 def test_the_list_comes_back_with_its_origins_and_marks(path: Path) -> None:
     out = OutputList(path)
-    out.take(TAKEN)
-    out.take(TAKEN)
+    take(out, TAKEN, TAKEN)
     out.add("9", ms("20389 11:35:30.000"), "finish", Change("hand"))
-    out.mark_removed(TAKEN)
-    out.mark_removed(TAKEN)
-    out.mark_removed(TAKEN)
-    out.mark_removed("never taken")
+    out.follow([], [], [TAKEN, TAKEN, TAKEN, "never taken"])
     again = OutputList(path)
-    assert again.lines == out.lines
+    assert (again.lines, again.taken) == (out.lines, [])
     assert [line.removed_from_input for line in again.lines] == [True, True, False]
     assert len(journal(again)) == 3
 
 
 def test_an_outside_change_is_kept_and_the_list_written_again(path: Path) -> None:
     out = OutputList(path)
-    out.take(TAKEN)
+    take(out, TAKEN)
     assert not out.check_outside()
     path.write_text("edited by hand\n")
     assert out.check_outside()
@@ -209,7 +209,7 @@ def test_an_outside_change_is_kept_and_the_list_written_again(path: Path) -> Non
 def test_a_change_keeps_an_outside_version_first(path: Path) -> None:
     out = OutputList(path)
     path.write_text("x\n")
-    out.take(TAKEN)
+    take(out, TAKEN)
     entries = journal(out)
     assert [entry["op"] for entry in entries] == ["outside_change", "take"]
     assert (path.parent / entries[0]["backup"]).read_text() == "x\n"
@@ -217,7 +217,7 @@ def test_a_change_keeps_an_outside_version_first(path: Path) -> None:
 
 def test_a_deleted_output_is_written_again(path: Path) -> None:
     out = OutputList(path)
-    out.take(TAKEN)
+    take(out, TAKEN)
     path.unlink()
     assert out.check_outside()
     assert "backup" not in journal(out)[-1]
@@ -250,7 +250,7 @@ def test_crossings_in_a_chosen_file_start_the_list(path: Path) -> None:
 
 def test_a_state_that_cannot_be_read_is_kept_aside(path: Path) -> None:
     out = OutputList(path)
-    out.take(TAKEN)
+    take(out, TAKEN)
     out.state_path.write_text("{not json")
     again = OutputList(path)
     assert again.lines[0].origin == {"outside": True}
@@ -262,9 +262,9 @@ def test_after_a_crash_between_the_state_and_the_file_the_state_wins(
     path: Path,
 ) -> None:
     out = OutputList(path)
-    out.take(TAKEN)
+    take(out, TAKEN)
     old = path.read_bytes()
-    out.take("16#20389 11:35:30.000#nextLap#")
+    take(out, "16#20389 11:35:30.000#nextLap#")
     path.write_bytes(old)
     again = OutputList(path)
     assert path.read_text().splitlines() == again.texts() == out.texts()
@@ -275,7 +275,7 @@ def test_a_change_that_cannot_be_written_is_undone(
     path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     out = OutputList(path)
-    out.take(TAKEN)
+    take(out, TAKEN)
 
     def full(_path: Path, _data: bytes) -> None:
         raise OSError("disk full")
@@ -283,13 +283,15 @@ def test_a_change_that_cannot_be_written_is_undone(
     monkeypatch.setattr(output_list, "_write_in_one_step", full)
     with pytest.raises(OSError, match="disk full"):
         out.remove(0)
-    assert out.texts() == [TAKEN]
+    with pytest.raises(OSError, match="disk full"):
+        take(out, "16#20389 11:35:30.000#nextLap#")
+    assert (out.texts(), out.taken) == ([TAKEN], [TAKEN])
 
 
 def test_a_journal_line_cut_short_does_not_swallow_the_next(path: Path) -> None:
     out = OutputList(path)
     out.journal_path.write_text('{"op": "ta')
-    out.take(TAKEN)
+    take(out, TAKEN)
     assert json.loads(out.journal_path.read_text().splitlines()[-1])["op"] == "take"
 
 
