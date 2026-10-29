@@ -17,15 +17,23 @@ type Line = tuple[Point, Point]
 CENTRE: Line = ((0.5, 0.0), (0.5, 1.0))  # a camera's finish line until one is drawn
 
 
+def points(drawn: object) -> Line | None:
+    """Two different points within the picture, as the session keeps a finish line
+    or a zone's corners; None for anything else."""
+    if not (isinstance(drawn, list | tuple) and len(drawn) == 2):
+        return None
+    try:
+        (xa, ya), (xb, yb) = ((float(x), float(y)) for x, y in drawn)
+    except TypeError, ValueError:
+        return None
+    if not all(0 <= v <= 1 for v in (xa, ya, xb, yb)) or (xa, ya) == (xb, yb):
+        return None
+    return (xa, ya), (xb, yb)
+
+
 def finish_line(drawn: object) -> Line:
     """A camera's finish line as the session keeps it, or the centre line."""
-    if not (isinstance(drawn, list | tuple) and len(drawn) == 2):
-        return CENTRE
-    try:
-        points = [(float(x), float(y)) for x, y in drawn]
-    except TypeError, ValueError:
-        return CENTRE
-    return (points[0], points[1]) if points[0] != points[1] else CENTRE
+    return points(drawn) or CENTRE
 
 
 def crossing(line: Line, first: Point, second: Point) -> float | None:

@@ -18,6 +18,7 @@ from typing import Any
 import av
 
 from app import analysis
+from app.interpolation import points
 from app.recorder.testcam import SCENES
 
 CONNECTIONS = ("usb", "rtsp", "rtmp", "test", "file")
@@ -73,7 +74,7 @@ def problems(camera: dict[str, Any]) -> list[str]:
         return ["settings must be a table"]
     found = _CHECKS[connection](settings)
     line = camera.get("finish_line")
-    if line is not None and not _finish_line(line):
+    if line is not None and points(line) is None:
         found.append("the finish line must be two different points within the picture")
     if not isinstance(camera.get("offset_ms", 0), int):
         found.append("the offset must be whole milliseconds")
@@ -180,14 +181,3 @@ def _fps(settings: dict[str, Any]) -> list[str]:
     fps = settings.get("fps", 30)
     ok = isinstance(fps, int | float) and not isinstance(fps, bool) and 1 <= fps <= 240
     return [] if ok else ["the frame rate must be from 1 to 240"]
-
-
-def _finish_line(line: object) -> bool:
-    if not (isinstance(line, list | tuple) and len(line) == 2):
-        return False
-    try:
-        points = [(float(x), float(y)) for x, y in line]
-    except TypeError, ValueError:
-        return False
-    inside = all(0 <= v <= 1 for point in points for v in point)
-    return inside and points[0] != points[1]
