@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from app.analysis.analyzer import ACTIVITY
-from app.files import Appended
+from app.files import Appended, read_json
 
 JOIN_MS = 1000  # pieces this close are one stretch
 _STEP_MS = 300  # "next" from inside a stretch's first moments is the one after
@@ -31,7 +31,7 @@ class Activity:
 
     def refresh(self) -> bool:
         """Activity written since the last refresh read; True when there was any."""
-        self.progress = _json(self.folder / "analyzer.json")
+        self.progress = read_json(self.folder / "analyzer.json")
         new = False
         for line in self._lines.new_lines():
             try:
@@ -70,11 +70,3 @@ def _joined(pieces: list[tuple[int, int]]) -> list[tuple[int, int]]:
         else:
             joined.append((start, end))
     return joined
-
-
-def _json(path: Path) -> dict[str, Any] | None:
-    try:
-        found = json.loads(path.read_text(encoding="ascii"))
-    except OSError, ValueError:
-        return None
-    return found if isinstance(found, dict) else None

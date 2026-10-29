@@ -158,6 +158,10 @@ def test_progress_keeps_how_far_it_got(base: Path) -> None:
     analyzer._progress(folder, "waiting")
     info: dict[str, Any] = json.loads((folder / "analyzer.json").read_text())
     assert (info["state"], info["done_ms"]) == ("waiting", 1000)
+    (folder / "analyzer.json").write_text("[1]")  # not what it wrote: started afresh
+    analyzer._progress(folder, "waiting")
+    info = json.loads((folder / "analyzer.json").read_text())
+    assert (info["state"], info["done_ms"]) == ("waiting", None)
 
 
 def test_lines_of_activity_that_name_no_segment_are_passed_over(tmp_path: Path) -> None:
