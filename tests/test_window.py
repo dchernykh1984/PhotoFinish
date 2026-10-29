@@ -13,10 +13,11 @@ import pytest
 from PySide6.QtCore import QPointF, Qt
 from PySide6.QtGui import QImage
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QMessageBox
+from PySide6.QtWidgets import QFileDialog, QMessageBox
 
 from app import main_window as mw
-from app import session
+from app import output_list, session
+from app.lines import scale_time, to_line_scale
 from app.recorder.segments import SegmentWriter
 from app.recorder.testcam import read_time, render
 from app.widgets.camera_dialog import CameraDialog
@@ -195,3 +196,124 @@ def test_the_list_says_how_each_recorder_is(
     beating(recording, state="disk_full")
     win.poll()
     assert win.camera_list.item(0).text() == "Side: disk full, recording stopped"
+
+
+def journal(path: Path) -> list[dict[str, Any]]:
+    text = path.with_name(path.name + ".journal.txt").read_text()
+    return [json.loads(line) for line in text.splitlines()]
+
+
+def choose(monkeypatch: pytest.MonkeyPatch, path: Path | str) -> None:
+    monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *args: (str(path), ""))
+
+
+def test_enter_adds_a_crossing_at_the_frame_shown(
+    recording: Path,
+    make_window: Callable[[], mw.MainWindow],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out = recording / "results_video.txt"
+    win = make_window()
+    choose(monkeypatch, out)
+    win.choose_output()
+    assert session.load()["output"] == str(out)
+    assert win.output_button.text() == f"Output: {out}"
+    wait_until(showing(win, START + 69 * 33))
+    win.step(-9)
+    win.number.setText(" 15 ")
+    QTest.keyClick(win.number, Qt.Key.Key_Return)
+    moment = scale_time(to_line_scale(START + 60 * 33, False))
+    assert out.read_text() == f"15#{moment}#nextLap#\n"
+    assert win.number.text() == ""
+    assert win.statusBar().currentMessage() == f"Added 15 at {moment}"
+    (entry,) = journal(out)
+    frame = win.cameras["cam1"].index.frame(60)
+    assert entry["op"] == "add"
+    assert entry["method"] == "frame"
+    assert entry["camera"] == "cam1"
+    assert entry["frames"] == [[frame.path.name, frame.pts, START + 60 * 33]]
+    assert entry["offsets"] == {"camera_ms": 0, "source_ms": 0}
+    win.finish.setChecked(True)
+    assert session.load()["finish_mode"] is True
+    win.number.setText("16")
+    win.add_crossing()
+    assert out.read_text().splitlines()[-1] == f"16#{moment}#finish#"
+
+
+def test_the_keys_move_the_video_while_a_number_is_typed(
+    recording: Path, make_window: Callable[[], mw.MainWindow]
+) -> None:
+    win = make_window()
+    win.show()
+    win.activateWindow()
+    wait_until(showing(win, START + 69 * 33))
+    win.number.setFocus()
+    QTest.keyClicks(win.number, "15")
+    QTest.keyClick(win.number, Qt.Key.Key_Left)
+    wait_until(showing(win, START + 68 * 33))
+    QTest.keyClick(win.number, Qt.Key.Key_Left, Qt.KeyboardModifier.ShiftModifier)
+    wait_until(showing(win, START + 58 * 33))
+    QTest.keyClick(win.number, Qt.Key.Key_L)
+    wait_until(showing(win, START + 69 * 33))
+    assert win.number.text() == "15"
+    QTest.keyClick(win.number, Qt.Key.Key_Backspace)
+    assert win.number.text() == "1"
+
+
+def test_a_crossing_needs_an_output_a_frame_and_a_number(
+    make_window: Callable[[], mw.MainWindow],
+    base: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    win = make_window()
+    win.add_crossing()
+    assert win.statusBar().currentMessage() == "Choose the output file first"
+    choose(monkeypatch, "")
+    win.choose_output()
+    assert win.output is None
+    session.save({**session.DEFAULTS, "input": "results.txt"})
+    win.session = session.load()
+    choose(monkeypatch, base / "results.txt")
+    win.choose_output()
+    assert win.output is None
+    assert "only read" in win.statusBar().currentMessage()
+    choose(monkeypatch, "out.txt")
+    win.choose_output()
+    assert win.output is not None
+    win.add_crossing()
+    assert (
+        win.statusBar().currentMessage() == "There is no frame to time the crossing on"
+    )
+
+
+def test_a_crossing_without_a_number_or_a_disk_is_refused(
+    recording: Path,
+    make_window: Callable[[], mw.MainWindow],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    win = make_window()
+    choose(monkeypatch, recording / "out.txt")
+    win.choose_output()
+    wait_until(lambda: win.place is not None)
+    win.number.setText(" # ")
+    win.add_crossing()
+    assert win.statusBar().currentMessage() == "Type the rider's number first"
+
+    def full(path: Path, data: bytes) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(output_list, "_write_in_one_step", full)
+    win.number.setText("15")
+    win.add_crossing()
+    assert "cannot be written: disk full" in win.statusBar().currentMessage()
+    assert win.number.text() == "15"
+
+
+def test_an_output_that_cannot_be_opened_is_said(
+    base: Path, make_window: Callable[[], mw.MainWindow]
+) -> None:
+    (base / "a folder").mkdir()
+    session.save({**session.DEFAULTS, "output": "a folder"})
+    win = make_window()
+    assert win.output is None
+    assert "cannot be opened" in win.statusBar().currentMessage()
