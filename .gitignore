@@ -95,6 +95,13 @@ logs/
 # Activity cache
 .cache/
 
+# ===== PhotoFinish at work =====
+
+# Run from the repository, the program keeps its session and the recordings
+# next to itself (app/paths.py): never commit them.
+/data/
+/video/
+
 # ===== OS =====
 
 # macOS
