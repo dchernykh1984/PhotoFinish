@@ -10,6 +10,8 @@ import numpy as np
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QCloseEvent, QImage, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
+    QCheckBox,
+    QFileDialog,
     QHBoxLayout,
     QLabel,
     QListWidget,
@@ -24,12 +26,15 @@ from PySide6.QtWidgets import (
 
 from app import session
 from app.lines import scale_time, to_line_scale
+from app.output_list import Change, OutputList
+from app.paths import app_path
 from app.recorder import folder_of
 from app.recorder.launcher import Watchdog, describe, heartbeat
 from app.video_index import VideoIndex
 from app.widgets.camera_dialog import CameraDialog
 from app.widgets.camera_view import CameraView
 from app.widgets.decode_worker import DecodeWorker
+from app.widgets.number_field import NumberField
 from app.widgets.timeline import Timeline
 
 POLL_MS = 500
@@ -69,6 +74,16 @@ class MainWindow(QMainWindow):
         self.camera_list.currentRowChanged.connect(self._choose_camera)
         self.worker = DecodeWorker()
         self.worker.decoded.connect(self._show)
+        self.number = NumberField()
+        self.number.returnPressed.connect(self.add_crossing)
+        self.finish = QCheckBox("Finish")
+        self.finish.setToolTip("Crossings added are finishes; unchecked, laps")
+        self.finish.setChecked(bool(self.session.get("finish_mode")))
+        self.finish.toggled.connect(self._finish_mode)
+        self.output_button = QPushButton()
+        self.output_button.clicked.connect(self.choose_output)
+        self.output: OutputList | None = None
+        self._open_output()
 
         self.setCentralWidget(self._layout())
         self._shortcuts()
@@ -102,10 +117,16 @@ class MainWindow(QMainWindow):
             transport.addWidget(button)
         transport.addStretch()
         transport.addWidget(self.time_label)
+        timing = QHBoxLayout()
+        timing.addWidget(QLabel("Number"))
+        timing.addWidget(self.number, stretch=1)
+        timing.addWidget(self.finish)
+        timing.addWidget(self.output_button)
         video = QVBoxLayout()
         video.addWidget(self.view, stretch=1)
         video.addWidget(self.timeline)
         video.addLayout(transport)
+        video.addLayout(timing)
         left = QWidget()
         left.setLayout(video)
 
@@ -207,6 +228,76 @@ class MainWindow(QMainWindow):
 
     def _camera(self) -> Camera | None:
         return None if self.current is None else self.cameras.get(self.current)
+
+    # -- the output ------------------------------------------------------------
+
+    def choose_output(self) -> None:
+        path, _ = QFileDialog.getSaveFileName(
+            self, "The file the corrected crossings go to", "", "Text (*.txt)"
+        )
+        if not path:
+            return
+        if self._same_as_input(path):
+            self._say(
+                "The output cannot be the chronometer's file: that one is only read"
+            )
+            return
+        self.session["output"] = path
+        session.save(self.session)
+        self._open_output()
+
+    def add_crossing(self) -> None:
+        """A crossing for the typed number at the frame shown."""
+        camera = self._camera()
+        if self.output is None:
+            self._say("Choose the output file first")
+            return
+        if camera is None or self.place is None:
+            self._say("There is no frame to time the crossing on")
+            return
+        frame = camera.index.frame(self.place)
+        offsets = {
+            "camera_ms": self._offset(),
+            "source_ms": int(self.session.get("source_offset_ms", 0)),
+        }
+        moment = frame.ms + offsets["camera_ms"] + offsets["source_ms"]
+        line_ms = to_line_scale(moment, bool(self.session.get("summer_time")))
+        action = "finish" if self.finish.isChecked() else "nextLap"
+        change = Change(
+            "frame", camera.id, [[frame.path.name, frame.pts, frame.ms]], None, offsets
+        )
+        try:
+            self.output.add(self.number.text(), line_ms, action, change)
+        except ValueError:
+            self._say("Type the rider's number first")
+            return
+        except OSError as error:
+            self._say(f"The output file cannot be written: {error}")
+            return
+        self._say(f"Added {self.number.text().strip()} at {scale_time(line_ms)}")
+        self.number.clear()
+
+    def _open_output(self) -> None:
+        chosen = str(self.session.get("output") or "")
+        self.output_button.setText(f"Output: {chosen}" if chosen else "Output file...")
+        self.output = None
+        if not chosen:
+            return
+        try:
+            self.output = OutputList(app_path(chosen))
+        except OSError as error:
+            self._say(f"The output file cannot be opened: {error}")
+
+    def _same_as_input(self, path: str) -> bool:
+        chosen = str(self.session.get("input") or "")
+        return bool(chosen) and app_path(chosen).resolve() == app_path(path).resolve()
+
+    def _finish_mode(self, on: bool) -> None:
+        self.session["finish_mode"] = on
+        session.save(self.session)
+
+    def _say(self, text: str) -> None:
+        self.statusBar().showMessage(text, 8000)
 
     # -- moving through the video ----------------------------------------------
 
