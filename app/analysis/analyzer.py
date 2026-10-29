@@ -89,10 +89,9 @@ class ModelWatch:
         self.suggestions: list[dict[str, Any]] = []
 
     def see(self, frame: av.VideoFrame, ref: Ref) -> None:
-        """Kept, as small as the model looks at it, to find a crossing's frames."""
-        width = min(frame.width, self.detector.width)
-        height = max(round(width * frame.height / frame.width), 1)
-        self.frames.append((frame.reformat(width=width, height=height), ref))
+        """Kept as decoded, for the rare crossing that looks at them again: no frame
+        is scaled before then."""
+        self.frames.append((frame, ref))
 
     def feed(self, frame: av.VideoFrame, ref: Ref) -> int | None:
         """A rider in the zone: a person or a bicycle overlapping it."""
@@ -123,14 +122,15 @@ def run(
     left; the process's exit code."""
     if not CAMERA_ID.fullmatch(camera_id):
         return 2
-    camera = session.camera(session.load(), camera_id)
+    saved = session.load()
+    camera = session.camera(saved, camera_id)
     if camera is None:
         return 2
     _lower_priority()
     stop = stop or _window_gone()
     folder = folder_of(camera_id)
     try:
-        watch = _watch(camera, analysis.settings(session.load())["model"])
+        watch = _watch(camera, analysis.settings(saved)["model"])
     except ModelError as error:
         _progress(folder, "failed", detail=str(error))
         return 2

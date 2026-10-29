@@ -36,7 +36,14 @@ from app.analysis.activity import Activity
 from app.analysis.suggestions import Suggestions
 from app.input_follow import InputFollow
 from app.interpolation import Point, between, crossing, finish_line
-from app.lines import parse_line, parse_time, scale_time, to_epoch, to_line_scale
+from app.lines import (
+    parse_line,
+    parse_time,
+    scale_time,
+    source_offset,
+    to_epoch,
+    to_line_scale,
+)
 from app.output_list import Change, JournalError, OutputLine, OutputList
 from app.paths import app_path
 from app.recorder import folder_of
@@ -463,7 +470,7 @@ class MainWindow(QMainWindow):
             self._say("That line has no time to align on")
             return
         moment = camera.index.frame(self.place).ms + self._offset()
-        offset = to_epoch(line_ms, bool(self.session.get("summer_time"))) - moment
+        offset = source_offset(line_ms, moment, bool(self.session.get("summer_time")))
         self.session["source_offset_ms"] = offset
         self._save_session()
         self._say(f"The video is aligned with the timing source: {offset:+d} ms")
@@ -716,13 +723,10 @@ class MainWindow(QMainWindow):
         camera = self._camera()
         if camera is None or not self._has_target():
             return
-        index = camera.index
-        after = index.nearest(ms - self._offset())
-        if after is None:
+        around = camera.index.around(ms - self._offset())
+        if around is None:
             return
-        if index.frame(after).ms + self._offset() < ms:
-            after += 1
-        frames = [index.frame(after - 1), index.frame(after)]
+        frames = [camera.index.frame(place) for place in around]
         change = Change(
             "hand",
             camera.id,

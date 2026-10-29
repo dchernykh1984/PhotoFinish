@@ -313,3 +313,14 @@ def test_a_frame_is_found_again_after_the_frames_were_sorted_anew(
     assert index.frame(45) == frame
     assert index.find(Frame(tmp_path / "x.mkv", 0, 0)) is None
     assert index.find(Frame(frame.path, 10**9, 0)) is None
+
+
+def test_the_two_frames_around_a_moment(tmp_path: Path) -> None:
+    record(tmp_path, START, 3)
+    index = VideoIndex(tmp_path)
+    index.refresh()
+    assert index.around(START + 10) == (0, 1)
+    assert index.around(START + 33) == (0, 1)  # on a frame: it and the one before
+    assert index.around(START + 50) == (1, 2)
+    assert index.around(START) is None
+    assert index.around(START + 1000) is None
