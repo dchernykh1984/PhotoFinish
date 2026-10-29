@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 
 import av
 import numpy as np
+import onnx
+import onnxruntime
+from onnx import TensorProto, helper
 
 from app import cameras
 
@@ -30,6 +34,24 @@ def test_usb_cameras_are_captured_or_said_not_to_be() -> None:
             "this build cannot capture USB cameras on this computer: "
             "use the camera's stream or a file"
         ]
+
+
+def test_onnxruntime_runs_a_model_built_with_onnx(tmp_path: Path) -> None:
+    # The detector of specs/002 runs ONNX models on the CPU.
+    graph = helper.make_graph(
+        [helper.make_node("Relu", ["x"], ["y"])],
+        "relu",
+        [helper.make_tensor_value_info("x", TensorProto.FLOAT, [2])],
+        [helper.make_tensor_value_info("y", TensorProto.FLOAT, [2])],
+    )
+    # IR 10: onnx writes the newest by default, onnxruntime reads a step behind.
+    opsets = [helper.make_opsetid("", 13)]
+    model = helper.make_model(graph, opset_imports=opsets, ir_version=10)
+    path = tmp_path / "relu.onnx"
+    onnx.save(model, str(path))
+    run = onnxruntime.InferenceSession(str(path), providers=["CPUExecutionProvider"])
+    (out,) = run.run(None, {"x": np.array([-1.0, 2.0], np.float32)})
+    assert out.tolist() == [0.0, 2.0]
 
 
 def test_a_frame_goes_to_numpy_and_back() -> None:
