@@ -155,6 +155,7 @@ def test_copy_to_output_applies_a_changed_input_line(path: Path) -> None:
         "after": current,
         "input": current,
         "method": "input",
+        "taken": TAKEN,
     }
 
 
@@ -170,6 +171,7 @@ def test_copy_to_output_brings_back_a_line_the_referee_removed(path: Path) -> No
         "after": current,
         "input": current,
         "method": "input",
+        "taken": TAKEN,
     }
 
 
@@ -313,6 +315,28 @@ def test_a_rename_refused_for_a_moment_is_tried_again(
     OutputList(path)
     assert refused
     assert path.read_bytes() == b""
+
+
+def test_an_output_held_a_moment_by_another_program_is_read_after_all(
+    path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    out = OutputList(path)
+    take(out, TAKEN)
+    path.write_text("edited by hand\n")
+    real = Path.read_bytes
+    refused: list[Path] = []
+
+    def read_bytes(self: Path) -> bytes:
+        if self == path and not refused:
+            refused.append(self)
+            raise PermissionError("in use")
+        return real(self)
+
+    monkeypatch.setattr(Path, "read_bytes", read_bytes)
+    monkeypatch.setattr(files.time, "sleep", lambda _seconds: None)
+    assert out.check_outside()
+    assert refused
+    assert journal(out)[-1]["op"] == "outside_change"
 
 
 def test_a_rename_refused_for_good_fails(
@@ -459,3 +483,36 @@ def test_a_journal_held_a_moment_is_written_after_all(
     monkeypatch.setattr(files.time, "sleep", lambda seconds: None)
     take(out, TAKEN)
     assert [e["op"] for e in journal(out)] == ["take"]
+
+
+def test_twin_lines_are_adopted_marked_and_found_again_one_each(path: Path) -> None:
+    other = "16#20389 11:35:30.000#finish#"
+    path.write_text(f"{TAKEN}\n{TAKEN}\n{other}\n")
+    out = OutputList(path)
+    take(out, TAKEN, TAKEN)
+    assert out.texts() == [TAKEN, TAKEN, other]
+    assert [line.origin for line in out.lines] == [
+        {"input": TAKEN},
+        {"input": TAKEN},
+        {"outside": True},
+    ]
+    out.follow([TAKEN], [], [TAKEN])
+    assert [line.removed_from_input for line in out.lines] == [True, False, False]
+    out.follow([TAKEN, TAKEN], [TAKEN], [])
+    assert out.texts() == [TAKEN, TAKEN, other]
+    assert not any(line.removed_from_input for line in out.lines)
+    assert [entry["op"] for entry in journal(out)] == ["outside_change", "take", "take"]
+
+
+def test_lines_adopted_from_the_file_and_copies_are_in_the_journal(path: Path) -> None:
+    path.write_text(TAKEN + "\n")  # an output chosen with a line in it
+    out = OutputList(path)
+    take(out, TAKEN)  # the input's line: adopted, not taken twice
+    assert len(out.texts()) == 1
+    assert [e["op"] for e in journal(out)] == ["outside_change", "take"]
+    out.set_number(0, "51")  # the referee's correction first
+    changed = "15#20389 11:35:29.700#nextLap#"
+    out.copy_input(0, changed)
+    assert journal(out)[-1]["taken"] == TAKEN
+    out.state_path.write_text("{broken")
+    assert OutputList(path).taken == [changed]
