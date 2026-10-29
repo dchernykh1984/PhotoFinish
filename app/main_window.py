@@ -33,6 +33,7 @@ from PySide6.QtWidgets import (
 
 from app import analysis, paths, session
 from app.analysis.activity import Activity
+from app.analysis.suggestions import Suggestions
 from app.input_follow import InputFollow
 from app.interpolation import Point, between, crossing, finish_line
 from app.lines import parse_line, parse_time, scale_time, to_epoch, to_line_scale
@@ -63,6 +64,7 @@ class Camera:
     view: CameraView
     worker: DecodeWorker
     activity: Activity
+    suggestions: Suggestions
     shown: int | None = None  # the frame on its view, in its index
     wanted: tuple[str, int] | None = None  # the frame last asked for
     analyzer: Any = None  # its analyser process, while finding riders is on
@@ -126,6 +128,8 @@ class MainWindow(QMainWindow):
         self.model_button = QPushButton()
         self.model_button.clicked.connect(self.choose_model)
         self._show_model()
+        self.suggestion_list = QListWidget()
+        self.suggestion_list.itemClicked.connect(self._suggestion_picked)
 
         self.setCentralWidget(self._layout())
         self._shortcuts()
@@ -139,6 +143,7 @@ class MainWindow(QMainWindow):
         self.timer.timeout.connect(self.poll)
         self.timer.start(POLL_MS)
         self.poll()
+        self._show_suggestions()
 
     # -- layout ----------------------------------------------------------------
 
@@ -248,8 +253,20 @@ class MainWindow(QMainWindow):
         outputs.addWidget(QLabel("Output: the referee's crossings"))
         outputs.addWidget(self.output_view)
         outputs.addLayout(corrections)
+        accept = QPushButton("Accept with the number")
+        accept.setToolTip("Type the rider's number, then accept the crossing suggested")
+        accept.clicked.connect(self.accept_suggestion)
+        dismiss = QPushButton("Dismiss")
+        dismiss.clicked.connect(self.dismiss_suggestion)
+        decide = QHBoxLayout()
+        decide.addWidget(accept)
+        decide.addWidget(dismiss)
+        suggested = QVBoxLayout()
+        suggested.addWidget(QLabel("Suggested crossings (experimental)"))
+        suggested.addWidget(self.suggestion_list)
+        suggested.addLayout(decide)
         right = QSplitter(Qt.Orientation.Vertical)
-        for part in (cameras, inputs, outputs):
+        for part in (cameras, inputs, outputs, suggested):
             holder = QWidget()
             holder.setLayout(part)
             right.addWidget(holder)
@@ -334,6 +351,7 @@ class MainWindow(QMainWindow):
             view,
             worker,
             Activity(folder_of(camera_id)),
+            Suggestions(folder_of(camera_id)),
         )
         view.clicked.connect(lambda point: self.picture_clicked(point, camera_id))
         worker.decoded.connect(lambda tag, image: self._show(camera, tag, image))
@@ -512,9 +530,8 @@ class MainWindow(QMainWindow):
             self._say("There is no frame to time the crossing on")
             return
         line_ms, change = timed
-        action = "finish" if self.finish.isChecked() else "nextLap"
         try:
-            self.output.add(self.number.text(), line_ms, action, change)
+            self.output.add(self.number.text(), line_ms, self._action(), change)
         except ValueError:
             self._say("Type the rider's number first")
             return
@@ -742,6 +759,7 @@ class MainWindow(QMainWindow):
         self.session["analysis"] = {**analysis.settings(self.session), "model": path}
         session.save(self.session)
         self._show_model()
+        self._show_suggestions()
         if self.analysis_box.isChecked():  # the model chosen from here on
             for camera in self.cameras.values():
                 self._stop_analyzer(camera)
@@ -760,6 +778,7 @@ class MainWindow(QMainWindow):
             else:
                 self._stop_analyzer(camera)
         self._show_marks()
+        self._show_suggestions()
         self.poll()
 
     def next_rider(self) -> None:
@@ -806,9 +825,87 @@ class MainWindow(QMainWindow):
             if not process.waitForFinished(3000):
                 process.kill()
 
-    def _offsets(self) -> dict[str, int]:
+    def accept_suggestion(self) -> None:
+        """The crossing suggested, with the typed number, through the output's
+        usual path; the journal names the model that suggested it."""
+        chosen = self._suggestion()
+        if chosen is None:
+            return
+        camera, found = chosen
+        if self.output is None or not self.number.text().strip():
+            self._say("Type the rider's number first; the output file must be chosen")
+            return
+        offsets = self._offsets(camera)
+        line_ms = self._line_ms(int(found["ms"]) + offsets["camera_ms"])
+        change = Change(
+            "interpolated",
+            camera.id,
+            found.get("frames", []),
+            found.get("fraction"),
+            offsets,
+            str(found.get("model", "")),
+        )
+        number, action = self.number.text(), self._action()
+        self._correct(lambda output: output.add(number, line_ms, action, change))
+        self.number.clear()
+        camera.suggestions.decide(str(found["id"]), "accepted")
+        self._show_suggestions()
+
+    def dismiss_suggestion(self) -> None:
+        chosen = self._suggestion()
+        if chosen is not None:
+            chosen[0].suggestions.decide(str(chosen[1]["id"]), "dismissed")
+            self._show_suggestions()
+
+    def _suggestion(self) -> tuple[Camera, dict[str, Any]] | None:
+        item = self.suggestion_list.currentItem()
+        data = None if item is None else item.data(Qt.ItemDataRole.UserRole)
+        if not data or data[0] not in self.cameras:
+            self._say("Choose a suggested crossing first")
+            return None
+        return self.cameras[data[0]], data[1]
+
+    def _suggestion_picked(self, item: QListWidgetItem) -> None:
+        """The video at the suggested moment, on the camera that suggested it."""
+        data = item.data(Qt.ItemDataRole.UserRole)
+        if not data or data[0] not in self.cameras:
+            return
+        camera_id, found = data
+        self.camera_list.setCurrentRow(list(self.cameras).index(camera_id))
+        self.seek_ms(int(found["ms"]) + self._offset())
+
+    def _show_suggestions(self) -> None:
+        """The crossings suggested and not decided, in time order."""
+        self.suggestion_list.clear()
+        settings = analysis.settings(self.session)
+        if not settings["on"]:
+            return
+        if not settings["model"]:
+            hint = QListWidgetItem("Suggestions need a detection model: Model...")
+            hint.setFlags(Qt.ItemFlag.NoItemFlags)
+            self.suggestion_list.addItem(hint)
+            return
+        found = [
+            (int(s["ms"]) + int(c.settings.get("offset_ms", 0)), c, s)
+            for c in self.cameras.values()
+            for s in c.suggestions.pending()
+        ]
+        for moment, camera, suggestion in sorted(found, key=lambda f: f[0]):
+            clock = scale_time(self._line_ms(moment)).split(" ")[1]
+            name = camera.settings.get("name", camera.id)
+            item = QListWidgetItem(f"{clock}  {name}")
+            item.setToolTip(f"Suggested by {suggestion.get('model')}")
+            item.setData(Qt.ItemDataRole.UserRole, (camera.id, suggestion))
+            self.suggestion_list.addItem(item)
+
+    def _action(self) -> str:
+        return "finish" if self.finish.isChecked() else "nextLap"
+
+    def _offsets(self, camera: Camera | None = None) -> dict[str, int]:
+        camera = camera or self._camera()
+        own = 0 if camera is None else int(camera.settings.get("offset_ms", 0))
         return {
-            "camera_ms": self._offset(),
+            "camera_ms": own,
             "source_ms": int(self.session.get("source_offset_ms", 0)),
         }
 
@@ -873,11 +970,15 @@ class MainWindow(QMainWindow):
 
     def poll(self) -> None:
         finding = self.analysis_box.isChecked()
+        suggested = False
         for camera in self.cameras.values():
             if finding:
                 camera.activity.refresh()  # its progress first: a failed one waits
+                suggested = camera.suggestions.refresh() or suggested
                 self._analyze(camera)
             self._label(camera)
+        if suggested:
+            self._show_suggestions()
         self._follow_files()
         self._refresh()
         current = self._camera()
