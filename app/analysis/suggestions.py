@@ -35,10 +35,11 @@ class Suggestions:
         return [s for s in self.found if s.get("id") not in self.done]
 
     def decide(self, name: str, how: str) -> None:
-        """``accepted`` or ``dismissed``: the suggestion is not offered again."""
+        """``accepted`` or ``dismissed``: the suggestion is not offered again -- in
+        this session even when the decision cannot be kept on disk, which raises."""
+        self.done.add(name)
         with (self.folder / DONE).open("a", encoding="ascii") as f:
             f.write(json.dumps({"id": name, "done": how}) + "\n")
-        self.done.add(name)
 
 
 def _entries(lines: list[str]) -> list[dict[str, Any]]:

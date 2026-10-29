@@ -884,14 +884,21 @@ class MainWindow(QMainWindow):
         ):
             return  # not written: the suggestion stays offered, the number typed
         self.number.clear()
-        camera.suggestions.decide(str(found["id"]), "accepted")
-        self._show_suggestions()
+        self._decide(camera, found, "accepted")
 
     def dismiss_suggestion(self) -> None:
         chosen = self._suggestion()
         if chosen is not None:
-            chosen[0].suggestions.decide(str(chosen[1]["id"]), "dismissed")
-            self._show_suggestions()
+            self._decide(*chosen, "dismissed")
+
+    def _decide(self, camera: Camera, found: dict[str, Any], how: str) -> None:
+        """A suggestion decided leaves the list; a decision the disk refuses is said:
+        offered again after a restart, it would be accepted twice."""
+        try:
+            camera.suggestions.decide(str(found["id"]), how)
+        except OSError as error:
+            self._say(f"Done; the decision cannot be kept for a restart: {error}")
+        self._show_suggestions()
 
     def _suggestion(self) -> tuple[Camera, dict[str, Any]] | None:
         item = self.suggestion_list.currentItem()
