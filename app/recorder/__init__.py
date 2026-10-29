@@ -21,6 +21,9 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import IO, Any
 
+import av
+import numpy as np
+
 from app import session
 from app.paths import app_path
 from app.recorder.segments import SegmentWriter
@@ -175,18 +178,30 @@ class _Recording:
 
     def _record(self, source: Source) -> bool:
         """Frames into segments; True when a stop was asked for."""
-        if self.writer is None:
-            self.writer = SegmentWriter(self.folder, source.fps)
-        for image, ms in source.frames():
-            _disk(self.writer.write, image, ms)
-            self.backoff.running(time.monotonic())
-            writer = self.writer
-            self.beat.beat(
-                state="recording", frames=writer.frames, segments=writer.segments
-            )
+        for item in source.frames():
+            if item is None:
+                self.beat.beat(state="connecting", detail=source.waiting)
+            else:
+                self._write(source, *item)
             if self.stop.exists():
                 return True
         return False
+
+    def _write(
+        self, source: Source, image: np.ndarray | av.VideoFrame | av.Packet, ms: int
+    ) -> None:
+        if self.writer is None:
+            self.writer = SegmentWriter(self.folder, source.fps)
+        writer = self.writer
+        writer.fps = source.fps
+        if isinstance(image, av.Packet):
+            _disk(writer.write_packet, image, ms)
+        else:
+            _disk(writer.write, image, ms)
+        self.backoff.running(time.monotonic())
+        self.beat.beat(
+            state="recording", detail="", frames=writer.frames, segments=writer.segments
+        )
 
     def _wait(self, detail: str) -> bool:
         """The open segment closed, a pause before trying again; True when a stop

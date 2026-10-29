@@ -111,3 +111,45 @@ def test_closing_twice_or_onto_a_name_taken_loses_nothing(tmp_path: Path) -> Non
     writer.close()
     assert (tmp_path / f"{stamp}-0001.mkv").read_bytes() == b"kept"
     assert times(tmp_path / f"{stamp}-0002.mkv") == [(0, START), (33, START + 33)]
+
+
+def make_h264(path: Path, frames: int) -> None:
+    """A camera's own stream: H.264 with B-frames, a keyframe a second."""
+    with av.open(str(path), "w") as container:
+        stream = container.add_stream(
+            "libx264", rate=30, options={"g": "30", "bf": "2"}
+        )
+        stream.width, stream.height, stream.pix_fmt = 640, 360, "yuv420p"
+        for k in range(frames):
+            frame = av.VideoFrame.from_ndarray(render(START + k * 33, 640, 360))
+            frame.pts = k
+            for packet in stream.encode(frame):
+                container.mux(packet)
+        for packet in stream.encode(None):
+            container.mux(packet)
+
+
+def test_a_cameras_packets_are_kept_from_its_first_keyframe_on(tmp_path: Path) -> None:
+    make_h264(tmp_path / "camera.mp4", 150)
+    folder = tmp_path / "cam1"
+    writer = SegmentWriter(folder, fps=30)
+    writer.write(render(START - 5000, 640, 360), START - 5000)  # was encoding before
+    with av.open(str(tmp_path / "camera.mp4")) as container:
+        stream = container.streams.video[0]
+        unit = float(stream.time_base or 0) * 1000
+        packets = list(container.demux(stream))
+        assert packets[-1].pts is None  # the demuxer's last, empty packet
+        for packet in packets[1:]:  # the stream joined after its first keyframe
+            writer.write_packet(packet, START + round((packet.pts or 0) * unit))
+        writer.close()
+    assert writer.frames == 1 + 120
+    closed = segments(folder)
+    assert len(closed) == 3
+    for path in closed[1:]:
+        with av.open(str(path)) as container:
+            packets = [p for p in container.demux(video=0) if p.pts is not None]
+            assert packets[0].is_keyframe
+        with av.open(str(path)) as container:
+            decoded = [f.pts for f in container.decode(video=0)]
+        assert decoded == sorted(pts for pts, _ in times(path))
+        assert len(decoded) == 60
