@@ -1268,3 +1268,19 @@ def test_a_session_the_disk_refuses_is_said(
     monkeypatch.setattr(mw.session, "save", full)
     win.finish.setChecked(True)
     assert win.statusBar().currentMessage() == "The session cannot be saved: disk full"
+
+
+def test_a_removed_camera_s_analyser_stops_too(
+    recording: Path,
+    make_window: Callable[[], mw.MainWindow],
+    analyzers: list[Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session.save({**session.load(), "analysis": {"on": True, "model": ""}})
+    win = make_window()
+    assert analyzers[0].running
+    monkeypatch.setattr(
+        QMessageBox, "question", lambda *a: QMessageBox.StandardButton.Yes
+    )
+    win.remove_camera()
+    assert not analyzers[0].running
