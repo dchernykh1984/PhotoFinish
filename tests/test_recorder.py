@@ -116,6 +116,7 @@ def test_a_stop_request_closes_the_segment_and_ends_the_recorder(
     assert states == ["connecting", "recording", "stopped"]
     beat = heartbeat(folder)
     assert (beat["state"], beat["frames"], beat["pid"]) == ("stopped", 71, os.getpid())
+    assert beat["segments"] == 3  # the one closed on the stop counted too
     assert beat["connection"] == "test"
     assert not (folder / "stop.request").exists()
     assert not (folder / "current.mkv").exists()
