@@ -21,7 +21,7 @@ import functools
 import json
 import os
 import time
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
@@ -30,7 +30,7 @@ from typing import Any
 
 from app import files
 from app.files import write_in_one_step as _write_in_one_step
-from app.lines import parse_line, scale_time, text_lines
+from app.lines import format_line, parse_line, scale_time, text_lines
 
 _STATE_VERSION = 1
 
@@ -91,23 +91,41 @@ class OutputList:
     def follow(self, taken: list[str], new: list[str], gone: list[str]) -> None:
         """The input aligned (app/input_follow.py): ``gone`` lines marked on their
         output lines, ``new`` lines taken, ``taken`` the input as taken from now on.
-        Gone first: a line that moved in the input is found again, not taken twice."""
+        Gone first: a line that moved in the input is found again, not taken twice.
+        Lines are looked up by their text, not searched: a chosen output follows a
+        whole race's input at once."""
         if taken == self.taken and not new and not gone:
             return
         with self._change():
+            live = _by(
+                self.lines, lambda ln: None if ln.removed_from_input else _input(ln)
+            )
             for text in gone:
-                self._mark_gone(text)
+                if live.get(text):
+                    live[text].pop(0).removed_from_input = True
+            back = _by(
+                self.lines, lambda ln: _input(ln) if ln.removed_from_input else None
+            )
+            outside = _by(
+                self.lines, lambda ln: ln.text if ln.origin.get("outside") else None
+            )
             for text in new:
-                if not self._found_again(text):
+                if back.get(text):  # marked gone, its input line back
+                    back[text].pop(0).removed_from_input = False
+                    continue
+                if outside.get(text):  # in the file when it was chosen
+                    line = outside[text].pop(0)
+                    line.origin, line.method = {"input": text}, "input"
+                else:
                     self._insert(OutputLine(text, {"input": text}, "input"))
-                    self._journal(
-                        "take", after=text, input_text=text, change=Change("input")
-                    )
+                self._journal(
+                    "take", after=text, input_text=text, change=Change("input")
+                )
             self.taken = list(taken)
 
     def add(self, number: str, ms: int, action: str, change: Change) -> int:
         """A crossing the referee timed, ``ms`` on the line scale; its index."""
-        text = f"{_number(number)}#{scale_time(ms)}#{action}#"
+        text = format_line(_number(number), ms, action)
         with self._change():
             at = self._insert(OutputLine(text, {"added": True}, change.method))
             self._journal("add", after=text, change=change)
@@ -142,15 +160,22 @@ class OutputList:
         """Line ``index`` of the input as taken changed to ``current``, applied by hand:
         its output line becomes ``current``, or ``current`` comes back when the referee
         had removed that line. Its index in the output."""
-        found = self._from_input(self.taken[index])
+        was = self.taken[index]
+        found = self._from_input(was)
         with self._change():
             self.taken[index] = current
             if found is not None:
-                at = self._replace(found, current, "copy", Change("input"), current)
+                at = self._replace(
+                    found, current, "copy", Change("input"), current, was=was
+                )
             else:
                 at = self._insert(OutputLine(current, {"input": current}, "input"))
                 self._journal(
-                    "copy", after=current, input_text=current, change=Change("input")
+                    "copy",
+                    after=current,
+                    input_text=current,
+                    change=Change("input"),
+                    taken=was,
                 )
         return at
 
@@ -189,8 +214,16 @@ class OutputList:
                 raise JournalError(str(error)) from error
 
     def _replace(
-        self, index: int, text: str, op: str, change: Change, taken: str | None = None
+        self,
+        index: int,
+        text: str,
+        op: str,
+        change: Change,
+        taken: str | None = None,
+        was: str | None = None,
     ) -> int:
+        """The line at ``index`` becomes ``text``; ``taken``, its input line from now
+        on; ``was``, the input line as it had been taken, journaled with a copy."""
         line = self.lines[index]
         before, line.text, line.method = line.text, text, change.method
         if taken is not None:
@@ -204,27 +237,9 @@ class OutputList:
             after=text,
             input_text=line.origin.get("input"),
             change=change,
+            taken=was,
         )
         return at
-
-    def _found_again(self, text: str) -> bool:
-        """A new input line the output has already: one marked gone whose input line
-        is back, or one found in the file when it was chosen. No second line."""
-        for line in self.lines:
-            if line.origin.get("input") == text and line.removed_from_input:
-                line.removed_from_input = False
-                return True
-        for line in self.lines:
-            if line.origin.get("outside") and line.text == text:
-                line.origin, line.method = {"input": text}, "input"
-                return True
-        return False
-
-    def _mark_gone(self, text: str) -> None:
-        for line in self.lines:
-            if line.origin.get("input") == text and not line.removed_from_input:
-                line.removed_from_input = True
-                return
 
     def _from_input(self, taken: str) -> int | None:
         """The output line taken as ``taken``. Of two taken alike, one the referee left
@@ -329,6 +344,7 @@ class OutputList:
         input_text: str | None = None,
         change: Change | None = None,
         backup: str | None = None,
+        taken: str | None = None,
     ) -> None:
         at = datetime.now().astimezone().isoformat(timespec="milliseconds")
         entry: dict[str, Any] = {
@@ -347,7 +363,7 @@ class OutputList:
                 "offsets": change.offsets or None,
                 "model": change.model,
             }
-        entry["backup"] = backup
+        entry["backup"], entry["taken"] = backup, taken
         kept = {key: value for key, value in entry.items() if value is not None}
         line = (json.dumps(kept, ensure_ascii=False) + "\n").encode()
         if self._pending is None:
@@ -363,6 +379,25 @@ def _number(number: str) -> str:
     return cleaned
 
 
+def _by(
+    lines: list[OutputLine], key: Callable[[OutputLine], str | None]
+) -> dict[str, list[OutputLine]]:
+    """The lines by ``key``, those without one left out, each key's lines in the
+    list's order."""
+    found: dict[str, list[OutputLine]] = {}
+    for line in lines:
+        text = key(line)
+        if text is not None:
+            found.setdefault(text, []).append(line)
+    return found
+
+
+def _input(line: OutputLine) -> str | None:
+    """The input line it was taken as, if it was."""
+    taken = line.origin.get("input")
+    return None if taken is None else str(taken)
+
+
 def _taken_in(journal: Path) -> list[str]:
     """The input lines the journal says were taken, in order; a copy in place of the
     line it changed."""
@@ -373,8 +408,9 @@ def _taken_in(journal: Path) -> list[str]:
             op, given = entry.get("op"), entry.get("input")
         except ValueError, AttributeError:
             continue
-        if op == "copy" and given and entry.get("before") in taken:
-            taken[taken.index(entry["before"])] = given
+        was = entry.get("taken", entry.get("before")) if op == "copy" else None
+        if was is not None and given and was in taken:
+            taken[taken.index(was)] = given
         elif op in ("take", "copy") and given:
             taken.append(given)
     return taken
@@ -395,8 +431,10 @@ def _stat(path: Path) -> tuple[int, int, int] | None:
 
 
 def _read(path: Path) -> bytes | None:
+    """The file's bytes, read again while another program holds it; None when it
+    is not there."""
     try:
-        return path.read_bytes()
+        return files.read_bytes(path)
     except FileNotFoundError:
         return None
 

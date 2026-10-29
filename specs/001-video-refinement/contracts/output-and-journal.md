@@ -27,6 +27,7 @@ Append only, one JSON object per line:
 | `offsets` | `{"camera_ms": ..., "source_ms": ...}` in use |
 | `backup` | for `outside_change`: where the outside version was kept |
 | `model` | for a crossing accepted from a suggestion (specification 002): the model that suggested it |
+| `taken` | for `copy`: the input line as it had been taken, which the copy replaces |
 
 Example:
 
