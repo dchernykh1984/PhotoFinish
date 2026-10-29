@@ -19,7 +19,7 @@ from pathlib import Path
 
 from app import files
 from app.lines import parse_line, text_lines
-from app.output_list import OutputList
+from app.output_list import JournalError, OutputList
 
 REST_NS = 2_000_000_000  # a last line left without its line break this long is done
 NEW_FILE_MS = 10 * 60_000  # a new file's crossings are further than this from the old
@@ -144,17 +144,27 @@ class InputFollow:
         # left without it is taken once the file has rested.
         current = text_lines(data if cut and at_rest else complete)
         result = align(self.output.taken, current)
-        self.output.follow(result.taken, result.new, result.gone)
+        journal = None
+        try:
+            self.output.follow(result.taken, result.new, result.gone)
+        except JournalError as error:  # the lines are taken all the same
+            journal = error
         self.lines = result.shown
         self._seen, self._cut = seen, cut and not at_rest
+        if journal is not None:
+            raise journal
         return True
 
     def copy(self, index: int) -> int:
         """ "Copy to output": the changed line ``index`` applied by hand; its index in
-        the output."""
+        the output. A copy the journal cannot take is written all the same."""
         line = self.lines[index]
         if line.taken is None:
             raise ValueError("the line is as it was taken")
-        at = self.output.copy_input(index, line.text)
+        try:
+            at = self.output.copy_input(index, line.text)
+        except JournalError:
+            self.lines[index] = InputLine(line.text)
+            raise
         self.lines[index] = InputLine(line.text)
         return at
