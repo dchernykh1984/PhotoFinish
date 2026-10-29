@@ -61,7 +61,9 @@ class VideoIndex:
         self._read_gaps()
         names = self._unread + self._listed.new_lines()
         new = [self.folder / f"{n}.mkv" for n in names if f"{n}.mkv" not in self._names]
-        read = [(path, times) for path in new if (times := _times(path)) is not None]
+        read = [
+            (path, times) for path in new if (times := read_times(path)) is not None
+        ]
         for path, _ in read:
             self._names.add(path.name)
         # Times that cannot be read now -- held by their writer a moment -- next time.
@@ -137,7 +139,7 @@ class VideoIndex:
         self.gaps = gaps
 
 
-def _times(path: Path) -> np.ndarray | None:
+def read_times(path: Path) -> np.ndarray | None:
     """A segment's ``<pts> <ms>`` pairs in time order; None when they cannot be read."""
     try:
         text = path.with_suffix(".times").read_text(encoding="ascii")

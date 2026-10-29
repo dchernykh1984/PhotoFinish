@@ -742,8 +742,7 @@ class MainWindow(QMainWindow):
         if chosen is not None:
             self._correct(lambda output: output.set_time(chosen, ms, change))
             return
-        action = "finish" if self.finish.isChecked() else "nextLap"
-        number = self.number.text()
+        action, number = self._action(), self.number.text()
         if self._correct(lambda output: output.add(number, ms, action, change)):
             self.number.clear()
 
