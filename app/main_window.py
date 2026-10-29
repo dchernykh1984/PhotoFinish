@@ -36,7 +36,7 @@ from app.output_list import Change, OutputList
 from app.paths import app_path
 from app.recorder import folder_of
 from app.recorder.launcher import Watchdog, describe, heartbeat
-from app.video_index import VideoIndex
+from app.video_index import FileIndex, VideoIndex
 from app.widgets.camera_dialog import CameraDialog
 from app.widgets.camera_view import CameraView
 from app.widgets.decode_worker import DecodeWorker
@@ -267,9 +267,15 @@ class MainWindow(QMainWindow):
         item.setData(Qt.ItemDataRole.UserRole, camera_id)
         self.camera_list.addItem(item)
         view, worker = CameraView(), DecodeWorker()
+        recorded = settings.get("record", True) or settings.get("connection") != "file"
+        index = (
+            VideoIndex(folder_of(camera_id))
+            if recorded
+            else FileIndex(app_path(str(settings["settings"]["path"])))
+        )
         camera = Camera(
             settings,
-            VideoIndex(folder_of(camera_id)),
+            index,
             Watchdog(camera_id),
             item,
             view,

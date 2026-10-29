@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -28,14 +29,14 @@ CONNECTION_NAMES = {
     "rtsp": "Network stream the camera serves (RTSP)",
     "rtmp": "Stream the camera sends here (RTMP)",
     "test": "Test camera",
-    "file": "Video file played as live",
+    "file": "Video file",
 }
 _ROWS = {  # the fields each connection shows
     "usb": ("device", "size", "fps"),
     "rtsp": ("url", "transport"),
     "rtmp": ("port", "path", "address"),
     "test": ("size", "fps", "scene"),
-    "file": ("file",),
+    "file": ("file", "live"),
 }
 
 
@@ -77,6 +78,11 @@ class CameraDialog(QDialog):
         self.scene.addItems(SCENES)
         self.scene.setCurrentText("bar")
         self.file = QLineEdit()
+        self.live = QCheckBox("Play it as if a camera filmed it now, recording it")
+        self.live.setToolTip(
+            "Unchecked: a camera's own recording, opened as it is and aligned after "
+            "the race"
+        )
         browse = QPushButton("Choose...")
         browse.clicked.connect(self._choose_file)
         file_row = QHBoxLayout()
@@ -110,6 +116,7 @@ class CameraDialog(QDialog):
             "address": self._row("Type in the camera app", self.address),
             "scene": self._row("Scene", self.scene),
             "file": self._row("Video file", file_row),
+            "live": self._row("", self.live),
         }
         self.form.addRow(self.problems)
         self.form.addRow(self.buttons)
@@ -136,7 +143,7 @@ class CameraDialog(QDialog):
             "preset": self.preset.currentData(),
             "finish_line": [[0.5, 0.0], [0.5, 1.0]],
             "offset_ms": 0,
-            "record": True,
+            "record": self.kind() != "file" or self.live.isChecked(),
         }
 
     def _settings(self) -> dict[str, Any]:

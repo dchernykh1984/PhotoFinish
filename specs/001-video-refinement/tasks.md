@@ -64,6 +64,9 @@ each commit: `uv run pre-commit run --all-files` and `uv run pytest`.
   -- `feat(precision): pick a time between two frames on the zoomed timeline`
 - [ ] T017 [US6] Several cameras at one moment; align them on a shared event.
   -- `feat(cameras): show several cameras at one moment and align them on a shared event`
+- [ ] T017a [US8] A camera's own recording opened after the race (FR-007, US8 scenario 4): its
+  frames placed by the file's creation time, aligned like any camera, the file never written.
+  -- `feat(cameras): open a camera's own recording after the race`
 - [ ] T018 [US7] Source offset from an input line and its frame, applied both ways and journaled.
   -- `feat(align): align the video with the timing source`
 
