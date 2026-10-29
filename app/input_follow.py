@@ -138,22 +138,23 @@ class InputFollow:
         # shortcut: a rewrite keeping the size within one tick of the file system's
         # clock (15 ms on Windows) is seen at the next change; poll by content if a
         # chronometer ever edits that fast.
+        seen = files.stat(self.path)
+        if seen is None:
+            return False  # not there: next time
+        now = time.monotonic_ns()
+        if seen != self._looked:
+            self._looked, self._since = seen, now
+        # At rest by this computer's clock, not the file's time: a stick's FAT keeps
+        # it in 2 s steps, a share's server by a clock of its own.
+        at_rest = now - self._since > REST_NS
+        if seen == self._seen and not (self._cut and at_rest):
+            return False
+        if self._seen and seen[0] < self._seen[0] and not at_rest:
+            return False  # shorter, still changing: a rewrite half done, maybe
         try:
-            stat = self.path.stat()
-            seen = (stat.st_size, stat.st_mtime_ns, stat.st_ino)
-            now = time.monotonic_ns()
-            if seen != self._looked:
-                self._looked, self._since = seen, now
-            # At rest by this computer's clock, not the file's time: a stick's FAT
-            # keeps it in 2 s steps, a share's server by a clock of its own.
-            at_rest = now - self._since > REST_NS
-            if seen == self._seen and not (self._cut and at_rest):
-                return False
-            if self._seen and seen[0] < self._seen[0] and not at_rest:
-                return False  # shorter, still changing: a rewrite half done, maybe
             data = files.read_bytes(self.path)
         except OSError:
-            return False  # not there, or held by its writer a moment: next time
+            return False  # gone, or held by its writer a moment: next time
         complete = data[: data.rfind(b"\n") + 1]
         cut = len(complete) < len(data) and bool(data[len(complete) :].strip())
         # A line still being written waits for its line break; one a tool or a hand

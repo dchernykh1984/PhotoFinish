@@ -11,7 +11,7 @@ from typing import Any
 import pytest
 
 from app import files, output_list
-from app.lines import parse_time, text_lines
+from app.lines import decoded_lines, parse_time
 from app.output_list import Change, OutputList
 
 TAKEN = "15#20389 11:35:29.615#nextLap#"
@@ -268,7 +268,7 @@ def test_crossings_in_a_chosen_file_start_the_list(path: Path) -> None:
     entries = journal(out)
     assert [entry["op"] for entry in entries] == ["outside_change"]
     assert (path.parent / entries[0]["backup"]).read_bytes() == original
-    assert text_lines(path.read_bytes()) == out.texts()
+    assert [text for text, _ in decoded_lines(path.read_bytes())] == out.texts()
     rider = f"1#20389 11:35:29.000#{RIDER}#\n".encode("cp1251")
     assert path.read_bytes().startswith(rider)  # its bytes kept, its line end LF
     OutputList(path)

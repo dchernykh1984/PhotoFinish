@@ -31,6 +31,16 @@ def write_in_one_step(path: Path, data: bytes) -> None:
     _retried(lambda: tmp.replace(path))
 
 
+def stat(path: Path) -> tuple[int, int, int] | None:
+    """What tells a file changed: its size, modification time and inode; None when
+    it cannot be looked at."""
+    try:
+        found = path.stat()
+    except OSError:
+        return None
+    return found.st_size, found.st_mtime_ns, found.st_ino
+
+
 def read_bytes(path: Path) -> bytes:
     """The file's bytes, read again while another process is replacing it."""
     return _retried(path.read_bytes)

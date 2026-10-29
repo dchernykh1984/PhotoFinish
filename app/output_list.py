@@ -371,7 +371,7 @@ class OutputList:
         # shortcut: a poll trusts the size, time and inode: a file rewritten in place,
         # its size kept, within one tick of the file system's clock, is read at the
         # next change; read on every poll then.
-        stat = _stat(self.path)
+        stat = files.stat(self.path)
         if polled and stat is not None and stat == self._written_stat:
             return False  # as this list wrote it: not read again
         current = _read(self.path)
@@ -392,7 +392,7 @@ class OutputList:
         _write_in_one_step(self.state_path, self._state())
         body = self._body()
         _write_in_one_step(self.path, body)
-        self._written, self._written_stat = body, _stat(self.path)
+        self._written, self._written_stat = body, files.stat(self.path)
 
     def _state(self) -> bytes:
         lines = [asdict(line) for line in self.lines]
@@ -533,14 +533,6 @@ def _replay(journal: Path) -> _Replayed:
 def _time_of(text: str) -> int | None:
     """A line's time, parsed once however often the list is ordered."""
     return parse_line(text).ms
-
-
-def _stat(path: Path) -> tuple[int, int, int] | None:
-    try:
-        found = path.stat()
-    except OSError:
-        return None
-    return found.st_size, found.st_mtime_ns, found.st_ino
 
 
 def _digest(data: bytes | None) -> str | None:
