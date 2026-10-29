@@ -159,3 +159,33 @@ def test_lines_of_activity_that_name_no_segment_are_passed_over(tmp_path: Path) 
         'not json\n{"stretches": []}\n{"segment": "a"}\n'
     )
     assert analyzer.analysed(tmp_path) == {"a"}
+
+
+def test_a_segment_held_a_moment_is_tried_again(
+    base: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    folder = camera(base, "sway", 1)
+    real = analyzer.av.open
+    held = [PermissionError(13, "held by a virus scanner")]
+
+    def opening(path: str, *args: Any, **kwargs: Any) -> Any:
+        if held:
+            raise held.pop()
+        return real(path, *args, **kwargs)
+
+    monkeypatch.setattr(analyzer.av, "open", opening)
+    slept: list[float] = []
+    assert analyzer.run("cam1", stop=lambda: False, once=True, sleep=slept.append) == 0
+    assert slept == [1]
+    assert [("error" in a) for a in activity(folder)] == [False]
+
+
+def test_a_segment_that_stays_unreadable_is_noted_after_its_tries(base: Path) -> None:
+    folder = camera(base, "sway", 1)
+    for times in folder.glob("*-*-*.times"):
+        times.unlink()  # its frame times lost
+    slept: list[float] = []
+    assert analyzer.run("cam1", stop=lambda: False, once=True, sleep=slept.append) == 0
+    assert len(slept) == analyzer.TRIES - 1
+    (noted,) = activity(folder)
+    assert "cannot be read" in noted["error"]
