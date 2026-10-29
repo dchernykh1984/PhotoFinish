@@ -98,9 +98,15 @@ def test_a_line_without_a_time_field_gets_one(path: Path) -> None:
     out = OutputList(path)
     take(out, "7##")
     take(out, "8")
+    take(out, "9#x#finish")
     out.set_time(0, ms("1 0:0:1"), Change("typed"))
     out.set_time(1, ms("1 0:0:2"), Change("typed"))
-    assert out.texts() == ["7#1 0:0:1.000#", "8#1 0:0:2.000#"]
+    out.set_time(2, ms("1 0:0:3"), Change("typed"))
+    assert out.texts() == [  # as a chronometer writes a line
+        "7#1 0:0:1.000##",
+        "8#1 0:0:2.000##",
+        "9#1 0:0:3.000#finish#",
+    ]
 
 
 def test_a_number_changes_in_place_and_cannot_break_the_line(path: Path) -> None:
@@ -256,7 +262,7 @@ def test_a_state_that_cannot_be_read_is_kept_aside(path: Path) -> None:
     take(out, TAKEN)
     out.state_path.write_text("{not json")
     again = OutputList(path)
-    assert again.lines[0].origin == {"outside": True}
+    assert again.lines[0].origin == {"input": TAKEN}  # as the journal says
     (broken,) = path.parent.glob("out.txt.state.json.broken-*")
     assert broken.read_text() == "{not json"
 
@@ -283,12 +289,16 @@ def test_a_change_that_cannot_be_written_is_undone(
     def full(_path: Path, _data: bytes) -> None:
         raise OSError("disk full")
 
+    line = out.lines[0]
     monkeypatch.setattr(output_list, "_write_in_one_step", full)
     with pytest.raises(OSError, match="disk full"):
         out.remove(0)
     with pytest.raises(OSError, match="disk full"):
         take(out, "16#20389 11:35:30.000#nextLap#")
+    with pytest.raises(OSError, match="disk full"):
+        out.set_time(0, ms("20389 11:35:40.000"), Change("typed"))
     assert (out.texts(), out.taken) == ([TAKEN], [TAKEN])
+    assert out.lines[0] is line  # the same line: the window finds it again
 
 
 def test_a_journal_line_cut_short_does_not_swallow_the_next(path: Path) -> None:
@@ -502,6 +512,45 @@ def test_twin_lines_are_adopted_marked_and_found_again_one_each(path: Path) -> N
     assert out.texts() == [TAKEN, TAKEN, other]
     assert not any(line.removed_from_input for line in out.lines)
     assert [entry["op"] for entry in journal(out)] == ["outside_change", "take", "take"]
+
+
+def test_a_crossing_the_referee_removed_stays_out_when_its_line_comes_back(
+    path: Path,
+) -> None:
+    out = OutputList(path)
+    take(out, TAKEN)
+    out.remove(0)
+    out.follow([], [], [TAKEN])  # another input file chosen by mistake
+    out.follow([TAKEN], [TAKEN], [])  # and the right one again
+    assert out.texts() == []
+    for again in (OutputList(path), broken_state(path)):
+        again.follow([], [], [TAKEN])
+        again.follow([TAKEN], [TAKEN], [])
+        assert again.texts() == []
+
+
+def test_after_a_broken_state_lines_are_linked_to_their_input_again(
+    path: Path,
+) -> None:
+    other = "16#20389 11:35:30.000#nextLap#"
+    out = OutputList(path)
+    take(out, TAKEN, other)
+    out.set_time(1, ms("20389 11:35:31.000"), Change("typed"))
+    again = broken_state(path)
+    assert [line.origin for line in again.lines] == [
+        {"input": TAKEN},
+        {"input": other},
+    ]
+    assert [line.method for line in again.lines] == ["input", "typed"]
+    current = "15#20389 11:35:29.700#nextLap#"
+    again.copy_input(0, current)  # the chronometer's correction replaces its line
+    assert again.texts() == [current, "16#20389 11:35:31.000#nextLap#"]
+
+
+def broken_state(path: Path) -> OutputList:
+    """The list started again after its state file was found broken."""
+    path.with_name(path.name + ".state.json").write_text("{broken")
+    return OutputList(path)
 
 
 def test_lines_adopted_from_the_file_and_copies_are_in_the_journal(path: Path) -> None:
