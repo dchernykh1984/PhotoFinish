@@ -189,3 +189,16 @@ def test_closed_segments_are_listed_and_a_restart_lists_any_a_crash_missed(
     again = SegmentWriter(tmp_path, fps=30)
     assert (tmp_path / "segments.txt").read_text().split() == listed
     assert again.segments == len(listed)
+
+
+def test_a_restart_on_a_clock_set_back_records_rather_than_waits(
+    tmp_path: Path,
+) -> None:
+    writer = SegmentWriter(tmp_path, fps=30)
+    record(writer, START + 600_000, 5)  # the run before, its clock ten minutes fast
+    writer.close()
+    again = SegmentWriter(tmp_path, fps=30)
+    record(again, START, 5)  # the clock set right before the restart
+    again.close()
+    assert again.frames == 5
+    assert not (tmp_path / "gaps.txt").exists()  # no gap backwards
