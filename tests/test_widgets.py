@@ -249,3 +249,20 @@ def test_the_list_marks_the_line_nearest_the_video() -> None:
     view.follow(0)
     assert model.near is None
     assert model.rowCount(model.index(0, 0)) == 0
+
+
+def test_a_click_on_the_picture_is_told_in_picture_coordinates() -> None:
+    view = CameraView()
+    view.resize(400, 400)
+    clicks: list[tuple[float, float]] = []
+    view.clicked.connect(clicks.append)
+    QTest.mouseClick(view, Qt.MouseButton.LeftButton, pos=QPoint(200, 200))
+    assert clicks == []  # no frame
+    view.show_image(QImage(160, 90, QImage.Format.Format_RGB888))
+    view.show_marks(((0.5, 0.0), (0.5, 1.0)), [(0.25, 0.5)])
+    view.grab()
+    QTest.mouseClick(view, Qt.MouseButton.LeftButton, pos=QPoint(100, 200))
+    QTest.mouseClick(view, Qt.MouseButton.LeftButton, pos=QPoint(100, 20))  # off it
+    QTest.mouseClick(view, Qt.MouseButton.RightButton, pos=QPoint(100, 200))
+    assert clicks == [(0.25, (200 - 87.5) / 225)]
+    assert view.to_widget((0.25, 0.5)) == QPointF(100, 200)

@@ -17,7 +17,7 @@ from PySide6.QtWidgets import QFileDialog, QInputDialog, QMessageBox
 
 from app import main_window as mw
 from app import output_list, session
-from app.lines import scale_time, to_line_scale
+from app.lines import parse_time, scale_time, to_line_scale
 from app.recorder.segments import SegmentWriter
 from app.recorder.testcam import read_time, render
 from app.widgets.camera_dialog import CameraDialog
@@ -577,3 +577,128 @@ def test_corrections_need_a_line_a_frame_a_number_and_a_disk(
     win.output_view.selectRow(0)
     win.time_from_frame()
     assert win.statusBar().currentMessage() == "There is no frame to take the time from"
+
+
+BAR = 1_761_716_129_455  # at 60 fps, the bar crosses the centre between frames 2 and 3
+
+
+@pytest.fixture
+def bar(base: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """The test camera's bar at 60 fps, 1280 wide, and an output to time on."""
+    camera = {**CAMERA, "settings": {"fps": 60, "scene": "bar"}}
+    session.save({**session.DEFAULTS, "cameras": [camera], "output": "out.txt"})
+    writer = SegmentWriter(base / "video" / "cam1", fps=60)
+    for k in range(6):
+        ms = BAR + round(k * 1000 / 60)
+        writer.write(render(ms, 1280, 720, "bar"), ms)
+    writer.close()
+    beating(base)
+    return base / "out.txt"
+
+
+def edge(place: int) -> tuple[float, float]:
+    """Where the bar's leading edge is on frame ``place``, as the camera drew it."""
+    ms = BAR + round(place * 1000 / 60)
+    return (ms * 1280 // 1000 % 1280 / 1280, 0.5)
+
+
+def test_the_caliper_reads_the_bar_crossing_within_a_millisecond(
+    bar: Path, make_window: Callable[[], mw.MainWindow], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """US5's independent test and SC-004: the bar crosses at .500 of each second."""
+    win = make_window()
+    wait_until(lambda: win.place == 5)
+    offered: list[str] = []
+
+    def accept(*args: Any, text: str = "", **kw: Any) -> tuple[str, bool]:
+        offered.append(text)
+        return text, True
+
+    monkeypatch.setattr(QInputDialog, "getText", accept)
+    win.number.setText("15")
+    win.step(-3)  # frame 2: the edge before the centre line
+    win.picture_clicked(edge(2))
+    assert "other side of the line" in win.statusBar().currentMessage()
+    assert win.view.marks == [edge(2)]
+    win.step(1)
+    assert win.view.marks == []
+    win.picture_clicked(edge(3))
+    true = to_line_scale(BAR - 455 + 500, False)
+    (time_text,) = offered
+    read = parse_time(time_text)
+    assert read is not None
+    assert abs(read - true) <= 1
+    assert bar.read_text() == f"15#{time_text}#nextLap#\n"
+    entry = journal(bar)[-1]
+    assert entry["method"] == "interpolated"
+    assert entry["frames"][0][2] == BAR + round(2 * 1000 / 60)
+    assert entry["frames"][1][2] == BAR + round(3 * 1000 / 60)
+    assert 0 < entry["fraction"] < 1
+    assert win.number.text() == ""
+    assert win.output_view.lines.rows[0].note == "between two frames"
+
+
+def test_the_caliper_does_not_extrapolate_and_needs_somewhere_to_put_the_time(
+    bar: Path, make_window: Callable[[], mw.MainWindow], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    win = make_window()
+    wait_until(lambda: win.place == 5)
+    win.picture_clicked(edge(5))
+    win.step(-1)
+    win.picture_clicked(edge(4))
+    assert "does not extrapolate" in win.statusBar().currentMessage()
+    win.step(-2)
+    win.picture_clicked(edge(2))  # with frame 4's point: the line lies between
+    assert "type a number" in win.statusBar().currentMessage()
+    win.number.setText("16")
+    answer(monkeypatch, "", ok=False)
+    win.picture_clicked(edge(2))
+    assert win.caliper == []
+    assert bar.read_text() == ""
+
+
+def test_an_adjusted_caliper_time_is_typed_and_sets_the_chosen_line(
+    bar: Path, make_window: Callable[[], mw.MainWindow], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    win = make_window()
+    wait_until(lambda: win.place == 5)
+    win.number.setText("15")
+    win.add_crossing()
+    win.output_view.selectRow(0)
+    win.step(-3)
+    win.picture_clicked(edge(2))
+    win.step(1)
+    answer(monkeypatch, "11:35")
+    win.picture_clicked(edge(3))
+    assert "is not a time like" in win.statusBar().currentMessage()
+    win.picture_clicked(edge(3))
+    win.step(-1)
+    answer(monkeypatch, "20389 11:35:29.500")
+    win.picture_clicked(edge(2))
+    assert bar.read_text() == "15#20389 11:35:29.500#nextLap#\n"
+    assert journal(bar)[-1]["method"] == "typed"
+    assert journal(bar)[-1]["frames"] is not None
+
+
+def test_the_finish_line_is_drawn_with_two_clicks(
+    bar: Path, make_window: Callable[[], mw.MainWindow]
+) -> None:
+    win = make_window()
+    wait_until(lambda: win.place == 5)
+    win.draw_finish_line()
+    win.picture_clicked((0.4, 0.1))
+    assert win.view.marks == [(0.4, 0.1)]
+    win.picture_clicked((0.6, 0.9))
+    assert session.load()["cameras"][0]["finish_line"] == [[0.4, 0.1], [0.6, 0.9]]
+    assert win.view.line == ((0.4, 0.1), (0.6, 0.9))
+    assert win.statusBar().currentMessage() == "The finish line is drawn"
+    assert win.drawing is None
+
+
+def test_a_finish_line_needs_a_camera(win: mw.MainWindow) -> None:
+    win.draw_finish_line()
+    assert win.statusBar().currentMessage() == "Add a camera first"
+    win.picture_clicked((0.5, 0.5))
+    assert win.caliper == []
+    win._show_marks()
+    assert win.view.line is None
