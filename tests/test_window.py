@@ -1109,6 +1109,15 @@ def test_a_model_that_failed_is_said_and_left_until_another_is_chosen(
     assert len(analyzers) == 2
 
 
+def test_segments_that_cannot_be_read_are_said(
+    recording: Path, make_window: Callable[[], mw.MainWindow]
+) -> None:
+    win = make_window()
+    win.cameras["cam1"].index.unreadable.append("20000101-000000-0001")
+    win.poll()
+    assert "; segments that cannot be read: 1" in win.camera_list.item(0).text()
+
+
 def suggest(base: Path, *moments: int) -> None:
     folder = base / "video" / "cam1"
     lines = "".join(
