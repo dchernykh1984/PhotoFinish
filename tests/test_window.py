@@ -13,7 +13,7 @@ import pytest
 from PySide6.QtCore import QPointF, Qt
 from PySide6.QtGui import QImage
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QFileDialog, QMessageBox
+from PySide6.QtWidgets import QFileDialog, QInputDialog, QMessageBox
 
 from app import main_window as mw
 from app import output_list, session
@@ -475,3 +475,105 @@ def test_the_input_is_chosen_and_never_the_output(
     win.choose_input()
     assert session.load()["input"] == str(other)
     assert [r.number for r in win.input_view.lines.rows] == ["20"]
+
+
+def answer(monkeypatch: pytest.MonkeyPatch, text: str, ok: bool = True) -> None:
+    monkeypatch.setattr(QInputDialog, "getText", lambda *args, **kw: (text, ok))
+
+
+def test_the_four_corrections_and_nothing_else(
+    files: tuple[Path, Path],
+    make_window: Callable[[], mw.MainWindow],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """US4's independent test: a time from a frame, a number, one added, one removed."""
+    results, out = files
+    written = results.read_bytes()
+    win = make_window()
+    wait_until(showing(win, START + 69 * 33))
+    win.output_view.selectRow(1)  # 8, taken at frame 30
+    win.step(-36)  # frame 33
+    win.time_from_frame()
+    assert out.read_text().splitlines()[1] == line(8, 33)
+    assert win.output_view.chosen() == 1
+    win.output_view.selectRow(0)
+    answer(monkeypatch, "17")
+    win.change_number()
+    assert out.read_text().splitlines()[0] == line(17, 10)
+    win.number.setText("21")
+    win.add_crossing()
+    monkeypatch.setattr(
+        QMessageBox, "question", lambda *args: QMessageBox.StandardButton.Yes
+    )
+    win.output_view.selectRow(3)  # 9, frame 50
+    win.remove_line()
+    assert win.output_view.chosen() is None
+    assert out.read_text().splitlines() == [line(17, 10), line(8, 33), line(21, 33)]
+    entries = journal(out)[3:]  # after the three lines taken
+    assert [e["op"] for e in entries] == ["time", "number", "add", "remove"]
+    assert entries[0]["before"] == line(8, 30)
+    assert entries[0]["camera"] == "cam1"
+    assert results.read_bytes() == written
+    win.poll()  # the input does not bring the removed line back
+    assert len(out.read_text().splitlines()) == 3
+
+
+def test_a_typed_time_must_be_a_time(
+    files: tuple[Path, Path],
+    make_window: Callable[[], mw.MainWindow],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _, out = files
+    win = make_window()
+    win.output_view.selectRow(2)
+    answer(monkeypatch, "11:35:29")
+    win.type_time()
+    assert "is not a time like" in win.statusBar().currentMessage()
+    answer(monkeypatch, "", ok=False)
+    win.type_time()
+    typed = line(9, 50).split("#")[1][:-3] + "999"
+    answer(monkeypatch, f" {typed} ")
+    win.type_time()
+    assert out.read_text().splitlines()[2] == f"9#{typed}#nextLap#"
+    assert journal(out)[-1]["method"] == "typed"
+
+
+def test_corrections_need_a_line_a_frame_a_number_and_a_disk(
+    files: tuple[Path, Path],
+    make_window: Callable[[], mw.MainWindow],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _, out = files
+    win = make_window()
+    before = out.read_text()
+    for correct in (
+        win.time_from_frame,
+        win.type_time,
+        win.change_number,
+        win.remove_line,
+    ):
+        correct()
+        assert win.statusBar().currentMessage() == "Choose a line of the output first"
+    win.output_view.selectRow(0)
+    answer(monkeypatch, " # ")
+    win.change_number()
+    assert win.statusBar().currentMessage() == "A crossing needs a number"
+    answer(monkeypatch, "18", ok=False)
+    win.change_number()
+    monkeypatch.setattr(
+        QMessageBox, "question", lambda *args: QMessageBox.StandardButton.No
+    )
+    win.remove_line()
+
+    def full(path: Path, data: bytes) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(output_list, "_write_in_one_step", full)
+    answer(monkeypatch, "18")
+    win.change_number()
+    assert "cannot be written: disk full" in win.statusBar().currentMessage()
+    assert out.read_text() == before
+    win.camera_list.setCurrentRow(-1)
+    win.output_view.selectRow(0)
+    win.time_from_frame()
+    assert win.statusBar().currentMessage() == "There is no frame to take the time from"
