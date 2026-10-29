@@ -39,15 +39,27 @@ def folder_of(camera_id: str) -> Path:
 
 
 class SteadyClock:
-    """Unix milliseconds that never jump: the wall clock read once, then a steady
-    clock, so frame times do not move when the computer's clock is set."""
+    """Unix milliseconds that never go back: the wall clock read at the start, then a
+    steady clock, so frames keep their order when the computer's clock is set back.
+    The steady clock stands still while the computer sleeps: when the wall clock has
+    run ahead of it by more than LEAP_MS, it is read again, and the frames that
+    follow are on the computer's time, as the chronometer's are."""
+
+    LEAP_MS = 2000
 
     def __init__(self) -> None:
+        self._anchor()
+
+    def _anchor(self) -> None:
         self._wall = time.time_ns() // 1_000_000
         self._steady = time.monotonic_ns()
 
     def __call__(self) -> int:
-        return self._wall + (time.monotonic_ns() - self._steady) // 1_000_000
+        steady = self._wall + (time.monotonic_ns() - self._steady) // 1_000_000
+        if time.time_ns() // 1_000_000 - steady > self.LEAP_MS:
+            self._anchor()  # it slept, or its clock was set forward
+            return self._wall
+        return steady
 
 
 class Backoff:

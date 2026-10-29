@@ -263,7 +263,10 @@ an RTMP stream pushed from the same computer is received and recorded.
 - The input file is emptied or replaced (a new competition at the chronometer): its old lines count
   as removed and are marked in the output; new lines arrive as usual.
 - The computer's clock is changed during recording: frame times follow a steady clock from the
-  start of the recording, so the change does not move frames already recorded.
+  start of the recording, so the change does not move frames already recorded. Set back, the
+  clock is not followed, so frames keep their order; when the computer's clock runs more than 2 s
+  ahead -- it was set forward, or the computer slept, which the steady clock does not count -- the
+  frames from then on follow it, a gap between.
 - Daylight saving: the chronometers keep local standard time unless the desktop summer-time option
   is on; PhotoFinish writes times the same way, with the same option, and the offset of Story 7
   absorbs any remaining difference.
