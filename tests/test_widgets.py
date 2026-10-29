@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import av
 import numpy as np
 import pytest
 from PySide6.QtCore import QPoint, QPointF, Qt
@@ -15,7 +16,7 @@ from app.recorder.segments import SegmentWriter
 from app.recorder.testcam import render
 from app.widgets.camera_dialog import CameraDialog
 from app.widgets.camera_view import CameraView
-from app.widgets.decode_worker import DecodeWorker
+from app.widgets.decode_worker import DecodeWorker, to_qimage
 from app.widgets.timeline import LEAST_VIEW_MS, Timeline
 from tests.conftest import wait_until
 
@@ -189,6 +190,18 @@ def test_the_newest_request_is_decoded_and_a_bad_one_answered(tmp_path: Path) ->
     worker.request(tmp_path / "missing.mkv", 0, "missing")
     wait_until(lambda: answers[-1][0] == "missing")
     assert answers[-1] == ("missing", True)
+    no_video = tmp_path / "sound.mkv"  # no video stream: an IndexError, not OSError
+    with av.open(str(no_video), "w") as container:
+        stream = container.add_stream("pcm_s16le", rate=8000)
+        stream.layout = "mono"
+        silence = np.zeros((1, 800), np.int16)
+        sound = av.AudioFrame.from_ndarray(silence, format="s16", layout="mono")
+        sound.sample_rate = 8000
+        for packet in [*stream.encode(sound), *stream.encode(None)]:
+            container.mux(packet)
+    worker.request(no_video, 0, "no video")
+    wait_until(lambda: answers[-1][0] == "no video")
+    assert answers[-1] == ("no video", True)
     worker.stop()
 
 
@@ -290,6 +303,25 @@ def test_zoomed_in_a_click_between_frames_picks_that_moment() -> None:
     assert not timeline.between_frames(START + 10**6)
 
 
+def test_a_click_in_a_gap_of_the_recording_seeks() -> None:
+    timeline = Timeline()
+    timeline.resize(1000, 48)
+    before = START + np.arange(30, dtype=np.int64) * 33
+    later = before + 1257  # 300 ms lost, and the recorder noted it
+    hour = later + 3_600_000  # then it was down for an hour
+    noted = (int(before[-1]) + 33, int(later[0]) - 33)
+    timeline.set_recording(np.concatenate([before, later, hour]), [noted])
+    assert not timeline.between_frames(int(later[-1]) + 1_800_000)  # wider than 1 s
+    timeline.zoom(0.000001, timeline.x_at(noted[0]))
+    assert not timeline.between_frames(noted[0] + 50)  # in the gap noted
+    assert timeline.between_frames(START + 50)
+    sought: list[int] = []
+    timeline.seek.connect(sought.append)
+    timeline.view = noted
+    QTest.mouseClick(timeline, Qt.MouseButton.LeftButton, pos=QPoint(500, 20))
+    assert len(sought) == 1
+
+
 def test_the_choice_follows_its_line_when_rows_move() -> None:
     from app.widgets.lists import LinesView, Row
 
@@ -315,3 +347,15 @@ def test_the_timeline_puts_a_camera_on_the_video_time_by_its_offset() -> None:
     assert timeline.between_frames(START - 1234 + 50)
     assert not timeline.between_frames(START - 1234 - 500)  # before its first frame
     timeline.grab()
+
+
+@pytest.mark.parametrize("width", [640, 642, 1366])
+def test_a_frame_whose_rows_are_padded_is_shown_as_it_is(width: int) -> None:
+    rgb = np.zeros((50, width, 3), np.uint8)
+    rgb[:, :, 0] = (np.arange(width) % 256)[None, :]  # red grows across
+    rgb[:, :, 1] = (np.arange(50) * 5)[:, None]  # green grows down
+    image = to_qimage(av.VideoFrame.from_ndarray(rgb, format="rgb24"))
+    for y in (0, 10, 49):
+        for x in (0, 100, width - 1):
+            colour = image.pixelColor(x, y)
+            assert (colour.red(), colour.green()) == (x % 256, y * 5)

@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 import av
+import numpy as np
 from PySide6.QtCore import QObject, QThread, Signal, Slot
 from PySide6.QtGui import QImage
 
@@ -52,15 +53,17 @@ class DecodeWorker(QObject):
         path, pts, tag = wanted
         try:
             frame = self._decoder.decode(path, pts)
-        except OSError, av.FFmpegError:
-            self._decoder.close()  # a segment that cannot be read: the next may
-            frame = None
-        self.decoded.emit(tag, QImage() if frame is None else to_qimage(frame))
+            image = QImage() if frame is None else to_qimage(frame)
+        except Exception:  # whatever keeps a frame from the view: answered, never left
+            self._decoder.close()  # the next segment may be read
+            image = QImage()
+        self.decoded.emit(tag, image)
 
 
 def to_qimage(frame: av.VideoFrame) -> QImage:
-    """The frame as an RGB image that owns its pixels."""
-    pixels = frame.to_ndarray(format="rgb24")
+    """The frame as an RGB image that owns its pixels. Rows padded for alignment
+    (a width such as 1366) are packed first: the image reads them packed."""
+    pixels = np.ascontiguousarray(frame.to_ndarray(format="rgb24"))
     height, width = pixels.shape[:2]
     image = QImage(pixels.data, width, height, 3 * width, QImage.Format.Format_RGB888)
     return image.copy()
