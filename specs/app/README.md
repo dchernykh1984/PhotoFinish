@@ -87,6 +87,8 @@ or a swaying patch.
 
 ## Known limits
 
+- The Linux builds cannot capture USB cameras (PyAV's Linux wheels have no video4linux2): the
+  camera dialog says so, and a camera's stream or a file is used there instead.
 - A network camera's timestamps follow its own clock, which can drift from the computer's by a few
   tenths of a second over a long day: align again when it shows.
 - A stream whose keyframes are farther apart than a second makes segments that long, and its

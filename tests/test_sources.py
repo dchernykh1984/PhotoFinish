@@ -15,6 +15,7 @@ import av
 import numpy as np
 import pytest
 
+from app import cameras
 from app.recorder import sources
 from app.recorder.segments import SegmentWriter
 from app.recorder.sources import (
@@ -103,6 +104,7 @@ def test_a_usb_camera_gives_frames_at_its_own_timestamps(
         return Container(frames)
 
     monkeypatch.setattr(av, "open", fake_open)
+    monkeypatch.setattr(cameras, "usb_capture", lambda: "avfoundation")
     settings = {"device": "PC Camera", "width": 1280, "height": 720, "fps": 25}
     camera = open_source({"connection": "usb", "settings": settings}, lambda: START)
     assert isinstance(camera, UsbCamera)

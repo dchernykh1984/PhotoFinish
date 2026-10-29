@@ -4,8 +4,9 @@
 
 - **Decision**: PyAV 19 (FFmpeg 9) for capture, recording and decoding; numpy for frames.
 - **Rationale**: checked on 2026-10-29 in the 19.0.2 wheels: abi3 wheels for macOS arm64, Linux
-  x86_64/aarch64 and Windows x64/arm64; capture devices `avfoundation` (macOS), `dshow` (Windows,
-  both architectures), `video4linux2` (Linux); the `rtsp` demuxer; the RTMP protocol in listen mode
+  x86_64/aarch64 and Windows x64/arm64; capture devices `avfoundation` (macOS) and `dshow`
+  (Windows, both architectures) -- the Linux wheels have no `video4linux2`, so on Linux a USB camera
+  is refused with that reason and a camera's stream or file is used instead; the `rtsp` demuxer; the RTMP protocol in listen mode
   (`av.open("rtmp://0.0.0.0:1935/live/x", options={"listen": "1"})` waits for a client);
   encoders `mpeg4`, `mjpeg`, `libx264`, `libvpx`. One library covers every camera connection.
 - **Alternatives**: OpenCV (rejected: no Windows on ARM wheel); Qt Multimedia for capture

@@ -10,9 +10,12 @@ from __future__ import annotations
 
 import re
 import socket
+import sys
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
+
+import av
 
 from app import analysis
 from app.recorder.testcam import SCENES
@@ -94,10 +97,24 @@ def this_computer() -> str:
             return "127.0.0.1"
 
 
+def usb_capture() -> str | None:
+    """FFmpeg's camera input on this computer, when the bundled FFmpeg has it. The
+    Linux wheels of PyAV come without video4linux2."""
+    name = {"darwin": "avfoundation", "win32": "dshow"}.get(
+        sys.platform, "video4linux2"
+    )
+    return name if name in av.formats_available else None
+
+
 def _usb(settings: dict[str, Any]) -> list[str]:
     found = (
         [] if _text(settings.get("device")) else ["the USB camera's name is missing"]
     )
+    if usb_capture() is None:
+        found.append(
+            "this build cannot capture USB cameras on this computer: "
+            "use the camera's stream or a file"
+        )
     return found + _size(settings, 2) + _fps(settings)
 
 
