@@ -76,6 +76,7 @@ class MainWindow(QMainWindow):
         self.caliper: list[tuple[str, int, Point]] = []  # camera, frame, point
         self.timeline = Timeline()
         self.timeline.seek.connect(self.seek_ms)
+        self.timeline.picked.connect(self.pick_between)
         self.time_label = QLabel("--:--:--.---")
         self.camera_list = QListWidget()
         self.camera_list.setWordWrap(True)
@@ -486,10 +487,7 @@ class MainWindow(QMainWindow):
                 "PhotoFinish interpolates, it does not extrapolate"
             )
             return
-        if self.output is None or (
-            self.output_view.chosen() is None and not self.number.text().strip()
-        ):
-            self._say("Choose a line of the output or type a number, then click again")
+        if not self._has_target():
             return
         frames = [camera.index.frame(first), camera.index.frame(second)]
         moment = between(frames[0].ms, frames[1].ms, fraction) + self._offset()
@@ -502,6 +500,37 @@ class MainWindow(QMainWindow):
         )
         self.caliper = []
         self._offer(self._line_ms(moment), change)
+
+    def pick_between(self, ms: int) -> None:
+        """A moment picked between two frames on the zoomed timeline, offered as a
+        time picked by hand between them."""
+        camera = self._camera()
+        if camera is None or not self._has_target():
+            return
+        index = camera.index
+        after = index.nearest(ms - self._offset())
+        if after is None:
+            return
+        if index.frame(after).ms + self._offset() < ms:
+            after += 1
+        frames = [index.frame(after - 1), index.frame(after)]
+        change = Change(
+            "hand",
+            camera.id,
+            [[f.path.name, f.pts, f.ms] for f in frames],
+            None,
+            self._offsets(),
+        )
+        self._offer(self._line_ms(ms), change)
+
+    def _has_target(self) -> bool:
+        """An output line chosen, or a number typed, to give a time to."""
+        if self.output is not None and (
+            self.output_view.chosen() is not None or self.number.text().strip()
+        ):
+            return True
+        self._say("Choose a line of the output or type a number, then click again")
+        return False
 
     def _offer(self, line_ms: int, change: Change) -> None:
         """The time offered, for the referee to accept or adjust; then the chosen
