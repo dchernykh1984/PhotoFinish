@@ -61,6 +61,27 @@ class Spawns:
         return self.processes[-1]
 
 
+def test_a_recorder_that_cannot_be_started_is_tried_again_after_the_pause(
+    folder: Path, clock: dict[str, float]
+) -> None:
+    spawns = Spawns()
+    refused = [OSError("blocked by an antivirus")]
+
+    def spawning(camera_id: str) -> Any:
+        if refused:
+            raise refused.pop()
+        return spawns(camera_id)
+
+    watchdog = Watchdog("cam1", spawning)
+    watchdog.start()
+    assert watchdog.error == "blocked by an antivirus"
+    for moment in (1001, 1002):
+        clock["now"] = moment
+        watchdog.poll()
+    assert len(spawns.processes) == 1
+    assert watchdog.error == ""
+
+
 def test_a_running_recorder_is_attached_not_started_again(folder: Path) -> None:
     beat(folder, "recording")
     spawns = Spawns()

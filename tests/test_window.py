@@ -945,6 +945,24 @@ def test_a_file_camera_without_its_path_does_not_stop_the_window(
     assert list(win.cameras) == ["cam9"]
 
 
+def test_a_recorder_that_cannot_be_started_is_said_in_the_camera_list(
+    base: Path,
+    make_window: Callable[[], mw.MainWindow],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.recorder import launcher
+
+    def refused(camera_id: str) -> None:
+        raise OSError("the program was moved")
+
+    session.save({**session.DEFAULTS, "cameras": [CAMERA]})
+    monkeypatch.setattr(launcher, "spawn", refused)
+    win = make_window()
+    win.poll()  # goes on: the input would still be taken
+    text = win.camera_list.item(0).text()
+    assert text.endswith("the recorder cannot be started: the program was moved")
+
+
 def test_an_event_needs_a_frame(win: mw.MainWindow) -> None:
     win.mark_event()
     assert win.statusBar().currentMessage() == "Show the event on a camera first"

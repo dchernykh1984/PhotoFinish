@@ -101,6 +101,7 @@ class Watchdog:
         self._started = 0.0  # monotonic, when this window last started one
         self._started_ms = 0  # wall clock, the same moment
         self._retry_at: float | None = None
+        self.error = ""  # why the recorder could not be started, until one is
 
     def start(self) -> None:
         """Record: attach to a running recorder, or start one. A stop asked before,
@@ -110,7 +111,12 @@ class Watchdog:
         (folder_of(self.camera_id) / "stop.request").unlink(missing_ok=True)
         if alive(heartbeat(self.camera_id)):
             return
-        self._process = (self._spawn or spawn)(self.camera_id)
+        try:
+            self._process = (self._spawn or spawn)(self.camera_id)
+        except OSError as error:  # moved, or blocked: tried again after the pause
+            self._process, self.error = None, str(error)
+            return
+        self.error = ""
         self._started = time.monotonic()
         self._started_ms = time.time_ns() // 1_000_000
 
