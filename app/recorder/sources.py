@@ -105,7 +105,7 @@ class UsbCamera:
         self.fps = float(settings.get("fps", 30))
         self.device, self.format = usb_input(str(settings["device"]))
         self.options = {"framerate": f"{self.fps:g}"}
-        if "width" in settings:
+        if "width" in settings and "height" in settings:
             self.options["video_size"] = f"{settings['width']}x{settings['height']}"
         self.anchor = Anchor(clock)
 

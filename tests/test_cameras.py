@@ -61,7 +61,15 @@ BAD: list[tuple[dict[str, Any], str]] = [
     ({"connection": "pigeon"}, "unknown connection"),
     ({"connection": "test", "settings": [1]}, "table"),
     ({"connection": "usb", "settings": {"device": " "}}, "name is missing"),
-    ({"connection": "usb", "settings": {"device": "a", "width": 1279}}, "even"),
+    ({"connection": "usb", "settings": {"device": "a", "width": 1279}}, "both"),
+    (
+        {
+            "connection": "usb",
+            "settings": {"device": "a", "width": 1279, "height": 720},
+        },
+        "even",
+    ),
+    ({"connection": "test", "settings": {"height": 720}}, "both"),
     ({"connection": "usb", "settings": {"device": "a", "fps": 0}}, "frame rate"),
     ({"connection": "usb", "settings": {"device": "a", "fps": True}}, "frame rate"),
     ({"connection": "rtsp", "settings": {"url": "http://x"}}, "rtsp://"),
