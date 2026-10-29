@@ -6,19 +6,31 @@ more cameras and corrects their times. It reads the chronometer's files and
 never writes to them; its corrections go to files of its own. Files are the
 source of truth, and nothing here needs a network.
 
-The program is an empty window today. The first feature is specified in
-`specs/001-video-refinement/spec.md`; the design discussion behind it is
+It records each camera in a process of its own that keeps recording when the
+window is gone, follows the chronometer's results file, and keeps the referee's
+crossings in an output file with a journal of every change.
+`specs/app/README.md` describes the program as it works today; the feature
+behind it is `specs/001-video-refinement/`, and the design discussion
 ChronometerPython issue #49.
 
 ## Layout
 
 | Path | What lives there |
 | --- | --- |
-| `app/main.py` | Entry point (`uv run python -m app.main`). |
-| `app/main_window.py` | The Qt UI. |
+| `app/main.py` | Entry point (`uv run python -m app.main`); `--recorder <camera id>` runs a camera's recorder instead of the window. |
+| `app/main_window.py` | The Qt window: layout and wiring. |
+| `app/widgets/` | Camera view, timeline, lists, camera dialog, number field, decode worker. |
+| `app/lines.py` | Crossing lines and times, read with the older tools' encodings. |
+| `app/session.py` | `data/session.json`: the files chosen, the cameras, the offsets. |
+| `app/output_list.py` | The output file, its state and its journal. |
+| `app/input_follow.py` | The chronometer's file followed into the output. |
+| `app/cameras.py` | Connections, presets, what a camera's settings must be. |
+| `app/recorder/` | The recorder process: sources, segments, test camera, launcher. |
+| `app/video_index.py`, `app/decoder.py` | Recorded frames found by time; one decoded. |
+| `app/interpolation.py` | The finish line and the caliper reading. |
 | `app/paths.py` | Resolves where data lives (see below). |
-| `tests/` | pytest; `conftest.py` holds the offscreen Qt `win` fixture. |
-| `specs/` | Specifications; the principles are in `.specify/memory/constitution.md`. |
+| `tests/` | pytest; `conftest.py` holds the offscreen Qt fixtures. |
+| `specs/` | Specifications; `specs/app/` is the program as built; the principles are in `.specify/memory/constitution.md`. |
 
 Keep logic that is not UI - parsing timing lines, time and frame arithmetic,
 writing corrections - in Qt-free modules under `app/`: that is what the
@@ -34,12 +46,18 @@ are based on that folder, absolute paths stay unchanged, and config values keep
 their original spelling. Finder may launch a macOS app with `/` as its working
 directory.
 
+Next to the program: `data/session.json` (the session) and `video/<camera id>/`
+(each camera's segments, frame times, gaps and its recorder's heartbeat). The
+output file the referee chooses has `<output>.state.json` and
+`<output>.journal.txt` beside it. `data/` and `video/` are gitignored: run from
+the repository, the program writes them there.
+
 ## The other timing tools
 
 | Tool | Relation |
 | --- | --- |
 | ChronometerPython, ChronometerAndroid | Write the results file PhotoFinish reads: `number#time#action#`, the time as `D H:M:S[.mmm]` (days since 1970-01-01 in local standard time - no daylight-saving shift unless the desktop chronometer's summer-time option is on; hours, minutes and seconds not zero-padded; milliseconds, when recorded, always three digits). |
-| FinishProtocolGeneratorPython | Reads the corrected copy PhotoFinish writes, in the same format. |
+| FinishProtocolGeneratorPython | Reads the output file PhotoFinish writes - the referee's crossings - as a finish file, in the same format. |
 | cycling-site | Not talked to; the chronometers upload, the generator publishes. |
 
 The chronometer's files are input only: open them read-only and expect them to

@@ -43,7 +43,7 @@ bodies. These rules apply regardless of assistant settings; if an attribution
 appears, strip it.
 
 ```
-fix: keep the corrected copy when the source gains a line
+fix: keep the referee's line when the chronometer changes it
 test: share the qt window fixture through a conftest
 ci: cap the build job runtime with a timeout
 ```
@@ -62,8 +62,8 @@ git push -u origin <branch>
 gh pr create --title "<plain sentence, no type prefix>" --body "<what and why>"
 ```
 
-PR titles read as plain sentences ("Keep the corrected copy when the source
-gains a line"); the conventional prefix lives in the commits. A body reviewers
+PR titles read as plain sentences ("Keep the referee's line when the
+chronometer changes it"); the conventional prefix lives in the commits. A body reviewers
 can act on says why (the behaviour and its mechanism), what each commit
 changes, the decisions taken knowingly, and what the tests cover.
 
