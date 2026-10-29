@@ -1215,12 +1215,7 @@ class MainWindow(QMainWindow):
         that moment says so instead of showing another."""
         if place is None:
             target = moment - int(camera.settings.get("offset_ms", 0))
-            place = camera.index.nearest(target)
-            if (
-                place is not None
-                and abs(camera.index.frame(place).ms - target) > NEAR_MS
-            ):
-                place = None
+            place = camera.index.nearest(target, within=NEAR_MS)
         camera.shown = place
         if place is None:
             camera.wanted = None

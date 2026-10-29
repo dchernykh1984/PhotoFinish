@@ -104,15 +104,16 @@ class VideoIndex:
         self._append(times[:, 1], times[:, 0], segment)
         return True
 
-    def nearest(self, ms: int) -> int | None:
-        """The place of the frame nearest ``ms``; the earlier of two as near."""
+    def nearest(self, ms: int, within: int | None = None) -> int | None:
+        """The place of the frame nearest ``ms``; the earlier of two as near. None
+        when there is none, or the nearest is further than ``within`` ms."""
         if not len(self):
             return None
         i = int(np.searchsorted(self.ms, ms))
-        if i == 0:
-            return 0
-        if i == len(self) or ms - self.ms[i - 1] <= self.ms[i] - ms:
-            return i - 1
+        if i == len(self) or (i and ms - self.ms[i - 1] <= self.ms[i] - ms):
+            i -= 1
+        if within is not None and abs(int(self.ms[i]) - ms) > within:
+            return None
         return i
 
     def around(self, ms: int) -> tuple[int, int] | None:
