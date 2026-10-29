@@ -742,6 +742,10 @@ class MainWindow(QMainWindow):
         self.session["analysis"] = {**analysis.settings(self.session), "model": path}
         session.save(self.session)
         self._show_model()
+        if self.analysis_box.isChecked():  # the model chosen from here on
+            for camera in self.cameras.values():
+                self._stop_analyzer(camera)
+                self._analyze(camera)
 
     def _show_model(self) -> None:
         model = analysis.settings(self.session)["model"]
@@ -786,7 +790,9 @@ class MainWindow(QMainWindow):
         running = camera.analyzer is not None and camera.analyzer.state() != (
             QProcess.ProcessState.NotRunning
         )
-        if not recorded or running or time.monotonic() - camera.analyzer_started < 30:
+        failed = (camera.activity.progress or {}).get("state") == "failed"
+        waited = time.monotonic() - camera.analyzer_started < 30
+        if not recorded or running or waited or (failed and camera.analyzer):
             return
         camera.analyzer = start_analyzer(camera.id, self)
         camera.analyzer_started = time.monotonic()
@@ -869,8 +875,8 @@ class MainWindow(QMainWindow):
         finding = self.analysis_box.isChecked()
         for camera in self.cameras.values():
             if finding:
+                camera.activity.refresh()  # its progress first: a failed one waits
                 self._analyze(camera)
-                camera.activity.refresh()
             self._label(camera)
         self._follow_files()
         self._refresh()
@@ -893,7 +899,10 @@ class MainWindow(QMainWindow):
 
     def _riders_progress(self, camera: Camera) -> str:
         """How far the camera's analyser has got (FR-009)."""
-        done = (camera.activity.progress or {}).get("done_ms")
+        progress = camera.activity.progress or {}
+        if progress.get("state") == "failed":
+            return str(progress.get("detail") or "cannot be found")
+        done = progress.get("done_ms")
         if done is None:
             return "not found yet"
         behind = int(camera.index.ms[-1]) - int(done) if len(camera.index) else 0

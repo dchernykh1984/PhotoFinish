@@ -1074,3 +1074,25 @@ def test_the_real_analyser_finds_three_passes_from_the_window(
     assert win.place is not None
     shown = win.cameras["cam1"].index.frame(win.place).ms
     assert passes + 2_000 <= shown <= passes + 3_500
+
+
+def test_a_model_that_failed_is_said_and_left_until_another_is_chosen(
+    recording: Path,
+    make_window: Callable[[], mw.MainWindow],
+    analyzers: list[Any],
+) -> None:
+    session.save({**session.load(), "analysis": {"on": True, "model": "x.onnx"}})
+    win = make_window()
+    failed = {"state": "failed", "detail": "the model cannot be loaded: bad file"}
+    (recording / "video" / "cam1" / "analyzer.json").write_text(json.dumps(failed))
+    analyzers[0].running = False
+    win.cameras["cam1"].analyzer_started -= 31
+    win.poll()
+    assert len(analyzers) == 1  # failed: not started again by itself
+    assert (
+        win.camera_list.item(0)
+        .text()
+        .endswith("; riders the model cannot be loaded: bad file")
+    )
+    win._set_model("")  # motion only: started again at once
+    assert len(analyzers) == 2
