@@ -337,6 +337,24 @@ def test_the_choice_follows_its_line_when_rows_move() -> None:
     assert view.chosen() is None
 
 
+def test_the_choice_never_passes_to_another_output_line() -> None:
+    from app.output_list import OutputLine
+    from app.widgets.lists import LinesView, output_rows
+
+    def made() -> list[OutputLine]:
+        return [OutputLine(f"{n}#0 1:0:{n}.000#finish#", {}, "hand") for n in (1, 1, 2)]
+
+    view = LinesView()
+    lines = made()
+    view.show_rows(output_rows(lines))
+    view.selectRow(1)
+    view.show_rows(output_rows([lines[0], lines[1], lines[2]]))
+    assert view.chosen() == 1  # the twin chosen, not the one equal to it
+    del lines
+    view.show_rows(output_rows(made()))  # another output file: other lines
+    assert view.chosen() is None
+
+
 def test_the_timeline_puts_a_camera_on_the_video_time_by_its_offset() -> None:
     timeline = Timeline()
     timeline.resize(1000, 48)

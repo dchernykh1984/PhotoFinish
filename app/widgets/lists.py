@@ -68,8 +68,24 @@ def output_rows(lines: list[OutputLine]) -> list[Row]:
         row = _row(line.text, "; ".join(n for n in notes if n), line.removed_from_input)
         if row.ms is None:
             row = replace(row, note=f"no time; {row.note}", warn=True)
-        rows.append(replace(row, key=id(line)))
+        rows.append(replace(row, key=_Same(line)))
     return rows
+
+
+class _Same:
+    """An output line as a row's key: that very line, not one equal to it. Held by
+    the row, it stays alive, so its id is never another line's."""
+
+    __slots__ = ("line",)
+
+    def __init__(self, line: OutputLine) -> None:
+        self.line = line
+
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, _Same) and other.line is self.line
+
+    def __hash__(self) -> int:
+        return id(self.line)
 
 
 def _row(text: str, note: str, warn: bool) -> Row:

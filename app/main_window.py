@@ -378,7 +378,7 @@ class MainWindow(QMainWindow):
             Suggestions(folder_of(camera_id)),
         )
         view.clicked.connect(lambda point: self.picture_clicked(point, camera_id))
-        worker.decoded.connect(lambda tag, image: self._show(camera, tag, image))
+        worker.decoded.connect(self._decoded)  # a window's method: in its thread
         self.cameras[camera_id] = camera
         self._arrange()
         if settings.get("record", True):
@@ -1230,9 +1230,12 @@ class MainWindow(QMainWindow):
         camera.view.show_waiting()  # no crossing timed on the frame before
         camera.worker.request(frame.path, frame.pts, camera.wanted)
 
-    def _show(self, camera: Camera, tag: tuple[str, int], image: QImage) -> None:
-        if tag != camera.wanted:
-            return  # an answer to a request since replaced
+    def _decoded(self, tag: tuple[str, int], image: QImage) -> None:
+        """A frame decoded, handed over in this window's thread: a lambda would run
+        in the decoder's, where no widget may be touched."""
+        camera = self.cameras.get(tag[0])
+        if camera is None or tag != camera.wanted:
+            return  # an answer to a request since replaced, or a camera removed
         if image.isNull():
             camera.view.show_text("This frame cannot be shown")
         else:

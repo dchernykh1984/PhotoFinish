@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import threading
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -1369,6 +1370,26 @@ def test_a_removed_camera_s_analyser_stops_too(
     )
     win.remove_camera()
     assert not analyzers[0].running
+
+
+def test_a_decoded_frame_is_shown_in_the_window_s_own_thread(
+    recording: Path,
+    make_window: Callable[[], mw.MainWindow],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.widgets.camera_view import CameraView
+
+    in_main: list[bool] = []
+    real = CameraView.show_image
+
+    def show_image(self: CameraView, image: QImage) -> None:
+        in_main.append(threading.current_thread() is threading.main_thread())
+        real(self, image)
+
+    monkeypatch.setattr(CameraView, "show_image", show_image)
+    make_window()
+    wait_until(lambda: bool(in_main))
+    assert all(in_main)
 
 
 def test_a_frame_that_cannot_be_shown_is_said_not_left_as_another(
