@@ -5,14 +5,18 @@ recorded against video from the finish line and correct their times. It reads
 the chronometer's results file and never writes to it; corrections go to files
 of its own, which FinishProtocolGenerator reads in place of the original.
 
-**Status:** bootstrap. The program is an empty window; the first feature is
-specified in [`specs/001-video-refinement`](specs/001-video-refinement/spec.md).
+It records each finish camera in a process of its own that keeps recording when
+the window is gone, shows every camera at one moment, follows the chronometer's
+file as it grows, and keeps the referee's crossings -- added from a frame,
+corrected, or read between two frames like a caliper -- in an output file with a
+journal of every change. What it does, in full: [`specs/app`](specs/app/README.md);
+a first session with the test camera:
+[quickstart](specs/001-video-refinement/quickstart.md).
 
 ## Download a ready-made app
 
 Every release ships portable builds, so there is nothing to install and no
-Python, uv or git needed. There is no release yet: the first one comes with
-the first feature. Pick the file for your platform from the
+Python, uv or git needed. Pick the file for your platform from the
 [latest release](https://github.com/dchernykh1984/PhotoFinish/releases/latest):
 
 | Platform | File |
@@ -82,6 +86,10 @@ sudo apt-get install -y libegl1 libgl1 libxkbcommon0 libxcb-cursor0
 The program reads and writes its files **next to itself**, so give
 it a folder of its own rather than a shared downloads directory. On macOS the
 files land next to the `.app` bundle, in the folder that contains it.
+
+The session is `data/session.json` and each camera's recording is in
+`video/<camera>/`, so keep the folder on a disk with room: about 2 GB an hour
+for each USB camera at 720p.
 
 This is also how you run several events side by side: copy the folder per event,
 and each copy keeps its own data. A symlink or a Finder alias will not work for
