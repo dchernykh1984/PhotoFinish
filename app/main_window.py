@@ -414,9 +414,7 @@ class MainWindow(QMainWindow):
             self.placeholder.show_text("Add a camera")
         elif camera.shown is None:
             camera.view.show_text("No video yet")
-        self._refresh(force=True)
-        if self.place is not None and not self.live:
-            self._go(self.place)
+        self._refresh(force=True)  # the frame at the moment, or the newest when live
 
     def _camera(self) -> Camera | None:
         return None if self.current is None else self.cameras.get(self.current)

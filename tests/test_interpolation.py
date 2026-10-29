@@ -41,6 +41,8 @@ def test_a_slanted_line_reads_the_same_in_any_proportions() -> None:
         ([[0.1, 0.1], [0.1, 0.1]], CENTRE),
         ([[0.1, "x"], [0.9, 1]], CENTRE),
         ([1, 2], CENTRE),
+        ([[0.1, 0], [1.5, 1]], CENTRE),  # outside the picture
+        ([[float("nan"), 0], [0.9, 1]], CENTRE),
     ],
 )
 def test_a_camera_line_as_the_session_keeps_it(drawn: object, line: object) -> None:

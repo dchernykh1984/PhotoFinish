@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.interpolation import Point, finish_line
+from app.interpolation import Point, finish_line, points
 
 type Zone = tuple[Point, Point]  # two opposite corners in 0-1 picture coordinates
 
@@ -43,12 +43,10 @@ def valid_zone(drawn: object) -> bool:
 
 def _corners(drawn: object) -> Zone | None:
     """Two corners within the picture that span an area, the top-left first."""
-    if not (isinstance(drawn, list | tuple) and len(drawn) == 2):
+    found = points(drawn)
+    if found is None:
         return None
-    try:
-        (xa, ya), (xb, yb) = ((float(x), float(y)) for x, y in drawn)
-    except TypeError, ValueError:
-        return None
-    if not all(0 <= v <= 1 for v in (xa, ya, xb, yb)) or xa == xb or ya == yb:
+    (xa, ya), (xb, yb) = found
+    if xa == xb or ya == yb:
         return None
     return (min(xa, xb), min(ya, yb)), (max(xa, xb), max(ya, yb))
