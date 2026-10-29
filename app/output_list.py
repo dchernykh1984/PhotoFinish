@@ -16,7 +16,6 @@ first.
 
 from __future__ import annotations
 
-import copy
 import functools
 import json
 from collections.abc import Callable, Iterator
@@ -203,7 +202,8 @@ class OutputList:
         with self._journaled():
             self._keep_outside_version()
             # The lines themselves are put back, not copies: the window knows them.
-            kept = [(line, copy.deepcopy(vars(line))) for line in self.lines]
+            # Their fields are kept as they are: an origin is replaced, never edited.
+            kept = [(line, dict(vars(line))) for line in self.lines]
             taken, removed = list(self.taken), list(self.removed)
             try:
                 yield
