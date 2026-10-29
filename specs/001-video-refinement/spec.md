@@ -253,7 +253,8 @@ an RTMP stream pushed from the same computer is received and recorded.
 
 - The input file's last line is still being written: it is taken once its line break is there. A
   last line left without its line break -- by an older tool, or by hand -- is taken once the file
-  has rested for 2 s.
+  has rested for 2 s by this computer's clock, not by the file's time: a USB stick's FAT keeps file
+  times in 2 s steps, and a share's server keeps its own clock.
 - An input line without a time PhotoFinish can read (`15##`, a slot saved without a time): taken
   with its bytes, kept at the end of the output in input order and marked, so nothing the
   chronometer wrote is dropped.

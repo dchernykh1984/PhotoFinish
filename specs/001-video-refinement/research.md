@@ -89,7 +89,8 @@
 - **Decision**: the input file is polled every 500 ms (size and modification time) and, when it
   changed, opened, read whole and closed at once -- never held open, because on Windows an open
   handle without delete sharing makes the chronometer's atomic rewrite fail -- and read as complete
-  lines (UTF-8, then cp1251, then Latin-1).
+  lines (UTF-8, then cp1251, then Latin-1). A file shorter than when last read is read once it has
+  rested 2 s: a tool that truncates and rewrites, caught halfway, does not mark lines removed.
  `difflib.SequenceMatcher` aligns it with the input as last taken:
   inserted lines are appended to the output, replaced lines become highlighted changes, deleted
   lines mark their output lines "removed from input". The output file holds its lines in time order
