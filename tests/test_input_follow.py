@@ -123,12 +123,10 @@ def test_the_input_is_only_read(files: tuple[Path, Path]) -> None:
 
 
 def test_a_line_still_being_written_waits_for_its_line_break(
-    files: tuple[Path, Path], monkeypatch: pytest.MonkeyPatch
+    files: tuple[Path, Path],
 ) -> None:
     source, _ = files
-    write(source, A, tail="2#20389 11:3")
-    written = source.stat().st_mtime_ns
-    monkeypatch.setattr(input_follow.time, "time_ns", lambda: written + 100_000_000)
+    write(source, A, tail="2#20389 11:3")  # its time years back, as a share's may be
     f = follow(files)
     f.poll()
     assert f.output.texts() == [A]
@@ -151,15 +149,30 @@ def test_an_unchanged_or_missing_input_is_not_read_again(
     assert not f.output.lines[0].removed_from_input
 
 
+@pytest.fixture
+def clock(monkeypatch: pytest.MonkeyPatch) -> dict[str, int]:
+    """This computer's steady clock, moved on by hand."""
+    now = {"ns": 0}
+    monkeypatch.setattr(input_follow.time, "monotonic_ns", lambda: now["ns"])
+    return now
+
+
+def rested(f: InputFollow, clock: dict[str, int]) -> bool:
+    """A poll once the file has rested: its change seen, then 3 s on."""
+    f.poll()
+    clock["ns"] += 3_000_000_000
+    return f.poll()
+
+
 def test_a_gone_line_is_marked_and_cleared_when_it_comes_back(
-    files: tuple[Path, Path],
+    files: tuple[Path, Path], clock: dict[str, int]
 ) -> None:
     source, _ = files
     write(source, A, B, C)
     f = follow(files)
     f.poll()
     write(source, A)
-    f.poll()
+    assert rested(f, clock)
     assert [line.removed_from_input for line in f.output.lines] == [False, True, True]
     write(source, A, B, C)
     f.poll()
@@ -210,14 +223,14 @@ def test_lines_already_in_a_chosen_output_are_not_taken_twice(
 
 
 def test_an_emptied_input_marks_its_lines_and_new_ones_arrive(
-    files: tuple[Path, Path],
+    files: tuple[Path, Path], clock: dict[str, int]
 ) -> None:
     source, _ = files
     write(source, A, B)
     f = follow(files)
     f.poll()
     write(source)
-    f.poll()
+    assert rested(f, clock)
     assert all(line.removed_from_input for line in f.output.lines)
     write(source, C)
     f.poll()
@@ -289,20 +302,44 @@ def test_a_last_line_left_without_its_line_break_is_taken_once_at_rest(
 ) -> None:
     source, _ = files
     write(source, A, tail=B)  # B without its line break, the file just written
-    now = source.stat().st_mtime_ns
-    clock = {"ns": now + 100_000_000}
-    monkeypatch.setattr(input_follow.time, "time_ns", lambda: clock["ns"])
+    clock = {"ns": 0}
+    monkeypatch.setattr(input_follow.time, "monotonic_ns", lambda: clock["ns"])
     f = follow(files)
     assert f.poll()
     assert f.output.texts() == [A]  # it may still be being written
     assert not f.poll()
-    clock["ns"] = now + 3_000_000_000  # left so: the tool is done with it
+    clock["ns"] = 3_000_000_000  # left so: the tool is done with it
     assert f.poll()
     assert f.output.texts() == [A, B]
     assert not f.poll()
     write(source, A, tail=" \n")
     f.poll()
     assert not f._cut  # blanks after the last line break are no line
+
+
+def test_a_file_cut_short_while_it_is_rewritten_waits_until_it_rests(
+    files: tuple[Path, Path], clock: dict[str, int]
+) -> None:
+    source, _ = files
+    write(source, A, B, C)
+    f = follow(files)
+    assert f.poll()
+    write(source, A)  # the chronometer rewriting it, caught halfway
+    assert not f.poll()
+    assert not any(line.removed_from_input for line in f.output.lines)
+    write(source, A, B, C, D)  # done: longer than before, read at once
+    assert f.poll()
+    assert f.output.texts() == [A, B, C, D]
+    write(source, A, C, D)  # a line deleted: taken once the file rests
+    assert not f.poll()
+    clock["ns"] = 3_000_000_000
+    assert f.poll()
+    assert [line.removed_from_input for line in f.output.lines] == [
+        False,
+        True,
+        False,
+        False,
+    ]
 
 
 def test_the_only_line_taken_edited_is_a_change_not_a_new_file() -> None:

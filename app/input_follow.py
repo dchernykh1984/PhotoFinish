@@ -120,7 +120,9 @@ class InputFollow:
         self.path = path
         self.output = output
         self.lines: list[InputLine] = []
-        self._seen: tuple[int, int, int] | None = None
+        self._seen: tuple[int, int, int] | None = None  # the file as last read
+        self._looked: tuple[int, int, int] | None = None  # as last looked at
+        self._since = 0  # this computer's steady clock, ns: when it was first so
         self._cut = False  # the last read ended in a line without its line break
 
     def poll(self) -> bool:
@@ -132,9 +134,16 @@ class InputFollow:
         try:
             stat = self.path.stat()
             seen = (stat.st_size, stat.st_mtime_ns, stat.st_ino)
-            at_rest = time.time_ns() - stat.st_mtime_ns > REST_NS
+            now = time.monotonic_ns()
+            if seen != self._looked:
+                self._looked, self._since = seen, now
+            # At rest by this computer's clock, not the file's time: a stick's FAT
+            # keeps it in 2 s steps, a share's server by a clock of its own.
+            at_rest = now - self._since > REST_NS
             if seen == self._seen and not (self._cut and at_rest):
                 return False
+            if self._seen and seen[0] < self._seen[0] and not at_rest:
+                return False  # shorter, still changing: a rewrite half done, maybe
             data = files.read_bytes(self.path)
         except OSError:
             return False  # not there, or held by its writer a moment: next time
@@ -161,10 +170,12 @@ class InputFollow:
         line = self.lines[index]
         if line.taken is None:
             raise ValueError("the line is as it was taken")
+        journal, at = None, index
         try:
             at = self.output.copy_input(index, line.text)
-        except JournalError:
-            self.lines[index] = InputLine(line.text)
-            raise
+        except JournalError as error:  # copied all the same
+            journal = error
         self.lines[index] = InputLine(line.text)
+        if journal is not None:
+            raise journal
         return at
