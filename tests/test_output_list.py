@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -364,3 +365,78 @@ def test_a_journal_that_refuses_a_change_written_is_an_error(
     with pytest.raises(OSError, match="disk full"):
         take(out, TAKEN)
     assert path.read_text() == TAKEN + "\n"  # the change is written
+
+
+def test_a_long_race_is_listed_without_a_wait(path: Path) -> None:
+    import time
+
+    texts = [
+        f"{n}#0 {n // 3600}:{n // 60 % 60}:{n % 60}.000#finish#" for n in range(3000)
+    ]
+    path.write_text("\n".join([*texts, "7##"]) + "\n")
+    started = time.perf_counter()
+    out = OutputList(path)
+    take(
+        out,
+        *(
+            f"{n}#0 {n // 3600}:{n // 60 % 60}:{n % 60}.500#nextLap#"
+            for n in range(500)
+        ),
+    )
+    assert time.perf_counter() - started < 5.0
+    assert out.texts()[0] == texts[0]
+    assert out.texts()[1].startswith("0#0 0:0:0.500")
+    assert out.texts()[-1] == "7##"
+
+
+def test_after_a_broken_state_the_journal_says_what_was_taken(path: Path) -> None:
+    out = OutputList(path)
+    second = "16#20389 11:35:30.000#nextLap#"
+    take(out, TAKEN, second)
+    out.set_time(0, ms("20389 11:35:29.500"), Change("frame"))  # the referee's fix
+    changed = "16#20389 11:35:30.100#nextLap#"
+    out.copy_input(1, changed)
+    with out.journal_path.open("a") as f:
+        f.write("not json\n[1]\n")
+    out.state_path.write_text("{broken")
+    again = OutputList(path)
+    assert again.taken == [TAKEN, changed]
+    from app.input_follow import align
+
+    found = align(again.taken, [TAKEN, changed])  # the chronometer's file as it is
+    assert found.new == []  # nothing taken twice, the corrected line not either
+
+
+def test_an_output_as_written_is_not_read_again_at_each_poll(
+    path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    out = OutputList(path)
+    take(out, TAKEN)
+    reads: list[Path] = []
+    real = output_list._read
+
+    def counted(target: Path) -> bytes | None:
+        reads.append(target)
+        return real(target)
+
+    monkeypatch.setattr(output_list, "_read", counted)
+    for _ in range(3):
+        assert not out.check_outside()
+    assert reads == []
+    os.utime(path, ns=(1, 1))  # touched, not changed: read once, then not again
+    assert not out.check_outside()
+    assert not out.check_outside()
+    assert reads == [path]
+    path.write_text("edited\n")
+    assert out.check_outside()
+
+
+def test_a_line_whose_time_stays_keeps_its_place_among_its_ties(path: Path) -> None:
+    out = OutputList(path)
+    first, second = "12#0 1:0:0.000#finish#", "7#0 1:0:0.000#finish#"
+    take(out, first, second, "9#0 1:0:5.000#finish#")
+    assert out.set_number(0, "21") == 0  # the typo fixed: the placing stays
+    assert out.texts()[:2] == ["21#0 1:0:0.000#finish#", second]
+    assert out.set_time(0, ms("0 1:0:0.000"), Change("typed")) == 0
+    assert out.texts()[0] == "21#0 1:0:0.000#finish#"
+    assert out.set_time(0, ms("0 1:0:6.000"), Change("typed")) == 2  # a new time moves

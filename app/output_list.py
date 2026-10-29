@@ -17,6 +17,7 @@ first.
 from __future__ import annotations
 
 import copy
+import functools
 import json
 import os
 from collections.abc import Iterator
@@ -72,6 +73,7 @@ class OutputList:
         self.taken: list[str] = []  # the input as last taken, in its order
         self._pending: list[bytes] | None = None  # journal entries of a change
         self._written: bytes | None = None  # the output file as this list wrote it
+        self._written_stat: tuple[int, int, int] | None = None  # its size, time, inode
         self._load()
 
     def texts(self) -> list[str]:
@@ -179,11 +181,13 @@ class OutputList:
     def _replace(
         self, index: int, text: str, op: str, change: Change, taken: str | None = None
     ) -> int:
-        line = self.lines.pop(index)
+        line = self.lines[index]
         before, line.text, line.method = line.text, text, change.method
         if taken is not None:
             line.origin, line.removed_from_input = {"input": taken}, False
-        at = self._insert(line)
+        at = index
+        if _time_of(text) != _time_of(before):  # a new time: a new place; else none
+            at = self._insert(self.lines.pop(index))
         self._journal(
             op,
             before=before,
@@ -222,12 +226,17 @@ class OutputList:
         return next((i for i in found if self.lines[i].text == taken), first)
 
     def _insert(self, line: OutputLine) -> int:
-        """In time order, after the lines of its time; a line without a time last."""
-        ms = parse_line(line.text).ms
+        """In time order, after the lines of its time; a line without a time last.
+        Looked for from the end, where a new crossing nearly always goes."""
+        ms = _time_of(line.text)
         at = len(self.lines)
         if ms is not None:
-            later = (i for i, other in enumerate(self.lines) if _goes_after(other, ms))
-            at = next(later, at)
+            at = 0
+            for i in range(len(self.lines) - 1, -1, -1):
+                other = _time_of(self.lines[i].text)
+                if other is not None and other <= ms:
+                    at = i + 1
+                    break
         self.lines.insert(at, line)
         return at
 
@@ -240,18 +249,20 @@ class OutputList:
             self._start_from_file()
             return
         except ValueError, KeyError, TypeError:
-            # Not a state: kept aside, and the file's crossings start the list again.
+            # Not a state: kept aside. The file's crossings start the list again, and
+            # the input as taken is what the journal says was taken, so a line the
+            # referee corrected does not come back beside its correction.
             self.state_path.replace(_aside(self.state_path, "broken"))
-            self._start_from_file()
+            self._start_from_file(_taken_in(self.journal_path))
             return
         self._written = self._body()
         self.check_outside()
 
-    def _start_from_file(self) -> None:
+    def _start_from_file(self, taken: list[str] | None = None) -> None:
         """No state: crossings already in the file start the list, in time order, and
         the file as it was is kept in a backup and journaled."""
         found = _read(self.path)
-        self.lines, self.taken = [], []
+        self.lines, self.taken = [], taken or []
         for text in text_lines(found or b""):
             self._insert(OutputLine(text, {"outside": True}, "outside"))
         self._written = None if self.lines else found
@@ -259,8 +270,14 @@ class OutputList:
             self._write()
 
     def _keep_outside_version(self) -> bool:
+        # shortcut: a file rewritten in place, its size kept, within one tick of the
+        # file system's clock, is read at the next change; read on every poll then.
+        stat = _stat(self.path)
+        if stat is not None and stat == self._written_stat:
+            return False  # as this list wrote it: not read again
         current = _read(self.path)
         if current == self._written:
+            self._written_stat = stat
             return False
         backup = None
         if current is not None:
@@ -275,7 +292,7 @@ class OutputList:
         _write_in_one_step(self.state_path, self._state())
         body = self._body()
         _write_in_one_step(self.path, body)
-        self._written = body
+        self._written, self._written_stat = body, _stat(self.path)
 
     def _state(self) -> bytes:
         lines = [asdict(line) for line in self.lines]
@@ -336,10 +353,35 @@ def _number(number: str) -> str:
     return cleaned
 
 
-def _goes_after(line: OutputLine, ms: int) -> bool:
-    """True when ``line`` goes after a crossing at ``ms``: later, or without a time."""
-    other = parse_line(line.text).ms
-    return other is None or other > ms
+def _taken_in(journal: Path) -> list[str]:
+    """The input lines the journal says were taken, in order; a copy in place of the
+    line it changed."""
+    taken: list[str] = []
+    for raw in (_read(journal) or b"").splitlines():
+        try:
+            entry = json.loads(raw)
+            op, given = entry.get("op"), entry.get("input")
+        except ValueError, AttributeError:
+            continue
+        if op == "copy" and given and entry.get("before") in taken:
+            taken[taken.index(entry["before"])] = given
+        elif op in ("take", "copy") and given:
+            taken.append(given)
+    return taken
+
+
+@functools.lru_cache(maxsize=1 << 16)
+def _time_of(text: str) -> int | None:
+    """A line's time, parsed once however often the list is ordered."""
+    return parse_line(text).ms
+
+
+def _stat(path: Path) -> tuple[int, int, int] | None:
+    try:
+        found = path.stat()
+    except OSError:
+        return None
+    return found.st_size, found.st_mtime_ns, found.st_ino
 
 
 def _read(path: Path) -> bytes | None:
