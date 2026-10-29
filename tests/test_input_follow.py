@@ -52,6 +52,14 @@ def test_a_line_inserted_before_an_edit_is_new_and_the_edit_held_back() -> None:
     assert result.shown[2] == InputLine(edited, B)
 
 
+def test_a_lap_deleted_and_the_rider_s_next_lap_are_two_crossings() -> None:
+    false_lap = "12#20389 11:35:25.000#nextLap#"
+    next_lap = "12#20389 11:40:20.000#nextLap#"
+    other = "5#20389 11:36:00.000#nextLap#"
+    result = align([A, false_lap], [A, other, next_lap])  # read after a while
+    assert (result.new, result.gone) == ([other, next_lap], [false_lap])
+
+
 def test_a_file_with_nothing_in_common_is_a_new_competition() -> None:
     again = "1#20390 10:00:00.000#nextLap#"
     result = align([A, B], [again])

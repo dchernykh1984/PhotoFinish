@@ -99,7 +99,8 @@
 - **The input as last taken** is kept in `<output>.state.json`, written in the same step as the
   output lines, so a crash cannot take a line twice or lose one; a different output file takes the
   input afresh. In a stretch that differs, a line taken pairs, in order, with the next line that
-  keeps its number or its time (an edit at the chronometer); the others are gone or new. An input
+  keeps its time, or its number with a time within 10 s (an edit at the chronometer; the same
+  rider's lap later on is another crossing); the others are gone or new. An input
   with no line in common with the input as taken, and no crossing within 10 minutes of one taken,
   is a new file: its lines are new, the old ones gone (an edit keeps its crossings near their
   times). A line that comes back after it was gone -- a chronometer rewriting its file without a

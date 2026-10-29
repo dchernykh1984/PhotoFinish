@@ -260,7 +260,8 @@ an RTMP stream pushed from the same computer is received and recorded.
   chronometer wrote is dropped.
 - An input file from the older C++ tools in cp1251.
 - The same number crosses several times (laps): each line is its own crossing; an edit belongs to
-  one line, not to a number. Two identical lines are two crossings.
+  one line, not to a number. Two identical lines are two crossings. A line deleted and the same
+  rider's next lap are two crossings: an edit moves a time by 10 s at most.
 - The input file is emptied or replaced (a new competition at the chronometer): its old lines count
   as removed and are marked in the output; new lines arrive as usual.
 - The computer's clock is changed during recording: frame times follow a steady clock from the
