@@ -17,13 +17,19 @@ A heartbeat older than 5 s means the recorder is gone.
 
 ## Control
 
-- `stop.request` appears: the recorder closes the open segment and exits with state `stopped`.
+- `stop.request` appears: the recorder closes the open segment, exits with state `stopped` and
+  removes the request.
 - Starting is the window's job: it starts a recorder only when no fresh heartbeat exists.
+- `recorder.lock` is held locked while a recorder runs: a second recorder for the same camera
+  exits at once and leaves the first one's heartbeat alone.
+- Exit codes: 0 stopped on request, 2 the camera is not in the session or its settings cannot work
+  (state `failed`), 3 another recorder has the camera, 4 the disk is full (state `disk_full`).
 
 ## Output
 
 - Segments and `.times` files as `data-model.md` describes; a segment is renamed from `current.*`
-  only after both files are flushed and closed.
+  only after both files are flushed and closed, the `.times` first. A `current.*` a crash left is
+  kept as `crashed-<ms>.*` when the next recorder starts and is not shown.
 - `gaps.txt` gets a line for every stretch without frames longer than three frame intervals.
 - Below 2 GB free the state stays `recording` with `detail` "low disk"; on a failed write for lack
   of space the state becomes `disk_full` and the recorder exits.

@@ -1,13 +1,9 @@
-"""Entry point for PhotoFinish."""
+"""Entry point for PhotoFinish; ``--recorder <camera id>`` runs a camera's recorder."""
 
 import sys
 from pathlib import Path
 
-from PySide6.QtGui import QIcon
-from PySide6.QtWidgets import QApplication
-
 import app
-from app.main_window import MainWindow
 
 _APP_NAME = "PhotoFinish"
 # Resolved from the package, not this script: a frozen build runs the entry
@@ -16,6 +12,16 @@ _ICON = str(Path(app.__file__).parent / "app.ico")
 
 
 def main() -> None:
+    if len(sys.argv) == 3 and sys.argv[1] == "--recorder":
+        from app.recorder import run
+
+        sys.exit(run(sys.argv[2]))
+    # Qt only for the window: a recorder process does without it.
+    from PySide6.QtGui import QIcon
+    from PySide6.QtWidgets import QApplication
+
+    from app.main_window import MainWindow
+
     # Must run before QApplication -- Qt reads the process name on init.
     _macos_set_process_name(_APP_NAME)
     _windows_set_app_id(_APP_NAME)

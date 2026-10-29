@@ -6,10 +6,12 @@
 data/session.json                  the session (below)
 video/<camera id>/
   recorder.json                    the recorder's heartbeat and state
+  recorder.lock                    held locked while a recorder runs
   stop.request                     present while the window asks the recorder to stop
   <YYYYmmdd-HHMMSS>-<n>.mkv        a closed segment
   <YYYYmmdd-HHMMSS>-<n>.times      its frames: "<pts> <time ms>" per line
   current.mkv, current.times       the segment being written
+  crashed-<ms>.mkv, .times         a segment a crash left open, kept but not shown
   gaps.txt                         "<from ms> <to ms> <reason>" per gap
 <output file>                      chosen by the referee
 <output file>.state.json           origin and marks of each output line, the input as last taken
