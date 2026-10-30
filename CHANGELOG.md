@@ -1,5 +1,106 @@
 # Changelog
 
+## [0.2.0](https://github.com/dchernykh1984/PhotoFinish/compare/v0.1.0...v0.2.0) (2026-10-30)
+
+
+### Features
+
+* **align:** align the video with the timing source ([4486bfc](https://github.com/dchernykh1984/PhotoFinish/commit/4486bfcbc9da2391835e6b5742bb68080274d986))
+* **analysis:** add the experimental analysis settings ([226cc09](https://github.com/dchernykh1984/PhotoFinish/commit/226cc094e40dcf4f763dd3d6b7ad68501c8b6b1b))
+* **analysis:** find riders with a local ONNX detector ([fba91b3](https://github.com/dchernykh1984/PhotoFinish/commit/fba91b38f6bd592473ca9712e6101a22e40a944e))
+* **analysis:** index riders by motion that crosses the zone ([6fea04a](https://github.com/dchernykh1984/PhotoFinish/commit/6fea04a2581281bcc521b44adc21ce432585f225))
+* **analysis:** suggest crossings where a rider crosses the finish line ([6c8206c](https://github.com/dchernykh1984/PhotoFinish/commit/6c8206c190c96f53c98d474351c94ba4b3a66824))
+* **cameras:** connect USB, RTSP, RTMP and file cameras with the owner's presets ([0d75b78](https://github.com/dchernykh1984/PhotoFinish/commit/0d75b786e000acc241ebeeb299e6dbc5c2e965e2))
+* **cameras:** open a camera's own recording after the race ([1d73fc4](https://github.com/dchernykh1984/PhotoFinish/commit/1d73fc42a491bf0ab737dc821694272fbafd2c9a))
+* **cameras:** show several cameras at one moment and align them on a shared event ([ce870b4](https://github.com/dchernykh1984/PhotoFinish/commit/ce870b479acff133f1147a3c2a203ad01a2ab099))
+* **input:** take new chronometer lines and hold back changed ones ([0cda485](https://github.com/dchernykh1984/PhotoFinish/commit/0cda48587cfa43d63630c48a71ab8e80eb9da79f))
+* **lines:** read and write crossing lines and times ([fcb34b3](https://github.com/dchernykh1984/PhotoFinish/commit/fcb34b3b0f6d048fa1773fb3c356788e9500d580))
+* **output:** keep the referee's crossings in their file with a journal ([9051232](https://github.com/dchernykh1984/PhotoFinish/commit/905123296447dc33b7a21c7d5c8bbd24eaa26154))
+* **precision:** pick a time between two frames on the zoomed timeline ([642ecb8](https://github.com/dchernykh1984/PhotoFinish/commit/642ecb8d11fab1fc21f78c3378bcb4048889559e))
+* **precision:** read a crossing time between two frames like a caliper ([6fcdd26](https://github.com/dchernykh1984/PhotoFinish/commit/6fcdd26bb4f5db9624ab1ee90f4f6a7c32648509))
+* **record:** keep recording when the window is gone ([fb50957](https://github.com/dchernykh1984/PhotoFinish/commit/fb50957893d2923446f844092c13ea7ff57ea7ad))
+* **record:** run a camera's recorder as a process of its own ([019c4b3](https://github.com/dchernykh1984/PhotoFinish/commit/019c4b3c24dd9bd1b0bd913ef451c6f771121b2d))
+* **record:** write a camera in short segments with each frame's time ([6515f36](https://github.com/dchernykh1984/PhotoFinish/commit/6515f3650de1cbf5f380febb3a576fd2d49ef9f5))
+* **session:** keep the session next to the program ([77b324b](https://github.com/dchernykh1984/PhotoFinish/commit/77b324b321321de4530312c2e08d2e58b4c86c24))
+* **video:** index recorded frames and decode any of them ([ce12058](https://github.com/dchernykh1984/PhotoFinish/commit/ce1205804831d939e7bc62ff8720ee766ecd2abd))
+* **window:** add a crossing at the current frame from the keyboard ([26bbce5](https://github.com/dchernykh1984/PhotoFinish/commit/26bbce5a8ca9f942e61bc571e74603f58f093cc3))
+* **window:** correct a crossing's time or number and remove a false one ([379197e](https://github.com/dchernykh1984/PhotoFinish/commit/379197eb97501c5a587bd0f405da3186f91ac1b7))
+* **window:** jump to the next and previous rider ([589eebc](https://github.com/dchernykh1984/PhotoFinish/commit/589eebca258aee04e9feee50618f51d9c4bdfa4c))
+* **window:** scroll a camera while it records ([d44ac20](https://github.com/dchernykh1984/PhotoFinish/commit/d44ac20a7691e080c459da14915b915bd12ffe78))
+* **window:** show the input and output lists at the video's time ([f205a74](https://github.com/dchernykh1984/PhotoFinish/commit/f205a74d70672374c44a61333a88f472608999af))
+
+
+### Bug Fixes
+
+* **analysis:** look at a segment earlier than the last from its start, not skip it ([0e903e9](https://github.com/dchernykh1984/PhotoFinish/commit/0e903e9c4df49772ebd2b7240e33a5a7c05d7896))
+* **analysis:** offer a crossing suggested twice only once ([ed18dfb](https://github.com/dchernykh1984/PhotoFinish/commit/ed18dfb5a80697a8e855ac02bb23658a1d6adb98))
+* **analysis:** retry a segment in order and afresh, and suggest riders a millisecond apart singly ([0ece5a2](https://github.com/dchernykh1984/PhotoFinish/commit/0ece5a2e1615295fb1e6c31bf27d9a5d6f145f8a))
+* **analysis:** try a segment held a moment again instead of passing it over ([49a856d](https://github.com/dchernykh1984/PhotoFinish/commit/49a856df5e5b004819248d28738721666bdbdbc2))
+* **cameras:** ask for a picture size's width and height both ([e6f968a](https://github.com/dchernykh1984/PhotoFinish/commit/e6f968a2268a83d582f9f67bf3ebaafc82819e8d))
+* **cameras:** refuse a USB camera where this build cannot capture one ([a539d13](https://github.com/dchernykh1984/PhotoFinish/commit/a539d13ef69974546a9575c1e86472d315246c56))
+* **index:** give up a segment whose frame times stay unreadable, and say so ([af7c68d](https://github.com/dchernykh1984/PhotoFinish/commit/af7c68d0e1eb6042a167d3aa9ac605fdc3e78e9a))
+* **index:** step over a gap in the recording and read only the gaps noted since the last poll ([d1e3f44](https://github.com/dchernykh1984/PhotoFinish/commit/d1e3f449c8deb10085040ef6afc5cc320d7be0ed))
+* **input:** hold back an edit of every line taken instead of taking it as a new file ([458c27f](https://github.com/dchernykh1984/PhotoFinish/commit/458c27f90ec072001c322b88ddc1cc2ea25151d4))
+* **input:** judge a file at rest by this computer's clock and read a shortened one only then ([0635786](https://github.com/dchernykh1984/PhotoFinish/commit/0635786128795e025b0818df17bd05095965a44d))
+* **input:** show lines and copies as done when only their journal entries failed ([d26e4d6](https://github.com/dchernykh1984/PhotoFinish/commit/d26e4d6c041a9b7aa2e4608c898b60624f60b499))
+* **input:** take a last line left without its line break once the file rests ([5db4d1b](https://github.com/dchernykh1984/PhotoFinish/commit/5db4d1bddb9959f4d967fd9425a2100fec86ef94))
+* **input:** take a rider's next lap as a crossing, not as an edit of a lap deleted ([6b7a333](https://github.com/dchernykh1984/PhotoFinish/commit/6b7a333b72deacfc401f89108c94871aade1f4d2))
+* keep a drawn line or zone only when it has extent and record whatever the window has ([1f3f1fe](https://github.com/dchernykh1984/PhotoFinish/commit/1f3f1fe48ce6e506f887301060fb6712bbe711b7))
+* **output:** bring a crash-left file up to the state, back up an outside version once, read first ([8aa34ef](https://github.com/dchernykh1984/PhotoFinish/commit/8aa34efd43bab110e6e8d209b03186296838d52f))
+* **output:** journal a change once written and take back the state of one that was not ([cbd10a5](https://github.com/dchernykh1984/PhotoFinish/commit/cbd10a5546e4c2cb79e7ffc78174e8552fe96c06))
+* **output:** journal adopted and replaced lines, reread a held file and follow the input faster ([b26925e](https://github.com/dchernykh1984/PhotoFinish/commit/b26925ebabfa69e032b50228b66885ee1a90da02))
+* **output:** journal an outside version once written back and report a refused journal as written ([2859541](https://github.com/dchernykh1984/PhotoFinish/commit/2859541475fcd51e09f6a9c5b004f53b4eaad8fd))
+* **output:** keep an outside version once, open despite a refused journal, keep each line's bytes ([9ecbac3](https://github.com/dchernykh1984/PhotoFinish/commit/9ecbac35122620ea357caf2c86848ae7cb843e5f))
+* **output:** tell a change written but not journaled from one not written ([eaefa40](https://github.com/dchernykh1984/PhotoFinish/commit/eaefa4022d5ed2fca62976192787eedbab12f104))
+* **output:** trust the journal after a broken state, keep equal times in place, place lines faster ([c7ff4ba](https://github.com/dchernykh1984/PhotoFinish/commit/c7ff4badf4c2ed1281733cf96f8949978bb3d4f6))
+* **output:** undo failed changes, keep removed crossings out, relink lines and complete short ones ([f8f4217](https://github.com/dchernykh1984/PhotoFinish/commit/f8f4217efd309e315a94508ad2fd6ddb7396d4d7))
+* **record:** count the last segment in the heartbeat a stop leaves ([4ce253b](https://github.com/dchernykh1984/PhotoFinish/commit/4ce253b7ad081b20391091cd43a4c35032adf66e))
+* **record:** keep a segment that failed to close, and follow the segment list for video and analysis ([7586bd7](https://github.com/dchernykh1984/PhotoFinish/commit/7586bd7f256f6f1612a11e2f963c6683d7bcf4db))
+* **record:** keep time and the heartbeat right through clock drift, a clock set back and a low disk ([93de8d8](https://github.com/dchernykh1984/PhotoFinish/commit/93de8d8363deaf7f10434c440c96bc66f277bad9))
+* **record:** record through a drifting clock and a failed close, and call a recorder gone less soon ([e4245f8](https://github.com/dchernykh1984/PhotoFinish/commit/e4245f8e70d062ec6f9eca0e83dc7abb99f9b8a7))
+* **record:** report and retry a recorder that cannot start, and tidy the segment code ([033acf4](https://github.com/dchernykh1984/PhotoFinish/commit/033acf4d920684687804c5f29e348044b1487e46))
+* **record:** restart after a stop withdrawn too late, find file cameras from any folder, list faster ([63183dc](https://github.com/dchernykh1984/PhotoFinish/commit/63183dcf0a1091c9e996af54c5cbbda2fb1dd494))
+* **record:** retry a recorder despite an old end in its heartbeat and list a refused segment next ([8f1cfc9](https://github.com/dchernykh1984/PhotoFinish/commit/8f1cfc972aca1cb467a66ec478afe8c403fc7afa))
+* **record:** start a frozen recorder as its own instance and report a full disk in place ([402934a](https://github.com/dchernykh1984/PhotoFinish/commit/402934acc8ae8f6635c57103ed3f01b5476b5367))
+* **record:** time frames on the computer's clock after a sleep and withdraw a stop not yet heard ([09692f5](https://github.com/dchernykh1984/PhotoFinish/commit/09692f55f3b1711d5285af3b495bbf38f7c2ca2e))
+* **session:** write the session past a reader's moment and read one being replaced again ([8bf25a3](https://github.com/dchernykh1984/PhotoFinish/commit/8bf25a3fbaa3be29cfbe5e718cbf5d79041ee588))
+* start a line appended after one a kill cut short on a line of its own ([b546204](https://github.com/dchernykh1984/PhotoFinish/commit/b54620456c7237be4fb5dcca748f00d98829e84b))
+* **video:** read a recording on its own thread, seek far ahead and pass over empty segments ([c7eca8f](https://github.com/dchernykh1984/PhotoFinish/commit/c7eca8f5a62b075b678b7e2a7ccbf11237ea7fce))
+* **view:** show padded frames, answer every frame asked for and seek on a click in a gap ([ba2e03c](https://github.com/dchernykh1984/PhotoFinish/commit/ba2e03cd382bd96b69392b392d5bcc67966d57fd))
+* **window:** ask for a frame by itself and show no span for a camera without frames ([929fd8f](https://github.com/dchernykh1984/PhotoFinish/commit/929fd8fab50334098cf1d2dee301706261cf86ec))
+* **window:** correct the crossing chosen as lines move and keep a suggestion whose write failed ([b2d2697](https://github.com/dchernykh1984/PhotoFinish/commit/b2d2697cb42934703b0618d0723887866d5ea1b2))
+* **window:** give a caliper time to the number typed and time nothing on a frame on its way ([8d20a3d](https://github.com/dchernykh1984/PhotoFinish/commit/8d20a3dd996e8ea0f414d6ca61e18ca31219649a))
+* **window:** hand the analyser a line drawn anew and drop one half drawn on a camera switch ([7c21823](https://github.com/dchernykh1984/PhotoFinish/commit/7c218238e150c14c0c4d5f5083093e7f3db7a2b2))
+* **window:** keep the moment and the frames shown when the camera changes or frames are sorted ([f6b6905](https://github.com/dchernykh1984/PhotoFinish/commit/f6b69059090bae73bd6cdc6126b4a23d5800ef98))
+* **window:** leave L to the number typed and go live with End ([9c77ba7](https://github.com/dchernykh1984/PhotoFinish/commit/9c77ba7c6bced3ee2a77c90fe62079f6c361d24b))
+* **window:** let an ended analyser's process object go ([95750ae](https://github.com/dchernykh1984/PhotoFinish/commit/95750aecebf04b3a5868f09d466675a7544fcc09))
+* **window:** open held outputs and unlisted file cameras, align on settled frames, report versions ([e23e16a](https://github.com/dchernykh1984/PhotoFinish/commit/e23e16a6ea8defc948745ef31d021d2d7a5bc039))
+* **window:** say a decision on a suggestion the disk refuses, the suggestion gone ([dedf050](https://github.com/dchernykh1984/PhotoFinish/commit/dedf050119fb1aea4ce71252b3c853939e1cc328))
+* **window:** say a time offered to a line removed meanwhile, never drop it unsaid ([2d41b19](https://github.com/dchernykh1984/PhotoFinish/commit/2d41b19db8b4e98f0748308d7e9a4d37493b7d3b))
+* **window:** send an analyser's error output nowhere instead of keeping it unread ([a360664](https://github.com/dchernykh1984/PhotoFinish/commit/a360664a1586a41a29b86ade858cb417ce5eb21f))
+* **window:** show decoded frames on the window's thread and follow the very output line chosen ([f1f5c7d](https://github.com/dchernykh1984/PhotoFinish/commit/f1f5c7d347de80a69587c3feda8c16262ad598d5))
+* **window:** show no stale frame while one is decoded and keep the suggestion chosen on a redraw ([08c0380](https://github.com/dchernykh1984/PhotoFinish/commit/08c0380a94e2fe38a573c29dfbd24d2077a54829))
+* **window:** start a new shared event once every camera is aligned or the last is stale ([08eae90](https://github.com/dchernykh1984/PhotoFinish/commit/08eae902b581dde17540bc51b40d11531da24a9b))
+* **window:** stop a removed camera's analyser ([bb20de5](https://github.com/dchernykh1984/PhotoFinish/commit/bb20de50ef0470e067e448b07922266301271e66))
+* **window:** stop an analyser without waiting for it, and start the next after it ends ([5a829f4](https://github.com/dchernykh1984/PhotoFinish/commit/5a829f4929012f30f687f2ae6d9863474c2d9572))
+
+
+### Performance Improvements
+
+* build a model's anchor grid once and look this computer's address up once a dialog ([010de28](https://github.com/dchernykh1984/PhotoFinish/commit/010de2887b0ac309fe060b0a1f76f684c574d730))
+* **output:** keep the lines' fields for an undo without copying them deeply ([2233a6f](https://github.com/dchernykh1984/PhotoFinish/commit/2233a6f3e59c83902cd63801728cb933e611201a))
+* **video:** grow the frame arrays by doubling and draw the offset, not a copy ([9b93345](https://github.com/dchernykh1984/PhotoFinish/commit/9b93345325ff6ee9aed42d865bd12445d9e86881))
+
+
+### Documentation
+
+* allow sub-frame times and require recording to outlive the editor ([025ba28](https://github.com/dchernykh1984/PhotoFinish/commit/025ba28709e9cda421dd0b10e7fc58f1ebd97736))
+* describe the experimental rider finding ([515f2af](https://github.com/dchernykh1984/PhotoFinish/commit/515f2afbe4f9286dcf9299a865fe5e7d64691360))
+* describe the live editor ([161b973](https://github.com/dchernykh1984/PhotoFinish/commit/161b973fef0b8bac400dee3423e1b30686e31341))
+* plan the live editor and the experimental rider finding ([b9a6545](https://github.com/dchernykh1984/PhotoFinish/commit/b9a65451a1c365b37721b93fdad7a1b1b4999b2c))
+* respecify the video tool as a live recorder and specify rider finding as an experiment ([50e5681](https://github.com/dchernykh1984/PhotoFinish/commit/50e5681c566fd48a587355ed09a6e12c513b00bc))
+* settle the live editor and rider finding specs and plans after three review cycles ([8267974](https://github.com/dchernykh1984/PhotoFinish/commit/8267974199b164ac4e88e88c8770ac306e8c7313))
+
 ## 0.1.0 (2026-10-28)
 
 

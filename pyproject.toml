@@ -1,6 +1,6 @@
 [project]
 name = "photo-finish"
-version = "0.1.0"
+version = "0.2.0"
 description = "Photo finish for offline race timing: refine chronometer crossing times from video"
 authors = [{ name = "Denis Chernykh", email = "education03@mail.ru" }]
 requires-python = ">=3.14,<3.15"
