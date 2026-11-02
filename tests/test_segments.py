@@ -318,6 +318,18 @@ def test_a_crash_kept_aside_halfway_is_kept_under_one_stamp(
     assert {p.suffix for p in tmp_path.glob("crashed-*")} == {".mkv", ".times"}
 
 
+def test_a_video_takes_no_times_written_long_before_it(tmp_path: Path) -> None:
+    writer = SegmentWriter(tmp_path, fps=30)
+    record(writer, START, 5)
+    writer.close()
+    (closed,) = segments(tmp_path)
+    hour_ago = time.time() - 3600
+    os.utime(closed.with_suffix(".times"), (hour_ago, hour_ago))
+    closed.replace(tmp_path / "current.mkv")  # a video alike: same frames, now
+    SegmentWriter(tmp_path, fps=30)
+    assert not closed.exists()  # not given the old times' name
+
+
 def test_what_a_crash_left_with_no_whole_frame_is_kept_aside(tmp_path: Path) -> None:
     (tmp_path / "current.mkv").write_bytes(b"")
     (tmp_path / "current.times").write_text(f"0 {START}\n")
