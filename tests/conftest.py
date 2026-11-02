@@ -20,7 +20,7 @@ from PySide6.QtCore import QObject, QProcess
 from PySide6.QtWidgets import QApplication
 
 from app import main_window as mw
-from app import paths
+from app import output_list, paths
 from app.recorder import launcher
 
 _app = QApplication.instance() or QApplication([])
@@ -31,6 +31,17 @@ class _Process:
 
     def poll(self) -> int | None:
         return None
+
+
+@pytest.fixture(autouse=True)
+def copies(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Path]:
+    """The output's copies after each change, in a folder of the test's own and
+    never in the developer's ``temp/``: patched apart from ``monkeypatch``, which a
+    test may undo."""
+    folder = tmp_path_factory.mktemp("copies")
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(output_list, "_copies", lambda: folder)
+        yield folder
 
 
 @pytest.fixture

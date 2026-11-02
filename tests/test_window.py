@@ -296,6 +296,25 @@ def test_a_crossing_needs_an_output_a_frame_and_a_number(
     )
 
 
+def test_a_copy_of_the_output_the_disk_refuses_is_said(
+    recording: Path,
+    make_window: Callable[[], mw.MainWindow],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    win = make_window()
+    choose(monkeypatch, recording / "out.txt")
+    win.choose_output()
+    wait_until(lambda: win.place is not None)
+    monkeypatch.setattr(output_list, "_copies", lambda: recording / "out.txt")
+    win.number.setText("15")
+    win.add_crossing()
+    assert win.output is not None
+    assert win.output.texts()  # written, whatever the copy
+    win._follow_files()  # the poll
+    assert "its copy in temp/ cannot be written" in win.statusBar().currentMessage()
+    assert win.output.copy_refused is None  # said once
+
+
 def test_a_crossing_without_a_number_or_a_disk_is_refused(
     recording: Path,
     make_window: Callable[[], mw.MainWindow],

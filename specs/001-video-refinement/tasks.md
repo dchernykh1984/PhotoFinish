@@ -88,7 +88,7 @@ each commit: `uv run pre-commit run --all-files` and `uv run pytest`.
 - [X] T023 [US1] `app/recorder/segments.py`: a starting recorder turns the frames a crash left whole
   in `current.*` into a closed segment, listed and shown; one without is kept as `crashed-*`.
   -- `fix(record): show the frames a recorder wrote whole before it died`
-- [ ] T024 [US4] `app/output_list.py`: a copy of the output after each change in `temp/`; the
+- [X] T024 [US4] `app/output_list.py`: a copy of the output after each change in `temp/`; the
   window says one that cannot be written.
   -- `feat(output): keep a copy of the output after every change`
 

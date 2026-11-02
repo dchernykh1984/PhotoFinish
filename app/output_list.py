@@ -8,10 +8,11 @@ origin and marks with the input as last taken, so the two are written together, 
 (contracts/output-and-journal.md). A line taken from the input keeps its text until
 the referee changes it.
 
-Every change writes the state, then the output file, each in one step. A version of
-the output something else wrote is kept in a backup and journaled before it is
-replaced; the window calls ``check_outside`` as it polls, and every change checks
-first.
+Every change writes the state, then the output file, each in one step, and leaves a
+copy of the output as it left it in ``temp/`` next to the program, as the
+chronometers keep theirs. A version of the output something else wrote is kept in a
+backup and journaled before it is replaced; the window calls ``check_outside`` as it
+polls, and every change checks first.
 """
 
 from __future__ import annotations
@@ -27,7 +28,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from app import files
+from app import files, paths
 from app.files import append as _append
 from app.files import write_in_one_step as _write_in_one_step
 from app.lines import decoded_lines, format_line, parse_line, scale_time
@@ -97,6 +98,7 @@ class OutputList:
         self._outside: list[bytes] = []  # its journal entry, until a write gets through
         self.journal_error: JournalError | None = None  # opened; the journal refused
         self.outside_kept = False  # an outside version kept: for the window to say
+        self.copy_refused: OSError | None = None  # for the window to say; done anyway
         try:
             self._load()
         except JournalError as error:  # the files are written: the list is usable
@@ -247,6 +249,7 @@ class OutputList:
                 self.removed, self._before = removed, before
                 self._write_state_back()
                 raise
+            self._keep_copy()
 
     @contextmanager
     def _journaled(self) -> Iterator[None]:
@@ -393,6 +396,21 @@ class OutputList:
         body = self._body()
         _write_in_one_step(self.path, body)
         self._written, self._written_stat = body, files.stat(self.path)
+
+    def _keep_copy(self) -> None:
+        """The output as this change left it, beside the copies before it; one the
+        disk refuses leaves the change done, for the window to say."""
+        try:
+            folder = _copies()
+            folder.mkdir(parents=True, exist_ok=True)
+            name = f"{self.path.stem}-{datetime.now():%Y%m%d-%H%M%S-%f}"
+            copy, n = folder / f"{name}{self.path.suffix}", 0
+            while copy.exists():  # never over another copy
+                n += 1
+                copy = folder / f"{name}-{n}{self.path.suffix}"
+            copy.write_bytes(self._written or b"")
+        except OSError as error:
+            self.copy_refused = error
 
     def _state(self) -> bytes:
         lines = [asdict(line) for line in self.lines]
@@ -559,6 +577,11 @@ def _backup(path: Path, data: bytes) -> Path:
     backup = _aside(path, "outside")
     _write_in_one_step(backup, data)
     return backup
+
+
+def _copies() -> Path:
+    """Where the output goes as each change left it."""
+    return paths.app_path("temp")
 
 
 def _aside(path: Path, why: str) -> Path:

@@ -510,6 +510,11 @@ class MainWindow(QMainWindow):
                     self.output.outside_kept = False
                     self._say(OUTSIDE)
                     self._show_lists()
+                refused, self.output.copy_refused = self.output.copy_refused, None
+                if refused is not None:
+                    self._say(
+                        f"Written; its copy in temp/ cannot be written: {refused}"
+                    )
         except (
             JournalError
         ) as error:  # lines taken, or an outside version kept: written
