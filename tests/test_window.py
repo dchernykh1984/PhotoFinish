@@ -315,6 +315,25 @@ def test_a_copy_of_the_output_the_disk_refuses_is_said(
     assert win.output.copy_refused is None  # said once
 
 
+def test_a_copy_refused_is_said_though_the_files_cannot_be_followed(
+    recording: Path,
+    make_window: Callable[[], mw.MainWindow],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    win = make_window()
+    choose(monkeypatch, recording / "out.txt")
+    win.choose_output()
+    assert win.output is not None
+    win.output.copy_refused = OSError("temp is read-only")
+
+    def held() -> bool:
+        raise OSError("output held")
+
+    monkeypatch.setattr(win.output, "check_outside", held)
+    win._follow_files()  # the poll
+    assert "its copy in temp/ cannot be written" in win.statusBar().currentMessage()
+
+
 def test_a_crossing_without_a_number_or_a_disk_is_refused(
     recording: Path,
     make_window: Callable[[], mw.MainWindow],
