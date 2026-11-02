@@ -1,15 +1,15 @@
 """A camera's recording: short Matroska segments, each with a sidecar of frame times.
 
 The segment being written is ``current.mkv`` with ``current.times``, one
-``<pts> <Unix ms>`` line a frame. Once both are closed they are renamed
-``<YYYYmmdd-HHMMSS>-<n>``, the times first, so a closed segment always has its
-times, and its name is appended to ``segments.txt``: readers follow that list instead
-of the folder, which grows by thousands of files an hour. A segment ends at the first
-frame a second after its start. Frames are
-encoded by an encoder of the segment's own, so it starts with a keyframe (mpeg4, a
-keyframe every 15 frames, fixed quality 3); a network camera's packets are stored as
-they came, a segment starting and ending at the camera's keyframes. A stretch
-without frames longer than three frame intervals is appended to ``gaps.txt`` as
+``<pts> <Unix ms>`` line a frame, both on disk as they are written. Once both are
+closed they are renamed ``<YYYYmmdd-HHMMSS>-<n>``, the times first, so a closed
+segment always has its times, and its name is appended to ``segments.txt``: readers
+follow that list instead of the folder, which grows by thousands of files an hour. A
+segment ends at the first frame a second after its start. Frames are encoded by an
+encoder of the segment's own, so it starts with a keyframe (mpeg4, a keyframe every
+15 frames, fixed quality 3); a network camera's packets are stored as they came, a
+segment starting and ending at the camera's keyframes. A stretch without frames
+longer than three frame intervals is appended to ``gaps.txt`` as
 ``<from ms> <to ms> <reason>``.
 """
 
@@ -34,6 +34,7 @@ _MS = Fraction(1, 1000)
 _GOP = 15
 _QUALITY = 3
 _QP2LAMBDA = 118  # FFmpeg's scale: quality 3 is global_quality 3 * 118
+_AS_IT_COMES = {"flush_packets": "1", "cluster_time_limit": "100"}
 
 
 class SegmentWriter:
@@ -140,7 +141,7 @@ class _Encoded:
     ) -> None:
         self.first_ms = ms
         height, width = _size(first)
-        self.container = av.open(str(folder / "current.mkv"), "w", format="matroska")
+        self.container = _video(folder)
         quality = {"flags": "+qscale", "global_quality": str(_QUALITY * _QP2LAMBDA)}
         rate = Fraction(fps).limit_denominator(1001)
         self.stream = self.container.add_stream("mpeg4", rate=rate, options=quality)
@@ -149,7 +150,7 @@ class _Encoded:
         self.stream.codec_context.time_base = _MS
         self.stream.time_base = _MS
         self.stream.codec_context.gop_size = _GOP
-        self.times: TextIO = (folder / "current.times").open("w", encoding="ascii")
+        self.times: TextIO = _times(folder)
 
     def add(self, image: np.ndarray | av.VideoFrame, ms: int) -> None:
         if isinstance(image, av.VideoFrame):
@@ -178,9 +179,9 @@ class _Remuxed:
         self.base = first.dts or 0  # timestamps start at 0 in each segment
         rate = first.time_base
         self.time_base = Fraction(rate.numerator, rate.denominator)
-        self.container = av.open(str(folder / "current.mkv"), "w", format="matroska")
+        self.container = _video(folder)
         self.stream = self.container.add_stream_from_template(template)
-        self.times: TextIO = (folder / "current.times").open("w", encoding="ascii")
+        self.times: TextIO = _times(folder)
 
     def add(self, packet: av.Packet, pts: int, dts: int, ms: int) -> None:
         packet.pts, packet.dts = pts - self.base, dts - self.base
@@ -192,6 +193,22 @@ class _Remuxed:
     def close(self) -> None:
         self.container.close()
         self.times.close()
+
+
+def _video(folder: Path) -> av.container.OutputContainer:
+    """The open segment's video, written out a cluster of at most 0.1 s at a time
+    rather than at the segment's end: a killed recorder loses that much at most."""
+    return av.open(
+        str(folder / "current.mkv"),
+        "w",
+        format="matroska",
+        container_options=_AS_IT_COMES,
+    )
+
+
+def _times(folder: Path) -> TextIO:
+    """The open segment's frame times, each line on disk as it is written."""
+    return (folder / "current.times").open("w", encoding="ascii", buffering=1)
 
 
 def _in_ms(value: int, time_base: Fraction) -> int:

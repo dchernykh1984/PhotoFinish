@@ -82,7 +82,7 @@ each commit: `uv run pre-commit run --all-files` and `uv run pytest`.
 - [X] T021 [US1] `app/recorder/launcher.py`: a recorder the window started and saw end without an
   end state is gone at once, not when its heartbeat is 15 s old; exit code 3 leaves it to the
   other recorder's heartbeat. -- `fix(record): start a recorder again 1 s after it dies`
-- [ ] T022 [US1] `app/recorder/segments.py`: the open segment's `.times` written a line a frame,
+- [X] T022 [US1] `app/recorder/segments.py`: the open segment's `.times` written a line a frame,
   its video flushed in clusters of at most 0.1 s. A test kills a writer mid-segment.
   -- `fix(record): put a segment's frames and times on disk as they are written`
 - [ ] T023 [US1] `app/recorder/segments.py`: a starting recorder turns the frames a crash left whole
