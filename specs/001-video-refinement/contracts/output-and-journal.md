@@ -13,8 +13,9 @@
   file, never a mix.
 - After each change a copy of the file as it left it goes to `temp/<output stem>-<place>/` next to
   the program, as `<YYYYmmdd-HHMMSS-ffffff><suffix>`, `<place>` six hex of the output's path so
-  outputs of one name in two folders keep apart, never over another copy. A copy that cannot be
-  written is said; the change stays done.
+  outputs of one name in two folders keep apart, never over another copy; a change that leaves
+  the file as the newest copy holds it makes none. A copy that cannot be written is said; the
+  change stays done.
 
 ## Journal (`<output file>.journal.txt`)
 
