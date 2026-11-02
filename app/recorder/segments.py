@@ -42,11 +42,7 @@ class SegmentWriter:
 
     def __init__(self, folder: Path, fps: float, segment_ms: int = SEGMENT_MS) -> None:
         self.folder, self.fps, self.segment_ms = folder, fps, segment_ms
-        folder.mkdir(parents=True, exist_ok=True)
-        closed = _list_missing(folder)
-        if recovered := _recover(folder, len(closed) + 1):
-            closed.append(recovered)
-        _keep_aside(folder)  # what a crash left with no whole frame
+        closed = recover(folder)
         self.segments = len(closed)
         self.frames = 0
         self._last_ms: int | None = None  # this run's newest frame: frames keep order
@@ -237,6 +233,18 @@ def _list_missing(folder: Path) -> list[str]:
     if missing:
         append(folder / SEGMENTS, "".join(f"{n}\n" for n in missing).encode("ascii"))
     return listed + missing
+
+
+def recover(folder: Path) -> list[str]:
+    """Every closed segment's name once what a crash left is seen to: a closed one
+    it did not list listed, the frames it left whole in ``current.*`` made one, the
+    rest kept aside. A recorder does it as it starts, before its camera is back."""
+    folder.mkdir(parents=True, exist_ok=True)
+    closed = _list_missing(folder)
+    if recovered := _recover(folder, len(closed) + 1):
+        closed.append(recovered)
+    _keep_aside(folder)  # what a crash left with no whole frame
+    return closed
 
 
 def _name(folder: Path, first_ms: int, n: int) -> str:

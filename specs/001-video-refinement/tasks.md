@@ -91,9 +91,12 @@ each commit: `uv run pre-commit run --all-files` and `uv run pytest`.
 - [X] T024 [US4] `app/output_list.py`: a copy of the output after each change in `temp/`; the
   window says one that cannot be written.
   -- `feat(output): keep a copy of the output after every change`
+- [X] T025 [US1] `app/recorder/__init__.py`: a recorder sees to what a crash left as it starts,
+  before its camera is back, not at its first frame.
+  -- `fix(record): see to what a crash left as a recorder starts, not at its first frame`
 
 ## Dependencies
 
 T001 -> T002 -> T003 -> T004 -> T005. T001 -> T006 -> T007 -> T008 -> T009. T009 -> T010 -> T011
 -> T012 -> T013 -> T014 -> T015 -> T016 -> T017 -> T018. T019 after T008. T020 last.
-Phase 7, after the rest: T008 -> T021, T006 -> T022 -> T023, T004 -> T024.
+Phase 7, after the rest: T008 -> T021, T006 -> T022 -> T023 -> T025, T004 -> T024.

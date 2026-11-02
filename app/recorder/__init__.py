@@ -10,6 +10,7 @@ fails for lack of space stops the recorder with ``disk_full``.
 
 from __future__ import annotations
 
+import contextlib
 import errno
 import json
 import os
@@ -26,7 +27,7 @@ import numpy as np
 
 from app import session
 from app.paths import app_path
-from app.recorder.segments import SegmentWriter
+from app.recorder.segments import SegmentWriter, recover
 from app.recorder.sources import (
     LEAP_MS,
     CameraSettingsError,
@@ -173,6 +174,8 @@ def run(
     if lock is None:
         return 3  # another recorder has this camera
     with lock:
+        with contextlib.suppress(OSError):  # else seen to by the first segment
+            recover(folder)  # what a crash left, shown before the camera is back
         camera = session.camera(session.load(), camera_id)
         beat = Heartbeat(folder, str((camera or {}).get("connection", "")))
         if camera is None:
