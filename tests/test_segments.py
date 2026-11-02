@@ -407,6 +407,16 @@ def test_a_segment_whose_video_will_not_close_lets_its_times_go(
     real.close()
 
 
+def test_a_name_a_kill_cut_short_in_the_list_counts_for_no_segment(
+    tmp_path: Path,
+) -> None:
+    writer = SegmentWriter(tmp_path, fps=30)
+    record(writer, START, 5)
+    writer.close()
+    (tmp_path / "segments.txt").open("a").write("2026110")  # cut mid-name
+    assert SegmentWriter(tmp_path, fps=30).segments == 1
+
+
 def test_what_a_crash_left_with_no_whole_frame_is_kept_aside(tmp_path: Path) -> None:
     (tmp_path / "current.mkv").write_bytes(b"")
     (tmp_path / "current.times").write_text(f"0 {START}\n")
