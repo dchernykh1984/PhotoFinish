@@ -510,11 +510,6 @@ class MainWindow(QMainWindow):
                     self.output.outside_kept = False
                     self._say(OUTSIDE)
                     self._show_lists()
-                refused, self.output.copy_refused = self.output.copy_refused, None
-                if refused is not None:
-                    self._say(
-                        f"Written; its copy in temp/ cannot be written: {refused}"
-                    )
         except (
             JournalError
         ) as error:  # lines taken, or an outside version kept: written
@@ -522,6 +517,13 @@ class MainWindow(QMainWindow):
             self._show_lists()
         except OSError as error:
             self._say(f"The files cannot be followed: {error}")
+        finally:  # said last: a failing poll says its own again at the next one
+            if self.output is not None:
+                refused, self.output.copy_refused = self.output.copy_refused, None
+                if refused is not None:
+                    self._say(
+                        f"Written; its copy in temp/ cannot be written: {refused}"
+                    )
 
     def _show_lists(self) -> None:
         self.input_view.show_rows(input_rows(self.follow.lines) if self.follow else [])
