@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import os
 import re
 import subprocess
@@ -330,6 +331,26 @@ def test_two_crashes_kept_aside_in_one_millisecond_are_both_kept(
     kept = sorted(p.read_text() for p in tmp_path.glob("crashed-*.times"))
     assert kept == ["0 1\n", "0 2\n"]  # neither written over by the other
     assert len(list(tmp_path.glob("crashed-*.mkv"))) == 2
+
+
+def test_a_crash_video_alone_never_joins_times_once_kept_aside_alone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "current.times").write_text(f"0 {START}\n")  # times, no video
+    real = Path.unlink
+
+    def killed(self: Path, missing_ok: bool = False) -> None:
+        if self.name == "crashed.name" and self.exists():
+            raise SystemExit(1)  # killed before it forgot the stamp
+        real(self, missing_ok=missing_ok)
+
+    monkeypatch.setattr(Path, "unlink", killed)
+    with contextlib.suppress(SystemExit):
+        segments_module._keep_aside(tmp_path)
+    monkeypatch.undo()
+    (tmp_path / "current.mkv").write_bytes(b"")  # a later crash, its video alone
+    segments_module._keep_aside(tmp_path)
+    assert len({p.stem for p in tmp_path.glob("crashed-*")}) == 2  # kept apart
 
 
 def test_a_crash_video_alone_takes_no_times_another_crash_left_alone(
