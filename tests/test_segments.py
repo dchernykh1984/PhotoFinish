@@ -323,6 +323,27 @@ def test_a_segment_that_fails_to_close_is_kept_not_written_over(
     assert writer.segments == 2
 
 
+def test_a_close_that_fails_at_its_renames_counts_its_segment_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    writer = SegmentWriter(tmp_path, fps=30)
+    record(writer, START, 5)
+    real = Path.replace
+
+    def held(self: Path, target: Any) -> Path:
+        if self.name == "current.times":
+            raise OSError("held by a reader")
+        return real(self, target)
+
+    monkeypatch.setattr(Path, "replace", held)
+    with pytest.raises(OSError):
+        writer.close()
+    monkeypatch.undo()
+    record(writer, START + 5000, 2)
+    writer.close()
+    assert writer.segments == len((tmp_path / "segments.txt").read_text().split()) == 2
+
+
 def test_closed_segments_are_listed_and_a_restart_lists_any_a_crash_missed(
     tmp_path: Path,
 ) -> None:
