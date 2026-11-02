@@ -748,6 +748,58 @@ def test_a_recovery_named_late_while_recording_is_listed_while_recording(
     assert writer.segments == 3
 
 
+def forgetting_refused_once(monkeypatch: pytest.MonkeyPatch, name: str) -> None:
+    """The first unlink of ``name`` refused: a scanner holds the file a moment."""
+    real = Path.unlink
+    refused: list[Path] = []
+
+    def held(self: Path, missing_ok: bool = False) -> None:
+        if self.name == name and not refused:
+            refused.append(self)
+            raise PermissionError("held by a scanner")
+        real(self, missing_ok=missing_ok)
+
+    monkeypatch.setattr(Path, "unlink", held)
+
+
+def test_a_close_whose_name_cannot_be_forgotten_is_listed_all_the_same(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    writer = SegmentWriter(tmp_path, fps=30)
+    record(writer, START, 5)
+    forgetting_refused_once(monkeypatch, "closing.name")
+    writer.close()
+    record(writer, START + 5000, 2)
+    writer.close()
+    listed = (tmp_path / "segments.txt").read_text().split()
+    assert listed == [p.stem for p in segments(tmp_path)]  # both, as they closed
+    assert writer.segments == 2
+
+
+def test_a_cut_close_finished_whose_name_cannot_be_forgotten_is_listed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    writer = SegmentWriter(tmp_path, fps=30)
+    record(writer, START, 5)
+    real = Path.replace
+
+    def refused(self: Path, target: Any) -> Path:
+        if self.name == "current.mkv":
+            raise OSError("held by a reader")
+        return real(self, target)
+
+    monkeypatch.setattr(Path, "replace", refused)
+    with pytest.raises(OSError):
+        writer.close()  # the times renamed, the video not
+    monkeypatch.undo()
+    forgetting_refused_once(monkeypatch, "closing.name")
+    record(writer, START + 5000, 2)  # that close finished, its name still held
+    writer.close()
+    listed = (tmp_path / "segments.txt").read_text().split()
+    assert listed == [p.stem for p in segments(tmp_path)]
+    assert writer.segments == 2
+
+
 def test_a_close_that_named_its_times_only_is_finished_while_recording(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -133,7 +133,7 @@ class SegmentWriter:
         meant.write_text(name, encoding="ascii")  # is finished by it, exactly
         (self.folder / "current.times").replace(self.folder / f"{name}.times")
         (self.folder / "current.mkv").replace(self.folder / f"{name}.mkv")
-        meant.unlink(missing_ok=True)
+        _forget(meant)
         self._closed(name)
 
     def _closed(self, name: str) -> None:
@@ -313,10 +313,17 @@ def _finish_close(folder: Path) -> str | None:
     try:
         if cut:
             (folder / "current.mkv").replace(folder / f"{name}.mkv")
-        meant.unlink(missing_ok=True)  # done, or a name that fits nothing here
     except OSError:
         return None
+    _forget(meant)  # done, or a name that fits nothing here
     return name if cut else None
+
+
+def _forget(meant: Path) -> None:
+    """A name written before two renames, both done: one a scanner holds stays, and
+    fits nothing next time, as both files have their names by then."""
+    with contextlib.suppress(OSError):
+        meant.unlink(missing_ok=True)
 
 
 def _name(folder: Path, first_ms: int, n: int) -> str:
@@ -504,7 +511,7 @@ def _keep_aside(folder: Path) -> None:
     for left in (times, video):
         if left.exists():
             left.replace(folder / f"crashed-{stamp}{left.suffix}")
-    meant.unlink(missing_ok=True)
+    _forget(meant)
     (folder / READING).unlink(missing_ok=True)  # the crash it was there for is aside
 
 
