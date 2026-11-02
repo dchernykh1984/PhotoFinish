@@ -377,6 +377,15 @@ def test_the_copies_of_an_output_are_its_own(tmp_path: Path, copies: Path) -> No
     assert len(stems) == 3  # three outputs, three sets of copies
 
 
+def test_an_output_adopted_from_its_file_is_copied_as_it_is_written(
+    path: Path, copies: Path
+) -> None:
+    path.write_text("16#20389 11:35:30.000#nextLap#\n" + TAKEN + "\n")  # no state
+    OutputList(path)  # sorted and written again
+    (copy,) = copies.glob("out-*.txt")
+    assert copy.read_bytes() == path.read_bytes()
+
+
 def test_a_change_that_cannot_be_written_is_undone(
     path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
