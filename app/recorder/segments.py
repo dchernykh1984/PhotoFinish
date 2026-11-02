@@ -279,10 +279,11 @@ def _recover(folder: Path, n: int) -> str | None:
 
 
 def _frame_times(folder: Path) -> dict[int, int]:
-    """The open segment's ``pts -> ms``, in frame order; a line a kill cut short
-    is left out."""
+    """The open segment's ``pts -> ms``, in frame order; a last line a kill cut
+    short, its line end missing, is left out."""
     found: dict[int, int] = {}
-    for line in (folder / "current.times").read_text(encoding="ascii").splitlines():
+    text = (folder / "current.times").read_text(encoding="ascii")
+    for line in text.split("\n")[:-1]:  # the last piece: empty, or cut short
         fields = line.split()
         if len(fields) == 2 and all(f.isdigit() for f in fields):
             found[int(fields[0])] = int(fields[1])

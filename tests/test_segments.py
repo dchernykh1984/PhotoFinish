@@ -137,6 +137,16 @@ def test_a_restart_shows_the_frames_a_crash_left_whole_and_marks_the_gap(
     assert gaps[-1] == f"{kept[-1][1]} {START + 9000} restart"
 
 
+def test_a_times_line_a_kill_cut_short_is_left_out(tmp_path: Path) -> None:
+    killed_while_recording(tmp_path, 20)
+    left = tmp_path / "current.times"
+    lines = left.read_text().splitlines()
+    left.write_text("".join(f"{line}\n" for line in lines[:3]) + lines[3][:-5])
+    SegmentWriter(tmp_path, fps=30)
+    (recovered,) = segments(tmp_path)
+    assert [ms for _, ms in times(recovered)] == [START + k * 33 for k in range(3)]
+
+
 def test_what_a_crash_left_with_no_whole_frame_is_kept_aside(tmp_path: Path) -> None:
     (tmp_path / "current.mkv").write_bytes(b"")
     (tmp_path / "current.times").write_text(f"0 {START}\n")
