@@ -415,6 +415,23 @@ def test_a_crash_that_killed_the_recorder_as_it_was_read_is_kept_aside_unread(
     assert len(segments(tmp_path)) == 1  # read as any other
 
 
+def test_a_crash_read_to_an_error_it_said_is_not_marked_as_one_that_kills(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "current.mkv").write_bytes(b"")  # killed before its first cluster
+    (tmp_path / "current.times").write_text(f"0 {START}\n")
+    marked: list[bool] = []
+    real = segments_module._keep_aside
+
+    def aside(folder: Path) -> None:
+        marked.append((folder / segments_module.READING).exists())
+        real(folder)
+
+    monkeypatch.setattr(segments_module, "_keep_aside", aside)
+    SegmentWriter(tmp_path, fps=30)
+    assert marked == [False]  # a kill as it goes aside leaves no crash unread
+
+
 def test_a_recovery_not_yet_named_is_never_written_over_by_the_next(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

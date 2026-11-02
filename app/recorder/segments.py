@@ -377,6 +377,8 @@ def _recover(folder: Path, n: int) -> str | None:
         source = next(iter(frames.values()))
         write_in_one_step(meant, f"{name} {source}".encode("ascii"))
     except OSError, ValueError, IndexError, av.FFmpegError:
+        with contextlib.suppress(OSError):  # read to an error it said: no crash
+            reading.unlink(missing_ok=True)  # that kills, nor one left unread
         _drop_recovery(folder)  # what the crash left is where it was
         return None
     try:
