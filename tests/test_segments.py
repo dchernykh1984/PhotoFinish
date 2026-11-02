@@ -443,6 +443,35 @@ def test_a_slow_close_cut_between_its_renames_is_finished_by_its_name(
     assert not (tmp_path / "closing.name").exists()
 
 
+def test_a_recovery_left_unnamed_while_recording_hides_no_later_crash(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    writer = SegmentWriter(tmp_path, fps=30)
+    record(writer, START, 5)
+
+    def broken(self: object) -> None:
+        raise av.FFmpegError(5, "mux failed")
+
+    monkeypatch.setattr(segments_module._Encoded, "close", broken)
+    with pytest.raises(av.FFmpegError):
+        writer.close()
+    monkeypatch.undo()
+    real = Path.replace
+
+    def held(self: Path, target: Any) -> Path:
+        if self.name == "recovered.mkv":
+            raise OSError("held by a scanner")
+        return real(self, target)
+
+    monkeypatch.setattr(Path, "replace", held)
+    record(writer, START + 5000, 20)  # recovered while recording, its copy unnamed
+    monkeypatch.undo()
+    SegmentWriter(tmp_path, fps=30)  # killed with that open: the next start
+    first, second = segments(tmp_path)
+    assert times(first)[0][1] == START
+    assert times(second)[0][1] == START + 5000  # the later crash, not hidden
+
+
 def test_what_a_crash_left_with_no_whole_frame_is_kept_aside(tmp_path: Path) -> None:
     (tmp_path / "current.mkv").write_bytes(b"")
     (tmp_path / "current.times").write_text(f"0 {START}\n")

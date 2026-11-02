@@ -345,7 +345,9 @@ def _recover(folder: Path, n: int) -> str | None:
         name = _name(folder, kept[0][1], n)
         times = "".join(f"{pts} {ms}\n" for pts, ms in kept)
         write_in_one_step(copied, times.encode("ascii"))
-        write_in_one_step(meant, name.encode("ascii"))
+        write_in_one_step(
+            meant, f"{name} {kept[0][1]}".encode("ascii")
+        )  # its source too
     except OSError, ValueError, IndexError, av.FFmpegError:
         _drop_recovery(folder)  # what the crash left is where it was
         return None
@@ -360,17 +362,28 @@ def _recover(folder: Path, n: int) -> str | None:
 def _finish_recovery(folder: Path) -> None:
     """A recovery a kill cut short: once the name it was to take is written, done as
     meant -- what it recovered kept aside, its copy named; before, dropped, the crash
-    left to recover again."""
+    left to recover again. ``current.*`` goes aside only when it is that recovery's
+    source, by its first frame's time: a later crash's is recovered in its turn."""
     try:
-        name = (folder / RECOVERED[2]).read_text(encoding="ascii").strip()
-    except OSError, ValueError:
-        name = ""
+        meant = (folder / RECOVERED[2]).read_text(encoding="ascii").split()
+        name, first_ms = meant[0], int(meant[1])
+    except OSError, ValueError, IndexError:
+        name, first_ms = "", 0
     if not NAMED.fullmatch(name):
         _drop_recovery(folder)
         return
     with contextlib.suppress(OSError):  # else tried again at the next start
-        _keep_aside(folder)
+        if _first_ms(folder / "current.times") == first_ms:
+            _keep_aside(folder)
         _name_recovery(folder, name)
+
+
+def _first_ms(times: Path) -> int | None:
+    """The time of the first frame a times file has, or None."""
+    try:
+        return next(iter(_frame_times(times).values()), None)
+    except OSError, ValueError:
+        return None
 
 
 def _name_recovery(folder: Path, name: str) -> None:

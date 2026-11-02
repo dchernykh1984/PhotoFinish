@@ -43,7 +43,8 @@ rtmp://<this computer>:<port>/<path>", the address to type in the camera app.
   `recovered.mkv` and `recovered.times`, then the name it is to take goes to `recovered.name`,
   and only then is the crash kept aside and the copy named: a start that finds them finishes
   the recovery as `recovered.name` says, or, with no name written yet, drops them and recovers
-  the crash again.
+  the crash again. `recovered.name` also holds the first frame's time of what it recovers, so a
+  later crash's `current.*` is recovered in its turn, not kept aside with it.
 - `gaps.txt` gets a line for every stretch without frames longer than three frame intervals.
 - Below 2 GB free the state stays `recording` with `detail` "low disk"; on a failed write for lack
   of space the state becomes `disk_full` and the recorder exits.
