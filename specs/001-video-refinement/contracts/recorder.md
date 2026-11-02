@@ -38,7 +38,11 @@ rtmp://<this computer>:<port>/<path>", the address to type in the camera app.
   written and its video is flushed in clusters of at most 0.1 s, so a crash leaves what came before
   on disk. When the next recorder starts, the frames of a `current.*` a crash left whole, with
   their times, become a closed segment like any other, listed after the ones before. The
-  `current.*` itself is kept as `crashed-<ms>.*`, as it was, and not shown.
+  `current.*` itself is kept as `crashed-<ms>.*`, as it was, and not shown. The copy is made as
+  `recovered.mkv` and `recovered.times`, then the name it is to take goes to `recovered.name`,
+  and only then is the crash kept aside and the copy named: a start that finds them finishes
+  the recovery as `recovered.name` says, or, with no name written yet, drops them and recovers
+  the crash again.
 - `gaps.txt` gets a line for every stretch without frames longer than three frame intervals.
 - Below 2 GB free the state stays `recording` with `detail` "low disk"; on a failed write for lack
   of space the state becomes `disk_full` and the recorder exits.

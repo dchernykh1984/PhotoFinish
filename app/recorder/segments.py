@@ -16,6 +16,7 @@ longer than three frame intervals is appended to ``gaps.txt`` as
 from __future__ import annotations
 
 import contextlib
+import re
 import time
 from collections.abc import Callable, Iterator
 from fractions import Fraction
@@ -29,6 +30,7 @@ from app.files import append, write_in_one_step
 
 SEGMENT_MS = 1000  # a segment's first frame is shown once it closes: SC-006's 2 s
 CLOSED = "[0-9]*-[0-9]*-[0-9]*"  # a closed segment's name, without its suffix
+NAMED = re.compile(r"\d{8}-\d{6}-\d{4,}")  # the same, exactly
 SEGMENTS = "segments.txt"  # the closed segments' names, in the order they closed
 KEYFRAME_SLACK_MS = 100  # a camera's keyframe this much short of a second still cuts
 WRITTEN_TOGETHER_S = 2  # a video and its times, closed or recovered in one go
@@ -256,12 +258,7 @@ def recover(folder: Path) -> list[str]:
     it did not list listed, the frames it left whole in ``current.*`` made one, the
     rest kept aside. A recorder does it as it starts, before its camera is back."""
     folder.mkdir(parents=True, exist_ok=True)
-    leftover = folder / "recovered.mkv"  # a recovery a kill cut: finished or dropped
-    if leftover.exists() and not (
-        _give_its_name(leftover) or _name_by_kept_times(leftover)
-    ):  # named, it is listed with the others just below
-        with contextlib.suppress(OSError):
-            leftover.unlink()  # its frames are kept aside as the crash left them
+    _finish_recovery(folder)  # one a kill cut short; listed with the others just below
     closed = _list_missing(folder)
     if name := _see_to(folder, len(closed) + 1):
         append(folder / SEGMENTS, f"{name}\n".encode("ascii"))  # else at the next start
@@ -314,34 +311,6 @@ def _give_its_name(video: Path) -> str | None:
     return own.stem
 
 
-def _name_by_kept_times(video: Path) -> str | None:
-    """A recovery a kill cut after it kept the crash aside but before it wrote the
-    times: they are the newest ``crashed-*.times``, the one it kept aside, when they
-    hold a time for every frame ``video`` holds. The name, or None."""
-    folder = video.parent
-    try:
-        aside = max(
-            folder.glob("crashed-*.times"),
-            key=lambda times: times.stat().st_mtime_ns,
-            default=None,
-        )
-        if aside is None:
-            return None
-        frames = _frame_times(aside)
-        with av.open(str(video)) as opened:
-            found = {pts for _, pts in _whole(opened)}
-        kept = [(pts, ms) for pts, ms in frames.items() if pts in found]
-        if not found or len(kept) != len(found):
-            return None
-        name = _name(folder, kept[0][1], 1)
-        times = "".join(f"{pts} {ms}\n" for pts, ms in kept)
-        write_in_one_step(folder / f"{name}.times", times.encode("ascii"))
-        video.replace(folder / f"{name}.mkv")
-    except OSError, ValueError, IndexError, av.FFmpegError:
-        return None
-    return name
-
-
 def _frames_of(times: Path) -> list[int] | None:
     """The pts a closed segment's times list, sorted; None when they cannot be read."""
     try:
@@ -362,28 +331,68 @@ def _name(folder: Path, first_ms: int, n: int) -> str:
     return f"{stamp}-{n:04d}"
 
 
+RECOVERED = ("recovered.mkv", "recovered.times", "recovered.name")
+
+
 def _recover(folder: Path, n: int) -> str | None:
     """The frames a crash left whole in ``current.*``, with their times, made a
     closed segment for the caller to list: its name, or None when it holds none.
-    What the crash left is kept aside as it was before the copy takes its name, so a
-    failure or a crash meanwhile neither shows a frame twice nor loses one."""
-    copy = folder / "recovered.mkv"
+    The copy and its times are written, then the name it is to take, and only then
+    is the crash kept aside and the copy named: a kill before the name is written
+    leaves the crash to recover again, one after it is finished as meant by the next
+    start. Neither shows a frame twice, nor loses one, nor guesses."""
+    copy, copied, meant = (folder / name for name in RECOVERED)
     try:
         frames = _frame_times(folder / "current.times")
         kept = _copy_whole(folder / "current.mkv", copy, frames)
         if not kept:
             copy.unlink(missing_ok=True)
             return None
-        _keep_aside(folder)
         name = _name(folder, kept[0][1], n)
         times = "".join(f"{pts} {ms}\n" for pts, ms in kept)
-        write_in_one_step(folder / f"{name}.times", times.encode("ascii"))
-        copy.replace(folder / f"{name}.mkv")
+        write_in_one_step(copied, times.encode("ascii"))
+        write_in_one_step(meant, name.encode("ascii"))
     except OSError, ValueError, IndexError, av.FFmpegError:
-        with contextlib.suppress(OSError):  # what the crash left is kept aside whole
-            copy.unlink(missing_ok=True)
+        _drop_recovery(folder)  # what the crash left is where it was
         return None
+    try:
+        _keep_aside(folder)
+        _name_recovery(folder, name)
+    except OSError:
+        return None  # finished as meant at the next start
     return name
+
+
+def _finish_recovery(folder: Path) -> None:
+    """A recovery a kill cut short: once the name it was to take is written, done as
+    meant -- what it recovered kept aside, its copy named; before, dropped, the crash
+    left to recover again."""
+    try:
+        name = (folder / RECOVERED[2]).read_text(encoding="ascii").strip()
+    except OSError, ValueError:
+        name = ""
+    if not NAMED.fullmatch(name):
+        _drop_recovery(folder)
+        return
+    with contextlib.suppress(OSError):  # else tried again at the next start
+        _keep_aside(folder)
+        _name_recovery(folder, name)
+
+
+def _name_recovery(folder: Path, name: str) -> None:
+    """A recovery's copy given its name, the times first, then the name it was to
+    take forgotten."""
+    for left, suffix in ((RECOVERED[1], ".times"), (RECOVERED[0], ".mkv")):
+        if (folder / left).exists():
+            (folder / left).replace(folder / f"{name}{suffix}")
+    (folder / RECOVERED[2]).unlink(missing_ok=True)
+
+
+def _drop_recovery(folder: Path) -> None:
+    """What a recovery copied before it wrote the name it was to take."""
+    for left in RECOVERED:
+        with contextlib.suppress(OSError):
+            (folder / left).unlink(missing_ok=True)
 
 
 def _frame_times(times: Path) -> dict[int, int]:

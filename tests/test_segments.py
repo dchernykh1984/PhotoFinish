@@ -330,7 +330,7 @@ def test_a_video_takes_no_times_written_long_before_it(tmp_path: Path) -> None:
     assert not closed.exists()  # not given the old times' name
 
 
-def test_a_recovery_killed_before_its_times_takes_the_times_kept_aside(
+def test_a_recovery_killed_before_it_wrote_its_name_is_done_again_from_the_crash(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     killed_while_recording(tmp_path, 20)
@@ -362,6 +362,27 @@ def test_a_segment_never_takes_the_name_of_times_left_alone(tmp_path: Path) -> N
     record(again, START + 100, 3)  # a clock set back: other frames, that second
     again.close()
     assert alone.read_text() == kept
+
+
+def test_a_recovery_killed_after_it_wrote_its_name_is_finished_as_meant(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    killed_while_recording(tmp_path, 20, start=START - 60_000)  # an earlier crash
+    SegmentWriter(tmp_path, fps=30)  # recovered, its files kept aside
+    killed_while_recording(tmp_path, 20, start=START)  # and another
+
+    def killed(folder: Path) -> None:
+        raise SystemExit(1)  # killed as the crash was to go aside
+
+    monkeypatch.setattr(segments_module, "_keep_aside", killed)
+    with pytest.raises(SystemExit):
+        SegmentWriter(tmp_path, fps=30)
+    monkeypatch.undo()
+    SegmentWriter(tmp_path, fps=30)
+    earlier, later = segments(tmp_path)  # no frame twice
+    assert times(earlier)[0][1] == START - 60_000
+    assert times(later)[0][1] == START  # its own times, not the earlier crash's
+    assert not list(tmp_path.glob("recovered.*"))
 
 
 def test_what_a_crash_left_with_no_whole_frame_is_kept_aside(tmp_path: Path) -> None:
