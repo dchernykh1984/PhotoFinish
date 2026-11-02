@@ -16,6 +16,7 @@ longer than three frame intervals is appended to ``gaps.txt`` as
 from __future__ import annotations
 
 import contextlib
+import errno
 import re
 import time
 from collections.abc import Callable, Iterator
@@ -381,10 +382,12 @@ def _recover(folder: Path, n: int) -> str | None:
         # taken for it, nor it for a later one
         source = next(iter(frames.values()))
         write_in_one_step(meant, f"{name} {source}".encode("ascii"))
-    except OSError, ValueError, IndexError, av.FFmpegError:
+    except (OSError, ValueError, IndexError, av.FFmpegError) as error:
         with contextlib.suppress(OSError):  # read to an error it said: no crash
             reading.unlink(missing_ok=True)  # that kills, nor one left unread
         _drop_recovery(folder)  # what the crash left is where it was
+        if isinstance(error, OSError) and error.errno == errno.ENOSPC:
+            raise  # the disk full, said so: the crash recovered once there is room
         return None
     try:
         _keep_aside(folder)
