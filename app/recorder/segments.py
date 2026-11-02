@@ -257,17 +257,16 @@ def _name(folder: Path, first_ms: int, n: int) -> str:
 
 def _recover(folder: Path, n: int) -> str | None:
     """The frames a crash left whole in ``current.*``, with their times, made a
-    closed segment and listed: its name, or None when it holds none. ``current.*``
-    goes before the copy takes its name, so a crash meanwhile never shows a frame
-    twice; it can lose what it was recovering, as a crash before did."""
+    closed segment and listed: its name, or None when it holds none. What the crash
+    left is kept aside as it was before the copy takes its name, so a failure or a
+    crash meanwhile neither shows a frame twice nor loses one."""
     copy = folder / "recovered.mkv"
     try:
         kept = _copy_whole(folder / "current.mkv", copy, _frame_times(folder))
         if not kept:
             copy.unlink(missing_ok=True)
             return None
-        for suffix in (".times", ".mkv"):
-            (folder / f"current{suffix}").unlink()
+        _keep_aside(folder)
         name = _name(folder, kept[0][1], n)
         times = "".join(f"{pts} {ms}\n" for pts, ms in kept)
         write_in_one_step(folder / f"{name}.times", times.encode("ascii"))

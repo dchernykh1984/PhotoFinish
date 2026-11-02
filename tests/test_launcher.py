@@ -371,7 +371,6 @@ def test_a_killed_recorder_costs_only_the_time_it_is_down(folder: Path) -> None:
         if int(line.split()[1]) < killed
     )
     assert killed - last_before < 500  # the frames written whole before it died
-    assert not list(folder.glob("crashed-*"))
     gaps = (folder / "gaps.txt").read_text().splitlines()
     assert any(line.startswith(f"{last_before} ") for line in gaps)
 
