@@ -14,7 +14,9 @@ it keeps recording when the window is gone.
 
 `state`: `starting`, `connecting`, `recording`, `reconnecting`, `stopped`, `disk_full`, `failed`.
 A heartbeat older than 15 s means the recorder is gone: a camera open blocks up to 10 s without
-one. While an RTMP camera has not called in, the state is `connecting` with `detail` "waiting for
+one. A recorder whose process the window started and saw end is gone at once, unless it ended
+with exit code 3: then the other recorder's heartbeat tells.
+While an RTMP camera has not called in, the state is `connecting` with `detail` "waiting for
 rtmp://<this computer>:<port>/<path>", the address to type in the camera app.
 
 ## Control
@@ -32,8 +34,11 @@ rtmp://<this computer>:<port>/<path>", the address to type in the camera app.
 - Segments and `.times` files as `data-model.md` describes; a segment is renamed from `current.*`
   only after both files are flushed and closed, the `.times` first, and its name is then appended
   to `segments.txt`, the list readers follow instead of the folder. A recorder that starts lists
-  any closed segment a crash left out. A `current.*` a crash left is
-  kept as `crashed-<ms>.*` when the next recorder starts and is not shown.
+  any closed segment a crash left out. The open segment's `.times` gets a line as each frame is
+  written and its video is flushed in clusters of at most 0.1 s, so a crash leaves what came before
+  on disk. When the next recorder starts, the frames of a `current.*` a crash left whole, with
+  their times, become a closed segment like any other, listed after the ones before; a `current.*`
+  without one is kept as `crashed-<ms>.*` and not shown.
 - `gaps.txt` gets a line for every stretch without frames longer than three frame intervals.
 - Below 2 GB free the state stays `recording` with `detail` "low disk"; on a failed write for lack
   of space the state becomes `disk_full` and the recorder exits.

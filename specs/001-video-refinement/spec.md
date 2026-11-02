@@ -300,13 +300,17 @@ an RTMP stream pushed from the same computer is received and recorded.
 - **FR-003**: Each camera is recorded to disk in pieces, each readable once closed, by a process
   separate from the window, in a folder per camera inside the event folder. Each frame's time on the
   computer's clock -- a steady clock anchored to the wall clock when recording starts -- is kept with
-  the video.
+  the video. The piece being written reaches the disk as it is written: each frame's time at
+  once, the video at least every 0.1 s.
 - **FR-004**: Any recorded frame can be shown while recording goes on; the newest frame can be
   viewed within 2 s of its capture, or within the camera's keyframe interval when that is longer
   (a network stream is stored as the camera encoded it); "Live" follows the newest frame.
 - **FR-005**: A camera that drops out or a recorder that fails is started again after 1 s, the pause
   doubling to at most 30 s while it keeps failing and back to 1 s after 30 s without a failure; the
-  gap is shown on the timeline; nothing recorded before is lost.
+  gap is shown on the timeline; nothing recorded before is lost. A recorder the window started has
+  failed as soon as its process ends without saying why; one an earlier window started, once its
+  heartbeat is 15 s old. The frames a recorder that died had written whole are shown when the
+  next one starts, so a crash costs the time the recorder is down and at most 0.1 s before it.
 - **FR-006**: Below 2 GB of free disk the referee is warned; on a full disk recording stops cleanly
   and says so.
 - **FR-007**: Camera connections: USB camera, RTSP stream, RTMP receiver, test camera, file played
@@ -327,7 +331,9 @@ an RTMP stream pushed from the same computer is received and recorded.
 - **FR-011**: Every change is written to the output file in one step, so a crash leaves the old or
   the new file, never a mix, and appended to a journal next to it: what was done, the line before
   and after, the input line it came from, the camera, the frames, how the time was obtained
-  (frame, interpolated with its fraction, picked by hand, typed) and the offsets in use.
+  (frame, interpolated with its fraction, picked by hand, typed) and the offsets in use. A copy of
+  the output as each change left it is kept in `temp/` next to the program, as the chronometers keep
+  theirs; a copy that cannot be written is said and does not undo the change.
 - **FR-012**: Both lists follow the video: the lines nearest the video's time are in view and
   marked. Selecting a line moves the video to its time, through the offsets.
 - **FR-013**: Each camera has a finish line the referee draws on its view, the vertical centre line
@@ -375,6 +381,10 @@ an RTMP stream pushed from the same computer is received and recorded.
   anywhere in a one-hour recording shows its frame within 0.5 s on the maintainer's laptop.
 - **SC-007**: Every line of the output file can be traced through the journal to the input line it
   came from or to the camera and frames it was timed on.
+- **SC-008**: Killing a recorder while the test camera records costs the frames it would have taken
+  while it was down and at most the last 0.1 s before: the window starts it again 1 s after its
+  process ended, and the frames it had written whole are shown; proven by tests.
+- **SC-009**: Every change of the output leaves a copy of the output as it left it, proven by tests.
 
 ## Assumptions
 
