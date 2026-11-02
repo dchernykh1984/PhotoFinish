@@ -624,18 +624,22 @@ def _backup(path: Path, data: bytes) -> Path:
 def _newest(folder: Path, stamped: re.Pattern[str]) -> Path | None:
     """The file of ``folder`` named as ``stamped`` says, written last: by its time on
     disk, not its name, which an hour the clock goes back sorts out of order; of two
-    at one time (FAT keeps it to 2 s), the later name. One gone meanwhile is passed."""
-    newest: tuple[int, str, Path] | None = None
-    for path in folder.iterdir():
-        if not stamped.fullmatch(path.name):
-            continue
-        try:
-            written = path.stat().st_mtime_ns
-        except OSError:
-            continue  # moved or removed since it was listed
-        if newest is None or (written, path.name) > newest[:2]:
-            newest = (written, path.name, path)
-    return None if newest is None else newest[2]
+    at one time (FAT keeps it to 2 s), the later name. One gone meanwhile is passed.
+    The times come with the listing: on Windows no file is opened to look, and a
+    long race leaves thousands of copies, looked through at every poll while the
+    output is held."""
+    newest: tuple[int, str] | None = None
+    with os.scandir(folder) as found:
+        for entry in found:
+            if not stamped.fullmatch(entry.name):
+                continue
+            try:
+                written = entry.stat().st_mtime_ns
+            except OSError:
+                continue  # moved or removed since it was listed
+            if newest is None or (written, entry.name) > newest:
+                newest = (written, entry.name)
+    return None if newest is None else folder / newest[1]
 
 
 def _copies() -> Path:

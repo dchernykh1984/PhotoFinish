@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
@@ -402,21 +403,41 @@ def test_a_change_that_leaves_the_file_as_it_was_makes_no_copy(
     assert sorted(copies.rglob("*.txt")) == kept
 
 
+class Gone:
+    """A file listed, then quarantined before it could be looked at."""
+
+    name = "3.txt"
+
+    def stat(self) -> os.stat_result:
+        raise FileNotFoundError(self.name)
+
+
 def test_the_newest_of_files_is_found_though_one_goes_meanwhile(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     stamped = re.compile(r"\d+\.txt")
-    for name in ("1.txt", "2.txt", "3.txt"):
+    for name in ("1.txt", "2.txt"):
         (tmp_path / name).write_text(name)
         os.utime(tmp_path / name, (1000, 1000))  # one time to 2 s: FAT
-    real = Path.stat
+    real = os.scandir
+    monkeypatch.setattr(
+        os, "scandir", lambda folder: contextlib.nullcontext([*real(folder), Gone()])
+    )
+    assert output_list._newest(tmp_path, stamped) == tmp_path / "2.txt"
 
-    def gone(self: Path, **kwargs: Any) -> os.stat_result:
-        if self.name == "3.txt":
-            raise FileNotFoundError(self)  # quarantined since it was listed
-        return real(self, **kwargs)
 
-    monkeypatch.setattr(Path, "stat", gone)
+def test_the_newest_of_files_is_found_from_their_listing_not_a_look_at_each(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    stamped = re.compile(r"\d+\.txt")
+    for name, at in (("1.txt", 1000), ("2.txt", 3000), ("3.txt", 2000)):
+        (tmp_path / name).write_text(name)
+        os.utime(tmp_path / name, (at, at))
+
+    def opened(self: Path, **kwargs: Any) -> os.stat_result:
+        raise AssertionError("looked at: on Windows an open a file, thousands a poll")
+
+    monkeypatch.setattr(Path, "stat", opened)
     assert output_list._newest(tmp_path, stamped) == tmp_path / "2.txt"
 
 
