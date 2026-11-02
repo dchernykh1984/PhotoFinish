@@ -212,6 +212,7 @@ def test_a_close_a_crash_cut_between_its_renames_is_finished(tmp_path: Path) -> 
     (closed,) = segments(tmp_path)
     closed.replace(tmp_path / "current.mkv")  # the times renamed, the video not yet
     (tmp_path / "segments.txt").unlink()  # nor listed
+    (tmp_path / "closing.name").write_text(closed.stem)  # the name close() wrote first
     again = SegmentWriter(tmp_path, fps=30)
     assert segments(tmp_path) == [closed]
     assert (tmp_path / "segments.txt").read_text().split() == [closed.stem]
@@ -424,6 +425,22 @@ def test_a_pts_is_rounded_to_ms_as_the_muxer_rounds_it(ticks: int, ms: int) -> N
     from fractions import Fraction
 
     assert segments_module._in_ms(ticks, Fraction(1, 90000)) == ms
+
+
+def test_a_slow_close_cut_between_its_renames_is_finished_by_its_name(
+    tmp_path: Path,
+) -> None:
+    writer = SegmentWriter(tmp_path, fps=30)
+    record(writer, START, 5)
+    writer.close()
+    (closed,) = segments(tmp_path)
+    minute_ago = time.time() - 60  # its times written long before its video moved
+    os.utime(closed.with_suffix(".times"), (minute_ago, minute_ago))
+    closed.replace(tmp_path / "current.mkv")
+    (tmp_path / "closing.name").write_text(closed.stem)
+    SegmentWriter(tmp_path, fps=30)
+    assert segments(tmp_path) == [closed]
+    assert not (tmp_path / "closing.name").exists()
 
 
 def test_what_a_crash_left_with_no_whole_frame_is_kept_aside(tmp_path: Path) -> None:
