@@ -15,6 +15,7 @@ longer than three frame intervals is appended to ``gaps.txt`` as
 
 from __future__ import annotations
 
+import contextlib
 import time
 from collections.abc import Callable
 from fractions import Fraction
@@ -297,6 +298,8 @@ def _recover(folder: Path, n: int) -> str | None:
         copy.replace(folder / f"{name}.mkv")
         append(folder / SEGMENTS, f"{name}\n".encode("ascii"))
     except OSError, ValueError, IndexError, av.FFmpegError:
+        with contextlib.suppress(OSError):  # what the crash left is kept aside whole
+            copy.unlink(missing_ok=True)
         return None
     return name
 

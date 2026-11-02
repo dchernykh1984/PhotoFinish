@@ -201,6 +201,7 @@ def test_a_recovery_that_fails_keeps_what_the_crash_left(
     assert segments(tmp_path) == []
     (kept,) = tmp_path.glob("crashed-*.times")
     assert len(kept.read_text().splitlines()) == 20  # every frame's time, kept
+    assert not (tmp_path / "recovered.mkv").exists()  # no second copy on a full disk
 
 
 def test_a_close_a_crash_cut_between_its_renames_is_finished(tmp_path: Path) -> None:
