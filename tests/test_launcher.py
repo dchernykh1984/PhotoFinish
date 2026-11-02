@@ -83,6 +83,34 @@ def test_a_recorder_that_cannot_be_started_is_tried_again_after_the_pause(
     assert watchdog.error == ""
 
 
+def test_a_dead_recorder_whose_restart_was_refused_is_not_taken_for_alive(
+    folder: Path, clock: dict[str, float]
+) -> None:
+    spawns = Spawns()
+    refused: list[OSError] = []
+
+    def spawning(camera_id: str) -> Any:
+        if refused:
+            raise refused.pop()
+        return spawns(camera_id)
+
+    watchdog = Watchdog("cam1", spawning)
+    watchdog.start()
+    beat(folder, "recording")  # its last beat, fresh for 15 s more
+    clock["now"] = 1000.5
+    watchdog.poll()
+    spawns.processes[-1].code = -9
+    refused.append(OSError("blocked by an antivirus"))
+    for moment in (1001, 1002):  # its end seen; the start after the pause refused
+        clock["now"] = moment
+        watchdog.poll()
+    assert watchdog.error == "blocked by an antivirus"
+    for moment, started in ((1003, 1), (1005, 2)):
+        clock["now"] = moment
+        watchdog.poll()
+        assert len(spawns.processes) == started  # after the pause, not 15 s on
+
+
 def test_a_running_recorder_is_attached_not_started_again(folder: Path) -> None:
     beat(folder, "recording")
     spawns = Spawns()
