@@ -147,6 +147,43 @@ def test_a_recorder_killed_just_after_a_beat_is_not_taken_for_another(
         assert len(made) == started  # its last beat is its own, not a live one's
 
 
+def test_a_recorder_whose_end_was_seen_with_its_beat_unread_is_not_taken_for_alive(
+    folder: Path, clock: dict[str, float], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    unread = {"next": False}
+    real = launcher.heartbeat
+
+    def read(camera_id: str) -> dict[str, Any] | None:
+        if unread["next"]:
+            unread["next"] = False
+            return None  # cut short by a write in place on a full disk
+        return real(camera_id)
+
+    class EndsUnread(Process):
+        def poll(self) -> int | None:
+            if self.code is not None and not unread.get("seen"):
+                unread["seen"] = unread["next"] = True  # the read after it fails
+            return self.code
+
+    made: list[Process] = []
+
+    def spawning(camera_id: str) -> Any:
+        made.append(EndsUnread() if not made else Process())
+        return made[-1]
+
+    monkeypatch.setattr(launcher, "heartbeat", read)
+    watchdog = Watchdog("cam1", spawning)
+    watchdog.start()
+    beat(folder, "recording")
+    clock["now"] = 1000.5
+    watchdog.poll()
+    made[-1].code = -9
+    for moment, started in ((1001, 1), (1002, 2)):
+        clock["now"] = moment
+        watchdog.poll()
+        assert len(made) == started  # its own last beat, read once it could be
+
+
 def test_a_running_recorder_is_attached_not_started_again(folder: Path) -> None:
     beat(folder, "recording")
     spawns = Spawns()

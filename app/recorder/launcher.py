@@ -175,8 +175,10 @@ class Watchdog:
         now = time.monotonic()
         if code != 3 and self._dead is not process:
             info = heartbeat(self.camera_id)  # read since its end: no beat of it after
+            if info is None:
+                return False  # unread: its end marked at the next poll, read again
             self._died_at, self._dead = now, process
-            self._died_beat = 0 if info is None else int(info.get("heartbeat_ms", 0))
+            self._died_beat = int(info.get("heartbeat_ms", 0))
         beat_ms = 0 if info is None else int(info.get("heartbeat_ms", 0))
         beating = beat_ms != self._died_beat  # since that end: another recorder's
         if code != 3:
