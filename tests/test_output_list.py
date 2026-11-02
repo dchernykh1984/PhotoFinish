@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -399,6 +400,24 @@ def test_a_change_that_leaves_the_file_as_it_was_makes_no_copy(
     kept = sorted(copies.rglob("*.txt"))
     out.follow([TAKEN, "16#20389 11:35:30.000#nextLap#"], [], [])  # taken, not shown
     assert sorted(copies.rglob("*.txt")) == kept
+
+
+def test_the_newest_of_files_is_found_though_one_goes_meanwhile(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    stamped = re.compile(r"\d+\.txt")
+    for name in ("1.txt", "2.txt", "3.txt"):
+        (tmp_path / name).write_text(name)
+        os.utime(tmp_path / name, (1000, 1000))  # one time to 2 s: FAT
+    real = Path.stat
+
+    def gone(self: Path, **kwargs: Any) -> os.stat_result:
+        if self.name == "3.txt":
+            raise FileNotFoundError(self)  # quarantined since it was listed
+        return real(self, **kwargs)
+
+    monkeypatch.setattr(Path, "stat", gone)
+    assert output_list._newest(tmp_path, stamped) == tmp_path / "2.txt"
 
 
 def test_a_change_that_cannot_be_written_is_undone(
