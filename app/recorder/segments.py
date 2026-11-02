@@ -485,6 +485,8 @@ def _keep_aside(folder: Path) -> None:
     written before the two renames, so one a kill or a refused rename cut between
     them is finished by it: the video joins its own times, no others."""
     times, video = folder / "current.times", folder / "current.mkv"
+    if not (times.exists() or video.exists()):
+        return  # kept aside already, or named: nothing left open
     meant = folder / ASIDE
     try:
         stamp = meant.read_text(encoding="ascii").strip()
