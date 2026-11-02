@@ -96,12 +96,8 @@ class SegmentWriter:
         opened = self._open if isinstance(self._open, kind) else None
         if opened is None:
             self.close()
-            name = _finish_close(self.folder)
-            if name is None and (self.folder / "current.mkv").exists():
-                name = _recover(self.folder, self.segments + 1)
-            if name is not None:
+            if name := _see_to(self.folder, self.segments + 1):  # a close that failed
                 self._closed(name)
-            _keep_aside(self.folder)
             opened = begun()
             self._open = opened
         return opened
@@ -259,13 +255,22 @@ def recover(folder: Path) -> list[str]:
     it did not list listed, the frames it left whole in ``current.*`` made one, the
     rest kept aside. A recorder does it as it starts, before its camera is back."""
     folder.mkdir(parents=True, exist_ok=True)
-    _finish_close(folder)
     closed = _list_missing(folder)
-    if recovered := _recover(folder, len(closed) + 1):
-        append(folder / SEGMENTS, f"{recovered}\n".encode("ascii"))  # else at the next
-        closed.append(recovered)
-    _keep_aside(folder)  # what a crash left with no whole frame
+    if name := _see_to(folder, len(closed) + 1):
+        append(folder / SEGMENTS, f"{name}\n".encode("ascii"))  # else at the next start
+        closed.append(name)
     return closed
+
+
+def _see_to(folder: Path, n: int) -> str | None:
+    """What a crash or a failed close left: a close cut between its renames
+    finished, else the whole frames of ``current.*`` made a closed segment numbered
+    ``n`` or after, the rest kept aside. The segment's name, for the caller to list."""
+    name = _finish_close(folder)
+    if name is None and (folder / "current.mkv").exists():
+        name = _recover(folder, n)
+    _keep_aside(folder)
+    return name
 
 
 def _finish_close(folder: Path) -> str | None:
