@@ -402,6 +402,8 @@ class OutputList:
     def _keep_copy(self) -> None:
         """The output as this change left it, beside the copies before it; one the
         disk refuses leaves the change done, for the window to say."""
+        # shortcut: copies are never removed, so temp/ grows by a whole output a change
+        # (as the chronometers' backups do); prune it once the set has a policy.
         try:
             folder = _copies()
             folder.mkdir(parents=True, exist_ok=True)
