@@ -330,6 +330,25 @@ def test_a_video_takes_no_times_written_long_before_it(tmp_path: Path) -> None:
     assert not closed.exists()  # not given the old times' name
 
 
+def test_a_recovery_killed_before_its_times_takes_the_times_kept_aside(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    killed_while_recording(tmp_path, 20)
+
+    def killed(path: Path, data: bytes) -> None:
+        raise SystemExit(1)  # killed as the times were to be written
+
+    monkeypatch.setattr(segments_module, "write_in_one_step", killed)
+    with pytest.raises(SystemExit):
+        SegmentWriter(tmp_path, fps=30)
+    monkeypatch.undo()
+    SegmentWriter(tmp_path, fps=30)
+    (recovered,) = segments(tmp_path)
+    assert [ms for _, ms in times(recovered)][:3] == [START, START + 33, START + 66]
+    assert (tmp_path / "segments.txt").read_text().split() == [recovered.stem]
+    assert not (tmp_path / "recovered.mkv").exists()
+
+
 def test_what_a_crash_left_with_no_whole_frame_is_kept_aside(tmp_path: Path) -> None:
     (tmp_path / "current.mkv").write_bytes(b"")
     (tmp_path / "current.times").write_text(f"0 {START}\n")
