@@ -111,10 +111,11 @@ class Watchdog:
         self._started = 0.0  # monotonic, when this window last started one
         self._started_ms = 0  # wall clock, when it last tried to
         self._retry_at: float | None = None
-        self._died_at: float | None = None  # monotonic: its recorder's end, first seen
-        self._died_beat: int | None = (
-            None  # the heartbeat then: a later one is another's
-        )
+        # The end of a recorder this window started, first seen (monotonic), which one,
+        # and the heartbeat then: a later one is another recorder's.
+        self._died_at: float | None = None
+        self._dead: subprocess.Popen[bytes] | None = None
+        self._died_beat: int | None = None
         self.error = ""  # why the recorder could not be started, until one is
 
     def start(self) -> None:
@@ -164,19 +165,16 @@ class Watchdog:
         has changed since, written by a recorder that lives. A start that found the
         camera locked (3) leaves it to the heartbeat, but not within 15 s of such an
         end with no beat since: the lock may still be the dead one's (Windows lets go
-        of it late). No pid is guessed: a frozen build fronts its recorder."""
+        of it late). Each one's end is marked, one that beat and died between two
+        polls too. No pid is guessed: a frozen build fronts its recorder."""
         process = self._process
         code = None if process is None else process.poll()
         now = time.monotonic()
         beat_ms = 0 if info is None else int(info.get("heartbeat_ms", 0))
         if code is None:
-            if process is not None and beat_ms >= self._started_ms:
-                self._died_at = (
-                    None  # a recorder beats since this start: that end is past
-                )
             return alive(info)
-        if code != 3 and self._died_at is None:
-            self._died_at, self._died_beat = now, beat_ms
+        if code != 3 and self._dead is not process:
+            self._died_at, self._died_beat, self._dead = now, beat_ms, process
         beating = beat_ms != self._died_beat  # since that end: another recorder's
         if code != 3:
             return beating and alive(info)

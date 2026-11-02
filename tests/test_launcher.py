@@ -209,6 +209,29 @@ def test_a_start_that_found_the_dead_recorders_lock_still_held_tries_again(
         assert len(spawns.processes) == started
 
 
+def test_a_recorder_that_beat_and_died_between_two_polls_is_started_again(
+    folder: Path, clock: dict[str, float]
+) -> None:
+    spawns = Spawns()
+    watchdog = Watchdog("cam1", spawns)
+    watchdog.start()
+    beat(folder, "recording")
+    clock["now"] = 1000.5
+    watchdog.poll()
+    spawns.processes[-1].code = -9  # this window's recorder dies
+    for moment, started in ((1001, 1), (1002, 2)):
+        clock["now"] = moment
+        watchdog.poll()
+        assert len(spawns.processes) == started
+    time.sleep(0.002)
+    beat(folder, "starting")  # the new one's first word, then its end: no poll saw
+    spawns.processes[-1].code = -11  # it run
+    for moment, started in ((1003, 2), (1005, 3)):
+        clock["now"] = moment
+        watchdog.poll()
+        assert len(spawns.processes) == started  # not its fresh beat's 15 s later
+
+
 def test_a_stalled_recorder_that_beats_again_keeps_its_camera(
     folder: Path, clock: dict[str, float]
 ) -> None:
