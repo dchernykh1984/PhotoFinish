@@ -432,6 +432,32 @@ def test_a_crash_read_to_an_error_it_said_is_not_marked_as_one_that_kills(
     assert marked == [False]  # a kill as it goes aside leaves no crash unread
 
 
+def test_a_recovery_whose_name_cannot_be_read_a_moment_is_kept_not_dropped(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    killed_while_recording(tmp_path, 20)
+
+    def held(folder: Path, name: str) -> None:
+        raise OSError("held by a reader")
+
+    monkeypatch.setattr(segments_module, "_name_recovery", held)
+    SegmentWriter(tmp_path, fps=30)  # recovered, the crash aside; its copy unnamed
+    monkeypatch.undo()
+    real = Path.read_text
+
+    def unreadable(self: Path, *args: Any, **kwargs: Any) -> str:
+        if self.name == segments_module.RECOVERED_NAME:
+            raise PermissionError("held by a scanner")
+        return real(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", unreadable)
+    SegmentWriter(tmp_path, fps=30)  # the name it is to take not readable just now
+    monkeypatch.undo()
+    SegmentWriter(tmp_path, fps=30)
+    (recovered,) = segments(tmp_path)
+    assert times(recovered)[0][1] == START  # the copy kept, named at last
+
+
 def test_a_recovery_not_yet_named_is_never_written_over_by_the_next(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
