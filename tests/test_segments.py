@@ -371,6 +371,28 @@ def test_a_crash_that_killed_the_recorder_as_it_was_read_is_kept_aside_unread(
     assert len(segments(tmp_path)) == 1  # read as any other
 
 
+def test_a_recovery_not_yet_named_is_never_written_over_by_the_next(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    folder, later = tmp_path / "cam", tmp_path / "later"
+    killed_while_recording(folder, 20, start=START - 60_000)
+    killed_while_recording(later, 20, start=START)  # the next crash, kept apart
+
+    def held(folder: Path, name: str) -> None:
+        raise OSError("held by a reader")
+
+    monkeypatch.setattr(segments_module, "_name_recovery", held)
+    SegmentWriter(folder, fps=30)  # recovered; its copy cannot take its name yet
+    for left in later.glob("current.*"):
+        left.replace(folder / left.name)
+    SegmentWriter(folder, fps=30)  # and still cannot, as the next crash is seen to
+    monkeypatch.undo()
+    SegmentWriter(folder, fps=30)
+    (recovered,) = segments(folder)
+    assert times(recovered)[0][1] == START - 60_000  # the first crash's frames
+    assert len(list(folder.glob("crashed-*.mkv"))) == 2  # the next one's kept
+
+
 def test_a_segment_never_takes_the_name_of_times_left_alone(tmp_path: Path) -> None:
     writer = SegmentWriter(tmp_path, fps=30)
     record(writer, START, 5)

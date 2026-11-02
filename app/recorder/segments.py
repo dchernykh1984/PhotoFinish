@@ -339,6 +339,10 @@ def _recover(folder: Path, n: int) -> str | None:
     brought the recorder down as it was read, libav and all, is kept aside unread
     at the next start, not read again by every recorder that starts."""
     copy, copied, meant = (folder / name for name in RECOVERED)
+    if meant.exists():  # one not named yet is named first, never written over
+        _finish_recovery(folder)
+        if meant.exists():
+            return None  # this crash goes aside whole
     reading = folder / READING
     if reading.exists():
         return None  # the last read of it never ended: it goes aside unread
