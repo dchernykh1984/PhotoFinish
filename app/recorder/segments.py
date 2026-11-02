@@ -244,11 +244,25 @@ def recover(folder: Path) -> list[str]:
     it did not list listed, the frames it left whole in ``current.*`` made one, the
     rest kept aside. A recorder does it as it starts, before its camera is back."""
     folder.mkdir(parents=True, exist_ok=True)
+    _finish_close(folder)
     closed = _list_missing(folder)
     if recovered := _recover(folder, len(closed) + 1):
         closed.append(recovered)
     _keep_aside(folder)  # what a crash left with no whole frame
     return closed
+
+
+def _finish_close(folder: Path) -> None:
+    """A crash between ``close``'s two renames: the times have their name, the video
+    is still ``current.mkv``, and takes the name too."""
+    left = folder / "current.mkv"
+    if not left.exists() or (folder / "current.times").exists():
+        return
+    named = [
+        p for p in folder.glob(f"{CLOSED}.times") if not p.with_suffix(".mkv").exists()
+    ]
+    if named:
+        left.replace(max(named).with_suffix(".mkv"))
 
 
 def _name(folder: Path, first_ms: int, n: int) -> str:

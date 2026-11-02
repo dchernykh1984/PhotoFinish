@@ -203,6 +203,20 @@ def test_a_recovery_that_fails_keeps_what_the_crash_left(
     assert len(kept.read_text().splitlines()) == 20  # every frame's time, kept
 
 
+def test_a_close_a_crash_cut_between_its_renames_is_finished(tmp_path: Path) -> None:
+    writer = SegmentWriter(tmp_path, fps=30)
+    record(writer, START, 5)
+    writer.close()
+    (closed,) = segments(tmp_path)
+    closed.replace(tmp_path / "current.mkv")  # the times renamed, the video not yet
+    (tmp_path / "segments.txt").unlink()  # nor listed
+    again = SegmentWriter(tmp_path, fps=30)
+    assert segments(tmp_path) == [closed]
+    assert (tmp_path / "segments.txt").read_text().split() == [closed.stem]
+    assert again.segments == 1
+    assert not list(tmp_path.glob("crashed-*"))
+
+
 def test_what_a_crash_left_with_no_whole_frame_is_kept_aside(tmp_path: Path) -> None:
     (tmp_path / "current.mkv").write_bytes(b"")
     (tmp_path / "current.times").write_text(f"0 {START}\n")
