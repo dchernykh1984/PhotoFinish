@@ -314,6 +314,16 @@ def test_a_recovery_that_fails_at_the_start_leaves_the_recorder_running(
     assert heartbeat(folder)["detail"] == "no camera cam1 in the session"
 
 
+def test_a_list_with_bytes_that_are_not_ascii_does_not_stop_the_recording(
+    folder: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    folder.mkdir(parents=True)
+    (folder / "segments.txt").write_bytes(b"\xd0\xb9\n")
+    cameras(monkeypatch, Camera(folder, START, 100, stop_after=40))
+    assert run("cam1") == 0
+    assert list(folder.glob("*-*-*.mkv"))
+
+
 def test_a_camera_with_a_recorder_gets_no_second_one(
     folder: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
