@@ -31,6 +31,7 @@ SEGMENT_MS = 1000  # a segment's first frame is shown once it closes: SC-006's 2
 CLOSED = "[0-9]*-[0-9]*-[0-9]*"  # a closed segment's name, without its suffix
 SEGMENTS = "segments.txt"  # the closed segments' names, in the order they closed
 KEYFRAME_SLACK_MS = 100  # a camera's keyframe this much short of a second still cuts
+WRITTEN_TOGETHER_S = 2  # a video and its times, closed or recovered in one go
 _MS = Fraction(1, 1000)
 _GOP = 15
 _QUALITY = 3
@@ -286,8 +287,9 @@ def _finish_close(folder: Path) -> str | None:
 
 def _give_its_name(video: Path) -> str | None:
     """``video`` named after the closed times without a video that are its own: the
-    same frames, written when it was. Never another's, such as times whose video
-    was deleted, sorting after it or not. The name, or None."""
+    same frames, written within seconds of it. Never another's, such as times whose
+    video was deleted, sorting after it or not, though a steady camera's segments
+    all have the same pts. The name, or None."""
     try:
         with av.open(str(video)) as opened:
             found = sorted(pts for _, pts in _whole(opened))
@@ -295,7 +297,9 @@ def _give_its_name(video: Path) -> str | None:
         named = [
             times
             for times in video.parent.glob(f"{CLOSED}.times")
-            if not times.with_suffix(".mkv").exists() and _frames_of(times) == found
+            if not times.with_suffix(".mkv").exists()
+            and abs(times.stat().st_mtime - made) <= WRITTEN_TOGETHER_S
+            and _frames_of(times) == found
         ]
         if not found or not named:
             return None
