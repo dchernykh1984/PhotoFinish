@@ -334,6 +334,23 @@ def test_a_copy_refused_is_said_though_the_files_cannot_be_followed(
     assert "its copy in temp/ cannot be written" in win.statusBar().currentMessage()
 
 
+def test_a_copy_refused_never_hides_a_word_said_once(
+    recording: Path,
+    make_window: Callable[[], mw.MainWindow],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    win = make_window()
+    choose(monkeypatch, recording / "out.txt")
+    win.choose_output()
+    assert win.output is not None
+    win.output.copy_refused = OSError("temp is read-only")
+    win.output.outside_kept = True  # an outside version kept by the same change
+    win._follow_files()  # the poll
+    assert win.statusBar().currentMessage() == mw.OUTSIDE
+    win._follow_files()  # the next one
+    assert "its copy in temp/ cannot be written" in win.statusBar().currentMessage()
+
+
 def test_a_crossing_without_a_number_or_a_disk_is_refused(
     recording: Path,
     make_window: Callable[[], mw.MainWindow],

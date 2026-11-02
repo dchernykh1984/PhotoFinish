@@ -501,6 +501,7 @@ class MainWindow(QMainWindow):
 
     def _follow_files(self) -> None:
         """New input lines taken; an output file changed outside kept and rewritten."""
+        said = False  # a word said once: a refused copy is said at the next poll
         try:
             if self.follow is not None and self.follow.poll():
                 self._show_lists()
@@ -509,16 +510,16 @@ class MainWindow(QMainWindow):
                 if self.output.outside_kept:  # by this check, or by a change before
                     self.output.outside_kept = False
                     self._say(OUTSIDE)
+                    said = True
                     self._show_lists()
-        except (
-            JournalError
-        ) as error:  # lines taken, or an outside version kept: written
+        except JournalError as error:  # lines taken, or an outside version kept
             self._say(f"Written; the journal cannot take it: {error}")
+            said = True
             self._show_lists()
         except OSError as error:
             self._say(f"The files cannot be followed: {error}")
         finally:  # said last: a failing poll says its own again at the next one
-            if self.output is not None:
+            if self.output is not None and not said:
                 refused, self.output.copy_refused = self.output.copy_refused, None
                 if refused is not None:
                     self._say(
