@@ -257,6 +257,9 @@ def _list_missing(folder: Path) -> list[str]:
     except OSError:
         listed = []
     known = set(listed)
+    with contextlib.suppress(OSError):  # held a moment: listed as it is named
+        if held := _meant(folder):
+            known.add(held[0])  # its recovery lists it as it forgets the name
     missing = sorted(
         path.stem
         for path in folder.glob(f"{CLOSED}.mkv")
