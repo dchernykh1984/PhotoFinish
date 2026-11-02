@@ -94,9 +94,12 @@ each commit: `uv run pre-commit run --all-files` and `uv run pytest`.
 - [X] T025 [US1] `app/recorder/__init__.py`: a recorder sees to what a crash left as it starts,
   before its camera is back, not at its first frame.
   -- `fix(record): see to what a crash left as a recorder starts, not at its first frame`
+- [X] T026 [US1] SC-008 end to end: a real recorder of the test camera killed 0.4 s into a
+  segment is started again within 3 s and its frames up to 0.5 s before the kill are shown.
+  -- `test(record): kill a recorder mid-segment and lose only the time it is down`
 
 ## Dependencies
 
 T001 -> T002 -> T003 -> T004 -> T005. T001 -> T006 -> T007 -> T008 -> T009. T009 -> T010 -> T011
 -> T012 -> T013 -> T014 -> T015 -> T016 -> T017 -> T018. T019 after T008. T020 last.
-Phase 7, after the rest: T008 -> T021, T006 -> T022 -> T023 -> T025, T004 -> T024.
+Phase 7, after the rest: T008 -> T021, T006 -> T022 -> T023 -> T025, T021 and T025 -> T026, T004 -> T024.

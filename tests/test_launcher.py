@@ -278,6 +278,13 @@ def running(pid: int) -> bool:
     return True
 
 
+def lines(path: Path) -> list[str]:
+    try:
+        return path.read_text().splitlines()
+    except OSError:
+        return []
+
+
 def wait_for(condition: Any, seconds: float = 30) -> None:
     until = time.monotonic() + seconds
     while not condition():
@@ -327,6 +334,46 @@ def test_a_recorder_outlives_the_window_that_started_it(tmp_path: Path) -> None:
             os.kill(pid, signal.SIGKILL)
     assert (folder / "recorder.log").exists()
     assert launcher.ENDED[0] == "stopped"
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="os.kill(pid, 0) ends it there")
+def test_a_killed_recorder_costs_only_the_time_it_is_down(folder: Path) -> None:
+    camera = {"id": "cam1", "connection": "test", "settings": {"fps": 30}}
+    session.save({**session.DEFAULTS, "cameras": [camera]})
+    watchdog = Watchdog("cam1")
+    watchdog.start()
+    first = watchdog._process
+    assert first is not None
+    try:
+        wait_for(lambda: (folder / "segments.txt").exists())  # one closed
+        wait_for(lambda: len(lines(folder / "current.times")) >= 12)  # 0.4 s open
+        killed = now_ms()
+        os.kill(first.pid, signal.SIGKILL)
+        first.wait(timeout=10)
+        wait_for(lambda: watchdog.poll() and watchdog._process is not first, 5)
+        restarted = now_ms()
+        assert restarted - killed < 3000  # 1 s pause, not a 15 s old heartbeat
+        again = watchdog._process
+        assert again is not None
+        wait_for(lambda: (heartbeat("cam1") or {}).get("pid") == again.pid)
+        wait_for(lambda: (heartbeat("cam1") or {}).get("frames", 0) > 10)
+        watchdog.stop()
+        again.wait(timeout=30)
+    finally:
+        for process in (first, watchdog._process):
+            if process is not None and process.poll() is None:
+                process.kill()
+    names = (folder / "segments.txt").read_text().split()
+    last_before = max(
+        int(line.split()[1])
+        for name in names
+        for line in (folder / f"{name}.times").read_text().splitlines()
+        if int(line.split()[1]) < killed
+    )
+    assert killed - last_before < 500  # the frames written whole before it died
+    assert not list(folder.glob("crashed-*"))
+    gaps = (folder / "gaps.txt").read_text().splitlines()
+    assert any(line.startswith(f"{last_before} ") for line in gaps)
 
 
 def test_a_recorder_is_described_as_the_referee_needs() -> None:
