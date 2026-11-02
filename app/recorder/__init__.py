@@ -174,14 +174,16 @@ def run(
     if lock is None:
         return 3  # another recorder has this camera
     with lock:
-        with contextlib.suppress(Exception):  # tried again, and said, by the writer
-            recover(folder)  # what a crash left, shown before the camera is back
+        closed = None  # then the writer tries again, and says what stops it
+        with contextlib.suppress(Exception):
+            closed = recover(folder)  # a crash's frames, shown before the camera
         camera = session.camera(session.load(), camera_id)
         beat = Heartbeat(folder, str((camera or {}).get("connection", "")))
         if camera is None:
             beat.beat(state="failed", detail=f"no camera {camera_id} in the session")
             return 2
-        return _Recording(folder, camera, beat, clock or SteadyClock(), sleep).run()
+        recording = _Recording(folder, camera, beat, clock or SteadyClock(), sleep)
+        return recording.run(closed)
 
 
 class _Recording:
@@ -197,9 +199,12 @@ class _Recording:
         self.clock, self.sleep = clock, sleep
         self.stop = folder / "stop.request"
         self.writer: SegmentWriter | None = None
+        self.closed: list[str] | None = None  # the segments as the start found them
         self.backoff = Backoff()
 
-    def run(self) -> int:
+    def run(self, closed: list[str] | None = None) -> int:
+        """Record until a stop; ``closed``, the segments as the start found them."""
+        self.closed = closed
         try:
             while not self.stop.exists():
                 self.beat.beat(state="connecting", detail="")
@@ -245,7 +250,7 @@ class _Recording:
         self, source: Source, image: np.ndarray | av.VideoFrame | av.Packet, ms: int
     ) -> None:
         if self.writer is None:
-            self.writer = SegmentWriter(self.folder, source.fps)
+            self.writer = SegmentWriter(self.folder, source.fps, closed=self.closed)
         writer = self.writer
         writer.fps = source.fps
         if isinstance(image, av.Packet):

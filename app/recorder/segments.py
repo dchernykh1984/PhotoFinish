@@ -40,9 +40,15 @@ _AS_IT_COMES = {"flush_packets": "1", "cluster_time_limit": "100"}
 class SegmentWriter:
     """Writes one camera's frames into ``folder``; ``close`` ends the open segment."""
 
-    def __init__(self, folder: Path, fps: float, segment_ms: int = SEGMENT_MS) -> None:
+    def __init__(
+        self,
+        folder: Path,
+        fps: float,
+        segment_ms: int = SEGMENT_MS,
+        closed: list[str] | None = None,  # what ``recover`` gave, when it was just run
+    ) -> None:
         self.folder, self.fps, self.segment_ms = folder, fps, segment_ms
-        closed = recover(folder)
+        closed = recover(folder) if closed is None else closed
         self.segments = len(closed)
         self.frames = 0
         self._last_ms: int | None = None  # this run's newest frame: frames keep order
