@@ -458,6 +458,27 @@ def test_a_recovery_whose_name_cannot_be_read_a_moment_is_kept_not_dropped(
     assert times(recovered)[0][1] == START  # the copy kept, named at last
 
 
+def test_a_recovery_named_but_its_name_not_forgotten_is_listed_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    killed_while_recording(tmp_path, 20)
+    real = Path.unlink
+    refused: list[Path] = []
+
+    def held(self: Path, missing_ok: bool = False) -> None:
+        if self.name == segments_module.RECOVERED_NAME and self.exists():
+            if len(refused) < 2:
+                refused.append(self)
+                raise PermissionError("held by a scanner")
+        real(self, missing_ok=missing_ok)
+
+    monkeypatch.setattr(Path, "unlink", held)
+    SegmentWriter(tmp_path, fps=30)  # named; the name it took not forgotten
+    SegmentWriter(tmp_path, fps=30)  # nor at first as the next one starts
+    listed = (tmp_path / "segments.txt").read_text().split()
+    assert listed == [p.stem for p in segments(tmp_path)]  # once
+
+
 def test_a_recovery_not_yet_named_is_never_written_over_by_the_next(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
