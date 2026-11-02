@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import contextlib
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from fractions import Fraction
 from pathlib import Path
 from typing import TextIO
@@ -265,17 +265,29 @@ def recover(folder: Path) -> list[str]:
     return closed
 
 
-def _finish_close(folder: Path) -> None:
-    """A crash between ``close``'s two renames: the times have their name, the video
-    is still ``current.mkv``, and takes the name too."""
+def _finish_close(folder: Path) -> str | None:
+    """A close cut between its two renames: the times have their name, the video is
+    still ``current.mkv``, and takes the name too when its frames are those times --
+    never another's, such as times whose video was deleted. The name, or None."""
     left = folder / "current.mkv"
     if not left.exists() or (folder / "current.times").exists():
-        return
+        return None
     named = [
         p for p in folder.glob(f"{CLOSED}.times") if not p.with_suffix(".mkv").exists()
     ]
-    if named:
-        left.replace(max(named).with_suffix(".mkv"))
+    if not named:
+        return None
+    times = max(named)  # the newest: the close cut short
+    try:
+        lines = times.read_text(encoding="ascii").splitlines()
+        with av.open(str(left)) as video:
+            found = sorted(pts for _, pts in _whole(video))
+        if found != sorted(int(line.split()[0]) for line in lines):
+            return None
+        left.replace(times.with_suffix(".mkv"))
+    except OSError, ValueError, IndexError, av.FFmpegError:
+        return None
+    return times.stem
 
 
 def _name(folder: Path, first_ms: int, n: int) -> str:
@@ -328,20 +340,27 @@ def _copy_whole(
     into a file of their own, which ends as a file should; their ``(pts, ms)``."""
     kept: set[int] = set()
     with av.open(str(left)) as video, av.open(str(copy), "w", format="matroska") as out:
-        source = video.streams.video[0]
-        into = out.add_stream_from_template(source)
-        rate = source.time_base
-        base = _MS if rate is None else Fraction(rate.numerator, rate.denominator)
-        try:
-            for packet in video.demux(source):
-                pts = None if packet.pts is None else _in_ms(packet.pts, base)
-                if packet.size and pts in frames:
-                    packet.stream = into
-                    out.mux(packet)
-                    kept.add(pts)
-        except av.FFmpegError:
-            pass  # the cluster the crash cut short, read as any error: kept before
+        into = out.add_stream_from_template(video.streams.video[0])
+        for packet, pts in _whole(video):
+            if pts in frames:
+                packet.stream = into
+                out.mux(packet)
+                kept.add(pts)
     return [(pts, ms) for pts, ms in frames.items() if pts in kept]
+
+
+def _whole(video: av.container.InputContainer) -> Iterator[tuple[av.Packet, int]]:
+    """The video's packets that came whole, each with its pts in ms, up to where a
+    crash cut the file, read as any error."""
+    source = video.streams.video[0]
+    rate = source.time_base
+    base = _MS if rate is None else Fraction(rate.numerator, rate.denominator)
+    try:
+        for packet in video.demux(source):
+            if packet.size and packet.pts is not None:
+                yield packet, _in_ms(packet.pts, base)
+    except av.FFmpegError:
+        return  # the cluster the crash cut short: what came before is kept
 
 
 def _keep_aside(folder: Path) -> None:

@@ -218,6 +218,20 @@ def test_a_close_a_crash_cut_between_its_renames_is_finished(tmp_path: Path) -> 
     assert not list(tmp_path.glob("crashed-*"))
 
 
+def test_a_video_never_takes_the_name_of_times_whose_frames_it_lacks(
+    tmp_path: Path,
+) -> None:
+    writer = SegmentWriter(tmp_path, fps=30)
+    record(writer, START, 5)
+    writer.close()
+    (closed,) = segments(tmp_path)
+    closed.unlink()  # its video deleted for room: its times are left
+    (tmp_path / "current.mkv").write_bytes(b"")  # a kill before the first frame
+    SegmentWriter(tmp_path, fps=30)
+    assert not closed.exists()
+    assert segments(tmp_path) == []
+
+
 def test_what_a_crash_left_with_no_whole_frame_is_kept_aside(tmp_path: Path) -> None:
     (tmp_path / "current.mkv").write_bytes(b"")
     (tmp_path / "current.times").write_text(f"0 {START}\n")
