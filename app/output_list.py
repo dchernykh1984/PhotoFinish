@@ -408,7 +408,7 @@ class OutputList:
             while copy.exists():  # never over another copy
                 n += 1
                 copy = folder / f"{name}-{n}{self.path.suffix}"
-            copy.write_bytes(self._written or b"")
+            _write_in_one_step(copy, self._written or b"")  # whole, or not there
         except OSError as error:
             self.copy_refused = error
 
