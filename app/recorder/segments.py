@@ -352,9 +352,12 @@ def _frames_of(times: Path) -> list[int] | None:
 
 
 def _name(folder: Path, first_ms: int, n: int) -> str:
-    """A closed segment's name: its first frame's time, a number no other has."""
+    """A closed segment's name: its first frame's time, a number no other has --
+    neither a video nor times left alone, whose video went aside."""
     stamp = time.strftime("%Y%m%d-%H%M%S", time.localtime(first_ms / 1000))
-    while (folder / f"{stamp}-{n:04d}.mkv").exists():
+    while any(
+        (folder / f"{stamp}-{n:04d}{suffix}").exists() for suffix in (".mkv", ".times")
+    ):
         n += 1
     return f"{stamp}-{n:04d}"
 
