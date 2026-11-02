@@ -209,7 +209,7 @@ def test_every_change_leaves_a_copy_of_the_output_as_it_left_it(
     out = OutputList(path)
     take(out, TAKEN)
     out.add("9", ms("20389 11:35:30.000"), "finish", Change("frame"))
-    kept = sorted(copies.glob("out-*.txt"))
+    kept = sorted(copies.glob("out-*/*.txt"))
     assert [copy.read_text() for copy in kept] == [
         f"{TAKEN}\n",
         f"{TAKEN}\n9#20389 11:35:30.000#finish#\n",
@@ -337,9 +337,9 @@ def test_a_change_a_crash_cut_before_its_copy_gets_one_at_the_next_start(
     old = path.read_bytes()
     take(out, "16#20389 11:35:30.000#nextLap#")
     path.write_bytes(old)  # the crash: the state written, not the file
-    max(copies.glob("out-*.txt")).unlink()  # nor its copy
+    max(copies.glob("out-*/*.txt")).unlink()  # nor its copy
     OutputList(path)
-    assert max(copies.glob("out-*.txt")).read_bytes() == path.read_bytes()
+    assert max(copies.glob("out-*/*.txt")).read_bytes() == path.read_bytes()
 
 
 def test_a_change_a_crash_cut_after_its_write_gets_its_copy_at_the_next_start(
@@ -348,9 +348,9 @@ def test_a_change_a_crash_cut_after_its_write_gets_its_copy_at_the_next_start(
     out = OutputList(path)
     take(out, TAKEN)
     take(out, "16#20389 11:35:30.000#nextLap#")
-    max(copies.glob("out-*.txt")).unlink()  # the crash: written, not copied
+    max(copies.glob("out-*/*.txt")).unlink()  # the crash: written, not copied
     OutputList(path)
-    assert max(copies.glob("out-*.txt")).read_bytes() == path.read_bytes()
+    assert max(copies.glob("out-*/*.txt")).read_bytes() == path.read_bytes()
 
 
 def test_a_copy_that_cannot_be_read_keeps_no_output_shut(
@@ -358,7 +358,7 @@ def test_a_copy_that_cannot_be_read_keeps_no_output_shut(
 ) -> None:
     out = OutputList(path)
     take(out, TAKEN)
-    (copies / f"{out._copy_stem()}-29991231-235959-999999.txt").mkdir()  # newest
+    (copies / out._copy_stem() / "29991231-235959-999999.txt").mkdir()  # newest
     again = OutputList(path)  # opened all the same
     assert again.texts() == [TAKEN]
 
@@ -370,11 +370,10 @@ def test_the_copies_of_an_output_are_its_own(tmp_path: Path, copies: Path) -> No
     take(final, "16#20389 11:35:30.000#nextLap#")
     again = OutputList(tmp_path / "day2" / "results.txt")  # one name, another folder
     take(again, "17#20389 11:35:31.000#nextLap#")
-    kept = sorted(copies.iterdir())
+    kept = sorted(copies.rglob("*.txt"))
     OutputList(tmp_path / "results.txt")  # its newest copy is still the file
-    assert sorted(copies.iterdir()) == kept
-    stems = {copy.name.rsplit("-", 3)[0] for copy in kept}
-    assert len(stems) == 3  # three outputs, three sets of copies
+    assert sorted(copies.rglob("*.txt")) == kept
+    assert len({copy.parent for copy in kept}) == 3  # three outputs, three folders
 
 
 def test_an_output_adopted_from_its_file_is_copied_as_it_is_written(
@@ -382,7 +381,7 @@ def test_an_output_adopted_from_its_file_is_copied_as_it_is_written(
 ) -> None:
     path.write_text("16#20389 11:35:30.000#nextLap#\n" + TAKEN + "\n")  # no state
     OutputList(path)  # sorted and written again
-    (copy,) = copies.glob("out-*.txt")
+    (copy,) = copies.glob("out-*/*.txt")
     assert copy.read_bytes() == path.read_bytes()
 
 

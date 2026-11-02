@@ -406,13 +406,9 @@ class OutputList:
     def _copy_if_missing(self) -> None:
         """A crash between a change's write and its copy: the copy made now, when the
         newest copy is not the file as it is."""
-        stamped = re.compile(
-            re.escape(self._copy_stem())
-            + r"-\d{8}-\d{6}-\d{6}(-\d+)?"
-            + re.escape(self.path.suffix)
-        )
+        stamped = re.compile(r"\d{8}-\d{6}-\d{6}(-\d+)?" + re.escape(self.path.suffix))
         try:
-            newest = _newest(_copies(), stamped)
+            newest = _newest(self._copy_folder(), stamped)  # this output's copies only
             same = newest is not None and _read(newest) == self._written
         except OSError:  # a copy that cannot be read never keeps the output shut
             same = False
@@ -425,8 +421,8 @@ class OutputList:
         # shortcut: copies are never removed, so temp/ grows by a whole output a change
         # (as the chronometers' backups do); prune it once the set has a policy.
         try:
-            folder = _copies()
-            name = f"{self._copy_stem()}-{datetime.now():%Y%m%d-%H%M%S-%f}"
+            folder = self._copy_folder()
+            name = f"{datetime.now():%Y%m%d-%H%M%S-%f}"
             copy, n = folder / f"{name}{self.path.suffix}", 0
             while copy.exists():  # never over another copy
                 n += 1
@@ -435,9 +431,13 @@ class OutputList:
         except OSError as error:
             self.copy_refused = error
 
+    def _copy_folder(self) -> Path:
+        """Where this output's copies go: a folder of its own in ``temp/``."""
+        return _copies() / self._copy_stem()
+
     def _copy_stem(self) -> str:
-        """The copies' name: the output's, and six hex of its place, so outputs of one
-        name in two folders keep their copies apart."""
+        """The copies' folder name: the output's, and six hex of its place, so outputs
+        of one name in two folders keep their copies apart."""
         place = hashlib.sha1(os.fsencode(self.path.resolve()), usedforsecurity=False)
         return f"{self.path.stem}-{place.hexdigest()[:6]}"
 
