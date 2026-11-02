@@ -125,10 +125,15 @@ class SegmentWriter:
             return
         segment, self._open = self._open, None
         segment.close()
-        self.segments += 1
-        name = _name(self.folder, segment.first_ms, self.segments)
+        name = _name(self.folder, segment.first_ms, self.segments + 1)
         (self.folder / "current.times").replace(self.folder / f"{name}.times")
         (self.folder / "current.mkv").replace(self.folder / f"{name}.mkv")
+        self._closed(name)
+
+    def _closed(self, name: str) -> None:
+        """``name`` is a closed segment now: counted, and listed with any the list
+        refused before."""
+        self.segments += 1
         self._unlisted.append(name)  # a list that refuses it now takes it next time
         listed = "".join(f"{closed}\n" for closed in self._unlisted)
         append(self.folder / SEGMENTS, listed.encode("ascii"))
