@@ -132,7 +132,8 @@ def test_a_restart_shows_the_frames_a_crash_left_whole_and_marks_the_gap(
         assert sum(1 for _ in video.decode(video=0)) == len(kept)
     assert (tmp_path / "segments.txt").read_text().split()[-1] == recovered.stem
     assert again.segments == len(segments(tmp_path)) == 4
-    assert not [*tmp_path.glob("current.*"), *tmp_path.glob("crashed-*")]
+    assert not list(tmp_path.glob("current.*"))
+    assert {p.suffix for p in tmp_path.glob("crashed-*")} == {".mkv", ".times"}
     record(again, START + 9000, 3)
     again.close()
     gaps = (tmp_path / "gaps.txt").read_text().splitlines()
@@ -185,6 +186,21 @@ def test_a_crash_read_as_any_error_keeps_the_frames_before_it(
     SegmentWriter(tmp_path, fps=30)
     (recovered,) = segments(tmp_path)
     assert len(times(recovered)) == 3
+
+
+def test_a_recovery_that_fails_keeps_what_the_crash_left(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    killed_while_recording(tmp_path, 20)
+
+    def full(path: Path, data: bytes) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(segments_module, "write_in_one_step", full)
+    SegmentWriter(tmp_path, fps=30)
+    assert segments(tmp_path) == []
+    (kept,) = tmp_path.glob("crashed-*.times")
+    assert len(kept.read_text().splitlines()) == 20  # every frame's time, kept
 
 
 def test_what_a_crash_left_with_no_whole_frame_is_kept_aside(tmp_path: Path) -> None:
