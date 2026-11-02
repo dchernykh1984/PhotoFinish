@@ -111,6 +111,7 @@ class Watchdog:
         self._started = 0.0  # monotonic, when this window last started one
         self._started_ms = 0  # wall clock, when it last tried to
         self._retry_at: float | None = None
+        self._own_pid: object = None  # this window's recorder, by its heartbeat
         self._ended_ms: int | None = None  # wall clock, when its end was first seen
         self.error = ""  # why the recorder could not be started, until one is
 
@@ -123,7 +124,6 @@ class Watchdog:
         if self._running(heartbeat(self.camera_id)):
             return
         self._started_ms = time.time_ns() // 1_000_000  # an end before: not its own
-        self._ended_ms = None
         try:
             self._process = (self._spawn or spawn)(self.camera_id)
         except OSError as error:  # moved, or blocked: tried again after the pause
@@ -157,19 +157,27 @@ class Watchdog:
         return info
 
     def _running(self, info: dict[str, Any] | None) -> bool:
-        """A fresh heartbeat, unless it is the last of a recorder this window started
-        and saw end without saying why: that one is gone now, not 15 s later. One
-        written after that end, or left by a recorder that found the camera taken
-        (3), is another recorder's."""
+        """A fresh heartbeat, unless it is the last word of the recorder this window
+        ran, now ended: gone at once, not 15 s later. That recorder is known by the
+        pid its own heartbeats gave while it ran (a frozen build fronts it with
+        another process), else by a heartbeat older than its end as first seen. A
+        start that found the camera still locked (3) never ran: it changes neither."""
         process = self._process
-        died = process is not None and process.poll() not in (None, 3)
-        if died and self._ended_ms is None:
+        code = None if process is None else process.poll()
+        if code not in (None, 3) and self._ended_ms is None:
             self._ended_ms = time.time_ns() // 1_000_000
         if info is None or not alive(info):
             return False
-        if not died or self._ended_ms is None:
+        if process is None:
+            return True  # attached: its heartbeat tells
+        beat_ms = int(info.get("heartbeat_ms", 0))
+        if code is None:
+            if beat_ms >= self._started_ms:  # this window's recorder, running
+                self._own_pid, self._ended_ms = info.get("pid"), None
             return True
-        return int(info.get("heartbeat_ms", 0)) > self._ended_ms
+        if self._own_pid is not None:
+            return info.get("pid") != self._own_pid
+        return self._ended_ms is None or beat_ms > self._ended_ms
 
     def _ended_by_itself(self, info: dict[str, Any] | None) -> bool:
         """Failed, or the disk full, since this window started it: left for the

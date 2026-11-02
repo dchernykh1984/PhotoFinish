@@ -37,9 +37,9 @@ def clock(monkeypatch: pytest.MonkeyPatch) -> dict[str, float]:
     return moment
 
 
-def beat(folder: Path, state: str, age_ms: int = 0) -> None:
+def beat(folder: Path, state: str, age_ms: int = 0, pid: int | None = None) -> None:
     folder.mkdir(parents=True, exist_ok=True)
-    info = {"state": state, "heartbeat_ms": now_ms() - age_ms}
+    info = {"state": state, "heartbeat_ms": now_ms() - age_ms, "pid": pid}
     (folder / "recorder.json").write_text(json.dumps(info))
 
 
@@ -147,21 +147,42 @@ def test_a_recorder_that_found_the_camera_taken_leaves_it_to_the_other(
     assert len(spawns.processes) == 1
 
 
-def test_a_heartbeat_written_after_this_windows_recorder_ended_is_anothers(
+def test_another_recorders_heartbeat_is_taken_for_a_running_one(
     folder: Path, clock: dict[str, float]
 ) -> None:
     spawns = Spawns()
     watchdog = Watchdog("cam1", spawns)
     watchdog.start()
+    beat(folder, "recording", pid=100)
+    clock["now"] = 1000.5
+    watchdog.poll()  # this window's recorder, by its own word
     spawns.processes[-1].code = -9
-    clock["now"] = 1001
-    watchdog.poll()  # its end seen
-    time.sleep(0.005)
-    beat(folder, "recording")  # another window's recorder has the camera now
+    beat(folder, "recording", pid=200)  # another window's has the camera now
     for moment in (1002, 1003, 1010):
         clock["now"] = moment
         assert watchdog.poll() == heartbeat("cam1")
     assert len(spawns.processes) == 1
+
+
+def test_a_start_that_found_the_dead_recorders_lock_still_held_tries_again(
+    folder: Path, clock: dict[str, float]
+) -> None:
+    spawns = Spawns()
+    watchdog = Watchdog("cam1", spawns)
+    watchdog.start()
+    beat(folder, "recording", pid=100)
+    clock["now"] = 1000.5
+    watchdog.poll()
+    spawns.processes[-1].code = -9  # killed; its last heartbeat fresh for 15 s more
+    for moment, started in ((1001, 1), (1002, 2)):
+        clock["now"] = moment
+        watchdog.poll()
+        assert len(spawns.processes) == started
+    spawns.processes[-1].code = 3  # Windows let go of the dead one's lock late
+    for moment, started in ((1003, 2), (1005, 3)):
+        clock["now"] = moment
+        watchdog.poll()
+        assert len(spawns.processes) == started
 
 
 def test_a_starting_recorder_gets_its_time(
