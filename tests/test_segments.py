@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import errno
 import os
 import re
 import subprocess
@@ -477,6 +478,25 @@ def test_a_recovery_named_but_its_name_not_forgotten_is_listed_once(
     SegmentWriter(tmp_path, fps=30)  # nor at first as the next one starts
     listed = (tmp_path / "segments.txt").read_text().split()
     assert listed == [p.stem for p in segments(tmp_path)]  # once
+
+
+def test_a_recovery_that_finds_the_disk_full_leaves_the_crash_for_later(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    killed_while_recording(tmp_path, 20)
+
+    def full(path: Path, data: bytes) -> None:
+        raise OSError(errno.ENOSPC, "No space left on device")
+
+    monkeypatch.setattr(segments_module, "write_in_one_step", full)
+    with pytest.raises(OSError) as raised:
+        SegmentWriter(tmp_path, fps=30)
+    assert raised.value.errno == errno.ENOSPC  # for the recorder: disk_full
+    assert (tmp_path / "current.mkv").exists()  # not given up
+    assert not (tmp_path / segments_module.RECOVERED_MKV).exists()  # its room back
+    monkeypatch.undo()
+    SegmentWriter(tmp_path, fps=30)  # room made
+    assert len(segments(tmp_path)) == 1
 
 
 def test_a_recovery_not_yet_named_is_never_written_over_by_the_next(
