@@ -327,7 +327,9 @@ def _name(folder: Path, first_ms: int, n: int) -> str:
     return f"{stamp}-{n:04d}"
 
 
-RECOVERED = ("recovered.mkv", "recovered.times", "recovered.name")
+RECOVERED_MKV = "recovered.mkv"  # a recovery under way: its copy,
+RECOVERED_TIMES = "recovered.times"  # the copy's times,
+RECOVERED_NAME = "recovered.name"  # and the name it is to take, written last
 
 
 def _recover(folder: Path, n: int) -> str | None:
@@ -339,7 +341,8 @@ def _recover(folder: Path, n: int) -> str | None:
     start. Neither shows a frame twice, nor loses one, nor guesses. A crash that
     brought the recorder down as it was read, libav and all, is kept aside unread
     at the next start, not read again by every recorder that starts."""
-    copy, copied, meant = (folder / name for name in RECOVERED)
+    copy, copied = folder / RECOVERED_MKV, folder / RECOVERED_TIMES
+    meant = folder / RECOVERED_NAME
     if meant.exists():  # one not named yet is named first, never written over
         _finish_recovery(folder)
         if meant.exists():
@@ -358,9 +361,8 @@ def _recover(folder: Path, n: int) -> str | None:
         name = _name(folder, kept[0][1], n)
         times = "".join(f"{pts} {ms}\n" for pts, ms in kept)
         write_in_one_step(copied, times.encode("ascii"))
-        write_in_one_step(
-            meant, f"{name} {kept[0][1]}".encode("ascii")
-        )  # its source too
+        # its source's first frame too: a later crash is not taken for it
+        write_in_one_step(meant, f"{name} {kept[0][1]}".encode("ascii"))
     except OSError, ValueError, IndexError, av.FFmpegError:
         _drop_recovery(folder)  # what the crash left is where it was
         return None
@@ -378,7 +380,7 @@ def _finish_recovery(folder: Path) -> None:
     left to recover again. ``current.*`` goes aside only when it is that recovery's
     source, by its first frame's time: a later crash's is recovered in its turn."""
     try:
-        meant = (folder / RECOVERED[2]).read_text(encoding="ascii").split()
+        meant = (folder / RECOVERED_NAME).read_text(encoding="ascii").split()
         name, first_ms = meant[0], int(meant[1])
     except OSError, ValueError, IndexError:
         name, first_ms = "", 0
@@ -402,15 +404,15 @@ def _first_ms(times: Path) -> int | None:
 def _name_recovery(folder: Path, name: str) -> None:
     """A recovery's copy given its name, the times first, then the name it was to
     take forgotten."""
-    for left, suffix in ((RECOVERED[1], ".times"), (RECOVERED[0], ".mkv")):
+    for left, suffix in ((RECOVERED_TIMES, ".times"), (RECOVERED_MKV, ".mkv")):
         if (folder / left).exists():
             (folder / left).replace(folder / f"{name}{suffix}")
-    (folder / RECOVERED[2]).unlink(missing_ok=True)
+    (folder / RECOVERED_NAME).unlink(missing_ok=True)
 
 
 def _drop_recovery(folder: Path) -> None:
     """What a recovery copied before it wrote the name it was to take."""
-    for left in RECOVERED:
+    for left in (RECOVERED_MKV, RECOVERED_TIMES, RECOVERED_NAME):
         with contextlib.suppress(OSError):
             (folder / left).unlink(missing_ok=True)
 
