@@ -119,7 +119,7 @@ class Watchdog:
         self.wanted = True
         self._retry_at = None
         (folder_of(self.camera_id) / "stop.request").unlink(missing_ok=True)
-        if alive(heartbeat(self.camera_id)):
+        if self._running(heartbeat(self.camera_id)):
             return
         self._started_ms = time.time_ns() // 1_000_000  # an end before: not its own
         try:
@@ -142,7 +142,7 @@ class Watchdog:
         the pause."""
         info = heartbeat(self.camera_id)
         now = time.monotonic()
-        if alive(info):
+        if self._running(info):
             self.backoff.running(now)
             self._retry_at = None
             return info
@@ -153,6 +153,15 @@ class Watchdog:
         elif now >= self._retry_at:
             self.start()
         return info
+
+    def _running(self, info: dict[str, Any] | None) -> bool:
+        """A fresh heartbeat, unless it is the last of a recorder this window started
+        and saw end without saying why: that one is gone now, not 15 s later. One
+        that ended because another recorder has the camera (3) leaves it to the
+        other's heartbeat."""
+        process = self._process
+        died = process is not None and process.poll() not in (None, 3)
+        return alive(info) and not died
 
     def _ended_by_itself(self, info: dict[str, Any] | None) -> bool:
         """Failed, or the disk full, since this window started it: left for the
