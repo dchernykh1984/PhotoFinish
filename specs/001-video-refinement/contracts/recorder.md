@@ -33,7 +33,8 @@ rtmp://<this computer>:<port>/<path>", the address to type in the camera app.
 
 - Segments and `.times` files as `data-model.md` describes; a segment is renamed from `current.*`
   only after both files are flushed and closed, the `.times` first, and its name is then appended
-  to `segments.txt`, the list readers follow instead of the folder. A recorder that starts lists
+  to `segments.txt`, the list readers follow instead of the folder. The name goes to
+  `closing.name` before the two renames, so a close cut between them is finished by it. A recorder that starts lists
   any closed segment a crash left out. The open segment's `.times` gets a line as each frame is
   written and its video is flushed in clusters of at most 0.1 s, so a crash leaves what came before
   on disk. When the next recorder starts, the frames of a `current.*` a crash left whole, with

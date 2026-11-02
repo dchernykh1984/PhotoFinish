@@ -33,7 +33,7 @@ CLOSED = "[0-9]*-[0-9]*-[0-9]*"  # a closed segment's name, without its suffix
 NAMED = re.compile(r"\d{8}-\d{6}-\d{4,}")  # the same, exactly
 SEGMENTS = "segments.txt"  # the closed segments' names, in the order they closed
 KEYFRAME_SLACK_MS = 100  # a camera's keyframe this much short of a second still cuts
-WRITTEN_TOGETHER_S = 2  # a video and its times, closed or recovered in one go
+CLOSING = "closing.name"  # the name a close gives, written before its two renames
 _MS = Fraction(1, 1000)
 _GOP = 15
 _QUALITY = 3
@@ -127,8 +127,11 @@ class SegmentWriter:
         segment, self._open = self._open, None
         segment.close()
         name = _name(self.folder, segment.first_ms, self.segments + 1)
+        meant = self.folder / CLOSING  # a kill or a refused rename between the two
+        meant.write_text(name, encoding="ascii")  # is finished by it, exactly
         (self.folder / "current.times").replace(self.folder / f"{name}.times")
         (self.folder / "current.mkv").replace(self.folder / f"{name}.mkv")
+        meant.unlink(missing_ok=True)
         self._closed(name)
 
     def _closed(self, name: str) -> None:
@@ -287,46 +290,28 @@ def _see_to(folder: Path, n: int) -> str | None:
 
 
 def _finish_close(folder: Path) -> str | None:
-    """A close cut between its two renames: the times have their name, the video is
-    still ``current.mkv``, and takes the name too when it is theirs. The name, or
-    None."""
-    if (folder / "current.times").exists():
-        return None
-    return _give_its_name(folder / "current.mkv")
-
-
-def _give_its_name(video: Path) -> str | None:
-    """``video`` named after the closed times without a video that are its own: the
-    same frames, written within seconds of it. Never another's, such as times whose
-    video was deleted, sorting after it or not, though a steady camera's segments
-    all have the same pts. The name, or None."""
+    """A close a kill or a refused rename cut between its two renames: the times
+    have the name it wrote first, the video is still ``current.mkv`` and takes that
+    name too. Nothing is guessed: no written name, or one that does not fit, and the
+    video is left to be recovered. The name, or None."""
+    meant = folder / CLOSING
     try:
-        with av.open(str(video)) as opened:
-            found = sorted(pts for _, pts in _whole(opened))
-        made = video.stat().st_mtime
-        named = [
-            times
-            for times in video.parent.glob(f"{CLOSED}.times")
-            if not times.with_suffix(".mkv").exists()
-            and abs(times.stat().st_mtime - made) <= WRITTEN_TOGETHER_S
-            and _frames_of(times) == found
-        ]
-        if not found or not named:
-            return None
-        own = min(named, key=lambda times: abs(times.stat().st_mtime - made))
-        video.replace(own.with_suffix(".mkv"))
-    except OSError, ValueError, IndexError, av.FFmpegError:
-        return None
-    return own.stem
-
-
-def _frames_of(times: Path) -> list[int] | None:
-    """The pts a closed segment's times list, sorted, read by the one rule for times;
-    None when they cannot be read."""
-    try:
-        return sorted(_frame_times(times))
+        name = meant.read_text(encoding="ascii").strip()
     except OSError, ValueError:
         return None
+    cut = (
+        NAMED.fullmatch(name)
+        and not (folder / "current.times").exists()
+        and (folder / f"{name}.times").exists()
+        and not (folder / f"{name}.mkv").exists()
+    )
+    try:
+        if cut:
+            (folder / "current.mkv").replace(folder / f"{name}.mkv")
+        meant.unlink(missing_ok=True)  # done, or a name that fits nothing here
+    except OSError:
+        return None
+    return name if cut else None
 
 
 def _name(folder: Path, first_ms: int, n: int) -> str:
