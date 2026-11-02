@@ -140,7 +140,7 @@ def test_a_stop_request_closes_the_segment_and_ends_the_recorder(
 ) -> None:
     states = cameras(monkeypatch, Camera(folder, START, 100, stop_after=70))
     assert run("cam1") == 0
-    assert states == ["connecting", "recording", "stopped"]
+    assert states == ["starting", "connecting", "recording", "stopped"]
     beat = heartbeat(folder)
     assert (beat["state"], beat["frames"], beat["pid"]) == ("stopped", 71, os.getpid())
     assert beat["segments"] == 3  # the one closed on the stop counted too
@@ -161,6 +161,7 @@ def test_a_camera_that_fails_is_opened_again_and_the_gap_kept(
     )
     assert run("cam1") == 0
     assert states == [
+        "starting",
         "connecting",
         "recording",
         "reconnecting",
@@ -324,6 +325,23 @@ def test_a_list_with_bytes_that_are_not_ascii_does_not_stop_the_recording(
     assert list(folder.glob("*-*-*.mkv"))
 
 
+def test_a_starting_recorder_says_so_before_it_sees_to_a_crash(
+    folder: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    folder.mkdir(parents=True)
+    (folder / "recorder.json").write_text('{"state": "recording", "pid": 1}')
+    seen: list[dict[str, Any]] = []
+
+    def recovering(folder: Path) -> list[str]:
+        seen.append(heartbeat(folder))
+        return []
+
+    monkeypatch.setattr(recorder, "recover", recovering)
+    session.save({**session.DEFAULTS, "cameras": []})
+    run("cam1")
+    assert (seen[0]["state"], seen[0]["pid"]) == ("starting", os.getpid())
+
+
 def test_a_camera_with_a_recorder_gets_no_second_one(
     folder: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -413,7 +431,7 @@ def test_a_write_that_fails_otherwise_is_tried_again(
 
     monkeypatch.setattr(SegmentWriter, "write", flaky)
     assert run("cam1") == 0
-    assert states[:3] == ["connecting", "reconnecting", "connecting"]
+    assert states[:4] == ["starting", "connecting", "reconnecting", "connecting"]
 
 
 class Network:
