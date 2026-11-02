@@ -266,9 +266,9 @@ def _see_to(folder: Path, n: int) -> str | None:
     """What a crash or a failed close left: a close cut between its renames
     finished, else the whole frames of ``current.*`` made a closed segment numbered
     ``n`` or after, the rest kept aside. The segment's name, for the caller to list."""
-    name = _finish_close(folder)
-    if name is None and (folder / "current.mkv").exists():
-        name = _recover(folder, n)
+    if not (folder / "current.mkv").exists():
+        return None  # the usual case, a segment a second: one look, no more
+    name = _finish_close(folder) or _recover(folder, n)
     _keep_aside(folder)
     return name
 
