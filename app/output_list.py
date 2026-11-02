@@ -18,6 +18,7 @@ polls, and every change checks first.
 from __future__ import annotations
 
 import functools
+import glob
 import hashlib
 import json
 import re
@@ -351,6 +352,7 @@ class OutputList:
             return
         self._written = body
         self.check_outside()
+        self._copy_if_missing()
 
     def _start_from_file(self, journal: _Replayed | None = None) -> None:
         """No state: crossings already in the file start the list, in time order, and
@@ -398,6 +400,17 @@ class OutputList:
         body = self._body()
         _write_in_one_step(self.path, body)
         self._written, self._written_stat = body, files.stat(self.path)
+
+    def _copy_if_missing(self) -> None:
+        """A crash between a change's write and its copy: the copy made now, when the
+        newest copy is not the file as it is."""
+        pattern = f"{glob.escape(self.path.stem)}-*{glob.escape(self.path.suffix)}"
+        try:
+            newest = max(_copies().glob(pattern), default=None)
+        except OSError:
+            newest = None
+        if newest is None or _read(newest) != self._written:
+            self._keep_copy()
 
     def _keep_copy(self) -> None:
         """The output as this change left it, beside the copies before it; one the
