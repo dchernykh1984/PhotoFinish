@@ -111,6 +111,42 @@ def test_a_dead_recorder_whose_restart_was_refused_is_not_taken_for_alive(
         assert len(spawns.processes) == started  # after the pause, not 15 s on
 
 
+class BeatsAsItDies(Process):
+    """Killed just after a last beat, which the window read the file before."""
+
+    def __init__(self, folder: Path) -> None:
+        super().__init__()
+        self.folder, self.last_beat = folder, False
+
+    def poll(self) -> int | None:
+        if self.code is not None and not self.last_beat:
+            self.last_beat = True
+            time.sleep(0.002)
+            beat(self.folder, "recording")
+        return self.code
+
+
+def test_a_recorder_killed_just_after_a_beat_is_not_taken_for_another(
+    folder: Path, clock: dict[str, float]
+) -> None:
+    made: list[Process] = []
+
+    def spawning(camera_id: str) -> Any:
+        made.append(BeatsAsItDies(folder) if not made else Process())
+        return made[-1]
+
+    watchdog = Watchdog("cam1", spawning)
+    watchdog.start()
+    beat(folder, "recording")
+    clock["now"] = 1000.5
+    watchdog.poll()
+    made[-1].code = -9
+    for moment, started in ((1001, 1), (1002, 2)):
+        clock["now"] = moment
+        watchdog.poll()
+        assert len(made) == started  # its last beat is its own, not a live one's
+
+
 def test_a_running_recorder_is_attached_not_started_again(folder: Path) -> None:
     beat(folder, "recording")
     spawns = Spawns()

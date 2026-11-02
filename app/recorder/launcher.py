@@ -166,15 +166,18 @@ class Watchdog:
         camera locked (3) leaves it to the heartbeat, but not within 15 s of such an
         end with no beat since: the lock may still be the dead one's (Windows lets go
         of it late). Each one's end is marked, one that beat and died between two
-        polls too. No pid is guessed: a frozen build fronts its recorder."""
+        polls too, with the heartbeat read once that end is seen: a beat it wrote
+        just before is its own. No pid is guessed: a frozen build fronts it."""
         process = self._process
         code = None if process is None else process.poll()
-        now = time.monotonic()
-        beat_ms = 0 if info is None else int(info.get("heartbeat_ms", 0))
         if code is None:
             return alive(info)
+        now = time.monotonic()
         if code != 3 and self._dead is not process:
-            self._died_at, self._died_beat, self._dead = now, beat_ms, process
+            info = heartbeat(self.camera_id)  # read since its end: no beat of it after
+            self._died_at, self._dead = now, process
+            self._died_beat = 0 if info is None else int(info.get("heartbeat_ms", 0))
+        beat_ms = 0 if info is None else int(info.get("heartbeat_ms", 0))
         beating = beat_ms != self._died_beat  # since that end: another recorder's
         if code != 3:
             return beating and alive(info)
