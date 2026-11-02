@@ -284,6 +284,16 @@ def test_a_recovery_killed_before_its_copy_had_its_name_is_finished(
     assert not (tmp_path / "recovered.mkv").exists()
 
 
+def test_the_times_of_an_open_gops_leading_frames_are_read(tmp_path: Path) -> None:
+    left = tmp_path / "current.times"
+    left.write_text(f"-40 {START - 40}\n0 {START}\n40 {START + 40}\n80 x\n120")
+    assert segments_module._frame_times(left) == {
+        -40: START - 40,
+        0: START,
+        40: START + 40,
+    }  # a line not two numbers, and the last one cut short, left out
+
+
 def test_what_a_crash_left_with_no_whole_frame_is_kept_aside(tmp_path: Path) -> None:
     (tmp_path / "current.mkv").write_bytes(b"")
     (tmp_path / "current.times").write_text(f"0 {START}\n")

@@ -330,7 +330,8 @@ def _recover(folder: Path, n: int) -> str | None:
     failure or a crash meanwhile neither shows a frame twice nor loses one."""
     copy = folder / "recovered.mkv"
     try:
-        kept = _copy_whole(folder / "current.mkv", copy, _frame_times(folder))
+        frames = _frame_times(folder / "current.times")
+        kept = _copy_whole(folder / "current.mkv", copy, frames)
         if not kept:
             copy.unlink(missing_ok=True)
             return None
@@ -346,15 +347,17 @@ def _recover(folder: Path, n: int) -> str | None:
     return name
 
 
-def _frame_times(folder: Path) -> dict[int, int]:
-    """The open segment's ``pts -> ms``, in frame order; a last line a kill cut
-    short, its line end missing, is left out."""
+def _frame_times(times: Path) -> dict[int, int]:
+    """A segment's ``pts -> ms`` as its times file has them, in frame order; a last
+    line a kill cut short, its line end missing, is left out, as is one that is not
+    two numbers. A pts may be negative: an open GOP's leading frames."""
     found: dict[int, int] = {}
-    text = (folder / "current.times").read_text(encoding="ascii")
+    text = times.read_text(encoding="ascii")
     for line in text.split("\n")[:-1]:  # the last piece: empty, or cut short
         fields = line.split()
-        if len(fields) == 2 and all(f.isdigit() for f in fields):
-            found[int(fields[0])] = int(fields[1])
+        if len(fields) == 2:
+            with contextlib.suppress(ValueError):
+                found[int(fields[0])] = int(fields[1])
     return found
 
 
