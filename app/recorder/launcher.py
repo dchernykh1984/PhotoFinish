@@ -130,7 +130,7 @@ class Watchdog:
         try:
             self._process = (self._spawn or spawn)(self.camera_id)
         except OSError as error:  # moved, or blocked: tried again after the pause
-            self._process, self.error = None, str(error)
+            self.error = str(error)  # the dead one kept: its beat not taken for alive
             return
         self.error = ""
         self._started = time.monotonic()
