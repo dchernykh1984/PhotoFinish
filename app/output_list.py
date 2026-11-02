@@ -372,6 +372,8 @@ class OutputList:
         self._written = None if self.lines else found
         if not self.check_outside():
             self._write()
+        if self._written:  # the file as this list first wrote it; an empty one, no
+            self._copy_if_missing()
 
     def _keep_outside_version(self, polled: bool = False) -> bool:
         # shortcut: a poll trusts the size, time and inode: a file rewritten in place,
