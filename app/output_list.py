@@ -18,7 +18,6 @@ polls, and every change checks first.
 from __future__ import annotations
 
 import functools
-import glob
 import hashlib
 import json
 import re
@@ -404,9 +403,13 @@ class OutputList:
     def _copy_if_missing(self) -> None:
         """A crash between a change's write and its copy: the copy made now, when the
         newest copy is not the file as it is."""
-        pattern = f"{glob.escape(self.path.stem)}-*{glob.escape(self.path.suffix)}"
+        stamped = re.compile(
+            re.escape(self._copy_stem())
+            + r"-\d{8}-\d{6}-\d{6}(-\d+)?"
+            + re.escape(self.path.suffix)
+        )
         try:
-            newest = max(_copies().glob(pattern), default=None)
+            newest = _newest(_copies(), stamped)
             same = newest is not None and _read(newest) == self._written
         except OSError:  # a copy that cannot be read never keeps the output shut
             same = False
@@ -420,7 +423,7 @@ class OutputList:
         # (as the chronometers' backups do); prune it once the set has a policy.
         try:
             folder = _copies()
-            name = f"{self.path.stem}-{datetime.now():%Y%m%d-%H%M%S-%f}"
+            name = f"{self._copy_stem()}-{datetime.now():%Y%m%d-%H%M%S-%f}"
             copy, n = folder / f"{name}{self.path.suffix}", 0
             while copy.exists():  # never over another copy
                 n += 1
@@ -428,6 +431,12 @@ class OutputList:
             _write_in_one_step(copy, self._written or b"")  # whole, or not there
         except OSError as error:
             self.copy_refused = error
+
+    def _copy_stem(self) -> str:
+        """The copies' name: the output's, and six hex of its place, so outputs of one
+        name in two folders keep their copies apart."""
+        place = hashlib.sha1(str(self.path.resolve()).encode(), usedforsecurity=False)
+        return f"{self.path.stem}-{place.hexdigest()[:6]}"
 
     def _state(self) -> bytes:
         lines = [asdict(line) for line in self.lines]
@@ -587,13 +596,19 @@ def _backup(path: Path, data: bytes) -> Path:
     """The outside version kept beside the file, unless the newest backup holds it
     already: a list opened again at each poll while the file is held keeps it once."""
     stamped = re.compile(re.escape(path.name) + r"\.outside-[\d-]+")
-    kept = [p for p in path.parent.iterdir() if stamped.fullmatch(p.name)]
-    newest = max(kept, key=lambda p: p.name, default=None)
+    newest = _newest(path.parent, stamped)
     if newest is not None and _read(newest) == data:
         return newest
     backup = _aside(path, "outside")
     _write_in_one_step(backup, data)
     return backup
+
+
+def _newest(folder: Path, stamped: re.Pattern[str]) -> Path | None:
+    """The file of ``folder`` named as ``stamped`` says, written last: by its time on
+    disk, not its name, which an hour the clock goes back sorts out of order."""
+    found = [p for p in folder.iterdir() if stamped.fullmatch(p.name)]
+    return max(found, key=lambda p: p.stat().st_mtime_ns, default=None)
 
 
 def _copies() -> Path:

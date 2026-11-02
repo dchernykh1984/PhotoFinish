@@ -12,7 +12,8 @@
 - Replaced in one step (temporary file, flush, fsync, rename); a reader sees the old or the new
   file, never a mix.
 - After each change a copy of the file as it left it goes to `temp/` next to the program, as
-  `<output stem>-<YYYYmmdd-HHMMSS-ffffff><suffix>`, never over another copy. A copy that cannot be
+  `<output stem>-<place>-<YYYYmmdd-HHMMSS-ffffff><suffix>`, `<place>` six hex of the output's path
+  so outputs of one name in two folders keep apart, never over another copy. A copy that cannot be
   written is said; the change stays done.
 
 ## Journal (`<output file>.journal.txt`)
