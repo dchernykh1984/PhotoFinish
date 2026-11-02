@@ -329,6 +329,19 @@ def test_after_a_crash_between_the_state_and_the_file_the_state_wins(
     assert broken_or_not(path).outside_kept
 
 
+def test_a_change_a_crash_cut_before_its_copy_gets_one_at_the_next_start(
+    path: Path, copies: Path
+) -> None:
+    out = OutputList(path)
+    take(out, TAKEN)
+    old = path.read_bytes()
+    take(out, "16#20389 11:35:30.000#nextLap#")
+    path.write_bytes(old)  # the crash: the state written, not the file
+    max(copies.glob("out-*.txt")).unlink()  # nor its copy
+    OutputList(path)
+    assert max(copies.glob("out-*.txt")).read_bytes() == path.read_bytes()
+
+
 def test_a_change_that_cannot_be_written_is_undone(
     path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

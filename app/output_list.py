@@ -343,9 +343,11 @@ class OutputList:
         self._before = state.get("output_before")
         if found not in (None, body) and _digest(found) == self._before:
             # A crash between the state and the file: the file the list wrote before,
-            # not one changed outside. Brought up to the state, nothing kept aside.
+            # not one changed outside. Brought up to the state, nothing kept aside;
+            # the copy the crash cut short made now.
             self._written = found
             self._write()
+            self._keep_copy()
             return
         self._written = body
         self.check_outside()
