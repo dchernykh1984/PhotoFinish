@@ -861,6 +861,32 @@ def test_a_cut_close_refused_again_waits_for_its_name_never_split(
     assert (tmp_path / "segments.txt").read_text().split() == [first.stem, last.stem]
 
 
+def test_a_recovery_left_unnamed_is_named_and_listed_at_the_next_segment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def broken(self: object) -> None:
+        raise av.FFmpegError(5, "mux failed")
+
+    def held(folder: Path, name: str) -> None:
+        raise OSError("held by a reader")
+
+    writer = SegmentWriter(tmp_path, fps=30)
+    record(writer, START, 5)
+    monkeypatch.setattr(segments_module._Encoded, "close", broken)
+    with pytest.raises(av.FFmpegError):
+        writer.close()
+    monkeypatch.undo()
+    monkeypatch.setattr(segments_module, "_name_recovery", held)
+    record(writer, START + 5000, 5)  # recovered; its copy cannot take its name yet
+    monkeypatch.undo()
+    writer.close()  # every close after it goes well
+    record(writer, START + 7000, 2)
+    writer.close()
+    listed = (tmp_path / "segments.txt").read_text().split()
+    assert sorted(listed) == [p.stem for p in segments(tmp_path)]  # in this run
+    assert writer.segments == 3
+
+
 def test_a_close_that_named_its_times_only_is_finished_while_recording(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
