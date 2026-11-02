@@ -349,6 +349,21 @@ def test_a_recovery_killed_before_its_times_takes_the_times_kept_aside(
     assert not (tmp_path / "recovered.mkv").exists()
 
 
+def test_a_segment_never_takes_the_name_of_times_left_alone(tmp_path: Path) -> None:
+    writer = SegmentWriter(tmp_path, fps=30)
+    record(writer, START, 5)
+    writer.close()
+    (closed,) = segments(tmp_path)
+    alone = closed.with_suffix(".times")
+    kept = alone.read_text()
+    closed.unlink()  # its video gone aside: its times alone, and unlisted
+    (tmp_path / "segments.txt").unlink()
+    again = SegmentWriter(tmp_path, fps=30)
+    record(again, START + 100, 3)  # a clock set back: other frames, that second
+    again.close()
+    assert alone.read_text() == kept
+
+
 def test_what_a_crash_left_with_no_whole_frame_is_kept_aside(tmp_path: Path) -> None:
     (tmp_path / "current.mkv").write_bytes(b"")
     (tmp_path / "current.times").write_text(f"0 {START}\n")
