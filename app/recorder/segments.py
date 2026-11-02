@@ -255,6 +255,8 @@ def recover(folder: Path) -> list[str]:
     it did not list listed, the frames it left whole in ``current.*`` made one, the
     rest kept aside. A recorder does it as it starts, before its camera is back."""
     folder.mkdir(parents=True, exist_ok=True)
+    if (folder / "recovered.mkv").exists():  # a recovery cut between times and name
+        _give_its_name(folder / "recovered.mkv")  # listed with the others below
     closed = _list_missing(folder)
     if name := _see_to(folder, len(closed) + 1):
         append(folder / SEGMENTS, f"{name}\n".encode("ascii"))  # else at the next start
