@@ -406,7 +406,6 @@ class OutputList:
         # (as the chronometers' backups do); prune it once the set has a policy.
         try:
             folder = _copies()
-            folder.mkdir(parents=True, exist_ok=True)
             name = f"{self.path.stem}-{datetime.now():%Y%m%d-%H%M%S-%f}"
             copy, n = folder / f"{name}{self.path.suffix}", 0
             while copy.exists():  # never over another copy
