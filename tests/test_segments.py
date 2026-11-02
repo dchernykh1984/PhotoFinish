@@ -350,6 +350,27 @@ def test_a_recovery_killed_before_it_wrote_its_name_is_done_again_from_the_crash
     assert not (tmp_path / "recovered.mkv").exists()
 
 
+def test_a_crash_that_killed_the_recorder_as_it_was_read_is_kept_aside_unread(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    killed_while_recording(tmp_path, 20)
+
+    def killed(left: Path, copy: Path, frames: dict[int, int]) -> None:
+        raise SystemExit(1)  # the file brought the reader down, libav and all
+
+    monkeypatch.setattr(segments_module, "_copy_whole", killed)
+    with pytest.raises(SystemExit):
+        SegmentWriter(tmp_path, fps=30)
+    writer = SegmentWriter(tmp_path, fps=30)  # the next start: not brought down
+    assert writer.segments == 0
+    assert {p.suffix for p in tmp_path.glob("crashed-*")} == {".mkv", ".times"}
+    assert not (tmp_path / "current.mkv").exists()
+    monkeypatch.undo()
+    killed_while_recording(tmp_path, 20, start=START + 60_000)  # a later crash
+    SegmentWriter(tmp_path, fps=30)
+    assert len(segments(tmp_path)) == 1  # read as any other
+
+
 def test_a_segment_never_takes_the_name_of_times_left_alone(tmp_path: Path) -> None:
     writer = SegmentWriter(tmp_path, fps=30)
     record(writer, START, 5)

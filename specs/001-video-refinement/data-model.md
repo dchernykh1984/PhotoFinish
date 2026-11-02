@@ -17,6 +17,7 @@ video/<camera id>/
   crashed-<ms>.mkv, .times         a segment a crash left open, kept as it was, not shown
   recovered.mkv, .times, .name     a recovery under way: its copy, its times, the name it takes
   closing.name                     the name a close gives, written before its two renames
+  reading.crash                    there while a crash is read: one that kills is read once
   gaps.txt                         "<from ms> <to ms> <reason>" per gap
 <output file>                      chosen by the referee
 <output file>.state.json           origin and marks of each output line, the input as last taken

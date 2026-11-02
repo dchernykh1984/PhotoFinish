@@ -34,6 +34,7 @@ NAMED = re.compile(r"\d{8}-\d{6}-\d{4,}")  # the same, exactly
 SEGMENTS = "segments.txt"  # the closed segments' names, in the order they closed
 KEYFRAME_SLACK_MS = 100  # a camera's keyframe this much short of a second still cuts
 CLOSING = "closing.name"  # the name a close gives, written before its two renames
+READING = "reading.crash"  # there while a crash is read: one that kills is read once
 _MS = Fraction(1, 1000)
 _GOP = 15
 _QUALITY = 3
@@ -334,11 +335,18 @@ def _recover(folder: Path, n: int) -> str | None:
     The copy and its times are written, then the name it is to take, and only then
     is the crash kept aside and the copy named: a kill before the name is written
     leaves the crash to recover again, one after it is finished as meant by the next
-    start. Neither shows a frame twice, nor loses one, nor guesses."""
+    start. Neither shows a frame twice, nor loses one, nor guesses. A crash that
+    brought the recorder down as it was read, libav and all, is kept aside unread
+    at the next start, not read again by every recorder that starts."""
     copy, copied, meant = (folder / name for name in RECOVERED)
+    reading = folder / READING
+    if reading.exists():
+        return None  # the last read of it never ended: it goes aside unread
     try:
         frames = _frame_times(folder / "current.times")
+        reading.touch()
         kept = _copy_whole(folder / "current.mkv", copy, frames)
+        reading.unlink()  # read to its end, or to an error it said
         if not kept:
             copy.unlink(missing_ok=True)
             return None
@@ -464,6 +472,7 @@ def _keep_aside(folder: Path) -> None:
     for left in (times, video):
         if left.exists():
             left.replace(folder / f"crashed-{stamp}{left.suffix}")
+    (folder / READING).unlink(missing_ok=True)  # the crash it was there for is aside
 
 
 def _last_recorded(folder: Path, closed: list[str]) -> int | None:
