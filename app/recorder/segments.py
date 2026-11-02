@@ -83,11 +83,15 @@ class SegmentWriter:
     def _segment[T: (_Encoded, _Remuxed)](
         self, kind: type[T], begun: Callable[[], T]
     ) -> T:
-        """The open segment when it is of ``kind``; else the open one closed, what one
-        that failed to close left kept aside, and a new one begun."""
+        """The open segment when it is of ``kind``; else the open one closed, the whole
+        frames of one that failed to close made a segment and the rest kept aside,
+        and a new one begun."""
         opened = self._open if isinstance(self._open, kind) else None
         if opened is None:
             self.close()
+            left = (self.folder / "current.mkv").exists()
+            if left and _recover(self.folder, self.segments + 1):
+                self.segments += 1
             _keep_aside(self.folder)
             opened = begun()
             self._open = opened

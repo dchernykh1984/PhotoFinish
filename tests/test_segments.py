@@ -300,9 +300,12 @@ def test_a_segment_that_fails_to_close_is_kept_not_written_over(
     monkeypatch.undo()
     record(writer, START + 5000, 2)
     (kept,) = tmp_path.glob("crashed-*.times")
-    assert len(kept.read_text().splitlines()) == 5  # the five frames, kept
+    assert len(kept.read_text().splitlines()) == 5  # the five frames, kept as they were
     writer.close()
-    assert times(segments(tmp_path)[-1]) == [(0, START + 5000), (33, START + 5033)]
+    recovered, last = segments(tmp_path)
+    assert [ms for _, ms in times(recovered)][:3] == [START, START + 33, START + 66]
+    assert times(last) == [(0, START + 5000), (33, START + 5033)]
+    assert writer.segments == 2
 
 
 def test_closed_segments_are_listed_and_a_restart_lists_any_a_crash_missed(
