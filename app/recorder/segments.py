@@ -371,7 +371,8 @@ def _recover(folder: Path, n: int) -> str | None:
         frames = _frame_times(folder / "current.times")
         reading.touch()
         kept = _copy_whole(folder / "current.mkv", copy, frames)
-        reading.unlink()  # read to its end, or to an error it said
+        with contextlib.suppress(OSError):  # read to its end; one held a moment is
+            reading.unlink()  # cleared as the crash goes aside
         if not kept:
             copy.unlink(missing_ok=True)
             return None
