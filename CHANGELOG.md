@@ -1,5 +1,99 @@
 # Changelog
 
+## [0.3.0](https://github.com/dchernykh1984/PhotoFinish/compare/v0.2.0...v0.3.0) (2026-11-02)
+
+
+### Features
+
+* **output:** keep a copy of the output after every change ([17a48c7](https://github.com/dchernykh1984/PhotoFinish/commit/17a48c7e82d1a3e2897bb3acd41372e1191cafa3))
+
+
+### Bug Fixes
+
+* **output:** copy an opened output though its journal refuses ([9348d93](https://github.com/dchernykh1984/PhotoFinish/commit/9348d930293bf9414863627a8ab8d938218c3896))
+* **output:** copy an output adopted from its file as the list first writes it ([3a2bf63](https://github.com/dchernykh1984/PhotoFinish/commit/3a2bf63fb51d68bd584581ccb267a4b746424359))
+* **output:** copy the output a crash left behind once it is brought up to the state ([853c0f5](https://github.com/dchernykh1984/PhotoFinish/commit/853c0f511b39ed0448ac99d15f9de66096b7de90))
+* **output:** copy the output when it is opened if a crash came before its last copy ([d6beaf5](https://github.com/dchernykh1984/PhotoFinish/commit/d6beaf551bd52563a0aee26598d0393255da2c1e))
+* **output:** find the newest copy or backup though one goes meanwhile, ties by name ([238740a](https://github.com/dchernykh1984/PhotoFinish/commit/238740a411ec0be7de9a5cf92ff318ee5336be70))
+* **output:** keep each output's copies apart and find the newest by its time ([abb3040](https://github.com/dchernykh1984/PhotoFinish/commit/abb30401403d718f0f0c58680d6f01ee79f5cce7))
+* **output:** name the copies of an output whose path is not UTF-8 ([b471283](https://github.com/dchernykh1984/PhotoFinish/commit/b471283753e644a94fd760d1b89ec7bc3146d2f2))
+* **output:** open the output whatever keeps its newest copy from being read ([f57d9b2](https://github.com/dchernykh1984/PhotoFinish/commit/f57d9b2c49e65813f9a38f3579540bffb454c460))
+* **output:** write the copy of the output in one step like the output itself ([f6d64d0](https://github.com/dchernykh1984/PhotoFinish/commit/f6d64d01d52a92e5d1c39e1433433e8eaf32918a))
+* **record:** count a segment once its close has named it, not before ([47143f9](https://github.com/dchernykh1984/PhotoFinish/commit/47143f9d8b113c1d85611234970597529000a7a3))
+* **record:** count no segment for a name a kill cut short in the list ([204dcd4](https://github.com/dchernykh1984/PhotoFinish/commit/204dcd4ac200a21352f76a6ac7584c75b6e513f2))
+* **record:** drop the copy of a recovery that failed, the crash's files being kept ([0ead4f2](https://github.com/dchernykh1984/PhotoFinish/commit/0ead4f2d93889d351a2aff870ae5bfdebebe8399))
+* **record:** end in disk_full when the writer's own recovery finds the disk full ([8d01bcd](https://github.com/dchernykh1984/PhotoFinish/commit/8d01bcd3fd87fa720172639b28ca896ab6647a52))
+* **record:** find a cut close's own times among others alike, by when they were written ([d69c7ed](https://github.com/dchernykh1984/PhotoFinish/commit/d69c7edf7a4bea5d05dc02d2a4932bbeb7452103))
+* **record:** finish a close a crash cut between its two renames ([13a772d](https://github.com/dchernykh1984/PhotoFinish/commit/13a772db9e5d529c6c3ea34cc8f9fba82b4873cf))
+* **record:** finish a cut close by the name it wrote first, guessing nothing ([df377b0](https://github.com/dchernykh1984/PhotoFinish/commit/df377b0b7389738948faaf634197ab6981a42278))
+* **record:** finish a recovery a kill cut by the name it wrote, not by a guess ([60070e6](https://github.com/dchernykh1984/PhotoFinish/commit/60070e65030506fa0b39bf7ebd1999c3913a8e5a))
+* **record:** finish at a start a recovery killed before its copy had its name ([b772285](https://github.com/dchernykh1984/PhotoFinish/commit/b772285eed003497a0c09a3b0f7ec5495afe5056))
+* **record:** finish while recording a close that named its times only ([4f96591](https://github.com/dchernykh1984/PhotoFinish/commit/4f96591867dd83058b8fc5d89dafaafd4f8af866))
+* **record:** give a cut close's video its name only when its frames are those times ([40851fb](https://github.com/dchernykh1984/PhotoFinish/commit/40851fb0dcd321df41c31663a84dc045bfca63a8))
+* **record:** give a recovery killed before its times the times it kept aside ([778e440](https://github.com/dchernykh1984/PhotoFinish/commit/778e440beeced083b2571aeb9f7e6aa66416e0bf))
+* **record:** give a video only the name of times written with it ([97e9e92](https://github.com/dchernykh1984/PhotoFinish/commit/97e9e929630466444570508c3ec256badc80297c))
+* **record:** judge a recorder by this window's own start and end, guessing no pid ([470196b](https://github.com/dchernykh1984/PhotoFinish/commit/470196b0a9399420fb457a8b2c810fae15284e97))
+* **record:** keep a crash read whole though its mark cannot be cleared just then ([51c34cf](https://github.com/dchernykh1984/PhotoFinish/commit/51c34cfb8322208b9e2eeae3be5ee2592ba9b7f2))
+* **record:** keep a crash's two files under one stamp when keeping them aside was cut ([5de3d7d](https://github.com/dchernykh1984/PhotoFinish/commit/5de3d7de70ab78d93aef6ad19d35acc81c44519f))
+* **record:** keep a dead recorder's end when its restart is refused, not trust its beat ([bf077c7](https://github.com/dchernykh1984/PhotoFinish/commit/bf077c7b70b47c5ca295ba70d30ae2d04d2e2f7a))
+* **record:** keep a recovery whose name is held a moment, not drop its copy ([0d468dc](https://github.com/dchernykh1984/PhotoFinish/commit/0d468dcb8d9e1fd4b220906b0925c76c0b2136c4))
+* **record:** keep aside only the crash a recovery came from, not a later one ([9d55ac0](https://github.com/dchernykh1984/PhotoFinish/commit/9d55ac072e43714017fcd1e3af1d08578a3a894d))
+* **record:** keep aside unread a crash that brought the recorder down as it was read ([e791c31](https://github.com/dchernykh1984/PhotoFinish/commit/e791c31585a0a0787eb0059b1b22ae920c0fb962))
+* **record:** keep the frames before a crash's cut, whatever error reading it ends in ([b2e70ea](https://github.com/dchernykh1984/PhotoFinish/commit/b2e70ea3525631f3f9b226df02095626aa2616c8))
+* **record:** keep what a crash left as it was until its frames are a segment ([3d147be](https://github.com/dchernykh1984/PhotoFinish/commit/3d147bee6ad52b4cedc69d41971b277b9010450d))
+* **record:** know a recovery's source by its times' first line, as the check reads it ([8609699](https://github.com/dchernykh1984/PhotoFinish/commit/8609699716107e4a5b02501702a9eb7b3ea18f22))
+* **record:** know this window's recorder by its own pid, through a start the dead one's lock refused ([2efb48e](https://github.com/dchernykh1984/PhotoFinish/commit/2efb48e42b2d9cd784ec4e83b56a2955fda2908d))
+* **record:** leave a camera to the recorder whose heartbeat came after this one ended ([b935135](https://github.com/dchernykh1984/PhotoFinish/commit/b93513566a9a60fc172911abf821083c16bc900d))
+* **record:** leave out a frame time a kill cut short ([3ef66ab](https://github.com/dchernykh1984/PhotoFinish/commit/3ef66ab8d366d3480af2e070252ae479337f8d4c))
+* **record:** leave the camera to a recorder whose heartbeat moved since this one died ([2d52aea](https://github.com/dchernykh1984/PhotoFinish/commit/2d52aeaf241cda8c1d51bd8df8e61910250e111c))
+* **record:** let a cut close refused again wait for its name, never split it ([52002b9](https://github.com/dchernykh1984/PhotoFinish/commit/52002b9c27c14c2522f65672a05675de93cf85a2))
+* **record:** let a segment's times go when its video will not close ([ce1088f](https://github.com/dchernykh1984/PhotoFinish/commit/ce1088f1f40ab2c9ef0f9cd62e9bda4a98250bc9))
+* **record:** list a closed segment though a scanner holds the name it wrote first ([d6d2bb3](https://github.com/dchernykh1984/PhotoFinish/commit/d6d2bb36fa89e2d6b0af079abaff61b751fbc228))
+* **record:** list a recovered segment once, by its recovery, not again as missed ([a71a335](https://github.com/dchernykh1984/PhotoFinish/commit/a71a335067d2544c51e3c68150b9a59d3ad152ce))
+* **record:** list a recovery named late during a run at once, not at the next start ([7139310](https://github.com/dchernykh1984/PhotoFinish/commit/7139310738242279c0fda1f63dfa2629df2badf1))
+* **record:** list a segment recovered while recording as a closed one is, refused or not ([6e103f7](https://github.com/dchernykh1984/PhotoFinish/commit/6e103f72e0f9081b95710342302dd6422838a082))
+* **record:** mark a dead recorder's end only once its heartbeat reads, not with 0 ([e4c8e8d](https://github.com/dchernykh1984/PhotoFinish/commit/e4c8e8d90d498fb4cb3876ae5ebabb8f3391cc59))
+* **record:** name a recovery left unnamed before the next one, never write it over ([d5787c9](https://github.com/dchernykh1984/PhotoFinish/commit/d5787c9e1e5b90d7439191671091f25806db8bba))
+* **record:** name and list a recovery left unnamed as the next segment starts ([71c2f43](https://github.com/dchernykh1984/PhotoFinish/commit/71c2f43fb5314897d9f249d0f57a6969430332df))
+* **record:** name no segment over times left alone ([f77b0d4](https://github.com/dchernykh1984/PhotoFinish/commit/f77b0d48d070c2601869370c078c0e6d7d99d99e))
+* **record:** never give a segment the name a recovery's copy is still to take ([653494b](https://github.com/dchernykh1984/PhotoFinish/commit/653494bbb283f46b25259dc9c7457c6b81fcc009))
+* **record:** never keep a crash aside over one kept in the same millisecond ([673c7d1](https://github.com/dchernykh1984/PhotoFinish/commit/673c7d1afba236abd3b77b24e7f267becaffbb64))
+* **record:** note a dead recorder's last beat as read after its end, not before ([be8f223](https://github.com/dchernykh1984/PhotoFinish/commit/be8f2238a8edc74594044e00941cc57abf3fdeb3))
+* **record:** pair a crash's video only with its own times, by the stamp written first ([d8b8b5d](https://github.com/dchernykh1984/PhotoFinish/commit/d8b8b5d4ba4116fb115dee916c39520cd276c116))
+* **record:** put a segment's frames and times on disk as they are written ([06d882f](https://github.com/dchernykh1984/PhotoFinish/commit/06d882fe60b844755c93276940a50a5d2c4dec6a))
+* **record:** read the negative pts of an open GOP's leading frames when recovering ([2a3653b](https://github.com/dchernykh1984/PhotoFinish/commit/2a3653ba0e0d0571374dc1ad6d422748377aa76a))
+* **record:** record on past a segment list with bytes that are not ASCII ([1da2d07](https://github.com/dchernykh1984/PhotoFinish/commit/1da2d071d59ffb106af44335f34f1661c3057f56))
+* **record:** round a negative pts to ms as the muxer does, half away from zero ([1b7767c](https://github.com/dchernykh1984/PhotoFinish/commit/1b7767ca9cd92c3ebf8ccc2f150e368a36a4bfac))
+* **record:** say a full disk met by a recovery and leave the crash for later ([c242d6b](https://github.com/dchernykh1984/PhotoFinish/commit/c242d6b9374a5d2a7465bc24a71520f8324f5076))
+* **record:** say starting before seeing to a crash, not the dead run's last word ([b8d8eea](https://github.com/dchernykh1984/PhotoFinish/commit/b8d8eea2dfaedb6281b64ddc7d88d61d4899b7c3))
+* **record:** see to what a crash left as a recorder starts, not at its first frame ([ecbec1a](https://github.com/dchernykh1984/PhotoFinish/commit/ecbec1a089460660a4b18b7ffd121e9bbfb51442))
+* **record:** show the frames a recorder wrote whole before it died ([42dfb1a](https://github.com/dchernykh1984/PhotoFinish/commit/42dfb1a413eed0f5aed1eea9bd864d515d63881c))
+* **record:** show the whole frames of a segment that failed to close ([1406ccd](https://github.com/dchernykh1984/PhotoFinish/commit/1406ccde572f8eb184f4184fc8c4dd3fbb13ce14))
+* **record:** start a recorder again 1 s after it dies ([460f2ac](https://github.com/dchernykh1984/PhotoFinish/commit/460f2acc57c23a4c12d05326be22303cadd8c9fd))
+* **record:** start a recorder whatever stops what a crash left from being seen to ([165638a](https://github.com/dchernykh1984/PhotoFinish/commit/165638ac7caf6f0a506ba33c5e0a74773f6b8b13))
+* **record:** start again at once a recorder that beat and died between two polls ([e306389](https://github.com/dchernykh1984/PhotoFinish/commit/e30638910d151e8abbb1bbaa1a3148e79d101b66))
+* **record:** unmark a crash read to an error it said, so no later one goes unread ([7ac17ca](https://github.com/dchernykh1984/PhotoFinish/commit/7ac17ca0749da4dbc533640266476564610c0701))
+* **record:** write a crash's stamp only when two renames follow, so none is left stale ([d91a1aa](https://github.com/dchernykh1984/PhotoFinish/commit/d91a1aad8de857a058e0be863809479aec235429))
+* **window:** say a refused copy at the next poll, never over a word said once ([1d356ce](https://github.com/dchernykh1984/PhotoFinish/commit/1d356ce1a0dd9850402068491d0e8a473e0c5de9))
+* **window:** say a refused copy though the poll fails before it ([c5f6d6b](https://github.com/dchernykh1984/PhotoFinish/commit/c5f6d6b9004feacb1c2b1ea536db1991988ad1fe))
+
+
+### Performance Improvements
+
+* **output:** find the newest copy from the folder's listing, opening no file on Windows ([251a4da](https://github.com/dchernykh1984/PhotoFinish/commit/251a4da1282ef8e9eecbf8efda8573bab93c1031))
+* **output:** keep each output's copies in a folder of its own, looked in alone ([9ac81e5](https://github.com/dchernykh1984/PhotoFinish/commit/9ac81e554448e804ea182aed465f4be4e13e23e7))
+* **output:** make no copy of a file the newest copy already holds ([9aa158a](https://github.com/dchernykh1984/PhotoFinish/commit/9aa158a336c542578cadf37a194fbfff3e591a74))
+* **output:** work the copies' folder name out once, not at every change ([940d0e0](https://github.com/dchernykh1984/PhotoFinish/commit/940d0e09c6f06ebcd1e1a10ee5cf8d4dcf3bc4c5))
+* **record:** look once for what a crash left as each segment begins ([ea4b99f](https://github.com/dchernykh1984/PhotoFinish/commit/ea4b99f5e03ed81deb49fa58b11434a414478cdf))
+* **record:** look through a camera's folder once as its recorder starts ([e901bed](https://github.com/dchernykh1984/PhotoFinish/commit/e901bed307dfab6d2b665202a0aa201dc6eeeb75))
+
+
+### Documentation
+
+* describe the output copies and what a recorder crash costs ([5bfd18f](https://github.com/dchernykh1984/PhotoFinish/commit/5bfd18f3f8fef91677facd24bfad012b773b0bd3))
+* **output:** name the growing temp/ copies as the shortcut they are ([74fd4f2](https://github.com/dchernykh1984/PhotoFinish/commit/74fd4f2bec7e7fb0e9fab0c1f4275597cd74de07))
+* **specs:** keep a copy of every output change and lose no more video to a crash than it is down ([243eb04](https://github.com/dchernykh1984/PhotoFinish/commit/243eb046e50b55c9d99edb08cc364e6cd3990d5e))
+
 ## [0.2.0](https://github.com/dchernykh1984/PhotoFinish/compare/v0.1.0...v0.2.0) (2026-10-30)
 
 
