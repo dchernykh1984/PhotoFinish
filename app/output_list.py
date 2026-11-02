@@ -100,6 +100,7 @@ class OutputList:
         self.journal_error: JournalError | None = None  # opened; the journal refused
         self.outside_kept = False  # an outside version kept: for the window to say
         self.copy_refused: OSError | None = None  # for the window to say; done anyway
+        self._copied: bytes | None = None  # what the newest copy holds, once known
         try:
             self._load()
         except JournalError as error:  # the files are written: the list is usable
@@ -410,6 +411,8 @@ class OutputList:
         try:
             newest = _newest(self._copy_folder(), stamped)  # this output's copies only
             same = newest is not None and _read(newest) == self._written
+            if same:
+                self._copied = self._written
         except OSError:  # a copy that cannot be read never keeps the output shut
             same = False
         if not same:
@@ -420,6 +423,8 @@ class OutputList:
         disk refuses leaves the change done, for the window to say."""
         # shortcut: copies are never removed, so temp/ grows by a whole output a change
         # (as the chronometers' backups do); prune it once the set has a policy.
+        if self._written == self._copied:
+            return  # a change that left the file as it was: the newest copy holds it
         try:
             folder = self._copy_folder()
             name = f"{datetime.now():%Y%m%d-%H%M%S-%f}"
@@ -428,6 +433,7 @@ class OutputList:
                 n += 1
                 copy = folder / f"{name}-{n}{self.path.suffix}"
             _write_in_one_step(copy, self._written or b"")  # whole, or not there
+            self._copied = self._written
         except OSError as error:
             self.copy_refused = error
 

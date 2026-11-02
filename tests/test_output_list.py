@@ -391,6 +391,16 @@ def test_an_output_whose_path_is_not_utf8_still_gets_copies(path: Path) -> None:
     assert out._copy_stem().startswith("out\udcff-")
 
 
+def test_a_change_that_leaves_the_file_as_it_was_makes_no_copy(
+    path: Path, copies: Path
+) -> None:
+    out = OutputList(path)
+    take(out, TAKEN)
+    kept = sorted(copies.rglob("*.txt"))
+    out.follow([TAKEN, "16#20389 11:35:30.000#nextLap#"], [], [])  # taken, not shown
+    assert sorted(copies.rglob("*.txt")) == kept
+
+
 def test_a_change_that_cannot_be_written_is_undone(
     path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
