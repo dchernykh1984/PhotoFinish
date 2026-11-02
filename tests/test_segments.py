@@ -683,6 +683,35 @@ def test_a_segment_recovered_while_recording_is_listed_in_order_though_refused_o
     assert writer.segments == 2
 
 
+def test_a_recovery_named_late_while_recording_is_listed_while_recording(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def broken(self: object) -> None:
+        raise av.FFmpegError(5, "mux failed")
+
+    def held(folder: Path, name: str) -> None:
+        raise OSError("held by a reader")
+
+    writer = SegmentWriter(tmp_path, fps=30)
+    record(writer, START, 5)
+    monkeypatch.setattr(segments_module._Encoded, "close", broken)
+    with pytest.raises(av.FFmpegError):
+        writer.close()  # a close that fails, recovered at the next frame
+    monkeypatch.undo()
+    monkeypatch.setattr(segments_module, "_name_recovery", held)
+    record(writer, START + 5000, 5)  # its copy cannot take its name yet
+    monkeypatch.undo()
+    monkeypatch.setattr(segments_module._Encoded, "close", broken)
+    with pytest.raises(av.FFmpegError):
+        writer.close()  # and another
+    monkeypatch.undo()
+    record(writer, START + 7000, 2)  # the first copy named now, the second made
+    writer.close()
+    listed = (tmp_path / "segments.txt").read_text().split()
+    assert listed == [p.stem for p in segments(tmp_path)]  # all three, as they came
+    assert writer.segments == 3
+
+
 def test_a_close_that_named_its_times_only_is_finished_while_recording(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
