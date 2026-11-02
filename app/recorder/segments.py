@@ -506,7 +506,10 @@ def _keep_aside(folder: Path) -> None:
         and not (folder / f"crashed-{stamp}.mkv").exists()
     )
     if not cut:
-        stamp = str(time.time_ns() // 1_000_000)
+        ms = time.time_ns() // 1_000_000
+        while any((folder / f"crashed-{ms}{s}").exists() for s in (".mkv", ".times")):
+            ms += 1  # never over a crash kept aside in the same millisecond
+        stamp = str(ms)
         meant.write_text(stamp, encoding="ascii")
     for left in (times, video):
         if left.exists():

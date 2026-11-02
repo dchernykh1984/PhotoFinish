@@ -319,6 +319,19 @@ def test_a_crash_kept_aside_halfway_is_kept_under_one_stamp(
     assert {p.suffix for p in tmp_path.glob("crashed-*")} == {".mkv", ".times"}
 
 
+def test_two_crashes_kept_aside_in_one_millisecond_are_both_kept(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(segments_module.time, "time_ns", lambda: START * 1_000_000)
+    for frames in ("0 1\n", "0 2\n"):
+        (tmp_path / "current.mkv").write_bytes(b"")
+        (tmp_path / "current.times").write_text(frames)
+        segments_module._keep_aside(tmp_path)
+    kept = sorted(p.read_text() for p in tmp_path.glob("crashed-*.times"))
+    assert kept == ["0 1\n", "0 2\n"]  # neither written over by the other
+    assert len(list(tmp_path.glob("crashed-*.mkv"))) == 2
+
+
 def test_a_crash_video_alone_takes_no_times_another_crash_left_alone(
     tmp_path: Path,
 ) -> None:
