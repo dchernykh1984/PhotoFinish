@@ -24,7 +24,7 @@ from app import paths, session
 from app.recorder import Backoff, Heartbeat, SteadyClock, run
 from app.recorder.segments import SegmentWriter
 from app.recorder.testcam import read_time, render
-from tests.test_segments import make_h264
+from tests.test_segments import killed_while_recording, make_h264
 
 ROOT = Path(__file__).resolve().parents[1]
 START = 1_761_716_129_587
@@ -273,6 +273,17 @@ def test_a_camera_that_cannot_be_recorded_fails_at_once(
         heartbeat(folder.parent / "cam2")["detail"] == "no camera cam2 in the session"
     )
     assert run("../cam1") == 2
+
+
+def test_a_starting_recorder_shows_what_a_crash_left_before_its_camera_is_back(
+    folder: Path,
+) -> None:
+    killed_while_recording(folder, 20, START)
+    session.save({**session.DEFAULTS, "cameras": []})  # its camera gone meanwhile
+    assert run("cam1") == 2
+    (name,) = (folder / "segments.txt").read_text().split()
+    assert len((folder / f"{name}.times").read_text().splitlines()) >= 20 - 4
+    assert not list(folder.glob("current.*"))
 
 
 def test_a_camera_with_a_recorder_gets_no_second_one(
