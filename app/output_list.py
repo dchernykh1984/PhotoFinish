@@ -20,6 +20,7 @@ from __future__ import annotations
 import functools
 import hashlib
 import json
+import os
 import re
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -437,7 +438,7 @@ class OutputList:
     def _copy_stem(self) -> str:
         """The copies' name: the output's, and six hex of its place, so outputs of one
         name in two folders keep their copies apart."""
-        place = hashlib.sha1(str(self.path.resolve()).encode(), usedforsecurity=False)
+        place = hashlib.sha1(os.fsencode(self.path.resolve()), usedforsecurity=False)
         return f"{self.path.stem}-{place.hexdigest()[:6]}"
 
     def _state(self) -> bytes:
