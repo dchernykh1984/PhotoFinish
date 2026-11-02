@@ -101,6 +101,7 @@ class OutputList:
         self.outside_kept = False  # an outside version kept: for the window to say
         self.copy_refused: OSError | None = None  # for the window to say; done anyway
         self._copied: bytes | None = None  # what the newest copy holds, once known
+        self._stem: str | None = None  # the copies' folder name, worked out once
         try:
             self._load()
         except JournalError as error:  # the files are written: the list is usable
@@ -448,8 +449,11 @@ class OutputList:
     def _copy_stem(self) -> str:
         """The copies' folder name: the output's, and six hex of its place, so outputs
         of one name in two folders keep their copies apart."""
-        place = hashlib.sha1(os.fsencode(self.path.resolve()), usedforsecurity=False)
-        return f"{self.path.stem}-{place.hexdigest()[:6]}"
+        if self._stem is None:  # once: the path stays, the hash need not be redone
+            where = os.fsencode(self.path.resolve())
+            place = hashlib.sha1(where, usedforsecurity=False)
+            self._stem = f"{self.path.stem}-{place.hexdigest()[:6]}"
+        return self._stem
 
     def _state(self) -> bytes:
         lines = [asdict(line) for line in self.lines]
