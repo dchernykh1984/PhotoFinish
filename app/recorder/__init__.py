@@ -174,11 +174,12 @@ def run(
     if lock is None:
         return 3  # another recorder has this camera
     with lock:
+        camera = session.camera(session.load(), camera_id)
+        beat = Heartbeat(folder, str((camera or {}).get("connection", "")))
+        beat.beat(state="starting")  # its own word, not the dead one's, as it recovers
         closed = None  # then the writer tries again, and says what stops it
         with contextlib.suppress(Exception):
             closed = recover(folder)  # a crash's frames, shown before the camera
-        camera = session.camera(session.load(), camera_id)
-        beat = Heartbeat(folder, str((camera or {}).get("connection", "")))
         if camera is None:
             beat.beat(state="failed", detail=f"no camera {camera_id} in the session")
             return 2
