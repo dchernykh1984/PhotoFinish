@@ -417,6 +417,15 @@ def test_a_name_a_kill_cut_short_in_the_list_counts_for_no_segment(
     assert SegmentWriter(tmp_path, fps=30).segments == 1
 
 
+@pytest.mark.parametrize(
+    ("ticks", "ms"), [(45, 1), (44, 0), (-44, 0), (-45, -1), (-46, -1), (-135, -2)]
+)
+def test_a_pts_is_rounded_to_ms_as_the_muxer_rounds_it(ticks: int, ms: int) -> None:
+    from fractions import Fraction
+
+    assert segments_module._in_ms(ticks, Fraction(1, 90000)) == ms
+
+
 def test_what_a_crash_left_with_no_whole_frame_is_kept_aside(tmp_path: Path) -> None:
     (tmp_path / "current.mkv").write_bytes(b"")
     (tmp_path / "current.times").write_text(f"0 {START}\n")
