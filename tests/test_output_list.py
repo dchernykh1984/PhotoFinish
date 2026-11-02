@@ -203,6 +203,33 @@ def test_the_list_comes_back_with_its_origins_and_marks(path: Path) -> None:
     assert len(journal(again)) == 3
 
 
+def test_every_change_leaves_a_copy_of_the_output_as_it_left_it(
+    path: Path, copies: Path
+) -> None:
+    out = OutputList(path)
+    take(out, TAKEN)
+    out.add("9", ms("20389 11:35:30.000"), "finish", Change("frame"))
+    kept = sorted(copies.glob("out-*.txt"))
+    assert [copy.read_text() for copy in kept] == [
+        f"{TAKEN}\n",
+        f"{TAKEN}\n9#20389 11:35:30.000#finish#\n",
+    ]
+    assert out.copy_refused is None
+
+
+def test_a_copy_the_disk_refuses_leaves_the_change_done(
+    path: Path, copies: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    out = OutputList(path)
+    blocked = copies / "blocked"
+    blocked.write_text("a file where the folder should be")
+    monkeypatch.setattr(output_list, "_copies", lambda: blocked)
+    take(out, TAKEN)
+    assert path.read_text() == f"{TAKEN}\n"
+    assert [entry["op"] for entry in journal(out)] == ["take"]
+    assert isinstance(out.copy_refused, OSError)
+
+
 def test_an_outside_change_is_kept_and_the_list_written_again(path: Path) -> None:
     out = OutputList(path)
     take(out, TAKEN)
