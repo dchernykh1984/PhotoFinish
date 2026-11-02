@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import re
+import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -16,6 +18,18 @@ from app.recorder.testcam import read_time, render
 
 START = 1_761_716_129_587
 NAME = re.compile(r"\d{8}-\d{6}-\d{4}")
+ROOT = Path(__file__).resolve().parents[1]
+KILLED = """
+import os, sys
+from pathlib import Path
+from app.recorder.segments import SegmentWriter
+from app.recorder.testcam import render
+writer = SegmentWriter(Path(sys.argv[1]), fps=30)
+for k in range(int(sys.argv[2])):
+    ms = int(sys.argv[3]) + k * 33
+    writer.write(render(ms, 640, 360), ms)
+os._exit(1)  # killed: nothing closed, nothing flushed on the way out
+"""
 
 
 def record(writer: SegmentWriter, start: int, frames: int, step: int = 33) -> None:
@@ -25,6 +39,25 @@ def record(writer: SegmentWriter, start: int, frames: int, step: int = 33) -> No
 
 def segments(folder: Path) -> list[Path]:
     return sorted(p for p in folder.glob("*.mkv") if NAME.fullmatch(p.stem))
+
+
+def killed_while_recording(folder: Path, frames: int, start: int = START) -> None:
+    """A recorder process killed after ``frames`` frames."""
+    run = [sys.executable, "-c", KILLED, str(folder), str(frames), str(start)]
+    subprocess.run(run, cwd=ROOT, check=False)  # noqa: S603 - this interpreter
+
+
+def packets(path: Path) -> list[int]:
+    """The pts of the whole packets in a segment, a cluster cut short aside."""
+    found: list[int] = []
+    with av.open(str(path)) as video:
+        try:
+            found.extend(
+                p.pts for p in video.demux(video=0) if p.size and p.pts is not None
+            )
+        except av.error.InvalidDataError:
+            pass
+    return found
 
 
 def times(path: Path) -> list[tuple[int, int]]:
@@ -57,6 +90,15 @@ def test_frames_go_into_one_second_segments_with_their_times(tmp_path: Path) -> 
             ]
         assert decoded == frames
     assert not (tmp_path / "gaps.txt").exists()
+
+
+def test_a_killed_recorder_leaves_its_open_segment_on_disk(tmp_path: Path) -> None:
+    killed_while_recording(tmp_path, 20)  # under a second: the segment still open
+    lines = (tmp_path / "current.times").read_text().splitlines()
+    assert [int(line.split()[1]) for line in lines] == [
+        START + k * 33 for k in range(20)
+    ]
+    assert len(packets(tmp_path / "current.mkv")) >= 20 - 4  # all but 0.1 s
 
 
 def test_a_stretch_without_frames_is_a_gap(tmp_path: Path) -> None:
