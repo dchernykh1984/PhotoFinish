@@ -275,27 +275,42 @@ def _see_to(folder: Path, n: int) -> str | None:
 
 def _finish_close(folder: Path) -> str | None:
     """A close cut between its two renames: the times have their name, the video is
-    still ``current.mkv``, and takes the name too when its frames are those times --
-    never another's, such as times whose video was deleted. The name, or None."""
-    left = folder / "current.mkv"
-    if not left.exists() or (folder / "current.times").exists():
+    still ``current.mkv``, and takes the name too when it is theirs. The name, or
+    None."""
+    if (folder / "current.times").exists():
         return None
-    named = [
-        p for p in folder.glob(f"{CLOSED}.times") if not p.with_suffix(".mkv").exists()
-    ]
-    if not named:
-        return None
-    times = max(named)  # the newest: the close cut short
+    return _give_its_name(folder / "current.mkv")
+
+
+def _give_its_name(video: Path) -> str | None:
+    """``video`` named after the closed times without a video that are its own: the
+    same frames, written when it was. Never another's, such as times whose video
+    was deleted, sorting after it or not. The name, or None."""
     try:
-        lines = times.read_text(encoding="ascii").splitlines()
-        with av.open(str(left)) as video:
-            found = sorted(pts for _, pts in _whole(video))
-        if found != sorted(int(line.split()[0]) for line in lines):
+        with av.open(str(video)) as opened:
+            found = sorted(pts for _, pts in _whole(opened))
+        made = video.stat().st_mtime
+        named = [
+            times
+            for times in video.parent.glob(f"{CLOSED}.times")
+            if not times.with_suffix(".mkv").exists() and _frames_of(times) == found
+        ]
+        if not found or not named:
             return None
-        left.replace(times.with_suffix(".mkv"))
+        own = min(named, key=lambda times: abs(times.stat().st_mtime - made))
+        video.replace(own.with_suffix(".mkv"))
     except OSError, ValueError, IndexError, av.FFmpegError:
         return None
-    return times.stem
+    return own.stem
+
+
+def _frames_of(times: Path) -> list[int] | None:
+    """The pts a closed segment's times list, sorted; None when they cannot be read."""
+    try:
+        lines = times.read_text(encoding="ascii").splitlines()
+        return sorted(int(line.split()[0]) for line in lines)
+    except OSError, ValueError, IndexError:
+        return None
 
 
 def _name(folder: Path, first_ms: int, n: int) -> str:

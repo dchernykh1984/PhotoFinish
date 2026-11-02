@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 import sys
@@ -230,6 +231,35 @@ def test_a_video_never_takes_the_name_of_times_whose_frames_it_lacks(
     SegmentWriter(tmp_path, fps=30)
     assert not closed.exists()
     assert segments(tmp_path) == []
+
+
+def test_a_cut_close_finds_its_own_times_among_others_alike(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    earlier = SegmentWriter(tmp_path, fps=30)
+    record(earlier, START + 3_600_000, 5)  # before the clock was set back an hour
+    earlier.close()
+    (other,) = segments(tmp_path)
+    other.unlink()  # its video deleted for room: its times, alike, are left
+    hour_ago = time.time() - 3600
+    os.utime(other.with_suffix(".times"), (hour_ago, hour_ago))
+    writer = SegmentWriter(tmp_path, fps=30)
+    record(writer, START, 5)
+    real = Path.replace
+
+    def held(self: Path, target: Any) -> Path:
+        if self.name == "current.mkv":
+            raise OSError("held by a reader")
+        return real(self, target)
+
+    monkeypatch.setattr(Path, "replace", held)
+    with pytest.raises(OSError):
+        writer.close()
+    monkeypatch.undo()
+    SegmentWriter(tmp_path, fps=30)
+    (own,) = segments(tmp_path)
+    assert times(own)[0] == (0, START)  # its own times, not the other's
+    assert not other.exists()
 
 
 def test_what_a_crash_left_with_no_whole_frame_is_kept_aside(tmp_path: Path) -> None:
