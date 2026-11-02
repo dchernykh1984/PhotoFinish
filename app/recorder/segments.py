@@ -227,9 +227,12 @@ def _times(folder: Path) -> TextIO:
 
 
 def _in_ms(value: int, time_base: Fraction) -> int:
-    """``value`` in ``time_base`` as whole milliseconds, rounded as the muxer rounds."""
-    scaled = value * time_base * 1000
-    return (2 * scaled.numerator + scaled.denominator) // (2 * scaled.denominator)
+    """``value`` in ``time_base`` as whole milliseconds, rounded as the muxer rounds:
+    to the nearest, a half away from zero (FFmpeg's AV_ROUND_NEAR_INF), a negative
+    pts of an open GOP's leading frame too."""
+    scaled = abs(value * time_base * 1000)
+    near = (2 * scaled.numerator + scaled.denominator) // (2 * scaled.denominator)
+    return near if value >= 0 else -near
 
 
 def _size(image: np.ndarray | av.VideoFrame) -> tuple[int, int]:
