@@ -147,6 +147,23 @@ def test_a_recorder_that_found_the_camera_taken_leaves_it_to_the_other(
     assert len(spawns.processes) == 1
 
 
+def test_a_heartbeat_written_after_this_windows_recorder_ended_is_anothers(
+    folder: Path, clock: dict[str, float]
+) -> None:
+    spawns = Spawns()
+    watchdog = Watchdog("cam1", spawns)
+    watchdog.start()
+    spawns.processes[-1].code = -9
+    clock["now"] = 1001
+    watchdog.poll()  # its end seen
+    time.sleep(0.005)
+    beat(folder, "recording")  # another window's recorder has the camera now
+    for moment in (1002, 1003, 1010):
+        clock["now"] = moment
+        assert watchdog.poll() == heartbeat("cam1")
+    assert len(spawns.processes) == 1
+
+
 def test_a_starting_recorder_gets_its_time(
     folder: Path, clock: dict[str, float]
 ) -> None:

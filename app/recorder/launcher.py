@@ -111,6 +111,7 @@ class Watchdog:
         self._started = 0.0  # monotonic, when this window last started one
         self._started_ms = 0  # wall clock, when it last tried to
         self._retry_at: float | None = None
+        self._ended_ms: int | None = None  # wall clock, when its end was first seen
         self.error = ""  # why the recorder could not be started, until one is
 
     def start(self) -> None:
@@ -122,6 +123,7 @@ class Watchdog:
         if self._running(heartbeat(self.camera_id)):
             return
         self._started_ms = time.time_ns() // 1_000_000  # an end before: not its own
+        self._ended_ms = None
         try:
             self._process = (self._spawn or spawn)(self.camera_id)
         except OSError as error:  # moved, or blocked: tried again after the pause
@@ -157,11 +159,17 @@ class Watchdog:
     def _running(self, info: dict[str, Any] | None) -> bool:
         """A fresh heartbeat, unless it is the last of a recorder this window started
         and saw end without saying why: that one is gone now, not 15 s later. One
-        that ended because another recorder has the camera (3) leaves it to the
-        other's heartbeat."""
+        written after that end, or left by a recorder that found the camera taken
+        (3), is another recorder's."""
         process = self._process
         died = process is not None and process.poll() not in (None, 3)
-        return alive(info) and not died
+        if died and self._ended_ms is None:
+            self._ended_ms = time.time_ns() // 1_000_000
+        if info is None or not alive(info):
+            return False
+        if not died or self._ended_ms is None:
+            return True
+        return int(info.get("heartbeat_ms", 0)) > self._ended_ms
 
     def _ended_by_itself(self, info: dict[str, Any] | None) -> bool:
         """Failed, or the disk full, since this window started it: left for the
