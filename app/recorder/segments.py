@@ -97,8 +97,8 @@ class SegmentWriter:
         if opened is None:
             self.close()
             left = (self.folder / "current.mkv").exists()
-            if left and _recover(self.folder, self.segments + 1):
-                self.segments += 1
+            if left and (recovered := _recover(self.folder, self.segments + 1)):
+                self._closed(recovered)
             _keep_aside(self.folder)
             opened = begun()
             self._open = opened
@@ -259,6 +259,7 @@ def recover(folder: Path) -> list[str]:
     _finish_close(folder)
     closed = _list_missing(folder)
     if recovered := _recover(folder, len(closed) + 1):
+        append(folder / SEGMENTS, f"{recovered}\n".encode("ascii"))  # else at the next
         closed.append(recovered)
     _keep_aside(folder)  # what a crash left with no whole frame
     return closed
@@ -287,9 +288,9 @@ def _name(folder: Path, first_ms: int, n: int) -> str:
 
 def _recover(folder: Path, n: int) -> str | None:
     """The frames a crash left whole in ``current.*``, with their times, made a
-    closed segment and listed: its name, or None when it holds none. What the crash
-    left is kept aside as it was before the copy takes its name, so a failure or a
-    crash meanwhile neither shows a frame twice nor loses one."""
+    closed segment for the caller to list: its name, or None when it holds none.
+    What the crash left is kept aside as it was before the copy takes its name, so a
+    failure or a crash meanwhile neither shows a frame twice nor loses one."""
     copy = folder / "recovered.mkv"
     try:
         kept = _copy_whole(folder / "current.mkv", copy, _frame_times(folder))
@@ -301,7 +302,6 @@ def _recover(folder: Path, n: int) -> str | None:
         times = "".join(f"{pts} {ms}\n" for pts, ms in kept)
         write_in_one_step(folder / f"{name}.times", times.encode("ascii"))
         copy.replace(folder / f"{name}.mkv")
-        append(folder / SEGMENTS, f"{name}\n".encode("ascii"))
     except OSError, ValueError, IndexError, av.FFmpegError:
         with contextlib.suppress(OSError):  # what the crash left is kept aside whole
             copy.unlink(missing_ok=True)

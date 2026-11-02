@@ -344,6 +344,38 @@ def test_a_close_that_fails_at_its_renames_counts_its_segment_once(
     assert writer.segments == len((tmp_path / "segments.txt").read_text().split()) == 2
 
 
+def test_a_segment_recovered_while_recording_is_listed_in_order_though_refused_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    writer = SegmentWriter(tmp_path, fps=30)
+    record(writer, START, 5)
+
+    def broken(self: object) -> None:
+        raise av.FFmpegError(5, "mux failed")
+
+    monkeypatch.setattr(segments_module._Encoded, "close", broken)
+    with pytest.raises(av.FFmpegError):
+        writer.close()
+    monkeypatch.undo()
+    real = segments_module.append
+    refused: list[bytes] = []
+
+    def once(path: Path, data: bytes) -> None:
+        if path.name == "segments.txt" and not refused:
+            refused.append(data)
+            raise OSError("held by a reader")
+        real(path, data)
+
+    monkeypatch.setattr(segments_module, "append", once)
+    with pytest.raises(OSError):
+        record(writer, START + 5000, 1)  # the recovered segment's listing refused
+    record(writer, START + 5100, 2)
+    writer.close()
+    listed = (tmp_path / "segments.txt").read_text().split()
+    assert listed == [p.stem for p in segments(tmp_path)]  # both, in their order
+    assert writer.segments == 2
+
+
 def test_closed_segments_are_listed_and_a_restart_lists_any_a_crash_missed(
     tmp_path: Path,
 ) -> None:
