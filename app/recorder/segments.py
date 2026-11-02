@@ -174,10 +174,12 @@ class _Encoded:
         self.times.write(f"{frame.pts} {ms}\n")
 
     def close(self) -> None:
-        for packet in self.stream.encode(None):
-            self.container.mux(packet)
-        self.container.close()
-        self.times.close()
+        try:
+            for packet in self.stream.encode(None):
+                self.container.mux(packet)
+            self.container.close()
+        finally:  # a video that will not close holds no times open (Windows)
+            self.times.close()
 
 
 class _Remuxed:
@@ -202,8 +204,10 @@ class _Remuxed:
         self.times.write(f"{pts_ms} {ms}\n")
 
     def close(self) -> None:
-        self.container.close()
-        self.times.close()
+        try:
+            self.container.close()
+        finally:  # a video that will not close holds no times open (Windows)
+            self.times.close()
 
 
 def _video(folder: Path) -> av.container.OutputContainer:

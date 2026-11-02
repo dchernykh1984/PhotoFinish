@@ -385,6 +385,28 @@ def test_a_recovery_killed_after_it_wrote_its_name_is_finished_as_meant(
     assert not list(tmp_path.glob("recovered.*"))
 
 
+def test_a_segment_whose_video_will_not_close_lets_its_times_go(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    writer = SegmentWriter(tmp_path, fps=30)
+    record(writer, START, 5)
+    segment = writer._open
+    assert segment is not None
+
+    class Refusing:
+        def mux(self, packet: object) -> None:
+            pass
+
+        def close(self) -> None:
+            raise av.FFmpegError(5, "trailer refused")
+
+    real, segment.container = segment.container, Refusing()  # type: ignore[assignment]
+    with pytest.raises(av.FFmpegError):
+        writer.close()
+    assert segment.times.closed
+    real.close()
+
+
 def test_what_a_crash_left_with_no_whole_frame_is_kept_aside(tmp_path: Path) -> None:
     (tmp_path / "current.mkv").write_bytes(b"")
     (tmp_path / "current.times").write_text(f"0 {START}\n")
