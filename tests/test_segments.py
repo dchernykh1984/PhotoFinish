@@ -403,6 +403,24 @@ def test_a_recovery_not_yet_named_is_never_written_over_by_the_next(
     assert len(list(folder.glob("crashed-*.mkv"))) == 2  # the next one's kept
 
 
+def test_a_segment_never_takes_the_name_a_recovery_is_still_to_take(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    killed_while_recording(tmp_path, 10, start=START - 400)  # in START's second
+
+    def held(folder: Path, name: str) -> None:
+        raise OSError("held by a reader")
+
+    monkeypatch.setattr(segments_module, "_name_recovery", held)
+    writer = SegmentWriter(tmp_path, fps=30)  # recovered; its copy not named yet
+    record(writer, START, 5)  # a segment begun in that same second
+    writer.close()
+    monkeypatch.undo()
+    SegmentWriter(tmp_path, fps=30)
+    found = sorted(times(segment)[0][1] for segment in segments(tmp_path))
+    assert found == [START - 400, START]  # each with its own frames, none written over
+
+
 def test_a_segment_never_takes_the_name_of_times_left_alone(tmp_path: Path) -> None:
     writer = SegmentWriter(tmp_path, fps=30)
     record(writer, START, 5)

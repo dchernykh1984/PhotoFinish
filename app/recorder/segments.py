@@ -321,9 +321,12 @@ def _finish_close(folder: Path) -> str | None:
 
 def _name(folder: Path, first_ms: int, n: int) -> str:
     """A closed segment's name: its first frame's time, a number no other has --
-    neither a video nor times left alone, whose video went aside."""
+    neither a video nor times left alone, whose video went aside, nor a recovery
+    whose copy is still to take it."""
     stamp = time.strftime("%Y%m%d-%H%M%S", time.localtime(first_ms / 1000))
-    while any(
+    held = _meant(folder)
+    taken = held[0] if held else ""
+    while f"{stamp}-{n:04d}" == taken or any(
         (folder / f"{stamp}-{n:04d}{suffix}").exists() for suffix in (".mkv", ".times")
     ):
         n += 1
@@ -383,14 +386,11 @@ def _finish_recovery(folder: Path) -> str | None:
     its copy named; before, dropped, the crash left to recover again. ``current.*``
     goes aside only when it is that recovery's source, by its first frame's time: a
     later crash's is recovered in its turn. The name given, for the caller to list."""
-    try:
-        meant = (folder / RECOVERED_NAME).read_text(encoding="ascii").split()
-        name, first_ms = meant[0], int(meant[1])
-    except OSError, ValueError, IndexError:
-        name, first_ms = "", 0
-    if not NAMED.fullmatch(name):
+    meant = _meant(folder)
+    if meant is None:
         _drop_recovery(folder)
         return None
+    name, first_ms = meant
     try:
         if _first_ms(folder / "current.times") == first_ms:
             _keep_aside(folder)
@@ -398,6 +398,17 @@ def _finish_recovery(folder: Path) -> str | None:
     except OSError:
         return None  # tried again later
     return name
+
+
+def _meant(folder: Path) -> tuple[str, int] | None:
+    """The name a recovery's copy is to take and its source's first time, once
+    written whole; None before."""
+    try:
+        meant = (folder / RECOVERED_NAME).read_text(encoding="ascii").split()
+        name, first_ms = meant[0], int(meant[1])
+    except OSError, ValueError, IndexError:
+        return None
+    return (name, first_ms) if NAMED.fullmatch(name) else None
 
 
 def _first_ms(times: Path) -> int | None:
