@@ -85,7 +85,7 @@ each commit: `uv run pre-commit run --all-files` and `uv run pytest`.
 - [X] T022 [US1] `app/recorder/segments.py`: the open segment's `.times` written a line a frame,
   its video flushed in clusters of at most 0.1 s. A test kills a writer mid-segment.
   -- `fix(record): put a segment's frames and times on disk as they are written`
-- [ ] T023 [US1] `app/recorder/segments.py`: a starting recorder turns the frames a crash left whole
+- [X] T023 [US1] `app/recorder/segments.py`: a starting recorder turns the frames a crash left whole
   in `current.*` into a closed segment, listed and shown; one without is kept as `crashed-*`.
   -- `fix(record): show the frames a recorder wrote whole before it died`
 - [ ] T024 [US4] `app/output_list.py`: a copy of the output after each change in `temp/`; the

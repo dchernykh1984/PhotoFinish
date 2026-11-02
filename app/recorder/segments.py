@@ -24,7 +24,7 @@ from typing import TextIO
 import av
 import numpy as np
 
-from app.files import append
+from app.files import append, write_in_one_step
 
 SEGMENT_MS = 1000  # a segment's first frame is shown once it closes: SC-006's 2 s
 CLOSED = "[0-9]*-[0-9]*-[0-9]*"  # a closed segment's name, without its suffix
@@ -43,8 +43,10 @@ class SegmentWriter:
     def __init__(self, folder: Path, fps: float, segment_ms: int = SEGMENT_MS) -> None:
         self.folder, self.fps, self.segment_ms = folder, fps, segment_ms
         folder.mkdir(parents=True, exist_ok=True)
-        _keep_aside(folder)
         closed = _list_missing(folder)
+        if recovered := _recover(folder, len(closed) + 1):
+            closed.append(recovered)
+        _keep_aside(folder)  # what a crash left with no whole frame
         self.segments = len(closed)
         self.frames = 0
         self._last_ms: int | None = None  # this run's newest frame: frames keep order
@@ -117,11 +119,7 @@ class SegmentWriter:
         segment, self._open = self._open, None
         segment.close()
         self.segments += 1
-        stamp = time.strftime("%Y%m%d-%H%M%S", time.localtime(segment.first_ms / 1000))
-        n = self.segments
-        while (self.folder / f"{stamp}-{n:04d}.mkv").exists():
-            n += 1
-        name = f"{stamp}-{n:04d}"
+        name = _name(self.folder, segment.first_ms, self.segments)
         (self.folder / "current.times").replace(self.folder / f"{name}.times")
         (self.folder / "current.mkv").replace(self.folder / f"{name}.mkv")
         self._unlisted.append(name)  # a list that refuses it now takes it next time
@@ -239,6 +237,71 @@ def _list_missing(folder: Path) -> list[str]:
     if missing:
         append(folder / SEGMENTS, "".join(f"{n}\n" for n in missing).encode("ascii"))
     return listed + missing
+
+
+def _name(folder: Path, first_ms: int, n: int) -> str:
+    """A closed segment's name: its first frame's time, a number no other has."""
+    stamp = time.strftime("%Y%m%d-%H%M%S", time.localtime(first_ms / 1000))
+    while (folder / f"{stamp}-{n:04d}.mkv").exists():
+        n += 1
+    return f"{stamp}-{n:04d}"
+
+
+def _recover(folder: Path, n: int) -> str | None:
+    """The frames a crash left whole in ``current.*``, with their times, made a
+    closed segment and listed: its name, or None when it holds none. ``current.*``
+    goes before the copy takes its name, so a crash meanwhile never shows a frame
+    twice; it can lose what it was recovering, as a crash before did."""
+    copy = folder / "recovered.mkv"
+    try:
+        kept = _copy_whole(folder / "current.mkv", copy, _frame_times(folder))
+        if not kept:
+            copy.unlink(missing_ok=True)
+            return None
+        for suffix in (".times", ".mkv"):
+            (folder / f"current{suffix}").unlink()
+        name = _name(folder, kept[0][1], n)
+        times = "".join(f"{pts} {ms}\n" for pts, ms in kept)
+        write_in_one_step(folder / f"{name}.times", times.encode("ascii"))
+        copy.replace(folder / f"{name}.mkv")
+        append(folder / SEGMENTS, f"{name}\n".encode("ascii"))
+    except OSError, ValueError, IndexError, av.FFmpegError:
+        return None
+    return name
+
+
+def _frame_times(folder: Path) -> dict[int, int]:
+    """The open segment's ``pts -> ms``, in frame order; a line a kill cut short
+    is left out."""
+    found: dict[int, int] = {}
+    for line in (folder / "current.times").read_text(encoding="ascii").splitlines():
+        fields = line.split()
+        if len(fields) == 2 and all(f.isdigit() for f in fields):
+            found[int(fields[0])] = int(fields[1])
+    return found
+
+
+def _copy_whole(
+    left: Path, copy: Path, frames: dict[int, int]
+) -> list[tuple[int, int]]:
+    """The packets of ``left`` that came whole and have a time, copied as they are
+    into a file of their own, which ends as a file should; their ``(pts, ms)``."""
+    kept: set[int] = set()
+    with av.open(str(left)) as video, av.open(str(copy), "w", format="matroska") as out:
+        source = video.streams.video[0]
+        into = out.add_stream_from_template(source)
+        rate = source.time_base
+        base = _MS if rate is None else Fraction(rate.numerator, rate.denominator)
+        try:
+            for packet in video.demux(source):
+                pts = None if packet.pts is None else _in_ms(packet.pts, base)
+                if packet.size and pts in frames:
+                    packet.stream = into
+                    out.mux(packet)
+                    kept.add(pts)
+        except av.error.InvalidDataError:
+            pass  # the cluster the crash cut short: what came before is kept
+    return [(pts, ms) for pts, ms in frames.items() if pts in kept]
 
 
 def _keep_aside(folder: Path) -> None:
