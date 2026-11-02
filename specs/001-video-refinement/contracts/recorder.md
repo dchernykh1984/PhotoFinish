@@ -47,8 +47,8 @@ rtmp://<this computer>:<port>/<path>", the address to type in the camera app.
   the recovery as `recovered.name` says, or, with no name written yet, drops them and recovers
   the crash again. `recovered.name` also holds the time on the first line of its source's `.times`, so a
   later crash's `current.*` is recovered in its turn, not kept aside with it.
-  A recovery not yet named is named before the next is made, and listed as it is, during a run
-  too, never written over; while it cannot be, a crash seen to is kept aside whole.
+  A recovery not yet named is named as the next segment starts, and listed as it is, during a
+  run too, never written over; while it cannot be, a crash seen to is kept aside whole.
   `reading.crash` is there while a crash is read: a start that finds it keeps that crash aside
   unread, so a file that brought a recorder down as it was read does not bring down the next.
 - `gaps.txt` gets a line for every stretch without frames longer than three frame intervals.

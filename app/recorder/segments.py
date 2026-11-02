@@ -286,9 +286,10 @@ def _see_to(folder: Path, n: int) -> list[str]:
     then a close cut between its renames finished, else the whole frames of
     ``current.*`` made a closed segment numbered ``n`` or after, the rest kept
     aside. The names of the segments it closed, in order, for the caller to list."""
+    pending = (folder / RECOVERED_NAME).exists()  # its copy refused its name
+    finished = _finish_recovery(folder) if pending else None
     if not (folder / "current.mkv").exists():
-        return []  # the usual case, a segment a second: one look, no more
-    finished = _finish_recovery(folder)
+        return [finished] if finished else []  # the usual case: two looks, no more
     name = _finish_close(folder) or _recover(folder, n)
     _keep_aside(folder)
     return [closed for closed in (finished, name) if closed]
