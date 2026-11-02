@@ -101,7 +101,7 @@ class SegmentWriter:
         opened = self._open if isinstance(self._open, kind) else None
         if opened is None:
             self.close()
-            if name := _see_to(self.folder, self.segments + 1):  # a close that failed
+            for name in _see_to(self.folder, self.segments + 1):  # a failed close
                 self._closed(name)
             opened = begun()
             self._open = opened
@@ -274,21 +274,24 @@ def recover(folder: Path) -> list[str]:
     folder.mkdir(parents=True, exist_ok=True)
     _finish_recovery(folder)  # one a kill cut short; listed with the others just below
     closed = _list_missing(folder)
-    if name := _see_to(folder, len(closed) + 1):
-        append(folder / SEGMENTS, f"{name}\n".encode("ascii"))  # else at the next start
-        closed.append(name)
+    if names := _see_to(folder, len(closed) + 1):
+        listed = "".join(f"{name}\n" for name in names)
+        append(folder / SEGMENTS, listed.encode("ascii"))  # else at the next start
+        closed.extend(names)
     return closed
 
 
-def _see_to(folder: Path, n: int) -> str | None:
-    """What a crash or a failed close left: a close cut between its renames
-    finished, else the whole frames of ``current.*`` made a closed segment numbered
-    ``n`` or after, the rest kept aside. The segment's name, for the caller to list."""
+def _see_to(folder: Path, n: int) -> list[str]:
+    """What a crash or a failed close left: a recovery not yet named named first,
+    then a close cut between its renames finished, else the whole frames of
+    ``current.*`` made a closed segment numbered ``n`` or after, the rest kept
+    aside. The names of the segments it closed, in order, for the caller to list."""
     if not (folder / "current.mkv").exists():
-        return None  # the usual case, a segment a second: one look, no more
+        return []  # the usual case, a segment a second: one look, no more
+    finished = _finish_recovery(folder)
     name = _finish_close(folder) or _recover(folder, n)
     _keep_aside(folder)
-    return name
+    return [closed for closed in (finished, name) if closed]
 
 
 def _finish_close(folder: Path) -> str | None:
@@ -343,10 +346,8 @@ def _recover(folder: Path, n: int) -> str | None:
     at the next start, not read again by every recorder that starts."""
     copy, copied = folder / RECOVERED_MKV, folder / RECOVERED_TIMES
     meant = folder / RECOVERED_NAME
-    if meant.exists():  # one not named yet is named first, never written over
-        _finish_recovery(folder)
-        if meant.exists():
-            return None  # this crash goes aside whole
+    if meant.exists():  # one not named yet is never written over:
+        return None  # this crash goes aside whole
     reading = folder / READING
     if reading.exists():
         return None  # the last read of it never ended: it goes aside unread
@@ -374,11 +375,12 @@ def _recover(folder: Path, n: int) -> str | None:
     return name
 
 
-def _finish_recovery(folder: Path) -> None:
-    """A recovery a kill cut short: once the name it was to take is written, done as
-    meant -- what it recovered kept aside, its copy named; before, dropped, the crash
-    left to recover again. ``current.*`` goes aside only when it is that recovery's
-    source, by its first frame's time: a later crash's is recovered in its turn."""
+def _finish_recovery(folder: Path) -> str | None:
+    """A recovery a kill cut short, or one whose copy could not be named: once the
+    name it was to take is written, done as meant -- what it recovered kept aside,
+    its copy named; before, dropped, the crash left to recover again. ``current.*``
+    goes aside only when it is that recovery's source, by its first frame's time: a
+    later crash's is recovered in its turn. The name given, for the caller to list."""
     try:
         meant = (folder / RECOVERED_NAME).read_text(encoding="ascii").split()
         name, first_ms = meant[0], int(meant[1])
@@ -386,11 +388,14 @@ def _finish_recovery(folder: Path) -> None:
         name, first_ms = "", 0
     if not NAMED.fullmatch(name):
         _drop_recovery(folder)
-        return
-    with contextlib.suppress(OSError):  # else tried again at the next start
+        return None
+    try:
         if _first_ms(folder / "current.times") == first_ms:
             _keep_aside(folder)
         _name_recovery(folder, name)
+    except OSError:
+        return None  # tried again later
+    return name
 
 
 def _first_ms(times: Path) -> int | None:
