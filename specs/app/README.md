@@ -17,6 +17,7 @@ FinishProtocolGeneratorPython reads as a finish file. Built by
 | `<output>` | The referee's crossings, `number#time#action#`, in time order. |
 | `<output>.state.json` | Where each output line came from, how its time was had, and the input as last taken. |
 | `<output>.journal.txt` | One JSON object per change: what, before and after, the input line, the camera and frames, the method, the offsets; the model, for a suggestion accepted. |
+| `temp/<output stem>-<stamp><suffix>` | The output as each change left it: a copy a change, as the chronometers keep theirs. |
 | `video/<camera>/activity.jsonl`, `analyzer.json` | Finding riders (experimental): the stretches with a rider in view, a line per segment; how far the analyser has got. |
 | `video/<camera>/suggestions.jsonl`, `suggestions.done.jsonl` | Crossings a detection model suggested; those the referee accepted or dismissed. |
 
@@ -30,6 +31,9 @@ Each camera is recorded by a process of its own, the program run as
 `PhotoFinish --recorder <camera>`. The window starts it, or finds it running and attaches to it;
 killing the window does not stop it, and a recorder that dies is started again after 1 s, the
 pause doubling to 30 s while it keeps failing. A lock keeps a second recorder off a camera.
+The segment being written reaches the disk as it is written, its video every 0.1 s: the frames a
+dead recorder wrote whole are shown once the next one starts, so a crash costs the time the
+recorder is down and at most the 0.1 s before it.
 
 - USB cameras, files played as live and the test camera are encoded (mpeg4, a keyframe every 15
   frames); RTSP and RTMP streams are kept as the camera encoded them, cut at its keyframes.
@@ -71,7 +75,7 @@ or a swaying patch.
   brought back. A restart knows which lines were taken.
 - **Output.** Number and Enter: a crossing at the frame shown, a finish or a lap as the Finish box
   says. On the chosen output line: Time from frame, Type time (a full `D H:M:S.mmm`), Number,
-  Remove after a confirmation. Every change is written at once and journaled.
+  Remove after a confirmation. Every change is written at once, journaled, and copied to `temp/`.
 - **Lists follow the video:** the lines nearest the moment are marked and kept in view; picking a
   line moves the video to its time.
 - **Caliper.** Click the same point of the rider -- the front of the wheel -- on a frame before the

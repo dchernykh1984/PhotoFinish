@@ -47,11 +47,12 @@ are based on that folder, absolute paths stay unchanged, and config values keep
 their original spelling. Finder may launch a macOS app with `/` as its working
 directory.
 
-Next to the program: `data/session.json` (the session) and `video/<camera id>/`
-(each camera's segments, frame times, gaps and its recorder's heartbeat). The
-output file the referee chooses has `<output>.state.json` and
-`<output>.journal.txt` beside it. `data/` and `video/` are gitignored: run from
-the repository, the program writes them there.
+Next to the program: `data/session.json` (the session), `video/<camera id>/`
+(each camera's segments, frame times, gaps and its recorder's heartbeat) and
+`temp/` (a copy of the output after each change). The output file the referee
+chooses has `<output>.state.json` and `<output>.journal.txt` beside it. `data/`,
+`video/` and `temp/` are gitignored: run from the repository, the program writes
+them there.
 
 ## The other timing tools
 
