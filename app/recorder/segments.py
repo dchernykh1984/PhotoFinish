@@ -510,7 +510,8 @@ def _keep_aside(folder: Path) -> None:
         while any((folder / f"crashed-{ms}{s}").exists() for s in (".mkv", ".times")):
             ms += 1  # never over a crash kept aside in the same millisecond
         stamp = str(ms)
-        meant.write_text(stamp, encoding="ascii")
+        if times.exists() and video.exists():  # two renames: one cut between them
+            meant.write_text(stamp, encoding="ascii")  # is finished by it
     for left in (times, video):
         if left.exists():
             left.replace(folder / f"crashed-{stamp}{left.suffix}")
