@@ -174,7 +174,7 @@ def run(
     if lock is None:
         return 3  # another recorder has this camera
     with lock:
-        with contextlib.suppress(OSError):  # else seen to by the first segment
+        with contextlib.suppress(Exception):  # tried again, and said, by the writer
             recover(folder)  # what a crash left, shown before the camera is back
         camera = session.camera(session.load(), camera_id)
         beat = Heartbeat(folder, str((camera or {}).get("connection", "")))
