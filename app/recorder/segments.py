@@ -256,8 +256,12 @@ def recover(folder: Path) -> list[str]:
     it did not list listed, the frames it left whole in ``current.*`` made one, the
     rest kept aside. A recorder does it as it starts, before its camera is back."""
     folder.mkdir(parents=True, exist_ok=True)
-    if (folder / "recovered.mkv").exists():  # a recovery cut between times and name
-        _give_its_name(folder / "recovered.mkv")  # listed with the others below
+    leftover = folder / "recovered.mkv"  # a recovery a kill cut: finished or dropped
+    if leftover.exists() and not (
+        _give_its_name(leftover) or _name_by_kept_times(leftover)
+    ):  # named, it is listed with the others just below
+        with contextlib.suppress(OSError):
+            leftover.unlink()  # its frames are kept aside as the crash left them
     closed = _list_missing(folder)
     if name := _see_to(folder, len(closed) + 1):
         append(folder / SEGMENTS, f"{name}\n".encode("ascii"))  # else at the next start
@@ -308,6 +312,34 @@ def _give_its_name(video: Path) -> str | None:
     except OSError, ValueError, IndexError, av.FFmpegError:
         return None
     return own.stem
+
+
+def _name_by_kept_times(video: Path) -> str | None:
+    """A recovery a kill cut after it kept the crash aside but before it wrote the
+    times: they are the newest ``crashed-*.times``, the one it kept aside, when they
+    hold a time for every frame ``video`` holds. The name, or None."""
+    folder = video.parent
+    try:
+        aside = max(
+            folder.glob("crashed-*.times"),
+            key=lambda times: times.stat().st_mtime_ns,
+            default=None,
+        )
+        if aside is None:
+            return None
+        frames = _frame_times(aside)
+        with av.open(str(video)) as opened:
+            found = {pts for _, pts in _whole(opened)}
+        kept = [(pts, ms) for pts, ms in frames.items() if pts in found]
+        if not found or len(kept) != len(found):
+            return None
+        name = _name(folder, kept[0][1], 1)
+        times = "".join(f"{pts} {ms}\n" for pts, ms in kept)
+        write_in_one_step(folder / f"{name}.times", times.encode("ascii"))
+        video.replace(folder / f"{name}.mkv")
+    except OSError, ValueError, IndexError, av.FFmpegError:
+        return None
+    return name
 
 
 def _frames_of(times: Path) -> list[int] | None:
