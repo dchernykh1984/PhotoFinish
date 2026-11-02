@@ -358,9 +358,23 @@ def test_a_copy_that_cannot_be_read_keeps_no_output_shut(
 ) -> None:
     out = OutputList(path)
     take(out, TAKEN)
-    (copies / "out-29991231-235959-999999.txt").mkdir()  # the newest, not a file
+    (copies / f"{out._copy_stem()}-29991231-235959-999999.txt").mkdir()  # newest
     again = OutputList(path)  # opened all the same
     assert again.texts() == [TAKEN]
+
+
+def test_the_copies_of_an_output_are_its_own(tmp_path: Path, copies: Path) -> None:
+    results = OutputList(tmp_path / "results.txt")
+    take(results, TAKEN)
+    final = OutputList(tmp_path / "results-final.txt")  # a name that starts alike
+    take(final, "16#20389 11:35:30.000#nextLap#")
+    again = OutputList(tmp_path / "day2" / "results.txt")  # one name, another folder
+    take(again, "17#20389 11:35:31.000#nextLap#")
+    kept = sorted(copies.iterdir())
+    OutputList(tmp_path / "results.txt")  # its newest copy is still the file
+    assert sorted(copies.iterdir()) == kept
+    stems = {copy.name.rsplit("-", 3)[0] for copy in kept}
+    assert len(stems) == 3  # three outputs, three sets of copies
 
 
 def test_a_change_that_cannot_be_written_is_undone(

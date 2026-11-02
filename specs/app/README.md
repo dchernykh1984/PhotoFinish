@@ -17,7 +17,7 @@ FinishProtocolGeneratorPython reads as a finish file. Built by
 | `<output>` | The referee's crossings, `number#time#action#`, in time order. |
 | `<output>.state.json` | Where each output line came from, how its time was had, and the input as last taken. |
 | `<output>.journal.txt` | One JSON object per change: what, before and after, the input line, the camera and frames, the method, the offsets; the model, for a suggestion accepted. |
-| `temp/<output stem>-<stamp><suffix>` | The output as each change left it: a copy a change, as the chronometers keep theirs. |
+| `temp/<output stem>-<place>-<stamp><suffix>` | The output as each change left it: a copy a change, as the chronometers keep theirs; `<place>` is six hex of the output's path. |
 | `video/<camera>/activity.jsonl`, `analyzer.json` | Finding riders (experimental): the stretches with a rider in view, a line per segment; how far the analyser has got. |
 | `video/<camera>/suggestions.jsonl`, `suggestions.done.jsonl` | Crossings a detection model suggested; those the referee accepted or dismissed. |
 

@@ -4,7 +4,8 @@
 
 ```text
 data/session.json                  the session (below)
-temp/<output stem>-<stamp><suffix> the output as a change left it, one copy a change
+temp/<stem>-<place>-<stamp><suffix> the output as a change left it, a copy a change;
+                                   <place>: six hex of the output's path
 video/<camera id>/
   recorder.json                    the recorder's heartbeat and state
   recorder.lock                    held locked while a recorder runs
