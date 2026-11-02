@@ -239,7 +239,8 @@ def _list_missing(folder: Path) -> list[str]:
     """Every closed segment's name, the list completed with any a crash closed but
     did not list; once, when a recorder starts."""
     try:
-        listed = (folder / SEGMENTS).read_text(encoding="ascii").split()
+        # read as its readers read it: a byte not ASCII names no segment, stops nothing
+        listed = (folder / SEGMENTS).read_bytes().decode("utf-8", "replace").split()
     except OSError:
         listed = []
     known = set(listed)
