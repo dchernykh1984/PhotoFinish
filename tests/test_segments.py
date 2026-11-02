@@ -113,20 +113,38 @@ def test_a_stretch_without_frames_is_a_gap(tmp_path: Path) -> None:
     assert writer.frames == 4
 
 
-def test_a_restart_keeps_what_a_crash_left_and_marks_the_gap(tmp_path: Path) -> None:
+def test_a_restart_shows_the_frames_a_crash_left_whole_and_marks_the_gap(
+    tmp_path: Path,
+) -> None:
     writer = SegmentWriter(tmp_path, fps=30)
     record(writer, START, 70)
-    writer.close()
-    last = times(segments(tmp_path)[-1])[-1][1]
-    record(writer, START + 5000, 10)
-    del writer  # a crash: the open segment stays as it was
+    writer.close()  # three segments closed
+    killed_while_recording(tmp_path, 20, start=START + 5000)
     again = SegmentWriter(tmp_path, fps=30)
-    assert {p.suffix for p in tmp_path.glob("crashed-*")} == {".mkv", ".times"}
+    recovered = segments(tmp_path)[-1]
+    kept = times(recovered)
+    assert len(kept) >= 20 - 4  # all but the last 0.1 s
+    assert [ms for _, ms in kept] == [START + 5000 + k * 33 for k in range(len(kept))]
+    assert packets(recovered) == [pts for pts, _ in kept]  # a file that ends well
+    with av.open(str(recovered)) as video:
+        assert sum(1 for _ in video.decode(video=0)) == len(kept)
+    assert (tmp_path / "segments.txt").read_text().split()[-1] == recovered.stem
+    assert again.segments == len(segments(tmp_path)) == 4
+    assert not [*tmp_path.glob("current.*"), *tmp_path.glob("crashed-*")]
     record(again, START + 9000, 3)
     again.close()
     gaps = (tmp_path / "gaps.txt").read_text().splitlines()
-    assert gaps[-1] == f"{last} {START + 9000} restart"
-    assert len(segments(tmp_path)) == 4
+    assert gaps[-1] == f"{kept[-1][1]} {START + 9000} restart"
+
+
+def test_what_a_crash_left_with_no_whole_frame_is_kept_aside(tmp_path: Path) -> None:
+    (tmp_path / "current.mkv").write_bytes(b"")
+    (tmp_path / "current.times").write_text(f"0 {START}\n")
+    writer = SegmentWriter(tmp_path, fps=30)
+    assert {p.suffix for p in tmp_path.glob("crashed-*")} == {".mkv", ".times"}
+    assert writer.segments == 0
+    assert segments(tmp_path) == []
+    assert not (tmp_path / "recovered.mkv").exists()
 
 
 @pytest.mark.parametrize("fps", [25, 29.97, 60])
