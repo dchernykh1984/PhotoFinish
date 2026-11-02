@@ -407,9 +407,10 @@ class OutputList:
         pattern = f"{glob.escape(self.path.stem)}-*{glob.escape(self.path.suffix)}"
         try:
             newest = max(_copies().glob(pattern), default=None)
-        except OSError:
-            newest = None
-        if newest is None or _read(newest) != self._written:
+            same = newest is not None and _read(newest) == self._written
+        except OSError:  # a copy that cannot be read never keeps the output shut
+            same = False
+        if not same:
             self._keep_copy()
 
     def _keep_copy(self) -> None:
