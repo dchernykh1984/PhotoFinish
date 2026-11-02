@@ -353,6 +353,16 @@ def test_a_change_a_crash_cut_after_its_write_gets_its_copy_at_the_next_start(
     assert max(copies.glob("out-*.txt")).read_bytes() == path.read_bytes()
 
 
+def test_a_copy_that_cannot_be_read_keeps_no_output_shut(
+    path: Path, copies: Path
+) -> None:
+    out = OutputList(path)
+    take(out, TAKEN)
+    (copies / "out-29991231-235959-999999.txt").mkdir()  # the newest, not a file
+    again = OutputList(path)  # opened all the same
+    assert again.texts() == [TAKEN]
+
+
 def test_a_change_that_cannot_be_written_is_undone(
     path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
