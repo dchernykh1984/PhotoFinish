@@ -342,6 +342,17 @@ def test_a_change_a_crash_cut_before_its_copy_gets_one_at_the_next_start(
     assert max(copies.glob("out-*.txt")).read_bytes() == path.read_bytes()
 
 
+def test_a_change_a_crash_cut_after_its_write_gets_its_copy_at_the_next_start(
+    path: Path, copies: Path
+) -> None:
+    out = OutputList(path)
+    take(out, TAKEN)
+    take(out, "16#20389 11:35:30.000#nextLap#")
+    max(copies.glob("out-*.txt")).unlink()  # the crash: written, not copied
+    OutputList(path)
+    assert max(copies.glob("out-*.txt")).read_bytes() == path.read_bytes()
+
+
 def test_a_change_that_cannot_be_written_is_undone(
     path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
