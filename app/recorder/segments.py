@@ -298,7 +298,9 @@ def _finish_close(folder: Path) -> str | None:
     """A close a kill or a refused rename cut between its two renames: the times
     have the name it wrote first, the video is still ``current.mkv`` and takes that
     name too. Nothing is guessed: no written name, or one that does not fit, and the
-    video is left to be recovered. The name, or None."""
+    video is left to be recovered. The name, or None. A rename refused again is
+    raised: that video waits for its own name, never kept aside without its times
+    nor written over by the next segment."""
     meant = folder / CLOSING
     try:
         name = meant.read_text(encoding="ascii").strip()
@@ -310,11 +312,8 @@ def _finish_close(folder: Path) -> str | None:
         and (folder / f"{name}.times").exists()
         and not (folder / f"{name}.mkv").exists()
     )
-    try:
-        if cut:
-            (folder / "current.mkv").replace(folder / f"{name}.mkv")
-    except OSError:
-        return None
+    if cut:
+        (folder / "current.mkv").replace(folder / f"{name}.mkv")
     _forget(meant)  # done, or a name that fits nothing here
     return name if cut else None
 

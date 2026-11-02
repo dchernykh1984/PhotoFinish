@@ -834,6 +834,33 @@ def test_a_cut_close_finished_whose_name_cannot_be_forgotten_is_listed(
     assert writer.segments == 2
 
 
+def test_a_cut_close_refused_again_waits_for_its_name_never_split(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    writer = SegmentWriter(tmp_path, fps=30)
+    record(writer, START, 5)
+    real = Path.replace
+
+    def refused(self: Path, target: Any) -> Path:
+        named = segments_module.NAMED.fullmatch(Path(target).stem)
+        if self.name == "current.mkv" and named:  # let go just after each try
+            raise OSError("held by a reader")
+        return real(self, target)
+
+    monkeypatch.setattr(Path, "replace", refused)
+    with pytest.raises(OSError):
+        writer.close()  # the times renamed, the video not
+    with pytest.raises(OSError):
+        record(writer, START + 5000, 1)  # refused again: no frame over it
+    monkeypatch.undo()
+    record(writer, START + 5100, 2)
+    writer.close()
+    first, last = segments(tmp_path)
+    assert len(times(first)) == 5  # its video and its times under one name
+    assert not list(tmp_path.glob("crashed-*"))
+    assert (tmp_path / "segments.txt").read_text().split() == [first.stem, last.stem]
+
+
 def test_a_close_that_named_its_times_only_is_finished_while_recording(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
