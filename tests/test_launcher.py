@@ -119,6 +119,34 @@ def test_a_dead_recorder_is_started_again_after_the_pause(
         assert len(spawns.processes) == started
 
 
+def test_a_recorder_that_dies_while_recording_is_started_again_after_the_pause(
+    folder: Path, clock: dict[str, float]
+) -> None:
+    spawns = Spawns()
+    watchdog = Watchdog("cam1", spawns)
+    watchdog.start()
+    beat(folder, "recording")  # its last heartbeat, fresh for 15 s more
+    spawns.processes[-1].code = -9
+    for moment, started in ((1001, 1), (1001.5, 1), (1002, 2)):
+        clock["now"] = moment
+        watchdog.poll()
+        assert len(spawns.processes) == started
+
+
+def test_a_recorder_that_found_the_camera_taken_leaves_it_to_the_other(
+    folder: Path, clock: dict[str, float]
+) -> None:
+    spawns = Spawns()
+    watchdog = Watchdog("cam1", spawns)
+    watchdog.start()
+    beat(folder, "recording")  # the other recorder's
+    spawns.processes[-1].code = 3
+    for moment in (1001, 1002, 1010):
+        clock["now"] = moment
+        assert watchdog.poll() == heartbeat("cam1")
+    assert len(spawns.processes) == 1
+
+
 def test_a_starting_recorder_gets_its_time(
     folder: Path, clock: dict[str, float]
 ) -> None:
