@@ -101,7 +101,6 @@ class OutputList:
         self.outside_kept = False  # an outside version kept: for the window to say
         self.copy_refused: OSError | None = None  # for the window to say; done anyway
         self._copied: bytes | None = None  # what the newest copy holds, once known
-        self._stem: str | None = None  # the copies' folder name, worked out once
         try:
             self._load()
         except JournalError as error:  # the files are written: the list is usable
@@ -414,7 +413,7 @@ class OutputList:
         newest copy is not the file as it is."""
         stamped = re.compile(r"\d{8}-\d{6}-\d{6}(-\d+)?" + re.escape(self.path.suffix))
         try:
-            newest = _newest(self._copy_folder(), stamped)  # this output's copies only
+            newest = _newest(self._copy_folder, stamped)  # this output's copies only
             same = newest is not None and _read(newest) == self._written
             if same:
                 self._copied = self._written
@@ -431,7 +430,7 @@ class OutputList:
         if self._written == self._copied:
             return  # a change that left the file as it was: the newest copy holds it
         try:
-            folder = self._copy_folder()
+            folder = self._copy_folder
             name = f"{datetime.now():%Y%m%d-%H%M%S-%f}"
             copy, n = folder / f"{name}{self.path.suffix}", 0
             while copy.exists():  # never over another copy
@@ -442,18 +441,14 @@ class OutputList:
         except OSError as error:
             self.copy_refused = error
 
+    @functools.cached_property
     def _copy_folder(self) -> Path:
-        """Where this output's copies go: a folder of its own in ``temp/``."""
-        return _copies() / self._copy_stem()
-
-    def _copy_stem(self) -> str:
-        """The copies' folder name: the output's, and six hex of its place, so outputs
-        of one name in two folders keep their copies apart."""
-        if self._stem is None:  # once: the path stays, the hash need not be redone
-            where = os.fsencode(self.path.resolve())
-            place = hashlib.sha1(where, usedforsecurity=False)
-            self._stem = f"{self.path.stem}-{place.hexdigest()[:6]}"
-        return self._stem
+        """Where this output's copies go: a folder of its own in ``temp/``, named as
+        the output and six hex of its place, so outputs of one name in two folders
+        keep their copies apart. Worked out once: the path stays."""
+        where = os.fsencode(self.path.resolve())
+        place = hashlib.sha1(where, usedforsecurity=False)
+        return _copies() / f"{self.path.stem}-{place.hexdigest()[:6]}"
 
     def _state(self) -> bytes:
         lines = [asdict(line) for line in self.lines]
