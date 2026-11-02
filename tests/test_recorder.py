@@ -22,6 +22,7 @@ import pytest
 import app.recorder as recorder
 from app import paths, session
 from app.recorder import Backoff, Heartbeat, SteadyClock, run
+from app.recorder import segments as segments_module
 from app.recorder.segments import SegmentWriter
 from app.recorder.testcam import read_time, render
 from tests.test_segments import killed_while_recording, make_h264
@@ -206,6 +207,21 @@ def test_a_full_disk_stops_the_recorder_and_says_so(
 
     monkeypatch.setattr(SegmentWriter, "write", full)
     assert run("cam1") == 4
+    assert heartbeat(folder)["state"] == "disk_full"
+
+
+def test_a_full_disk_met_as_the_writer_recovers_stops_the_recorder_and_says_so(
+    folder: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    stopping = Camera(folder, START, 10, stop_after=0)
+    cameras(monkeypatch, Camera(folder, START, 10), stopping)
+
+    def full(folder: Path) -> list[str]:
+        raise OSError(errno.ENOSPC, "No space left on device")
+
+    monkeypatch.setattr(recorder, "recover", full)  # at the start, said by no one
+    monkeypatch.setattr(segments_module, "recover", full)  # and the writer's own
+    assert run("cam1") == 4  # not taken for the camera, tried again for ever
     assert heartbeat(folder)["state"] == "disk_full"
 
 

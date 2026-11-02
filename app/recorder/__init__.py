@@ -250,8 +250,10 @@ class _Recording:
     def _write(
         self, source: Source, image: np.ndarray | av.VideoFrame | av.Packet, ms: int
     ) -> None:
-        if self.writer is None:
-            self.writer = SegmentWriter(self.folder, source.fps, closed=self.closed)
+        if self.writer is None:  # its own recovery writes too: a full disk said so
+            self.writer = _disk(
+                lambda: SegmentWriter(self.folder, source.fps, closed=self.closed)
+            )
         writer = self.writer
         writer.fps = source.fps
         if isinstance(image, av.Packet):
@@ -290,9 +292,9 @@ class _Recording:
             self.beat.beat(detail=f"a segment could not be closed: {error}")
 
 
-def _disk(write: Callable[..., None], *args: Any) -> None:
+def _disk[T](write: Callable[..., T], *args: Any) -> T:
     try:
-        write(*args)
+        return write(*args)
     except OSError as error:
         if error.errno == errno.ENOSPC:
             raise _DiskFullError from error
