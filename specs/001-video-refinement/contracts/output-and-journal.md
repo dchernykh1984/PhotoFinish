@@ -11,6 +11,9 @@
 - FinishProtocolGeneratorPython reads it as a finish file; nothing else is in it.
 - Replaced in one step (temporary file, flush, fsync, rename); a reader sees the old or the new
   file, never a mix.
+- After each change a copy of the file as it left it goes to `temp/` next to the program, as
+  `<output stem>-<YYYYmmdd-HHMMSS-ffffff><suffix>`, never over another copy. A copy that cannot be
+  written is said; the change stays done.
 
 ## Journal (`<output file>.journal.txt`)
 

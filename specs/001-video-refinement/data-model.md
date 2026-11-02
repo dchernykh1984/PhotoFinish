@@ -4,6 +4,7 @@
 
 ```text
 data/session.json                  the session (below)
+temp/<output stem>-<stamp><suffix> the output as a change left it, one copy a change
 video/<camera id>/
   recorder.json                    the recorder's heartbeat and state
   recorder.lock                    held locked while a recorder runs
@@ -12,7 +13,7 @@ video/<camera id>/
   <YYYYmmdd-HHMMSS>-<n>.times      its frames: "<pts> <time ms>" per line
   current.mkv, current.times       the segment being written
   segments.txt                     the closed segments' names, one a line, as they closed
-  crashed-<ms>.mkv, .times         a segment a crash left open, kept but not shown
+  crashed-<ms>.mkv, .times         a segment a crash left open with no whole frame, kept, not shown
   gaps.txt                         "<from ms> <to ms> <reason>" per gap
 <output file>                      chosen by the referee
 <output file>.state.json           origin and marks of each output line, the input as last taken
