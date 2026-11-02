@@ -37,7 +37,7 @@ def clock(monkeypatch: pytest.MonkeyPatch) -> dict[str, float]:
     return moment
 
 
-def beat(folder: Path, state: str, age_ms: int = 0, pid: int | None = None) -> None:
+def beat(folder: Path, state: str, age_ms: int = 0, pid: int = 4242) -> None:
     folder.mkdir(parents=True, exist_ok=True)
     info = {"state": state, "heartbeat_ms": now_ms() - age_ms, "pid": pid}
     (folder / "recorder.json").write_text(json.dumps(info))
@@ -147,21 +147,25 @@ def test_a_recorder_that_found_the_camera_taken_leaves_it_to_the_other(
     assert len(spawns.processes) == 1
 
 
-def test_another_recorders_heartbeat_is_taken_for_a_running_one(
+def test_a_recorder_of_another_window_that_beats_is_left_the_camera(
     folder: Path, clock: dict[str, float]
 ) -> None:
     spawns = Spawns()
     watchdog = Watchdog("cam1", spawns)
     watchdog.start()
-    beat(folder, "recording", pid=100)
-    clock["now"] = 1000.5
-    watchdog.poll()  # this window's recorder, by its own word
-    spawns.processes[-1].code = -9
-    beat(folder, "recording", pid=200)  # another window's has the camera now
-    for moment in (1002, 1003, 1010):
+    spawns.processes[-1].code = -9  # this window's recorder dies
+    for moment in (1001, 1002):
+        clock["now"] = moment
+        watchdog.poll()
+    assert len(spawns.processes) == 2  # started again
+    time.sleep(0.005)
+    beat(folder, "recording")  # another window's recorder beats meanwhile
+    watchdog.poll()
+    spawns.processes[-1].code = 3  # the camera was the other's
+    for moment in (1003, 1005, 1010):
         clock["now"] = moment
         assert watchdog.poll() == heartbeat("cam1")
-    assert len(spawns.processes) == 1
+    assert len(spawns.processes) == 2
 
 
 def test_a_start_that_found_the_dead_recorders_lock_still_held_tries_again(
@@ -170,7 +174,7 @@ def test_a_start_that_found_the_dead_recorders_lock_still_held_tries_again(
     spawns = Spawns()
     watchdog = Watchdog("cam1", spawns)
     watchdog.start()
-    beat(folder, "recording", pid=100)
+    beat(folder, "recording")
     clock["now"] = 1000.5
     watchdog.poll()
     spawns.processes[-1].code = -9  # killed; its last heartbeat fresh for 15 s more
@@ -183,6 +187,25 @@ def test_a_start_that_found_the_dead_recorders_lock_still_held_tries_again(
         clock["now"] = moment
         watchdog.poll()
         assert len(spawns.processes) == started
+
+
+def test_a_stalled_recorder_that_beats_again_keeps_its_camera(
+    folder: Path, clock: dict[str, float]
+) -> None:
+    beat(folder, "recording", age_ms=16_000)  # attached to, it stalled past 15 s
+    spawns = Spawns()
+    watchdog = Watchdog("cam1", spawns)
+    watchdog.start()  # so another is started
+    time.sleep(0.005)
+    beat(folder, "recording")  # the stalled one beats again while that one unpacks
+    clock["now"] = 1000.5
+    watchdog.poll()
+    spawns.processes[-1].code = 3  # its lock refused the new one
+    for moment in (1001, 1031, 1100):
+        clock["now"] = moment
+        beat(folder, "recording")
+        watchdog.poll()
+    assert len(spawns.processes) == 1  # no start every 30 s for ever
 
 
 def test_a_starting_recorder_gets_its_time(
