@@ -168,6 +168,26 @@ def test_a_recorder_of_another_window_that_beats_is_left_the_camera(
     assert len(spawns.processes) == 2
 
 
+def test_a_recorder_that_beats_after_this_windows_died_is_left_the_camera(
+    folder: Path, clock: dict[str, float]
+) -> None:
+    spawns = Spawns()
+    watchdog = Watchdog("cam1", spawns)
+    watchdog.start()
+    beat(folder, "recording")
+    clock["now"] = 1000.5
+    watchdog.poll()
+    spawns.processes[-1].code = -9  # this window's recorder dies
+    clock["now"] = 1001
+    watchdog.poll()  # its end seen, its last heartbeat noted
+    for moment in (1002, 1004, 1010, 1020):
+        time.sleep(0.002)
+        beat(folder, "recording")  # another window's recorder, beating
+        clock["now"] = moment
+        watchdog.poll()
+    assert len(spawns.processes) == 1  # none started to exit 3 for 15 s
+
+
 def test_a_start_that_found_the_dead_recorders_lock_still_held_tries_again(
     folder: Path, clock: dict[str, float]
 ) -> None:
