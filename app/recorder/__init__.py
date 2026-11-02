@@ -182,8 +182,9 @@ def run(
         if camera is None:
             beat.beat(state="failed", detail=f"no camera {camera_id} in the session")
             return 2
-        recording = _Recording(folder, camera, beat, clock or SteadyClock(), sleep)
-        return recording.run(closed)
+        return _Recording(
+            folder, camera, beat, clock or SteadyClock(), sleep, closed
+        ).run()
 
 
 class _Recording:
@@ -194,17 +195,16 @@ class _Recording:
         beat: Heartbeat,
         clock: Callable[[], int],
         sleep: Callable[[float], None],
+        closed: list[str] | None = None,  # the segments as the start found them
     ) -> None:
         self.folder, self.camera, self.beat = folder, camera, beat
         self.clock, self.sleep = clock, sleep
         self.stop = folder / "stop.request"
         self.writer: SegmentWriter | None = None
-        self.closed: list[str] | None = None  # the segments as the start found them
+        self.closed = closed
         self.backoff = Backoff()
 
-    def run(self, closed: list[str] | None = None) -> int:
-        """Record until a stop; ``closed``, the segments as the start found them."""
-        self.closed = closed
+    def run(self) -> int:
         try:
             while not self.stop.exists():
                 self.beat.beat(state="connecting", detail="")
