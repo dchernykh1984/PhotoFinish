@@ -262,6 +262,28 @@ def test_a_cut_close_finds_its_own_times_among_others_alike(
     assert not other.exists()
 
 
+def test_a_recovery_killed_before_its_copy_had_its_name_is_finished(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    killed_while_recording(tmp_path, 20)
+    real = Path.replace
+
+    def killed(self: Path, target: Any) -> Path:
+        if self.name == "recovered.mkv":
+            raise SystemExit(1)  # killed: no handler runs
+        return real(self, target)
+
+    monkeypatch.setattr(Path, "replace", killed)
+    with pytest.raises(SystemExit):
+        SegmentWriter(tmp_path, fps=30)
+    monkeypatch.undo()
+    SegmentWriter(tmp_path, fps=30)
+    (recovered,) = segments(tmp_path)
+    assert len(times(recovered)) >= 20 - 4
+    assert (tmp_path / "segments.txt").read_text().split() == [recovered.stem]
+    assert not (tmp_path / "recovered.mkv").exists()
+
+
 def test_what_a_crash_left_with_no_whole_frame_is_kept_aside(tmp_path: Path) -> None:
     (tmp_path / "current.mkv").write_bytes(b"")
     (tmp_path / "current.times").write_text(f"0 {START}\n")
