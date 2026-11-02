@@ -294,6 +294,30 @@ def test_the_times_of_an_open_gops_leading_frames_are_read(tmp_path: Path) -> No
     }  # a line not two numbers, and the last one cut short, left out
 
 
+def test_a_crash_kept_aside_halfway_is_kept_under_one_stamp(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "current.mkv").write_bytes(b"")  # nothing whole to show
+    (tmp_path / "current.times").write_text(f"0 {START}\n")
+    ticks = iter(range(START * 1_000_000, 2 * START * 1_000_000, 10**9))
+    monkeypatch.setattr(segments_module.time, "time_ns", lambda: next(ticks))
+    real = Path.replace
+
+    def held(self: Path, target: Any) -> Path:
+        if self.name == "current.mkv":
+            raise OSError("held by a reader")
+        return real(self, target)
+
+    monkeypatch.setattr(Path, "replace", held)
+    with pytest.raises(OSError):
+        SegmentWriter(tmp_path, fps=30)  # the times went aside, the video not
+    monkeypatch.setattr(Path, "replace", real)
+    SegmentWriter(tmp_path, fps=30)  # a second later
+    stamps = {p.stem for p in tmp_path.glob("crashed-*")}
+    assert len(stamps) == 1
+    assert {p.suffix for p in tmp_path.glob("crashed-*")} == {".mkv", ".times"}
+
+
 def test_what_a_crash_left_with_no_whole_frame_is_kept_aside(tmp_path: Path) -> None:
     (tmp_path / "current.mkv").write_bytes(b"")
     (tmp_path / "current.times").write_text(f"0 {START}\n")

@@ -393,12 +393,22 @@ def _whole(video: av.container.InputContainer) -> Iterator[tuple[av.Packet, int]
 
 def _keep_aside(folder: Path) -> None:
     """A segment a crash, or a failed close, left open is not one to show, but what
-    it holds is kept."""
-    stamp = time.time_ns() // 1_000_000
-    for suffix in (".times", ".mkv"):
-        left = folder / f"current{suffix}"
+    it holds is kept: both files under one stamp, the times first, also when a kill
+    or a refused rename came between the two last time."""
+    times, video = folder / "current.times", folder / "current.mkv"
+    stamp = str(time.time_ns() // 1_000_000)
+    if video.exists() and not times.exists():
+        lone = [
+            p
+            for p in folder.glob("crashed-*.times")
+            if not p.with_suffix(".mkv").exists()
+        ]
+        if lone:  # its times went aside first: the video joins them
+            newest = max(lone, key=lambda p: p.stat().st_mtime_ns)
+            stamp = newest.stem.removeprefix("crashed-")
+    for left in (times, video):
         if left.exists():
-            left.replace(folder / f"crashed-{stamp}{suffix}")
+            left.replace(folder / f"crashed-{stamp}{left.suffix}")
 
 
 def _last_recorded(folder: Path, closed: list[str]) -> int | None:
