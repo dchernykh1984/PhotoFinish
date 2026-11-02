@@ -312,11 +312,11 @@ def _give_its_name(video: Path) -> str | None:
 
 
 def _frames_of(times: Path) -> list[int] | None:
-    """The pts a closed segment's times list, sorted; None when they cannot be read."""
+    """The pts a closed segment's times list, sorted, read by the one rule for times;
+    None when they cannot be read."""
     try:
-        lines = times.read_text(encoding="ascii").splitlines()
-        return sorted(int(line.split()[0]) for line in lines)
-    except OSError, ValueError, IndexError:
+        return sorted(_frame_times(times))
+    except OSError, ValueError:
         return None
 
 
