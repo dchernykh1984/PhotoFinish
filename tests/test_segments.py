@@ -390,6 +390,30 @@ def test_a_segment_recovered_while_recording_is_listed_in_order_though_refused_o
     assert writer.segments == 2
 
 
+def test_a_close_that_named_its_times_only_is_finished_while_recording(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    writer = SegmentWriter(tmp_path, fps=30)
+    record(writer, START, 5)
+    real = Path.replace
+
+    def held(self: Path, target: Any) -> Path:
+        if self.name == "current.mkv":
+            raise OSError("held by a reader")
+        return real(self, target)
+
+    monkeypatch.setattr(Path, "replace", held)
+    with pytest.raises(OSError):
+        writer.close()  # the times renamed, the video not
+    monkeypatch.undo()
+    record(writer, START + 5000, 2)
+    writer.close()
+    first, last = segments(tmp_path)
+    assert len(times(first)) == 5  # all of it, not set aside
+    assert (tmp_path / "segments.txt").read_text().split() == [first.stem, last.stem]
+    assert not list(tmp_path.glob("crashed-*"))
+
+
 def test_closed_segments_are_listed_and_a_restart_lists_any_a_crash_missed(
     tmp_path: Path,
 ) -> None:
