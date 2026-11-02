@@ -15,6 +15,7 @@ video/<camera id>/
   current.mkv, current.times       the segment being written
   segments.txt                     the closed segments' names, one a line, as they closed
   crashed-<ms>.mkv, .times         a segment a crash left open, kept as it was, not shown
+  crashed.name                     the stamp a crash kept aside takes, written before its renames
   recovered.mkv, .times, .name     a recovery under way: its copy, its times, the name it takes
   closing.name                     the name a close gives, written before its two renames
   reading.crash                    there while a crash is read: one that kills is read once

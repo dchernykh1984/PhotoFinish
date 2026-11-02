@@ -319,6 +319,16 @@ def test_a_crash_kept_aside_halfway_is_kept_under_one_stamp(
     assert {p.suffix for p in tmp_path.glob("crashed-*")} == {".mkv", ".times"}
 
 
+def test_a_crash_video_alone_takes_no_times_another_crash_left_alone(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "crashed-1000.times").write_text(f"0 {START}\n")  # an older version's
+    (tmp_path / "current.mkv").write_bytes(b"")  # killed before its times were opened
+    SegmentWriter(tmp_path, fps=30)
+    assert not (tmp_path / "crashed-1000.mkv").exists()
+    assert len(list(tmp_path.glob("crashed-*.mkv"))) == 1
+
+
 def test_a_video_takes_no_times_written_long_before_it(tmp_path: Path) -> None:
     writer = SegmentWriter(tmp_path, fps=30)
     record(writer, START, 5)

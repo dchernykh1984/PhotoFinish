@@ -35,6 +35,7 @@ SEGMENTS = "segments.txt"  # the closed segments' names, in the order they close
 KEYFRAME_SLACK_MS = 100  # a camera's keyframe this much short of a second still cuts
 CLOSING = "closing.name"  # the name a close gives, written before its two renames
 READING = "reading.crash"  # there while a crash is read: one that kills is read once
+ASIDE = "crashed.name"  # the stamp a crash kept aside takes, written before it does
 _MS = Fraction(1, 1000)
 _GOP = 15
 _QUALITY = 3
@@ -460,22 +461,28 @@ def _whole(video: av.container.InputContainer) -> Iterator[tuple[av.Packet, int]
 
 def _keep_aside(folder: Path) -> None:
     """A segment a crash, or a failed close, left open is not one to show, but what
-    it holds is kept: both files under one stamp, the times first, also when a kill
-    or a refused rename came between the two last time."""
+    it holds is kept: both files under one stamp, the times first. The stamp is
+    written before the two renames, so one a kill or a refused rename cut between
+    them is finished by it: the video joins its own times, no others."""
     times, video = folder / "current.times", folder / "current.mkv"
-    stamp = str(time.time_ns() // 1_000_000)
-    if video.exists() and not times.exists():
-        lone = [
-            p
-            for p in folder.glob("crashed-*.times")
-            if not p.with_suffix(".mkv").exists()
-        ]
-        if lone:  # its times went aside first: the video joins them
-            newest = max(lone, key=lambda p: p.stat().st_mtime_ns)
-            stamp = newest.stem.removeprefix("crashed-")
+    meant = folder / ASIDE
+    try:
+        stamp = meant.read_text(encoding="ascii").strip()
+    except OSError, ValueError:
+        stamp = ""
+    cut = (
+        stamp.isdigit()
+        and not times.exists()
+        and (folder / f"crashed-{stamp}.times").exists()
+        and not (folder / f"crashed-{stamp}.mkv").exists()
+    )
+    if not cut:
+        stamp = str(time.time_ns() // 1_000_000)
+        meant.write_text(stamp, encoding="ascii")
     for left in (times, video):
         if left.exists():
             left.replace(folder / f"crashed-{stamp}{left.suffix}")
+    meant.unlink(missing_ok=True)
     (folder / READING).unlink(missing_ok=True)  # the crash it was there for is aside
 
 
