@@ -286,6 +286,24 @@ def test_a_starting_recorder_shows_what_a_crash_left_before_its_camera_is_back(
     assert not list(folder.glob("current.*"))
 
 
+def test_a_recorder_sees_to_what_a_crash_left_once_as_it_starts(
+    folder: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.recorder import segments as written
+
+    looked: list[Path] = []
+    real = written._list_missing
+
+    def counted(folder: Path) -> list[str]:
+        looked.append(folder)
+        return real(folder)
+
+    monkeypatch.setattr(written, "_list_missing", counted)
+    cameras(monkeypatch, Camera(folder, START, 100, stop_after=10))
+    assert run("cam1") == 0
+    assert looked == [folder]  # one look through a long day's folder, not two
+
+
 def test_a_recovery_that_fails_at_the_start_leaves_the_recorder_running(
     folder: Path,
 ) -> None:
