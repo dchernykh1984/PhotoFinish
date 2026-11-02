@@ -44,7 +44,7 @@ rtmp://<this computer>:<port>/<path>", the address to type in the camera app.
   `recovered.mkv` and `recovered.times`, then the name it is to take goes to `recovered.name`,
   and only then is the crash kept aside and the copy named: a start that finds them finishes
   the recovery as `recovered.name` says, or, with no name written yet, drops them and recovers
-  the crash again. `recovered.name` also holds the first frame's time of what it recovers, so a
+  the crash again. `recovered.name` also holds the time on the first line of its source's `.times`, so a
   later crash's `current.*` is recovered in its turn, not kept aside with it.
   A recovery not yet named is named before the next is made, and listed as it is, during a run
   too, never written over; while it cannot be, a crash seen to is kept aside whole.

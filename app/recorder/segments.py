@@ -362,8 +362,10 @@ def _recover(folder: Path, n: int) -> str | None:
         name = _name(folder, kept[0][1], n)
         times = "".join(f"{pts} {ms}\n" for pts, ms in kept)
         write_in_one_step(copied, times.encode("ascii"))
-        # its source's first frame too: a later crash is not taken for it
-        write_in_one_step(meant, f"{name} {kept[0][1]}".encode("ascii"))
+        # its source's first line too, as _first_ms reads it: a later crash is not
+        # taken for it, nor it for a later one
+        source = next(iter(frames.values()))
+        write_in_one_step(meant, f"{name} {source}".encode("ascii"))
     except OSError, ValueError, IndexError, av.FFmpegError:
         _drop_recovery(folder)  # what the crash left is where it was
         return None
