@@ -420,6 +420,25 @@ def test_the_newest_of_files_is_found_though_one_goes_meanwhile(
     assert output_list._newest(tmp_path, stamped) == tmp_path / "2.txt"
 
 
+def test_an_output_opened_with_a_journal_that_refuses_is_copied_all_the_same(
+    path: Path, copies: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    out = OutputList(path)
+    take(out, TAKEN)
+    path.write_text("edited by hand\n")  # an outside version to journal at the open
+    for copy in copies.glob("out-*/*.txt"):
+        copy.unlink()  # the crash came before its copy
+
+    def refused(file: Path, data: bytes) -> None:
+        raise OSError("journal held")
+
+    monkeypatch.setattr(output_list, "_append", refused)
+    again = OutputList(path)
+    assert again.journal_error is not None
+    (copy,) = copies.glob("out-*/*.txt")
+    assert copy.read_bytes() == path.read_bytes()
+
+
 def test_a_change_that_cannot_be_written_is_undone(
     path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

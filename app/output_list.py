@@ -352,8 +352,10 @@ class OutputList:
             self._keep_copy()
             return
         self._written = body
-        self.check_outside()
-        self._copy_if_missing()
+        try:
+            self.check_outside()
+        finally:  # a journal that refuses leaves the files written: copied all the same
+            self._copy_if_missing()
 
     def _start_from_file(self, journal: _Replayed | None = None) -> None:
         """No state: crossings already in the file start the list, in time order, and
@@ -372,10 +374,12 @@ class OutputList:
                     line = outside[text].pop(0)
                     line.origin, line.method = {"input": given}, method
         self._written = None if self.lines else found
-        if not self.check_outside():
-            self._write()
-        if self._written:  # the file as this list first wrote it; an empty one, no
-            self._copy_if_missing()
+        try:
+            if not self.check_outside():
+                self._write()
+        finally:  # the file as this list first wrote it; an empty one, no
+            if self._written:
+                self._copy_if_missing()
 
     def _keep_outside_version(self, polled: bool = False) -> bool:
         # shortcut: a poll trusts the size, time and inode: a file rewritten in place,
