@@ -360,7 +360,7 @@ def test_a_copy_that_cannot_be_read_keeps_no_output_shut(
 ) -> None:
     out = OutputList(path)
     take(out, TAKEN)
-    (copies / out._copy_stem() / "29991231-235959-999999.txt").mkdir()  # newest
+    (out._copy_folder / "29991231-235959-999999.txt").mkdir()  # the newest
     again = OutputList(path)  # opened all the same
     assert again.texts() == [TAKEN]
 
@@ -390,7 +390,7 @@ def test_an_output_adopted_from_its_file_is_copied_as_it_is_written(
 def test_an_output_whose_path_is_not_utf8_still_gets_copies(path: Path) -> None:
     out = OutputList(path)
     out.path = path.with_name("out\udcff.txt")  # a byte a Linux name may hold
-    assert out._copy_stem().startswith("out\udcff-")
+    assert out._copy_folder.name.startswith("out\udcff-")
 
 
 def test_a_change_that_leaves_the_file_as_it_was_makes_no_copy(
