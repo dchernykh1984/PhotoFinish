@@ -308,8 +308,8 @@ def _copy_whole(
                     packet.stream = into
                     out.mux(packet)
                     kept.add(pts)
-        except av.error.InvalidDataError:
-            pass  # the cluster the crash cut short: what came before is kept
+        except av.FFmpegError:
+            pass  # the cluster the crash cut short, read as any error: kept before
     return [(pts, ms) for pts, ms in frames.items() if pts in kept]
 
 

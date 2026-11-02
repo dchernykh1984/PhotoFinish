@@ -6,7 +6,9 @@ import re
 import subprocess
 import sys
 import time
+from collections.abc import Iterator
 from pathlib import Path
+from typing import Any
 
 import av
 import pytest
@@ -145,6 +147,44 @@ def test_a_times_line_a_kill_cut_short_is_left_out(tmp_path: Path) -> None:
     SegmentWriter(tmp_path, fps=30)
     (recovered,) = segments(tmp_path)
     assert [ms for _, ms in times(recovered)] == [START + k * 33 for k in range(3)]
+
+
+class _CutShort:
+    """A crashed segment read to three packets, then an end of file."""
+
+    def __init__(self, inner: Any) -> None:
+        self.inner = inner
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self.inner, name)
+
+    def __enter__(self) -> _CutShort:
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self.inner.close()
+
+    def demux(self, *streams: Any) -> Iterator[av.Packet]:
+        for k, packet in enumerate(self.inner.demux(*streams)):
+            if k == 3:
+                raise av.error.EOFError(541478725, "End of file")
+            yield packet
+
+
+def test_a_crash_read_as_any_error_keeps_the_frames_before_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    killed_while_recording(tmp_path, 20)
+    real = av.open
+
+    def opened(path: Any, *args: Any, **kwargs: Any) -> Any:
+        found = real(path, *args, **kwargs)
+        return _CutShort(found) if str(path).endswith("current.mkv") else found
+
+    monkeypatch.setattr(segments_module.av, "open", opened)
+    SegmentWriter(tmp_path, fps=30)
+    (recovered,) = segments(tmp_path)
+    assert len(times(recovered)) == 3
 
 
 def test_what_a_crash_left_with_no_whole_frame_is_kept_aside(tmp_path: Path) -> None:
