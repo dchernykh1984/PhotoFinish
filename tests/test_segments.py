@@ -971,6 +971,15 @@ def test_a_recovery_left_unnamed_is_named_and_listed_at_the_next_segment(
     assert writer.segments == 3
 
 
+def test_a_crash_read_whole_is_recovered_though_its_mark_is_held(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    killed_while_recording(tmp_path, 20)
+    forgetting_refused_once(monkeypatch, segments_module.READING)
+    SegmentWriter(tmp_path, fps=30)
+    assert len(segments(tmp_path)) == 1  # the copy kept, its mark cleared as it went
+
+
 def test_a_close_that_named_its_times_only_is_finished_while_recording(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
