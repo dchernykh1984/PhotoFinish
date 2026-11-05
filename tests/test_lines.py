@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from app import lines
+from tests.conftest import Zone
 
 
 def test_a_time_reads_as_the_chronometers_write_it() -> None:
@@ -28,7 +29,7 @@ def test_a_line_gives_its_number_time_and_action() -> None:
 
 
 def test_a_moment_goes_on_the_line_scale_and_back(
-    utc5: dict[str, tuple[float, float] | None],
+    utc5: Zone,
 ) -> None:
     moment = 1_761_716_129_587
     assert lines.to_line_scale(moment, summer_time=False) == moment + 5 * 3_600_000
@@ -40,7 +41,7 @@ def test_a_moment_goes_on_the_line_scale_and_back(
 
 
 def test_a_moment_in_daylight_saving_s_last_hour_goes_back_to_itself(
-    utc5: dict[str, tuple[float, float] | None],
+    utc5: Zone,
 ) -> None:
     """A summer line time is read back at the moment an hour before the one it
     says, which is where daylight saving was: so too in the hour before it ends,

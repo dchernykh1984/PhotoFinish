@@ -25,7 +25,7 @@ from app.main_window import start_analyzer
 from app.recorder.segments import SegmentWriter
 from app.recorder.testcam import read_time, render
 from app.widgets.camera_dialog import CameraDialog
-from tests.conftest import settled, wait_until
+from tests.conftest import Zone, settled, wait_until
 
 START = 1_761_716_129_587
 CAMERA = {"id": "cam1", "name": "Side", "connection": "test", "settings": {"fps": 30}}
@@ -258,7 +258,7 @@ def test_enter_adds_a_crossing_at_the_frame_shown(
 def test_the_time_shown_is_the_time_a_crossing_at_the_frame_gets(
     base: Path,
     make_window: Callable[[], mw.MainWindow],
-    utc5: dict[str, tuple[float, float] | None],
+    utc5: Zone,
     summer: bool,
     dst: bool,
 ) -> None:
