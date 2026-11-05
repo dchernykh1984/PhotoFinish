@@ -293,15 +293,16 @@ def test_the_time_shown_is_the_time_a_crossing_at_the_frame_gets(
     record(base, START + 5000, 10)  # and frames go on coming in
     win.poll()
     wait_until(showing(win, START + 5000 + 9 * 33))
-    live_by = win.time_label.text()  # the live label, moved on with them
+    assert win.time_label.text() == f"{newest} LIVE"  # the live label moved on too
     win.number.setText("14")
     win.add_crossing()
     win.input_view.selectRow(0)
     win.align_source()  # the referee aligns again, on that rider
-    realigned = win.time_label.text()
+    assert win.session["source_offset_ms"] == -1000
+    assert win.time_label.text() == f"{passing} LIVE"  # moved with the alignment
     win.step(-19)
     wait_until(showing(win, START + 60 * 33))  # the frame the referee looks at
-    timed_by = win.time_label.text()  # and the time read before the click
+    assert win.time_label.text() == moment  # and the time read before the click
     win.number.setText("15")
     win.add_crossing()
     added = (base / "out.txt").read_text().splitlines()
@@ -318,10 +319,6 @@ def test_the_time_shown_is_the_time_a_crossing_at_the_frame_gets(
         (f"14#20390 {newest}#nextLap#", START + 5000 + 9 * 33, first),
         (f"15#20390 {moment}#nextLap#", START + 60 * 33, second),
     ]
-    assert live_by == f"{newest} LIVE"
-    assert win.session["source_offset_ms"] == -1000
-    assert realigned == f"{passing} LIVE"  # moved with the alignment
-    assert timed_by == moment
 
 
 def test_the_keys_move_the_video_while_a_number_is_typed(
