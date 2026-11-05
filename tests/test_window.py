@@ -267,6 +267,10 @@ def test_the_time_shown_is_the_time_a_crossing_at_the_frame_gets(
     win.add_crossing()
     moment = scale_time(to_line_scale(START + 60 * 33 + 40 - 1234, False))
     assert (base / "out.txt").read_text() == f"15#{moment}#nextLap#\n"
+    assert journal(base / "out.txt")[-1]["offsets"] == {
+        "camera_ms": 40,
+        "source_ms": -1234,
+    }
     assert win.time_label.text() == moment.split(" ")[1]
 
 
