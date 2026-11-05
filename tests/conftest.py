@@ -52,6 +52,23 @@ def base(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 
 @pytest.fixture
+def utc5(monkeypatch: pytest.MonkeyPatch) -> dict[str, bool]:
+    """UTC+5 standard time, daylight saving on or off as the test sets ``["on"]``:
+    a time on the line scale is then the same on every computer. Only the flag of
+    the local time is the test's; its other fields, segment names', stay as they are.
+    """
+    monkeypatch.setattr(time, "timezone", -5 * 3600)
+    dst = {"on": False}
+    real = time.localtime
+
+    def localtime(seconds: float | None = None) -> time.struct_time:
+        return time.struct_time((*real(seconds)[:8], int(dst["on"])))
+
+    monkeypatch.setattr(time, "localtime", localtime)
+    return dst
+
+
+@pytest.fixture
 def spawned(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     calls: list[str] = []
 

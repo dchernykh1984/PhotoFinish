@@ -249,16 +249,13 @@ def test_enter_adds_a_crossing_at_the_frame_shown(
 def test_the_time_shown_is_the_time_a_crossing_at_the_frame_gets(
     base: Path,
     make_window: Callable[[], mw.MainWindow],
-    monkeypatch: pytest.MonkeyPatch,
+    utc5: dict[str, bool],
     summer: bool,
 ) -> None:
     """The referee times by the label: a crossing added at the frame shown gets the
     time it shows, the camera's offset and the timing source's in both, and the
     summer hour too while daylight saving is on."""
-    real = time.localtime
-    monkeypatch.setattr(
-        time, "localtime", lambda *at: time.struct_time((*real(*at)[:8], 1))
-    )  # daylight saving on
+    utc5["on"] = True
     session.save(
         {
             **session.DEFAULTS,
