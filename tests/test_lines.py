@@ -39,6 +39,19 @@ def test_a_moment_goes_on_the_line_scale_and_back(
     assert lines.to_epoch(lines.to_line_scale(moment, True), True) == moment
 
 
+def test_a_moment_in_daylight_saving_s_last_hour_goes_back_to_itself(
+    utc5: dict[str, tuple[float, float] | None],
+) -> None:
+    """A summer line time is read back at the moment an hour before the one it
+    says, which is where daylight saving was: so too in the hour before it ends,
+    when the moment it says is already past the end."""
+    end = 1_761_716_129.587  # daylight saving ends here
+    utc5["dst"] = (end - 30 * 86_400, end)
+    moment = round((end - 1800) * 1000)  # half an hour before the end
+    assert lines.to_line_scale(moment, summer_time=True) == moment + 6 * 3_600_000
+    assert lines.to_epoch(lines.to_line_scale(moment, True), True) == moment
+
+
 def test_lines_are_read_each_in_its_encoding() -> None:
     rider = "15#" + chr(0x0418) + "#"
     data = (
