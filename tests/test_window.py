@@ -272,18 +272,21 @@ def test_the_time_shown_is_the_time_a_crossing_at_the_frame_gets(
     beating(base)
     win = make_window()
     wait_until(showing(win, START + 69 * 33))  # live, on the newest frame
-    live_by = win.time_label.text()
+    record(base, START + 5000, 10)  # and frames go on coming in
+    win.poll()
+    wait_until(showing(win, START + 5000 + 9 * 33))
+    live_by = win.time_label.text()  # the live label, moved on with them
     win.number.setText("14")
     win.add_crossing()
-    win.step(-9)
+    win.step(-19)
     wait_until(showing(win, START + 60 * 33))  # the frame the referee looks at
     timed_by = win.time_label.text()  # and the time read before the click
     win.number.setText("15")
     win.add_crossing()
-    # Frames 69 and 60 with both offsets, at UTC+5, an hour later in summer time:
-    # written out, not worked out with the window's own arithmetic.
+    # The newest frame and frame 60 with both offsets, at UTC+5, an hour later in
+    # summer time: written out, not worked out with the window's own arithmetic.
     hour = 11 if summer and dst else 10
-    newest, moment = f"20390 {hour}:35:30.670", f"20390 {hour}:35:30.373"
+    newest, moment = f"20390 {hour}:35:33.690", f"20390 {hour}:35:30.373"
     added = (base / "out.txt").read_text().splitlines()
     assert sorted(added) == sorted([f"14#{newest}#nextLap#", f"15#{moment}#nextLap#"])
     assert journal(base / "out.txt")[-1]["offsets"] == {
