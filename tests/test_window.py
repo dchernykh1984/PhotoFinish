@@ -261,18 +261,25 @@ def test_the_time_shown_is_the_time_a_crossing_at_the_frame_gets(
     record(base, START, 70)
     beating(base)
     win = make_window()
-    wait_until(showing(win, START + 69 * 33))
+    wait_until(showing(win, START + 69 * 33))  # live, on the newest frame
+    live_by = win.time_label.text()
+    win.number.setText("14")
+    win.add_crossing()
     win.step(-9)
     wait_until(showing(win, START + 60 * 33))  # the frame the referee looks at
     timed_by = win.time_label.text()  # and the time read before the click
     win.number.setText("15")
     win.add_crossing()
-    moment = scale_time(to_line_scale(START + 60 * 33 + 40 - 1234, False))
-    assert (base / "out.txt").read_text() == f"15#{moment}#nextLap#\n"
+    newest, moment = (
+        scale_time(to_line_scale(START + k * 33 + 40 - 1234, False)) for k in (69, 60)
+    )
+    added = (base / "out.txt").read_text().splitlines()
+    assert sorted(added) == sorted([f"14#{newest}#nextLap#", f"15#{moment}#nextLap#"])
     assert journal(base / "out.txt")[-1]["offsets"] == {
         "camera_ms": 40,
         "source_ms": -1234,
     }
+    assert live_by == f"{newest.split(' ')[1]} LIVE"
     assert timed_by == moment.split(" ")[1]
 
 
