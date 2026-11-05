@@ -258,14 +258,15 @@ def test_enter_adds_a_crossing_at_the_frame_shown(
 def test_the_time_shown_is_the_time_a_crossing_at_the_frame_gets(
     base: Path,
     make_window: Callable[[], mw.MainWindow],
-    utc5: dict[str, bool],
+    utc5: dict[str, tuple[float, float] | None],
     summer: bool,
     dst: bool,
 ) -> None:
     """The referee times by the label: a crossing added at the frame shown gets the
     time it shows, the camera's offset and the timing source's in both, and the
     summer hour too while daylight saving is on, and only then: not in a winter race."""
-    utc5["on"] = dst
+    # Daylight saving on for the race's moments, an hour back too, and not for now.
+    utc5["dst"] = (START / 1000 - 7200, START / 1000 + 3600) if dst else None
     # Every time below is written out, not worked out with the window's arithmetic:
     # at UTC+5, an hour later in summer time.
     hour = 11 if summer and dst else 10
