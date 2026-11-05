@@ -289,10 +289,8 @@ def test_the_time_shown_is_the_time_a_crossing_at_the_frame_gets(
     newest, moment = f"20390 {hour}:35:33.690", f"20390 {hour}:35:30.373"
     added = (base / "out.txt").read_text().splitlines()
     assert added == [f"15#{moment}#nextLap#", f"14#{newest}#nextLap#"]  # time order
-    assert journal(base / "out.txt")[-1]["offsets"] == {
-        "camera_ms": 40,
-        "source_ms": -1234,
-    }
+    both = {"camera_ms": 40, "source_ms": -1234}  # in the live crossing's entry too
+    assert [entry["offsets"] for entry in journal(base / "out.txt")] == [both, both]
     assert live_by == f"{newest.split(' ')[1]} LIVE"
     assert timed_by == moment.split(" ")[1]
 
