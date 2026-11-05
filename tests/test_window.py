@@ -319,6 +319,11 @@ def test_the_time_shown_is_the_time_a_crossing_at_the_frame_gets(
         (f"14#20390 {newest}#nextLap#", START + 5000 + 9 * 33, first),
         (f"15#20390 {moment}#nextLap#", START + 60 * 33, second),
     ]
+    # And from the line back to the video, with the summer hour or without: the input's
+    # line opens on its rider's frame, the label on the line's own time.
+    win.seek_line(win.input_view.lines.rows[0].ms or 0)
+    wait_until(showing(win, START + 5000 + 9 * 33))
+    assert win.time_label.text() == passing
 
 
 def test_the_keys_move_the_video_while_a_number_is_typed(
