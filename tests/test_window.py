@@ -268,12 +268,14 @@ def test_the_time_shown_is_the_time_a_crossing_at_the_frame_gets(
     # Daylight saving on for the race's moments, an hour back too, and not for now.
     utc5["dst"] = (START / 1000 - 7200, START / 1000 + 3600) if dst else None
     # Every time below is written out, not worked out with the window's arithmetic:
-    # at UTC+5, an hour later in summer time.
+    # at UTC+5, an hour later in summer time, on day 20390 of the line scale.
     hour = 11 if summer and dst else 10
+    newest = f"{hour}:35:33.690"  # the newest frame, with the first offsets
+    moment = f"{hour}:35:30.607"  # frame 60, with the second
     # The timing source's line for the rider at the newest frame, a second before the
     # video's moment for it with the camera's offset: aligning on it gives -1000 ms.
-    passing = f"20390 {hour}:35:33.924"
-    (base / "results.txt").write_text(f"7#{passing}#nextLap#\n")
+    passing = f"{hour}:35:33.924"
+    (base / "results.txt").write_text(f"7#20390 {passing}#nextLap#\n")
     session.save(
         {
             **session.DEFAULTS,
@@ -302,26 +304,24 @@ def test_the_time_shown_is_the_time_a_crossing_at_the_frame_gets(
     timed_by = win.time_label.text()  # and the time read before the click
     win.number.setText("15")
     win.add_crossing()
-    # The newest frame with the first offsets, frame 60 with the second.
-    newest, moment = f"20390 {hour}:35:33.690", f"20390 {hour}:35:30.607"
     added = (base / "out.txt").read_text().splitlines()
     assert added == [  # in time order, the input's line followed into the output too
-        f"15#{moment}#nextLap#",
-        f"14#{newest}#nextLap#",
-        f"7#{passing}#nextLap#",
+        f"15#20390 {moment}#nextLap#",
+        f"14#20390 {newest}#nextLap#",
+        f"7#20390 {passing}#nextLap#",
     ]
     # Each crossing's entry: its line, the frame it was timed on, the offsets then.
     adds = [e for e in journal(base / "out.txt") if e["op"] == "add"]
     first = {"camera_ms": 40, "source_ms": -1234}
     second = {"camera_ms": 40, "source_ms": -1000}
     assert [(e["after"], e["frames"][0][2], e["offsets"]) for e in adds] == [
-        (f"14#{newest}#nextLap#", START + 5000 + 9 * 33, first),
-        (f"15#{moment}#nextLap#", START + 60 * 33, second),
+        (f"14#20390 {newest}#nextLap#", START + 5000 + 9 * 33, first),
+        (f"15#20390 {moment}#nextLap#", START + 60 * 33, second),
     ]
-    assert live_by == f"{newest.split(' ')[1]} LIVE"
+    assert live_by == f"{newest} LIVE"
     assert win.session["source_offset_ms"] == -1000
-    assert realigned == f"{passing.split(' ')[1]} LIVE"  # moved with the alignment
-    assert timed_by == moment.split(" ")[1]
+    assert realigned == f"{passing} LIVE"  # moved with the alignment
+    assert timed_by == moment
 
 
 def test_the_keys_move_the_video_while_a_number_is_typed(
