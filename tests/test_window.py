@@ -277,12 +277,10 @@ def test_the_time_shown_is_the_time_a_crossing_at_the_frame_gets(
     timed_by = win.time_label.text()  # and the time read before the click
     win.number.setText("15")
     win.add_crossing()
-    newest, moment = (
-        scale_time(to_line_scale(START + k * 33 + 40 - 1234, summer)) for k in (69, 60)
-    )
-    standard = to_line_scale(START + 60 * 33 + 40 - 1234, False)
-    hour = 3_600_000 if summer else 0  # the summer hour, in the times checked below
-    assert parse_time(moment) == standard + hour
+    # Frames 69 and 60 with both offsets, at UTC+5, an hour later in summer time:
+    # written out, not worked out with the window's own arithmetic.
+    hour = 11 if summer else 10
+    newest, moment = f"20390 {hour}:35:30.670", f"20390 {hour}:35:30.373"
     added = (base / "out.txt").read_text().splitlines()
     assert sorted(added) == sorted([f"14#{newest}#nextLap#", f"15#{moment}#nextLap#"])
     assert journal(base / "out.txt")[-1]["offsets"] == {
