@@ -53,6 +53,20 @@ def test_a_moment_in_daylight_saving_s_last_hour_goes_back_to_itself(
     assert lines.to_epoch(lines.to_line_scale(moment, True), True) == moment
 
 
+def test_a_line_time_in_the_hour_after_daylight_saving_reads_as_the_summer_one(
+    utc5: Zone,
+) -> None:
+    """The hour after daylight saving ends repeats the line times of its last hour, so
+    with the summer option such a time says two moments. It is read as the summer
+    one, an hour before the moment after the end: pinned here, as chosen."""
+    end = 1_761_716_129.587  # daylight saving ends here
+    utc5["dst"] = (end - 30 * 86_400, end)
+    after = round((end + 1800) * 1000)  # half an hour after the end, standard time
+    line = lines.to_line_scale(after, summer_time=True)
+    assert line == after + 5 * 3_600_000
+    assert lines.to_epoch(line, True) == after - 3_600_000
+
+
 def test_lines_are_read_each_in_its_encoding() -> None:
     rider = "15#" + chr(0x0418) + "#"
     data = (
