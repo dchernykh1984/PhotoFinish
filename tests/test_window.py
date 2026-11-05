@@ -285,19 +285,24 @@ def test_the_time_shown_is_the_time_a_crossing_at_the_frame_gets(
     live_by = win.time_label.text()  # the live label, moved on with them
     win.number.setText("14")
     win.add_crossing()
+    win.session["source_offset_ms"] = -1000  # aligned again, as align_source sets it
     win.step(-19)
     wait_until(showing(win, START + 60 * 33))  # the frame the referee looks at
     timed_by = win.time_label.text()  # and the time read before the click
     win.number.setText("15")
     win.add_crossing()
-    # The newest frame and frame 60 with both offsets, at UTC+5, an hour later in
-    # summer time: written out, not worked out with the window's own arithmetic.
+    # The newest frame with the first offsets and frame 60 with the second, at UTC+5,
+    # an hour later in summer time: written out, not worked out by the window's own
+    # arithmetic.
     hour = 11 if summer and dst else 10
-    newest, moment = f"20390 {hour}:35:33.690", f"20390 {hour}:35:30.373"
+    newest, moment = f"20390 {hour}:35:33.690", f"20390 {hour}:35:30.607"
     added = (base / "out.txt").read_text().splitlines()
     assert added == [f"15#{moment}#nextLap#", f"14#{newest}#nextLap#"]  # time order
-    both = {"camera_ms": 40, "source_ms": -1234}  # in the live crossing's entry too
-    assert [entry["offsets"] for entry in journal(base / "out.txt")] == [both, both]
+    # Each entry with the offsets its crossing was timed with, the live one's too.
+    assert [entry["offsets"] for entry in journal(base / "out.txt")] == [
+        {"camera_ms": 40, "source_ms": -1234},
+        {"camera_ms": 40, "source_ms": -1000},
+    ]
     assert live_by == f"{newest.split(' ')[1]} LIVE"
     assert timed_by == moment.split(" ")[1]
 
