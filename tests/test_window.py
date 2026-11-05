@@ -309,10 +309,13 @@ def test_the_time_shown_is_the_time_a_crossing_at_the_frame_gets(
         f"14#{newest}#nextLap#",
         f"7#{passing}#nextLap#",
     ]
-    # Each entry with the offsets its crossing was timed with, the live one's too.
-    assert [e["offsets"] for e in journal(base / "out.txt") if e["op"] == "add"] == [
-        {"camera_ms": 40, "source_ms": -1234},
-        {"camera_ms": 40, "source_ms": -1000},
+    # Each crossing's entry: its line, the frame it was timed on, the offsets then.
+    adds = [e for e in journal(base / "out.txt") if e["op"] == "add"]
+    first = {"camera_ms": 40, "source_ms": -1234}
+    second = {"camera_ms": 40, "source_ms": -1000}
+    assert [(e["after"], e["frames"][0][2], e["offsets"]) for e in adds] == [
+        (f"14#{newest}#nextLap#", START + 5000 + 9 * 33, first),
+        (f"15#{moment}#nextLap#", START + 60 * 33, second),
     ]
     assert live_by == f"{newest.split(' ')[1]} LIVE"
     assert win.session["source_offset_ms"] == -1000
