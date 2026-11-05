@@ -2,10 +2,6 @@
 
 from __future__ import annotations
 
-import time
-
-import pytest
-
 from app import lines
 
 
@@ -31,24 +27,11 @@ def test_a_line_gives_its_number_time_and_action() -> None:
     assert finish == "15#20389 11:35:29.615#finish#"
 
 
-@pytest.fixture
-def zone(monkeypatch):
-    """UTC+5 standard time, daylight saving set by the test."""
-    monkeypatch.setattr(time, "timezone", -5 * 3600)
-    dst = {"on": False}
-
-    def localtime(seconds=None):
-        return time.struct_time((2026, 7, 1, 0, 0, 0, 0, 182, int(dst["on"])))
-
-    monkeypatch.setattr(time, "localtime", localtime)
-    return dst
-
-
-def test_a_moment_goes_on_the_line_scale_and_back(zone) -> None:
+def test_a_moment_goes_on_the_line_scale_and_back(utc5: dict[str, bool]) -> None:
     moment = 1_761_716_129_587
     assert lines.to_line_scale(moment, summer_time=False) == moment + 5 * 3_600_000
     assert lines.to_epoch(lines.to_line_scale(moment, False), False) == moment
-    zone["on"] = True
+    utc5["on"] = True
     assert lines.to_line_scale(moment, summer_time=False) == moment + 5 * 3_600_000
     assert lines.to_line_scale(moment, summer_time=True) == moment + 6 * 3_600_000
     assert lines.to_epoch(lines.to_line_scale(moment, True), True) == moment
