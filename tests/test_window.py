@@ -288,7 +288,7 @@ def test_the_time_shown_is_the_time_a_crossing_at_the_frame_gets(
     hour = 11 if summer and dst else 10
     newest, moment = f"20390 {hour}:35:33.690", f"20390 {hour}:35:30.373"
     added = (base / "out.txt").read_text().splitlines()
-    assert sorted(added) == sorted([f"14#{newest}#nextLap#", f"15#{moment}#nextLap#"])
+    assert added == [f"15#{moment}#nextLap#", f"14#{newest}#nextLap#"]  # time order
     assert journal(base / "out.txt")[-1]["offsets"] == {
         "camera_ms": 40,
         "source_ms": -1234,
