@@ -27,11 +27,13 @@ def test_a_line_gives_its_number_time_and_action() -> None:
     assert finish == "15#20389 11:35:29.615#finish#"
 
 
-def test_a_moment_goes_on_the_line_scale_and_back(utc5: dict[str, bool]) -> None:
+def test_a_moment_goes_on_the_line_scale_and_back(
+    utc5: dict[str, tuple[float, float] | None],
+) -> None:
     moment = 1_761_716_129_587
     assert lines.to_line_scale(moment, summer_time=False) == moment + 5 * 3_600_000
     assert lines.to_epoch(lines.to_line_scale(moment, False), False) == moment
-    utc5["on"] = True
+    utc5["dst"] = (moment / 1000 - 7200, moment / 1000 + 7200)
     assert lines.to_line_scale(moment, summer_time=False) == moment + 5 * 3_600_000
     assert lines.to_line_scale(moment, summer_time=True) == moment + 6 * 3_600_000
     assert lines.to_epoch(lines.to_line_scale(moment, True), True) == moment
