@@ -246,7 +246,14 @@ def test_enter_adds_a_crossing_at_the_frame_shown(
 
 
 @pytest.mark.parametrize(
-    ("summer", "dst"), [(False, True), (True, True), (True, False)]
+    ("summer", "dst"),
+    [(False, False), (False, True), (True, True), (True, False)],
+    ids=[
+        "option-off-winter",
+        "option-off-summer",
+        "option-on-summer",
+        "option-on-winter",
+    ],
 )
 def test_the_time_shown_is_the_time_a_crossing_at_the_frame_gets(
     base: Path,
