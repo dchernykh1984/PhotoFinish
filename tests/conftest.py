@@ -57,9 +57,9 @@ def utc5(monkeypatch: pytest.MonkeyPatch) -> dict[str, tuple[float, float] | Non
     in ``["dst"]``, a ``(from, to)`` span of Unix seconds the test sets, and off for
     every other moment, now among them: a time on the line scale is then the same on
     every computer, and one asked about the wrong moment shows. ``time.timezone`` and
-    the local time's daylight-saving flag are the two that ``app.lines`` reads. The
-    local time's other fields stay the computer's, for segment names, and its zone
-    name and offset (``tm_zone``, ``tm_gmtoff``) are left unset.
+    the local time's daylight-saving flag are the two that ``app.lines`` reads. Its
+    zone name and offset (``tm_zone``, ``tm_gmtoff``) are UTC+5's, an hour more in
+    daylight saving; its other fields stay the computer's, for segment names.
     """
     monkeypatch.setattr(time, "timezone", -5 * 3600)
     zone: dict[str, tuple[float, float] | None] = {"dst": None}
@@ -68,7 +68,11 @@ def utc5(monkeypatch: pytest.MonkeyPatch) -> dict[str, tuple[float, float] | Non
     def localtime(seconds: float | None = None) -> time.struct_time:
         span = zone["dst"]
         on = span is not None and seconds is not None and span[0] <= seconds < span[1]
-        return time.struct_time((*real(seconds)[:8], int(on)))
+        hours = 6 if on else 5
+        return time.struct_time(
+            (*real(seconds)[:8], int(on)),
+            {"tm_zone": f"+{hours:02d}", "tm_gmtoff": hours * 3600},
+        )
 
     monkeypatch.setattr(time, "localtime", localtime)
     return zone
