@@ -263,6 +263,8 @@ def test_the_time_shown_is_the_time_a_crossing_at_the_frame_gets(
     win = make_window()
     wait_until(showing(win, START + 69 * 33))
     win.step(-9)
+    wait_until(showing(win, START + 60 * 33))  # the frame the referee looks at
+    timed_by = win.time_label.text()  # and the time read before the click
     win.number.setText("15")
     win.add_crossing()
     moment = scale_time(to_line_scale(START + 60 * 33 + 40 - 1234, False))
@@ -271,7 +273,7 @@ def test_the_time_shown_is_the_time_a_crossing_at_the_frame_gets(
         "camera_ms": 40,
         "source_ms": -1234,
     }
-    assert win.time_label.text() == moment.split(" ")[1]
+    assert timed_by == moment.split(" ")[1]
 
 
 def test_the_keys_move_the_video_while_a_number_is_typed(
