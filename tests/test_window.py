@@ -245,17 +245,27 @@ def test_enter_adds_a_crossing_at_the_frame_shown(
     assert out.read_text().splitlines()[-1] == f"16#{moment}#finish#"
 
 
+@pytest.mark.parametrize("summer", [False, True])
 def test_the_time_shown_is_the_time_a_crossing_at_the_frame_gets(
-    base: Path, make_window: Callable[[], mw.MainWindow]
+    base: Path,
+    make_window: Callable[[], mw.MainWindow],
+    monkeypatch: pytest.MonkeyPatch,
+    summer: bool,
 ) -> None:
     """The referee times by the label: a crossing added at the frame shown gets the
-    time it shows, the camera's offset and the timing source's in both."""
+    time it shows, the camera's offset and the timing source's in both, and the
+    summer hour too while daylight saving is on."""
+    real = time.localtime
+    monkeypatch.setattr(
+        time, "localtime", lambda *at: time.struct_time((*real(*at)[:8], 1))
+    )  # daylight saving on
     session.save(
         {
             **session.DEFAULTS,
             "cameras": [{**CAMERA, "offset_ms": 40}],
             "output": "out.txt",
             "source_offset_ms": -1234,
+            "summer_time": summer,
         }
     )
     record(base, START, 70)
@@ -271,8 +281,11 @@ def test_the_time_shown_is_the_time_a_crossing_at_the_frame_gets(
     win.number.setText("15")
     win.add_crossing()
     newest, moment = (
-        scale_time(to_line_scale(START + k * 33 + 40 - 1234, False)) for k in (69, 60)
+        scale_time(to_line_scale(START + k * 33 + 40 - 1234, summer)) for k in (69, 60)
     )
+    standard = to_line_scale(START + 60 * 33 + 40 - 1234, False)
+    hour = 3_600_000 if summer else 0  # the summer hour, in the times checked below
+    assert parse_time(moment) == standard + hour
     added = (base / "out.txt").read_text().splitlines()
     assert sorted(added) == sorted([f"14#{newest}#nextLap#", f"15#{moment}#nextLap#"])
     assert journal(base / "out.txt")[-1]["offsets"] == {
