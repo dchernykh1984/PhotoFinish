@@ -245,17 +245,20 @@ def test_enter_adds_a_crossing_at_the_frame_shown(
     assert out.read_text().splitlines()[-1] == f"16#{moment}#finish#"
 
 
-@pytest.mark.parametrize("summer", [False, True])
+@pytest.mark.parametrize(
+    ("summer", "dst"), [(False, True), (True, True), (True, False)]
+)
 def test_the_time_shown_is_the_time_a_crossing_at_the_frame_gets(
     base: Path,
     make_window: Callable[[], mw.MainWindow],
     utc5: dict[str, bool],
     summer: bool,
+    dst: bool,
 ) -> None:
     """The referee times by the label: a crossing added at the frame shown gets the
     time it shows, the camera's offset and the timing source's in both, and the
-    summer hour too while daylight saving is on."""
-    utc5["on"] = True
+    summer hour too while daylight saving is on, and only then: not in a winter race."""
+    utc5["on"] = dst
     session.save(
         {
             **session.DEFAULTS,
@@ -279,7 +282,7 @@ def test_the_time_shown_is_the_time_a_crossing_at_the_frame_gets(
     win.add_crossing()
     # Frames 69 and 60 with both offsets, at UTC+5, an hour later in summer time:
     # written out, not worked out with the window's own arithmetic.
-    hour = 11 if summer else 10
+    hour = 11 if summer and dst else 10
     newest, moment = f"20390 {hour}:35:30.670", f"20390 {hour}:35:30.373"
     added = (base / "out.txt").read_text().splitlines()
     assert sorted(added) == sorted([f"14#{newest}#nextLap#", f"15#{moment}#nextLap#"])
