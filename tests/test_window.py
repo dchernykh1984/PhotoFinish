@@ -245,6 +245,31 @@ def test_enter_adds_a_crossing_at_the_frame_shown(
     assert out.read_text().splitlines()[-1] == f"16#{moment}#finish#"
 
 
+def test_the_time_shown_is_the_time_a_crossing_at_the_frame_gets(
+    base: Path, make_window: Callable[[], mw.MainWindow]
+) -> None:
+    """The referee times by the label: a crossing added at the frame shown gets the
+    time it shows, the camera's offset and the timing source's in both."""
+    session.save(
+        {
+            **session.DEFAULTS,
+            "cameras": [{**CAMERA, "offset_ms": 40}],
+            "output": "out.txt",
+            "source_offset_ms": -1234,
+        }
+    )
+    record(base, START, 70)
+    beating(base)
+    win = make_window()
+    wait_until(showing(win, START + 69 * 33))
+    win.step(-9)
+    win.number.setText("15")
+    win.add_crossing()
+    moment = scale_time(to_line_scale(START + 60 * 33 + 40 - 1234, False))
+    assert (base / "out.txt").read_text() == f"15#{moment}#nextLap#\n"
+    assert win.time_label.text() == moment.split(" ")[1]
+
+
 def test_the_keys_move_the_video_while_a_number_is_typed(
     recording: Path, make_window: Callable[[], mw.MainWindow]
 ) -> None:
