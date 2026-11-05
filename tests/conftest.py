@@ -51,8 +51,12 @@ def base(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return tmp_path
 
 
+# The utc5 fixture's state: the span of Unix seconds daylight saving is on for.
+type Zone = dict[str, tuple[float, float] | None]
+
+
 @pytest.fixture
-def utc5(monkeypatch: pytest.MonkeyPatch) -> dict[str, tuple[float, float] | None]:
+def utc5(monkeypatch: pytest.MonkeyPatch) -> Zone:
     """UTC+5 standard time for the line scale, with daylight saving on for the moments
     in ``["dst"]``, a ``(from, to)`` span of Unix seconds the test sets, and off for
     every other moment, now among them: a time on the line scale is then the same on
@@ -62,7 +66,7 @@ def utc5(monkeypatch: pytest.MonkeyPatch) -> dict[str, tuple[float, float] | Non
     daylight saving; its other fields stay the computer's, for segment names.
     """
     monkeypatch.setattr(time, "timezone", -5 * 3600)
-    zone: dict[str, tuple[float, float] | None] = {"dst": None}
+    zone: Zone = {"dst": None}
     real = time.localtime
 
     def localtime(seconds: float | None = None) -> time.struct_time:
