@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/dchernykh1984/PhotoFinish/compare/v0.3.0...v0.3.1) (2026-11-07)
+
+
+### Bug Fixes
+
+* **ci:** restore the macos release asset, lost to a retired runner label ([aa61c73](https://github.com/dchernykh1984/PhotoFinish/commit/aa61c73eb17996590468c783ad699044999859db))
+
 ## [0.3.0](https://github.com/dchernykh1984/PhotoFinish/compare/v0.2.0...v0.3.0) (2026-11-02)
 
 
