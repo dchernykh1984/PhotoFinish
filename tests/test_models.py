@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import http.client
 import io
+import os
 import ssl
 import urllib.error
 from pathlib import Path
@@ -102,6 +103,33 @@ def test_a_reply_cut_short_is_said_and_leaves_nothing(base: Path) -> None:
     with pytest.raises(FetchError, match="YOLOX-Test cannot be downloaded"):
         models.fetch(MODEL, opener=lambda url: Cut())
     assert list((base / "models").iterdir()) == []
+
+
+def test_a_model_is_on_the_disk_before_it_takes_its_name_and_waits_for_a_scanner(
+    base: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Synced before the rename, so a power cut cannot leave a model of the right
+    size full of nothing; renamed again while Windows' virus scanner holds it."""
+    synced: list[int] = []
+    real_fsync, real_replace = os.fsync, Path.replace
+    held = [2]  # the scanner lets go after two tries
+
+    def fsync(fd: int) -> None:
+        synced.append(fd)
+        real_fsync(fd)
+
+    def replace(self: Path, target: Path) -> Path:
+        if held[0]:
+            held[0] -= 1
+            raise PermissionError("held by another process")
+        assert synced  # synced first
+        return real_replace(self, target)
+
+    monkeypatch.setattr(models.os, "fsync", fsync)
+    monkeypatch.setattr(Path, "replace", replace)
+    path = models.fetch(MODEL, opener=serving(CONTENT))
+    assert path.read_bytes() == CONTENT
+    assert held == [0]
 
 
 def test_a_model_cut_short_on_disk_is_not_ready(base: Path) -> None:

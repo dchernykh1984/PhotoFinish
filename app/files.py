@@ -28,7 +28,13 @@ def write_in_one_step(path: Path, data: bytes) -> None:
         f.write(data)
         f.flush()
         os.fsync(f.fileno())
-    _retried(lambda: tmp.replace(path))
+    replace(tmp, path)
+
+
+def replace(source: Path, target: Path) -> None:
+    """``source`` renamed over ``target``, tried again while another process holds
+    one of them a moment (Windows)."""
+    _retried(lambda: source.replace(target))
 
 
 def stat(path: Path) -> tuple[int, int, int] | None:

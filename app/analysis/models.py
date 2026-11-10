@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import http.client
 import math
+import os
 import ssl
 import urllib.request
 from collections.abc import Callable
@@ -20,6 +21,7 @@ from typing import Any, BinaryIO
 
 import certifi
 
+from app import files
 from app.paths import app_path
 
 FOLDER = "models"  # next to the program, beside data/ and video/
@@ -121,9 +123,11 @@ def fetch(
                 if done // 1_000_000 > told or done == model.size:
                     told = done // 1_000_000
                     progress(done)
+            out.flush()
+            os.fsync(out.fileno())  # on the disk before it takes the model's name
         if done != model.size or digest.hexdigest() != model.sha256:
             raise FetchError(f"{model.title}: the download is not the model pinned")
-        part.replace(path)
+        files.replace(part, path)  # a virus scanner holding it a moment: again
     except (OSError, http.client.HTTPException) as error:  # network, disk, a reply cut
         part.unlink(missing_ok=True)
         raise FetchError(f"{model.title} cannot be downloaded: {error}") from error
