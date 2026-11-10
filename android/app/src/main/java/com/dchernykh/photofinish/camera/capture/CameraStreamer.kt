@@ -64,7 +64,9 @@ class CameraStreamer(
 
     @Volatile private var sync: ClockSync? = null
     private var address: RtmpAddress? = null
-    private var generation = 0
+
+    /** Counts the opens: a callback of an earlier one says nothing. Read from the uplink's thread too. */
+    @Volatile private var generation = 0
 
     /** The camera into [preview]; with an [address], into the encoder and up to PhotoFinish too. */
     fun start(
@@ -249,7 +251,7 @@ class CameraStreamer(
                 format = format,
                 clock = { sync?.offset?.best() },
                 requestKeyframe = { requestKeyframe(codec) },
-                report = { onStatus(StreamerStatus.Link(it)) },
+                report = { status -> if (mine == generation) onStatus(StreamerStatus.Link(status)) },
             )
         uplink = link
         Thread({ link.run() }, "uplink").start()
