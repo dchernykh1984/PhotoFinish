@@ -518,6 +518,20 @@ def test_a_stream_placed_by_arrival_is_looked_into_once(
     assert len(looked) == 1
 
 
+def test_a_phone_s_offset_moved_back_keeps_its_frames_in_order() -> None:
+    source = sources.Stream(
+        "rtmp://0.0.0.0:1935/live/x", {}, lambda: START, listen=True
+    )
+    stream = SimpleNamespace(
+        time_base=Fraction(1, 1000), codec_context=SimpleNamespace(name="h264")
+    )
+    place = source._placing(stream, phone=True)  # type: ignore[arg-type]
+    assert place(avcc(sei((START - 300) * 1000), b"\x65\x88"), 0) == START - 300  # type: ignore[arg-type]
+    # A better first exchange moves the phone's offset back by more than a frame.
+    after = place(avcc(sei((START - 310) * 1000), b"\x41\x9a"), 33)  # type: ignore[arg-type]
+    assert after == START - 299
+
+
 def test_a_phone_whose_clock_went_wrong_is_placed_by_arrival() -> None:
     got = receive_phone(lambda k: START * 1000 + k * 40_000)  # a year off
     now = time.time_ns() // 1_000_000
