@@ -126,13 +126,18 @@ def test_a_port_another_phone_has_shows_no_address_to_scan(
     assert dialog.qr.pixmap().isNull()
 
 
-def test_a_computer_with_no_network_address_shows_no_code_to_scan(
+def test_a_computer_with_no_network_address_shows_no_code_until_it_joins_one(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(cameras, "this_computer", lambda: "127.0.0.1")  # no route
+    here = ["127.0.0.1"]  # no network yet
+    monkeypatch.setattr(cameras, "this_computer", lambda: here[0])
     dialog = CameraDialog(None, "cam1", [])
     assert dialog.qr.pixmap().isNull()  # a phone scanning it would stream to itself
     assert "network" in dialog.address.text()
+    here[0] = "10.0.0.5"  # the referee joins the race Wi-Fi, the dialog still open
+    QTest.keyClicks(dialog.path, "a")
+    assert dialog.address.text() == "rtmp://10.0.0.5:1935/live/cam1a"
+    assert not dialog.qr.pixmap().isNull()
 
 
 def test_the_dialog_keeps_ok_off_while_the_camera_cannot_record(
