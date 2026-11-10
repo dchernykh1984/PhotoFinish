@@ -46,15 +46,20 @@ class CameraFormats(
             info.isEncoder && info.supportedTypes.any { it.equals(MediaFormat.MIMETYPE_VIDEO_AVC, ignoreCase = true) }
         }
 
+    /** Asked of the codecs once for each size and rate: the screen asks at every redraw. */
+    private val takes = HashMap<Pair<Resolution, Int>, Boolean>()
+
     fun encoderTakes(
         size: Resolution,
         fps: Int,
     ): Boolean =
-        encoders.any { info ->
-            info
-                .getCapabilitiesForType(MediaFormat.MIMETYPE_VIDEO_AVC)
-                .videoCapabilities
-                ?.areSizeAndRateSupported(size.width, size.height, fps.toDouble()) == true
+        takes.getOrPut(size to fps) {
+            encoders.any { info ->
+                info
+                    .getCapabilitiesForType(MediaFormat.MIMETYPE_VIDEO_AVC)
+                    .videoCapabilities
+                    ?.areSizeAndRateSupported(size.width, size.height, fps.toDouble()) == true
+            }
         }
 
     fun choose(
