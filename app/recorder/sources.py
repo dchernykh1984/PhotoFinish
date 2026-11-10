@@ -211,14 +211,17 @@ class Stream:
         B-frame keeps its own."""
         rate = stream.time_base or Fraction(1, 1000)
         unit = Fraction(rate.numerator, rate.denominator) * 1000
-        stamped = stream.codec_context.name == "h264"
+        # Only a phone pushing here stamps its frames: an RTSP camera's are not read.
+        stamped = self.listen and stream.codec_context.name == "h264"
         # An avcC header: each unit after its length, as RTMP carries them.
         prefixed = (stream.codec_context.extradata or b"")[:1] == b"\x01"
         latest: list[int] = []  # the pts and the moment of the latest frame
 
         def place(packet: av.Packet, pts: int) -> int:
             placed = self.anchor(float(pts * unit))
-            own = frame_time.moment_ms(bytes(packet), prefixed) if stamped else None
+            own = (
+                frame_time.moment_ms(memoryview(packet), prefixed) if stamped else None
+            )
             now = self.anchor.clock()
             believed = own is not None and now - OWN_PAST_MS <= own <= now + LEAP_MS
             moment = own if own is not None and believed else placed

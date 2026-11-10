@@ -29,7 +29,7 @@ from app.recorder.sources import (
     usb_input,
 )
 from app.recorder.testcam import render
-from tests.test_frame_time import sei
+from tests.test_frame_time import avcc, sei
 
 START = 1_761_716_129_587
 
@@ -328,6 +328,18 @@ def test_b_frames_keep_their_moments_among_frames_kept_in_order() -> None:
     place = source._placing(stream)  # type: ignore[arg-type]
     decoded = [0, 99, 33, 66]  # I, P, then the B-frames between them
     assert [place(None, pts) for pts in decoded] == [START + pts for pts in decoded]  # type: ignore[arg-type]
+
+
+def test_a_camera_this_computer_reads_is_not_looked_into_for_moments() -> None:
+    # Only a phone pushing here writes them: an RTSP camera's frames are not copied.
+    source = sources.Stream("rtsp://10.0.0.2/live", {}, lambda: START)
+    stream = SimpleNamespace(
+        time_base=Fraction(1, 1000),
+        codec_context=SimpleNamespace(name="h264", extradata=b"\x01\x64\x00\x28"),
+    )
+    place = source._placing(stream)  # type: ignore[arg-type]
+    packet = avcc(sei((START - 500) * 1000), b"\x65\x88")
+    assert place(packet, 0) == START  # type: ignore[arg-type]
 
 
 def test_a_phone_whose_clock_went_wrong_is_placed_by_arrival() -> None:

@@ -18,23 +18,24 @@ _PICTURE = range(1, 6)  # coded slices: the SEI, when there is one, came before
 _MOMENT = slice(len(MARK), len(MARK) + 8)
 
 
-def moment_ms(packet: bytes, length_prefixed: bool = True) -> int | None:
+def moment_ms(packet: bytes | memoryview, length_prefixed: bool = True) -> int | None:
     """The moment written into an H.264 packet, in milliseconds; None when it has
     none. Its units are each after a four-byte length, as RTMP carries them, or
     after start codes (Annex B): the stream's header says which, as a length of
-    256 to 511 bytes starts like a start code."""
-    for start, end in _units(packet) if length_prefixed else _annex_b(packet):
+    256 to 511 bytes starts like a start code. A memoryview is read without a copy."""
+    units = _units(packet) if length_prefixed else _annex_b(bytes(packet))
+    for start, end in units:
         kind = packet[start] & 0x1F
         if kind in _PICTURE:
             return None
         if kind == NAL_SEI:
-            us = _moment_us(_unescape(packet[start + 1 : end]))
+            us = _moment_us(_unescape(bytes(packet[start + 1 : end])))
             if us is not None:
                 return (us + 500) // 1000
     return None
 
 
-def _units(data: bytes) -> Iterator[tuple[int, int]]:
+def _units(data: bytes | memoryview) -> Iterator[tuple[int, int]]:
     """Where each length-prefixed NAL unit starts and ends."""
     pos = 0
     while pos + 4 < len(data):
