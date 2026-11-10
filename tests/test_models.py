@@ -88,9 +88,9 @@ def test_a_reply_cut_short_is_said_and_leaves_nothing(base: Path) -> None:
     assert list((base / "models").iterdir()) == []
 
 
-def test_a_model_changed_on_disk_is_not_ready(base: Path) -> None:
+def test_a_model_cut_short_on_disk_is_not_ready(base: Path) -> None:
     path = models.fetch(MODEL, opener=serving(CONTENT))
-    path.write_bytes(CONTENT[:-1] + b"x")
+    path.write_bytes(CONTENT[:-1])
     assert not models.ready(MODEL)
 
 

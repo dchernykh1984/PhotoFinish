@@ -83,13 +83,11 @@ def preset(chosen: str) -> Model | None:
 
 
 def ready(model: Model) -> bool:
-    """The model is next to the program, whole and the one pinned."""
+    """The model is next to the program, whole. Its checksum was checked when it
+    was downloaded, the only way a file gets its name: checked again here, it
+    would hold the window up hashing tens of megabytes."""
     path = app_path(model.file)
-    return (
-        path.is_file()
-        and path.stat().st_size == model.size
-        and _digest(path) == model.sha256
-    )
+    return path.is_file() and path.stat().st_size == model.size
 
 
 def fetch(
@@ -128,11 +126,3 @@ def _open(url: str) -> Any:
     # certifi's roots: a frozen build may not find the system's
     context = ssl.create_default_context(cafile=certifi.where())
     return urllib.request.urlopen(url, timeout=TIMEOUT_S, context=context)  # noqa: S310 - a pinned https URL
-
-
-def _digest(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as read:
-        while chunk := read.read(_CHUNK):
-            digest.update(chunk)
-    return digest.hexdigest()
