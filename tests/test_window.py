@@ -1715,6 +1715,8 @@ def test_going_back_to_the_model_in_use_redoes_the_list(
     win._model_chosen(win.model_box.findData(tiny.file))
     line = win.model_box.findData(tiny.file)
     wait_until(lambda: win.model_box.itemText(line) == "YOLOX-Tiny: 5 of 21 MB")
+    win._model_chosen(win.model_box.findData(models.MODELS[2].file))  # another
+    assert win.model_box.itemText(win.model_box.findData(tiny.file)) == tiny.label
     win._model_chosen(win.model_box.findData(""))
     assert win.model_box.itemText(win.model_box.findData(tiny.file)) == tiny.label
     assert win.model_box.currentText() == "Motion only"
