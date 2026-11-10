@@ -32,7 +32,9 @@ uv run pytest tests/test_paths.py -q --no-cov -n0
 ## Rules that bite
 
 **`no-non-ascii`** rejects any non-ASCII byte in `.py`, `.md`, `.yml`,
-`.toml`, `.json` and shell files, including everything under `.claude/`.
+`.toml`, `.json`, Kotlin and shell files, including everything under `.claude/`;
+the phone app's `values-ru` and `values-kk` strings are XML and carry their
+languages.
 `CHANGELOG.md` (generated from commit text) and `uv.lock` are exempt, and so
 are Spec Kit's generated files (`.specify/` except the constitution, and the
 `speckit-*` skills), which no hook may rewrite. A typographic dash or a Russian

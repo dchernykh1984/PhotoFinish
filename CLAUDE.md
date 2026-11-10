@@ -90,9 +90,12 @@ Python is pinned to 3.14.
 ## Conventions
 
 - **ASCII only.** A pre-commit hook rejects non-ASCII in `.py`, `.md`, `.yml`,
-  `.toml`, `.json` and shell files (`CHANGELOG.md`, `uv.lock` and Spec Kit's
-  generated files are exempt). No typographic dashes, no quotes-as-glyphs, no
-  Cyrillic in files. Discussion happens in whatever language the user writes in.
+  `.toml`, `.json`, Kotlin and shell files (`CHANGELOG.md`, `uv.lock`, the vendored
+  `android/gradlew` and Spec Kit's generated files are exempt). No typographic
+  dashes, no quotes-as-glyphs, no Cyrillic in files -- except the phone app's
+  Russian and Kazakh strings (`android/app/src/main/res/values-ru`, `values-kk`),
+  which Android reads as written, as in ChronometerAndroid. Discussion happens in
+  whatever language the user writes in.
 - **LF line endings** everywhere, enforced by `.gitattributes` and pre-commit.
 - **ruff** with a broad rule set (line length 88, bugbear, bandit, pathlib,
   pyupgrade, mccabe max-complexity 10) and **mypy**. Run them via pre-commit.
