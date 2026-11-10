@@ -33,6 +33,7 @@ NOT_IN_STEP = (
 )
 OPEN_TIMEOUT_S = 10.0
 READ_TIMEOUT_S = 5.0
+ADDRESS_FRESH_S = 10.0  # this computer's address, said while waiting, kept this long
 LOOK_OVER_US = "500000"  # how long FFmpeg reads a pushed stream before the first frame
 
 type Item = tuple[np.ndarray | av.VideoFrame | av.Packet, int] | None
@@ -80,8 +81,14 @@ def open_source(
         return Stream(settings["url"], options, clock)
     port = settings.get("port", cameras.RTMP_PORT)
 
-    def waiting() -> str:  # looked up each time: the computer may join a network
-        return f"waiting for {cameras.rtmp_url(settings, cameras.this_computer())}"
+    looked: dict[str, Any] = {"at": -ADDRESS_FRESH_S, "address": ""}
+
+    def waiting() -> str:
+        # Looked up again now and then, not every second it is said: the computer may
+        # join a network meanwhile, and a lookup with none may take a while.
+        if time.monotonic() - looked["at"] >= ADDRESS_FRESH_S:
+            looked.update(at=time.monotonic(), address=cameras.this_computer())
+        return f"waiting for {cameras.rtmp_url(settings, looked['address'])}"
 
     url = f"rtmp://0.0.0.0:{port}/{settings['path']}"
     # FFmpeg looks a stream over before it gives its first frame -- five seconds

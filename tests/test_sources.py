@@ -221,11 +221,23 @@ def test_the_address_waited_on_is_this_computer_s_as_it_is_now(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     here = ["127.0.0.1"]  # started before the computer joined the race Wi-Fi
-    monkeypatch.setattr(cameras, "this_computer", lambda: here[0])
+    looked: list[str] = []
+
+    def this_computer() -> str:
+        looked.append(here[0])
+        return here[0]
+
+    now = {"s": 100.0}
+    monkeypatch.setattr(cameras, "this_computer", this_computer)
+    monkeypatch.setattr(time, "monotonic", lambda: now["s"])
     camera = {"connection": "rtmp", "settings": {"port": 1936, "path": "live/x"}}
     source = open_source(camera, lambda: START)
     assert source.waiting == "waiting for rtmp://127.0.0.1:1936/live/x"
     here[0] = "192.168.1.20"
+    now["s"] += 1  # said every second while it waits
+    assert source.waiting == "waiting for rtmp://127.0.0.1:1936/live/x"
+    assert len(looked) == 1  # not looked up each time: with no network it may wait
+    now["s"] += 10
     assert source.waiting == "waiting for rtmp://192.168.1.20:1936/live/x"
 
 
