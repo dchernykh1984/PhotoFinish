@@ -891,10 +891,10 @@ class MainWindow(QMainWindow):
             self._show_model()  # a file not chosen leaves the model as it was
             return
         model = models.preset(chosen)
-        if model is None or models.ready(model):
-            self._set_model(chosen)
-        else:
+        if model is not None and not models.ready(model):
             self._download(model)
+        elif chosen != analysis.settings(self.session)["model"]:
+            self._set_model(chosen)  # the one in use again: no analyser restarted
 
     def _ensure_model(self) -> None:
         """The preset in use downloaded when it is missing -- an event folder copied

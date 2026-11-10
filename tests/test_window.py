@@ -1422,6 +1422,24 @@ def test_a_preset_missing_on_disk_is_downloaded_before_the_analysers_start(
     assert [a.camera_id for a in analyzers] == ["cam1"]
 
 
+def test_choosing_the_model_in_use_again_restarts_nothing(
+    recording: Path,
+    make_window: Callable[[], mw.MainWindow],
+    analyzers: list[Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    nano = models.MODELS[0]
+    saved = session.load()
+    saved["analysis"] = {"on": True, "model": nano.file}
+    session.save(saved)
+    monkeypatch.setattr(mw.models, "ready", lambda model: True)
+    win = make_window()
+    assert [a.camera_id for a in analyzers] == ["cam1"]
+    win._model_chosen(win.model_box.findData(nano.file))
+    assert len(analyzers) == 1
+    assert analyzers[0].running
+
+
 def test_a_closed_window_hears_nothing_from_a_download_still_running(
     win: mw.MainWindow,
 ) -> None:
