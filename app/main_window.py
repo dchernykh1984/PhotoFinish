@@ -39,7 +39,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app import analysis, cameras, paths, session, shared_event
+from app import analysis, cameras, paths, playback, session, shared_event
 from app.analysis import models
 from app.analysis.activity import Activity, how_far
 from app.analysis.suggestions import Suggestions
@@ -1337,14 +1337,11 @@ class MainWindow(QMainWindow):
         if not self.playing or camera is None or not len(camera.index):
             self._halt()
             return
-        clock, moment = self._play_start
-        due = moment + round((time.monotonic() - clock) * 1000)
-        offset = self._offset()
-        if due >= int(camera.index.ms[-1]) + offset:
+        offset, now = self._offset(), time.monotonic()
+        place = playback.frame_due(camera.index, self._play_start, now, offset)
+        if place is None:
             self.go_live()  # caught up with the recording: it plays on live
-            return
-        place = camera.index.nearest(due - offset)
-        if place is not None and place != self.place:
+        elif place != self.place:
             self._go(place, dim=False)
 
     def _show_play(self) -> None:
