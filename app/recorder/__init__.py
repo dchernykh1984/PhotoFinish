@@ -198,28 +198,9 @@ def run(
         if camera is None:
             beat.beat(state="failed", detail=f"no camera {camera_id} in the session")
             return 2
-        steady = clock or SteadyClock()
-        responder = _responder(camera, steady)
-        try:
-            return _Recording(folder, camera, beat, steady, sleep, closed).run()
-        finally:
-            if responder is not None:
-                responder.close()
-
-
-def _responder(
-    camera: dict[str, Any], clock: Callable[[], int]
-) -> ClockResponder | None:
-    """A phone's clock exchange answered on its port; None for another camera, or
-    when the port is taken -- its frames are then placed by their arrival."""
-    if camera.get("connection") != "rtmp":
-        return None
-    port = (camera.get("settings") or {}).get("port", cameras.RTMP_PORT)
-    micros = getattr(clock, "micros", None) or (lambda: clock() * 1000)
-    try:
-        return ClockResponder(port, micros)
-    except OSError, OverflowError, TypeError:
-        return None
+        return _Recording(
+            folder, camera, beat, clock or SteadyClock(), sleep, closed
+        ).run()
 
 
 class _Recording:
@@ -238,13 +219,35 @@ class _Recording:
         self.writer: SegmentWriter | None = None
         self.closed = closed
         self.backoff = Backoff()
+        self.responder: ClockResponder | None = None
+
+    def _answer_the_clock(self) -> None:
+        """A phone's clock exchange answered on its port. A port another program
+        holds is tried again at the next connection; meanwhile the phone's frames
+        are placed by their arrival."""
+        if self.responder is not None or self.camera.get("connection") != "rtmp":
+            return
+        port = self.camera["settings"].get("port", cameras.RTMP_PORT)
+        clock = self.clock
+        micros = getattr(clock, "micros", None) or (lambda: clock() * 1000)
+        with contextlib.suppress(OSError):
+            self.responder = ClockResponder(port, micros)
 
     def run(self) -> int:
+        try:
+            return self._run()
+        finally:
+            if self.responder is not None:
+                self.responder.close()
+
+    def _run(self) -> int:
         try:
             while not self.stop.exists():
                 self.beat.beat(state="connecting", detail="")
                 try:
-                    if self._record(open_source(self.camera, self.clock)):
+                    source = open_source(self.camera, self.clock)  # settings checked
+                    self._answer_the_clock()
+                    if self._record(source):
                         break
                     detail = "the camera ended"
                 except _DiskFullError, CameraSettingsError:
