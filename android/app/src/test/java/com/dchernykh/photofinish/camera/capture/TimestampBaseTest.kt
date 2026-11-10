@@ -20,4 +20,11 @@ class TimestampBaseTest {
     fun `a frame near neither clock is on an unknown one`() {
         assertNull(TimestampBase.detect(5 * second, 100 * second, 200 * second))
     }
+
+    @Test
+    fun `clocks not yet apart give monotonic, which an encoder's frames are on`() {
+        // Android moves the frames it gives a video encoder from boot time to monotonic time.
+        val now = 1_000 * second
+        assertEquals(TimestampBase.MONOTONIC, TimestampBase.detect(now - 30_000_000, now, now))
+    }
 }
