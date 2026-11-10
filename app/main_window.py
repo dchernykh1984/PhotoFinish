@@ -1457,6 +1457,7 @@ class MainWindow(QMainWindow):
         """The window goes; the recorders keep recording."""
         self.timer.stop()
         self.play_timer.stop()
+        self._fetch.blockSignals(True)  # a download still running is not heard
         for camera in self.cameras.values():
             camera.worker.stop()
             self._stop_analyzer(camera)
