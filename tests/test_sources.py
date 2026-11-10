@@ -423,6 +423,18 @@ def test_a_phone_s_frame_held_up_on_the_way_keeps_its_own_moment() -> None:
     assert late == START - 267  # its own moment still: the phone's clock is in step
 
 
+def test_a_phone_s_moment_from_the_future_is_not_believed() -> None:
+    source = sources.Stream(
+        "rtmp://0.0.0.0:1935/live/x", {}, lambda: START, listen=True
+    )
+    stream = SimpleNamespace(
+        time_base=Fraction(1, 1000), codec_context=SimpleNamespace(name="h264")
+    )
+    place = source._placing(stream, phone=True)  # type: ignore[arg-type]
+    # A frame is read after it was taken: 1.5 s ahead is a clock out of step.
+    assert place(avcc(sei((START + 1_500) * 1000), b"\x65\x88"), 0) == START  # type: ignore[arg-type]
+
+
 def test_a_phone_whose_clock_went_wrong_is_placed_by_arrival() -> None:
     got = receive_phone(lambda k: START * 1000 + k * 40_000)  # a year off
     now = time.time_ns() // 1_000_000

@@ -89,6 +89,7 @@ def open_source(
 # look-over, the phone's queue of up to 2 s and the network. Further back, the
 # phone's clock is not in step with this one: its frame is placed by its arrival.
 OWN_PAST_MS = 5_000
+OWN_FUTURE_MS = 250  # a camera stamping a frame as it ends it: the emulator's, by one
 SLEW = 0.001  # the share of the time passed by which a clock may be brought nearer
 LEAP_MS = 2000  # clocks further apart than this are not drifting: one jumped, or lags
 
@@ -239,10 +240,11 @@ class Stream:
         return place
 
     def _believed(self, own: int) -> bool:
-        """A phone's own moment as its frame is read: none in the future, none older
-        than OWN_PAST_MS -- else the phone's clock went wrong."""
+        """A phone's own moment as its frame is read: not after it, beyond what a
+        camera stamping late gives, and not older than OWN_PAST_MS -- else the
+        phone's clock is not in step with this one."""
         now = self.anchor.clock()
-        return now - OWN_PAST_MS <= own <= now + LEAP_MS
+        return now - OWN_PAST_MS <= own <= now + OWN_FUTURE_MS
 
 
 class LiveFile:
