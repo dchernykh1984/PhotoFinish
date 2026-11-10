@@ -109,7 +109,7 @@ class CameraStreamer(
                     override fun onOpened(camera: CameraDevice) {
                         if (mine != generation) return camera.close()
                         device = camera
-                        configure(camera, preview, format)
+                        configure(camera, preview, format, mine)
                     }
 
                     override fun onDisconnected(camera: CameraDevice) {
@@ -140,6 +140,7 @@ class CameraStreamer(
         camera: CameraDevice,
         preview: Surface,
         format: StreamFormat,
+        mine: Int,
     ) {
         val targets = listOfNotNull(preview, encoderSurface)
         try {
@@ -147,11 +148,13 @@ class CameraStreamer(
                 targets,
                 object : CameraCaptureSession.StateCallback() {
                     override fun onConfigured(configured: CameraCaptureSession) {
+                        if (mine != generation) return configured.close() // an earlier open's
                         session = configured
                         startFrames(configured, camera, targets, format)
                     }
 
                     override fun onConfigureFailed(failed: CameraCaptureSession) {
+                        if (mine != generation) return
                         onStatus(
                             StreamerStatus.Failed("the camera cannot give ${format.resolution} at ${format.fps} fps"),
                         )
