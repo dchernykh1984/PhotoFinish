@@ -122,3 +122,19 @@ jobs:
     uses: ./.github/workflows/build.yml
     with:
       release_tag: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || needs.release-please.outputs.tag_name }}
+
+  # PhotoFinish Camera, the phone app, as a signed APK on the same release.
+  release-apk:
+    needs: release-please
+    if: >-
+      always() &&
+      ((github.event_name == 'push' && needs.release-please.outputs.release_created == 'true')
+      || github.event_name == 'workflow_dispatch')
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    uses: ./.github/workflows/android-release.yml
+    with:
+      tag: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || needs.release-please.outputs.tag_name }}
+    secrets: inherit

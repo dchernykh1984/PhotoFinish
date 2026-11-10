@@ -1,0 +1,125 @@
+name: android-release
+
+# PhotoFinish Camera's signed APK, attached to a PhotoFinish release as
+# photofinish-camera-<version>.apk; the same pipeline as ChronometerAndroid's
+# build-and-distribute. release-please calls it in the run that creates the
+# release (a GITHUB_TOKEN release cannot trigger a separate workflow).
+# workflow_dispatch builds the signed APK without publishing it, to try the
+# signing secrets.
+on:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      tag:
+        description: "Release tag to build and attach the signed APK to"
+        required: true
+        type: string
+
+permissions:
+  contents: write # attach the APK to the release
+  id-token: write # sign the build provenance attestation
+  attestations: write # record the attestation
+
+concurrency:
+  group: android-release-${{ inputs.tag || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - uses: actions/setup-java@v6.0.1
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Validate Gradle wrapper
+        uses: gradle/actions/wrapper-validation@v6
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Verify signing secrets are present
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          missing=""
+          for name in KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            if [ -z "${!name}" ]; then
+              missing="$missing $name"
+            fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Missing signing secret(s):$missing. Set all four before releasing."
+            exit 1
+          fi
+
+      - name: Decode release keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.jks"
+
+      - name: Resolve release tag and version
+        id: version
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          echo "tag=${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
+          echo "name=${RELEASE_TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Build signed release APK
+        env:
+          KEYSTORE_FILE: ${{ runner.temp }}/release.jks
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          # versionCode must grow from release to release; the calling run's
+          # number does (release-please runs on every push to main).
+          VERSION_CODE: ${{ github.run_number }}
+          VERSION_NAME: ${{ steps.version.outputs.name }}
+        run: ./gradlew assembleRelease
+
+      - name: Stage APK with a versioned name
+        run: |
+          mkdir -p dist
+          cp app/build/outputs/apk/release/app-release.apk \
+            "dist/photofinish-camera-${{ steps.version.outputs.name }}.apk"
+
+      - name: Verify APK signature
+        run: |
+          APKSIGNER=$(find "$ANDROID_SDK_ROOT/build-tools" -name apksigner | sort -r | head -1)
+          if [ -z "$APKSIGNER" ]; then
+            echo "::error::apksigner not found in the Android SDK build-tools."
+            exit 1
+          fi
+          "$APKSIGNER" verify --verbose --print-certs \
+            "dist/photofinish-camera-${{ steps.version.outputs.name }}.apk"
+
+      - name: Attest build provenance
+        if: inputs.tag != ''
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: android/dist/photofinish-camera-*.apk
+
+      - name: Publish APK to the GitHub Release
+        if: inputs.tag != ''
+        uses: softprops/action-gh-release@v3
+        with:
+          # Attach to the release release-please made, keeping its notes.
+          tag_name: ${{ steps.version.outputs.tag }}
+          files: android/dist/photofinish-camera-*.apk
+          fail_on_unmatched_files: true
+          generate_release_notes: false
