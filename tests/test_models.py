@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import http.client
 import io
 import ssl
 import urllib.error
@@ -74,6 +75,16 @@ def test_a_network_that_fails_is_said_and_leaves_nothing(base: Path) -> None:
 
     with pytest.raises(FetchError, match="YOLOX-Test cannot be downloaded"):
         models.fetch(MODEL, opener=offline)
+    assert list((base / "models").iterdir()) == []
+
+
+def test_a_reply_cut_short_is_said_and_leaves_nothing(base: Path) -> None:
+    class Cut(io.BytesIO):
+        def read(self, size: int | None = -1) -> bytes:
+            raise http.client.IncompleteRead(b"partial")
+
+    with pytest.raises(FetchError, match="YOLOX-Test cannot be downloaded"):
+        models.fetch(MODEL, opener=lambda url: Cut())
     assert list((base / "models").iterdir()) == []
 
 

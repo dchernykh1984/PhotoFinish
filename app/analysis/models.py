@@ -9,6 +9,7 @@ not the one pinned is never kept under the model's name.
 from __future__ import annotations
 
 import hashlib
+import http.client
 import math
 import ssl
 import urllib.request
@@ -114,7 +115,7 @@ def fetch(
         if done != model.size or digest.hexdigest() != model.sha256:
             raise FetchError(f"{model.title}: the download is not the model pinned")
         part.replace(path)
-    except OSError as error:  # the network or the disk; URLError is one too
+    except (OSError, http.client.HTTPException) as error:  # network, disk, a reply cut
         part.unlink(missing_ok=True)
         raise FetchError(f"{model.title} cannot be downloaded: {error}") from error
     except FetchError:
