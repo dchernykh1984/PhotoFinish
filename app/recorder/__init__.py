@@ -39,6 +39,7 @@ from app.recorder.sources import (
 )
 
 LOW_DISK = 2 * 1024**3
+CLOCK_RETRY_S = 5.0  # a phone's clock-exchange port another program holds: tried again
 # A heartbeat older than this: the recorder is gone. Longer than a camera open
 # blocks (OPEN_TIMEOUT_S), when no heartbeat is written.
 STALE_MS = 15_000
@@ -220,16 +221,32 @@ class _Recording:
         self.closed = closed
         self.backoff = Backoff()
         self.responder: ClockResponder | None = None
+        self.clock_tried = -CLOCK_RETRY_S  # time.monotonic() of the last try
+        self.clock_problem = ""  # what the camera list says while the port is taken
 
     def _answer_the_clock(self) -> None:
         """A phone's clock exchange answered on its port. A port another program
-        holds is tried again at the next connection; meanwhile the phone's frames
-        are placed by their arrival."""
+        holds is tried again every CLOCK_RETRY_S, the phone streaming or not, and
+        the camera list says so meanwhile: the phone's frames are then placed by
+        their arrival."""
         if self.responder is not None or self.camera.get("connection") != "rtmp":
             return
+        now = time.monotonic()
+        if now - self.clock_tried < CLOCK_RETRY_S:
+            return
+        self.clock_tried = now
         port = self.camera["settings"].get("port", cameras.RTMP_PORT)
-        with contextlib.suppress(OSError):
+        try:
             self.responder = ClockResponder(port, self.clock.micros)
+            problem = ""
+        except OSError as error:
+            problem = (
+                f"UDP port {port} is taken ({error.strerror or error}): "
+                "the phone's frames are placed by their arrival"
+            )
+        if problem != self.clock_problem:
+            self.clock_problem = problem
+            self.beat.beat(detail=problem)
 
     def run(self) -> int:
         try:
@@ -298,8 +315,9 @@ class _Recording:
         self.backoff.running(time.monotonic())
         counts: dict[str, Any] = {"frames": writer.frames, "segments": writer.segments}
         if self.beat.info["state"] != "recording":
-            counts["detail"] = ""  # what was said while connecting is over
+            counts["detail"] = self.clock_problem  # what was said connecting is over
         self.beat.beat(state="recording", **counts)
+        self._answer_the_clock()
 
     def _wait(self, detail: str) -> bool:
         """The open segment closed, a pause before trying again; True when a stop
