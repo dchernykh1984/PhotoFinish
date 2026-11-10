@@ -928,6 +928,7 @@ class MainWindow(QMainWindow):
         """The model fetched in the background; choosing anything else in the list
         stops it."""
         self._say(f"Downloading {model.label}...")
+        self.model_box.setCurrentIndex(self.model_box.findData(model.file))  # shown
         self._job = self._fetch.start(model)
 
     def _fetch_progress(self, job: models.Download, done: int) -> None:
