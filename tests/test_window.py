@@ -265,6 +265,31 @@ def test_playing_asks_for_the_next_frame_once_the_one_on_its_way_is_shown(
     assert win.view.image != blue
 
 
+def test_playing_does_nothing_while_the_frame_asked_is_on_its_way(
+    recording: Path,
+    make_window: Callable[[], mw.MainWindow],
+    clock: list[float],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    win = make_window()
+    wait_until(showing(win, START + 69 * 33))
+    win.step(-60)
+    moves: list[int] = []
+    real = win._go
+    monkeypatch.setattr(win, "_go", lambda place, dim=True: moves.append(place))
+    win.play()
+    camera = win.cameras["cam1"]
+    camera.pending = True
+    for _ in range(5):
+        clock[0] += 0.015
+        win._play_tick()
+    assert moves == []
+    camera.pending = False
+    win._play_tick()
+    assert moves == [11]
+    monkeypatch.setattr(win, "_go", real)
+
+
 def test_playing_follows_the_lists_a_few_times_a_second_not_at_every_frame(
     recording: Path,
     make_window: Callable[[], mw.MainWindow],
