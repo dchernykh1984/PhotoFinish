@@ -120,6 +120,8 @@ def test_the_rtmp_address_to_type_in_the_camera_app(
     assert cameras.this_computer() == "172.20.10.2"
     own[:] = ["198.18.0.1"]  # a proxy's made-up address: no network for a phone
     assert cameras.this_computer() == "127.0.0.1"
+    own[:] = ["100.101.102.103"]  # a carrier's or Tailscale's, as the exchange takes
+    assert cameras.this_computer() == "100.101.102.103"
 
 
 def test_each_phone_listens_on_a_port_of_its_own() -> None:
