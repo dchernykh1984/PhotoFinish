@@ -106,7 +106,14 @@ object Amf0 {
                 buffer.getInt() // the count, which the end marker makes redundant
                 readProperties(buffer)
             }
-            STRICT_ARRAY -> List(buffer.getInt()) { read(buffer) }
+            STRICT_ARRAY -> {
+                // Each entry takes a byte at least: a count beyond what is left is not believed.
+                val count = buffer.getInt()
+                require(
+                    count in 0..buffer.remaining(),
+                ) { "AMF0 array of $count entries in ${buffer.remaining()} bytes" }
+                List(count) { read(buffer) }
+            }
             else -> throw IllegalArgumentException("AMF0 type $type is not read")
         }
 

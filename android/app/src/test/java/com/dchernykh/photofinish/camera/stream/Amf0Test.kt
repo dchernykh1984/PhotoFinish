@@ -40,4 +40,10 @@ class Amf0Test {
         assertThrows(IllegalArgumentException::class.java) { Amf0.encode(Any()) }
         assertThrows(IllegalArgumentException::class.java) { Amf0.decode(byteArrayOf(0x11)) }
     }
+
+    @Test
+    fun `an array counted longer than its message is refused, not allocated`() {
+        val strictArray = byteArrayOf(0x0A, 0x7F, -1, -1, -1) // 2^31 - 1 entries, none there
+        assertThrows(IllegalArgumentException::class.java) { Amf0.decode(strictArray) }
+    }
 }
