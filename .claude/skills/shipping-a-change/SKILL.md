@@ -1,6 +1,6 @@
 ---
 name: shipping-a-change
-description: The path from a change to a merged PR in this repository - branching, a failing-first test, one-line conventional commits, the local gate, gh, the six CI checks, and how a release is cut. Use whenever asked to fix, implement, or open a pull request here.
+description: The path from a change to a merged PR in this repository - branching, a failing-first test, one-line conventional commits, the local gate, gh, the seven CI checks, and how a release is cut. Use whenever asked to fix, implement, or open a pull request here.
 ---
 
 # Shipping a change
@@ -69,7 +69,7 @@ changes, the decisions taken knowingly, and what the tests cover.
 
 ## The checks
 
-Six run on every PR:
+Seven run on every PR:
 
 | Check | What it does |
 | --- | --- |
@@ -77,6 +77,7 @@ Six run on every PR:
 | `commitizen` | `cz check` over `origin/main..HEAD`. |
 | `tests` | `uv run pytest` on Linux with the Qt runtime libs installed. |
 | `audit` | `pip-audit` over the exported runtime dependencies. |
+| `android` | PhotoFinish Camera's Gradle gate: ktlint, detekt, lint, unit tests, Kover, both builds. |
 | `build / targets` | Computes the build matrix. |
 | `build / build (ubuntu-22.04, linux-x86_64)` | PyInstaller smoke build. |
 
