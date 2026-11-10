@@ -1222,15 +1222,13 @@ class MainWindow(QMainWindow):
     def step(self, frames: int) -> None:
         camera, place = self._camera(), self._place()
         if camera is not None and place is not None:
-            self._halt()
-            self._leave_live()
+            self._moved()
             self._go(camera.index.step(place, frames))
 
     def step_ms(self, ms: int) -> None:
         camera, place = self._camera(), self._place()
         if camera is not None and place is not None:
-            self._halt()
-            self._leave_live()
+            self._moved()
             self._go(camera.index.step_ms(place, ms))
 
     def _place(self) -> int | None:
@@ -1245,18 +1243,25 @@ class MainWindow(QMainWindow):
         camera = self._camera()
         place = None if camera is None else camera.index.nearest(ms - self._offset())
         if place is not None:
-            self._halt()
-            self._leave_live()
+            self._moved()
             self._go(place)
 
     def go_live(self) -> None:
         self._halt()
+        self.play_from = None
         self.live = True
         self.timeline.following = True
         self._show_play()
         camera = self._camera()
         if camera is not None and len(camera.index):
             self._go(len(camera.index) - 1)
+
+    def _moved(self) -> None:
+        """The referee moved the video: playing stops, Live is left, and Stop no
+        longer goes back to where Play started."""
+        self._halt()
+        self.play_from = None
+        self._leave_live()
 
     def _leave_live(self) -> None:
         self.live = False
@@ -1294,7 +1299,8 @@ class MainWindow(QMainWindow):
             self._go(self.place)
 
     def stop(self) -> None:
-        """Playing stopped, back at the frame Play started from."""
+        """Playing stopped, back at the frame Play started from; after the referee
+        moved the video, or Live caught it up, only held."""
         if self.play_from is None:
             self.pause()
         else:
