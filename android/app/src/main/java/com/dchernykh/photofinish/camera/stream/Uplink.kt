@@ -70,6 +70,9 @@ class Uplink(
 
     @Volatile private var sendingSince = 0L
 
+    /** The connection under way has sent a frame; the uplink's thread alone keeps it. */
+    private var streamed = false
+
     /** The run of frames being offered; the encoder's thread alone counts it. */
     private var run = 0
 
@@ -117,11 +120,11 @@ class Uplink(
         while (running) {
             report(UplinkStatus.Connecting(address.toString()))
             try {
-                stream()
-                pause = FIRST_PAUSE_MS
+                stream() // returns once stopped; a lost connection throws
             } catch (error: Exception) {
                 publisher?.close()
                 if (!running) break
+                if (streamed) pause = FIRST_PAUSE_MS // a connection that streamed: the pauses start over
                 report(UplinkStatus.Reconnecting(error.message ?: error.javaClass.simpleName))
                 sleep(pause)
                 pause = minOf(pause * 2, MAX_PAUSE_MS)
@@ -131,6 +134,7 @@ class Uplink(
     }
 
     private fun stream() {
+        streamed = false
         val connected = connect(address)
         publisher = connected
         connected.publish(metadata(format))
@@ -155,6 +159,7 @@ class Uplink(
             val start = first ?: frame.ptsUs
             first = start
             send(connected, frame, frame.ptsUs - start, sample)
+            streamed = true
             val rates = throughput.count(frame.data.size)
             if (rates != null) report(UplinkStatus.Streaming(rates.first, rates.second, sample?.delay?.div(1000.0)))
         }
