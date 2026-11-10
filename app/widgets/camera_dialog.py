@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import ipaddress
 import itertools
 from collections.abc import Sequence
 from typing import Any
@@ -37,6 +38,7 @@ CONNECTION_NAMES = {  # the phone's streaming app first: the camera PhotoFinish 
     "test": "Test camera",
     "file": "Video file",
 }
+NO_NETWORK = "No network address: join this computer and the phone to one network"
 _ROWS = {  # the fields each connection shows
     "usb": ("device", "size", "fps"),
     "rtsp": ("url", "transport"),
@@ -181,23 +183,33 @@ class CameraDialog(QDialog):
             self.form.setRowVisible(row, key in shown)
         clash = cameras.port_clash(self.camera(), self.others)
         if self.kind() == "rtmp":
-            settings = self._settings()
-            # Another phone's port: a phone scanning it would stream to that camera.
-            if clash or cameras.problems({"connection": "rtmp", "settings": settings}):
-                self.address.setText("")
-                self.qr.clear()
-            else:
-                self._here = self._here or cameras.this_computer()
-                url = cameras.rtmp_url(settings, self._here)
-                if url != self.address.text():  # every key typed comes here
-                    self.address.setText(url)
-                    self.qr.setPixmap(qr_pixmap(url))
+            self._show_address(self._settings(), clash)
         found = cameras.problems(self.camera())
         if self.kind() == "rtmp" and clash:
             found.append(clash)
         self.problems.setText("\n".join(found))
         ok = self.buttons.button(QDialogButtonBox.StandardButton.Ok)
         ok.setEnabled(not found)
+
+    def _show_address(self, settings: dict[str, Any], clash: str | None) -> None:
+        """The address to stream to, as text and as a QR code for the phone: none
+        while the settings are wrong or the port is another phone's, which a phone
+        scanning it would stream to; a word instead while this computer has no
+        network address, which would send the phone to itself."""
+        text, scannable = "", False
+        if not clash and not cameras.problems(
+            {"connection": "rtmp", "settings": settings}
+        ):
+            self._here = self._here or cameras.this_computer()
+            scannable = not ipaddress.ip_address(self._here).is_loopback
+            text = cameras.rtmp_url(settings, self._here) if scannable else NO_NETWORK
+        if text == self.address.text():  # every key typed comes here
+            return
+        self.address.setText(text)
+        if scannable:
+            self.qr.setPixmap(qr_pixmap(text))
+        else:
+            self.qr.clear()
 
     def _choose_file(self) -> None:
         path, _ = QFileDialog.getOpenFileName(self, "A video file", "", "Video (*.*)")
