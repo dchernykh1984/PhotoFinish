@@ -52,6 +52,16 @@ def test_a_model_fetched_is_kept_next_to_the_program_and_ready(base: Path) -> No
     assert list(path.parent.iterdir()) == [path]  # no part left beside it
 
 
+def test_progress_is_told_at_each_megabyte_not_at_each_chunk(base: Path) -> None:
+    content = bytes(2_500_000)
+    model = Model("yolox_big", "Big", len(content), hashlib.sha256(content).hexdigest())
+    heard: list[int] = []
+    models.fetch(model, heard.append, serving(content))
+    assert [done // 1_000_000 for done in heard] == [0, 1, 2, 2]
+    assert heard[-1] == len(content)
+    assert model.megabytes == 3
+
+
 @pytest.mark.parametrize(
     ("served", "said"),
     [
