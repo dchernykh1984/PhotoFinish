@@ -9,13 +9,14 @@ import numpy as np
 import pytest
 import segno
 from PySide6.QtCore import QPoint, QPointF, Qt
-from PySide6.QtGui import QFont, QImage, QWheelEvent
+from PySide6.QtGui import QFont, QImage, QPixmap, QWheelEvent
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QFileDialog
 
 from app import cameras
 from app.recorder.segments import SegmentWriter
 from app.recorder.testcam import render
+from app.widgets import camera_dialog
 from app.widgets.camera_dialog import CameraDialog, qr_pixmap
 from app.widgets.camera_view import CameraView
 from app.widgets.decode_worker import DecodeWorker, to_qimage
@@ -78,6 +79,24 @@ def test_the_dialog_shows_the_address_as_a_qr_code_for_the_phone(
     assert not segno.make_qr(dialog.address.text()).is_micro
     dialog.path.setText("/bad")  # no address: no code to scan
     assert dialog.qr.pixmap().isNull()
+
+
+def test_the_qr_code_is_drawn_again_only_when_the_address_changes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(cameras, "this_computer", lambda: "10.0.0.5")
+    drawn: list[str] = []
+
+    def draw(text: str) -> QPixmap:
+        drawn.append(text)
+        return qr_pixmap(text)
+
+    monkeypatch.setattr(camera_dialog, "qr_pixmap", draw)
+    dialog = CameraDialog(None, "cam1", [])
+    QTest.keyClicks(dialog.name, " at the line")
+    assert drawn == ["rtmp://10.0.0.5:1935/live/cam1"]
+    dialog.port.setValue(1940)
+    assert drawn[-1] == "rtmp://10.0.0.5:1940/live/cam1"
 
 
 def test_a_second_phone_gets_a_port_of_its_own(monkeypatch: pytest.MonkeyPatch) -> None:
