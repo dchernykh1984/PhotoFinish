@@ -5,6 +5,7 @@ import java.io.IOException
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetSocketAddress
+import java.net.UnknownHostException
 import java.nio.ByteBuffer
 
 /** The clock exchange's messages (specs/003, contracts/phone-stream.md). */
@@ -106,13 +107,16 @@ class ClockSync(
     /** One exchange; true when it was answered. */
     fun exchange(): Boolean =
         try {
+            // A name looked up each time: one that does not resolve yet is tried again later.
+            val target = InetSocketAddress(host, port)
+            if (target.isUnresolved) throw UnknownHostException(host)
             val t1 = clockUs()
             val request = ClockExchange.request(t1)
-            socket.send(DatagramPacket(request, request.size, InetSocketAddress(host, port)))
+            socket.send(DatagramPacket(request, request.size, target))
             offset.add(awaitAnswer(t1))
             true
         } catch (_: IOException) {
-            false // unanswered in time, or no route yet: the next exchange tries again
+            false // unanswered in time, no route or no such host yet: the next exchange tries again
         }
 
     /** The answer to the request sent at [t1]; late answers to earlier requests are passed over. */
