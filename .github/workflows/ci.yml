@@ -73,3 +73,24 @@ jobs:
         run: uv sync --locked
       - name: Run tests
         run: uv run pytest
+
+  # PhotoFinish Camera: the same gate as ChronometerAndroid's.
+  android:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6.0.1
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Validate Gradle wrapper
+        uses: gradle/actions/wrapper-validation@v6
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+      - name: Lint, static analysis, unit tests, coverage, and build
+        run: ./gradlew ktlintCheck detekt lintDebug testDebugUnitTest koverVerify assembleDebug assembleRelease
