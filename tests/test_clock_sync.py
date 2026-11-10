@@ -80,16 +80,20 @@ def test_a_socket_that_keeps_failing_is_tried_again_at_a_pace() -> None:
     assert broken.reads - reads <= 10  # not a core spinning beside the recorder
 
 
-def test_only_a_sender_on_this_network_is_answered() -> None:
-    # The answer is longer than the request: no stranger may make it go elsewhere.
-    for here in (
-        "192.168.31.106",
-        "10.0.2.15",
-        "172.20.10.2",
-        "169.254.3.4",
-        "127.0.0.1",
-        "100.101.102.103",  # a carrier's or Tailscale's shared space
-    ):
-        assert clock_sync.may_ask(here), here
-    for stranger in ("8.8.8.8", "1.1.1.1"):
-        assert not clock_sync.may_ask(stranger), stranger
+def test_any_sender_is_answered_but_only_so_often() -> None:
+    # A venue's Wi-Fi may hand out public addresses: the phone's are answered too.
+    # The answer is longer than the request, so the answers are rationed: no
+    # stranger can make this computer send much of anything elsewhere.
+    clock = iter(range(10**6))
+    now = {"s": 100.0}
+    responder = ClockResponder(
+        0, lambda: next(clock), host="127.0.0.1", monotonic=lambda: now["s"]
+    )
+    try:
+        assert responder.may_answer()
+        answered = sum(responder.may_answer() for _ in range(200))
+        assert answered == clock_sync.ANSWERS_PER_S - 1  # the rest of this second's
+        now["s"] += 1
+        assert responder.may_answer()  # the next second's
+    finally:
+        responder.close()
