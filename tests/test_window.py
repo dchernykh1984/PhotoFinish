@@ -1944,7 +1944,10 @@ def test_a_model_preset_is_downloaded_once_then_used(
     win._model_chosen(win.model_box.findData(nano.file))
     assert downloading(win) is nano
     line = win.model_box.findData(nano.file)
-    wait_until(lambda: win.model_box.itemText(line).endswith(": 1 of 4 MB"))
+    wait_until(lambda: win.model_box.itemText(line).endswith(": 2 of 4 MB"))
+    assert win._job is not None
+    win._fetch_progress(win._job, nano.size)
+    assert win.model_box.itemText(line).endswith(": 4 of 4 MB")  # all of it
     said = "Downloading YOLOX-Nano, the fastest (4 MB)..."
     assert win.statusBar().currentMessage() == said  # not covered by progress
     gate.set()
