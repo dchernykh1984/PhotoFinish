@@ -114,6 +114,18 @@ def test_a_second_phone_gets_a_port_of_its_own(monkeypatch: pytest.MonkeyPatch) 
     assert not ok.isEnabled()
 
 
+def test_a_port_another_phone_has_shows_no_address_to_scan(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(cameras, "this_computer", lambda: "10.0.0.5")
+    line = {"id": "cam1", "name": "Line", "connection": "rtmp", "settings": {}}
+    dialog = CameraDialog(None, "cam2", [], [line])
+    assert not dialog.qr.pixmap().isNull()
+    dialog.port.setValue(1935)  # Line's: a phone scanning it would stream to Line
+    assert dialog.address.text() == ""
+    assert dialog.qr.pixmap().isNull()
+
+
 def test_the_dialog_keeps_ok_off_while_the_camera_cannot_record(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
