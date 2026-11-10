@@ -168,6 +168,20 @@ class UplinkTest {
     }
 
     @Test
+    fun `a better exchange moves the frames' moments a millisecond a second, not at once`() {
+        val sink = FakeSink()
+        val clock = AtomicReference<Sample?>(exchange(1_000_000))
+        val link = uplink(listOf(sink), clock = clock)
+        start(link)
+        awaitConnected()
+        link.offer(frame(0, keyframe = true))
+        assertEquals(1_000_000L, momentOf(sink.next().units[0]))
+        clock.set(exchange(1_005_000)) // 5 ms on, as a shorter round trip may say
+        link.offer(frame(1_000_000, keyframe = false)) // a second of frames later
+        assertEquals(1_000_000L + 1_001_000, momentOf(sink.next().units[0]))
+    }
+
+    @Test
     fun `a lost connection is made again, its header resent, from a keyframe`() {
         val first = FakeSink(failOn = 2)
         val second = FakeSink()
