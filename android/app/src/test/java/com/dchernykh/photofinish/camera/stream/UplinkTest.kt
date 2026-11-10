@@ -17,6 +17,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.Semaphore
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 
 /** A frame as a sink received it. */
 private class Sent(
@@ -75,15 +76,14 @@ class UplinkTest {
         waitForClockMs: Long = 2_000,
         stallMs: Long = 5_000,
         fps: Int = 30,
+        clock: AtomicReference<Sample?> = AtomicReference(offset?.let { exchange(it) }),
     ): Uplink {
         val queue = ArrayDeque(sinks)
-        // An exchange 1.5 ms long that puts the recorder [offset] us ahead.
-        val sample = offset?.let { Sample(t1 = 0, t2 = it + 750, t3 = it + 750, t4 = 1_500) }
         val link =
             Uplink(
                 address = address,
                 format = format.copy(fps = fps),
-                clock = { sample },
+                clock = { clock.get() },
                 requestKeyframe = { keyframesAsked.release() },
                 report = { statuses += it },
                 connect = { synchronized(queue) { queue.removeFirst() } },
@@ -96,6 +96,9 @@ class UplinkTest {
     }
 
     private fun start(link: Uplink) = Thread { link.run() }.apply { start() }
+
+    /** An exchange 1.5 ms long that puts the recorder [offset] us ahead. */
+    private fun exchange(offset: Long) = Sample(t1 = 0, t2 = offset + 750, t3 = offset + 750, t4 = 1_500)
 
     /** Waits for the uplink to be ready for frames: it asks for a keyframe once connected. */
     private fun awaitConnected() = assertTrue(keyframesAsked.tryAcquire(5, TimeUnit.SECONDS))
@@ -143,6 +146,22 @@ class UplinkTest {
         }
         val streaming = statuses.filterIsInstance<UplinkStatus.Streaming>().first()
         assertEquals(null, streaming.clockMs)
+    }
+
+    @Test
+    fun `frames carry their moments from when the clock comes, however late`() {
+        val sink = FakeSink()
+        val clock = AtomicReference<Sample?>(null)
+        val link = uplink(listOf(sink), waitForClockMs = 50, clock = clock)
+        start(link)
+        awaitConnected()
+        link.offer(frame(0, keyframe = true))
+        assertEquals(listOf(Avc.NAL_IDR), sink.next().units.map { Avc.type(it) })
+        clock.set(exchange(2_000_000)) // the exchange gets through at last
+        link.offer(frame(33_333, keyframe = false))
+        val stamped = sink.next()
+        assertEquals(Avc.NAL_SEI, Avc.type(stamped.units[0]))
+        assertEquals(33_333L + 2_000_000, momentOf(stamped.units[0]))
     }
 
     @Test
