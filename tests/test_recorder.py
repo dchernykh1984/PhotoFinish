@@ -13,7 +13,7 @@ import time
 from collections.abc import Iterator
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, ClassVar
 
 import av
 import numpy as np
@@ -85,6 +85,19 @@ def test_the_steady_clock_follows_a_drifting_computer_clock(
             assert moment > last
             last = moment
         assert abs(last - now["wall"] // 1_000_000) <= 1
+
+
+def test_the_steady_clock_reads_to_the_microsecond_for_a_phone_s_exchange(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now = {"wall": 1_794_329_044_562_000_000, "steady": 5_000_000_000}
+    monkeypatch.setattr(time, "time_ns", lambda: now["wall"])
+    monkeypatch.setattr(time, "monotonic_ns", lambda: now["steady"])
+    clock = SteadyClock()
+    now["wall"] += 1_234_000
+    now["steady"] += 1_234_000
+    assert clock.micros() == now["wall"] // 1000  # 1.234 ms on, to the microsecond
+    assert clock() == now["wall"] // 1_000_000
 
 
 class Camera:
@@ -488,6 +501,66 @@ def test_a_network_camera_is_waited_for_and_its_packets_kept(
     assert "waiting for rtmp://10.0.0.5:1935/live/x" in details
     assert heartbeat(folder)["frames"] == 70
     assert len(list(folder.glob("*-*-*.mkv"))) == 3
+
+
+class Responder:
+    """A stand-in for the clock exchange: what it was opened with, and its close."""
+
+    made: ClassVar[list[Responder]] = []  # each test sets its own list
+
+    def __init__(self, port: int, micros: Any) -> None:
+        self.port, self.micros, self.closed = port, micros, False
+        self.made.append(self)
+
+    def close(self) -> None:
+        self.closed = True
+
+
+def phone_session() -> None:
+    camera = {
+        "id": "cam1",
+        "connection": "rtmp",
+        "settings": {"port": 1999, "path": "live/x"},
+    }
+    session.save({**session.DEFAULTS, "cameras": [camera]})
+
+
+def test_a_phone_s_clock_exchange_is_answered_while_its_recorder_runs(
+    folder: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    phone_session()
+    monkeypatch.setattr(Responder, "made", [])
+    monkeypatch.setattr(recorder, "ClockResponder", Responder)
+    cameras(monkeypatch, Camera(folder, START, 5, stop_after=4))
+    assert run("cam1", clock=lambda: START) == 0
+    [responder] = Responder.made
+    assert responder.port == 1999
+    assert responder.micros() == START * 1000  # the recorder's clock, in us
+    assert responder.closed
+
+
+def test_a_phone_whose_exchange_port_is_taken_is_still_recorded(
+    folder: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    phone_session()
+
+    def taken(port: int, micros: Any) -> None:
+        raise OSError(errno.EADDRINUSE, "Address already in use")
+
+    monkeypatch.setattr(recorder, "ClockResponder", taken)
+    cameras(monkeypatch, Camera(folder, START, 5, stop_after=4))
+    assert run("cam1") == 0
+    assert heartbeat(folder)["frames"] == 5
+
+
+def test_another_camera_gets_no_clock_exchange(
+    folder: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(Responder, "made", [])
+    monkeypatch.setattr(recorder, "ClockResponder", Responder)
+    cameras(monkeypatch, Camera(folder, START, 3, stop_after=2))
+    assert run("cam1") == 0
+    assert Responder.made == []
 
 
 def test_low_disk_does_not_make_the_heartbeat_write_at_every_frame(

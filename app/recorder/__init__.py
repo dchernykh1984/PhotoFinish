@@ -17,6 +17,7 @@ import os
 import re
 import shutil
 import sys
+import threading
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -25,8 +26,9 @@ from typing import IO, Any
 import av
 import numpy as np
 
-from app import session
+from app import cameras, session
 from app.paths import app_path
+from app.recorder.clock_sync import ClockResponder
 from app.recorder.segments import SegmentWriter, recover
 from app.recorder.sources import (
     LEAP_MS,
@@ -54,9 +56,11 @@ class SteadyClock:
     second at most, as the two oscillators drift apart over a race day. The steady
     clock stands still while the computer sleeps: when the wall clock has run ahead
     of it by more than LEAP_MS, it is read again, and the frames that follow are on
-    the computer's time, as the chronometer's are."""
+    the computer's time, as the chronometer's are. ``micros`` reads it to the
+    microsecond for the phone's clock exchange, from a thread of its own."""
 
     def __init__(self) -> None:
+        self._lock = threading.Lock()
         self._anchor()
         self._last = int(self._wall)
 
@@ -66,18 +70,25 @@ class SteadyClock:
         self._skew = 0.0
 
     def __call__(self) -> int:
-        now = time.monotonic_ns()
-        steady = self._wall + (now - self._steady) / 1_000_000 + self._skew
-        ahead = time.time_ns() / 1_000_000 - steady
-        if ahead > LEAP_MS:
-            self._anchor()  # it slept, or its clock was set forward
-            steady = self._wall
-        elif ahead >= -LEAP_MS:  # drift; a clock set back is not followed
-            self._skew = slewed(self._skew, ahead, (now - self._then) / 1_000_000)
+        with self._lock:
+            now = time.monotonic_ns()
             steady = self._wall + (now - self._steady) / 1_000_000 + self._skew
-        self._then = now
-        self._last = max(self._last, int(steady))
-        return self._last
+            ahead = time.time_ns() / 1_000_000 - steady
+            if ahead > LEAP_MS:
+                self._anchor()  # it slept, or its clock was set forward
+                steady = self._wall
+            elif ahead >= -LEAP_MS:  # drift; a clock set back is not followed
+                self._skew = slewed(self._skew, ahead, (now - self._then) / 1_000_000)
+                steady = self._wall + (now - self._steady) / 1_000_000 + self._skew
+            self._then = now
+            self._last = max(self._last, int(steady))
+            return self._last
+
+    def micros(self) -> int:
+        """The clock now in Unix microseconds, as last brought near the computer's."""
+        with self._lock:
+            elapsed_ms = (time.monotonic_ns() - self._steady) / 1_000_000
+            return round((self._wall + elapsed_ms + self._skew) * 1000)
 
 
 class Backoff:
@@ -183,9 +194,28 @@ def run(
         if camera is None:
             beat.beat(state="failed", detail=f"no camera {camera_id} in the session")
             return 2
-        return _Recording(
-            folder, camera, beat, clock or SteadyClock(), sleep, closed
-        ).run()
+        steady = clock or SteadyClock()
+        responder = _responder(camera, steady)
+        try:
+            return _Recording(folder, camera, beat, steady, sleep, closed).run()
+        finally:
+            if responder is not None:
+                responder.close()
+
+
+def _responder(
+    camera: dict[str, Any], clock: Callable[[], int]
+) -> ClockResponder | None:
+    """A phone's clock exchange answered on its port; None for another camera, or
+    when the port is taken -- its frames are then placed by their arrival."""
+    if camera.get("connection") != "rtmp":
+        return None
+    port = (camera.get("settings") or {}).get("port", cameras.RTMP_PORT)
+    micros = getattr(clock, "micros", None) or (lambda: clock() * 1000)
+    try:
+        return ClockResponder(port, micros)
+    except OSError, OverflowError, TypeError:
+        return None
 
 
 class _Recording:
