@@ -1369,7 +1369,7 @@ class MainWindow(QMainWindow):
         elif not camera.pending and (place != self.place or camera.shown != place):
             # Due, or passed over while one was on its way; while one is, nothing
             # is done at all: a slow decoder is not raced by the whole window.
-            self._go(place, dim=False)
+            self._go(place)
 
     def _show_play(self) -> None:
         self.play_button.setText("Pause" if self.live or self.playing else "Play")
@@ -1399,14 +1399,13 @@ class MainWindow(QMainWindow):
         if len(camera.index) and (self.live or nothing_yet):
             self._go(len(camera.index) - 1)
         elif self.place is not None:  # the frame shown, maybe at a new place, again
-            self._go(self.place, dim=not self.playing)
+            self._go(self.place)
 
     def _frame_shown(self, camera: Camera) -> Frame | None:
         return None if camera.shown is None else camera.index.frame(camera.shown)
 
-    def _go(self, place: int, dim: bool = True) -> None:
-        """The video at ``place`` of the chosen camera; ``dim`` marks each frame on
-        its way, which playing does not: the moving picture would flicker."""
+    def _go(self, place: int) -> None:
+        """The video at ``place`` of the chosen camera, every camera following."""
         camera = self._camera()
         if camera is None:
             return
@@ -1418,25 +1417,23 @@ class MainWindow(QMainWindow):
         self.time_label.setText(f"{clock} LIVE" if self.live else clock)
         source = int(self.session.get("source_offset_ms", 0))
         self.source_label.setText(f"source {source:+d} ms")
-        if dim or time.monotonic() - self._followed >= FOLLOW_S:
+        if not self.playing or time.monotonic() - self._followed >= FOLLOW_S:
             # Following scans every line of both lists: at a seek, at once; while
             # playing, a few times a second, or a long race slows the playing.
             self._followed = time.monotonic()
             self._follow_lists(moment)
         for other in self.cameras.values():
-            self._show_at(other, place if other is camera else None, moment, dim)
+            self._show_at(other, place if other is camera else None, moment)
         self._show_marks()
 
-    def _show_at(
-        self, camera: Camera, place: int | None, moment: int, dim: bool = True
-    ) -> None:
+    def _show_at(self, camera: Camera, place: int | None, moment: int) -> None:
         """The camera's frame at ``place``, or else its frame nearest ``moment`` --
         none when the nearest is more than NEAR_MS away: a camera that did not film
         that moment says so instead of showing another."""
         if place is None:
             target = moment - int(camera.settings.get("offset_ms", 0))
             place = camera.index.nearest(target, within=NEAR_MS)
-        if not dim and camera.pending:
+        if self.playing and camera.pending:
             # Playing: the frame due waits for the one on its way, so a decoder
             # slower than the camera shows every frame it can, each the one asked.
             return
@@ -1451,7 +1448,7 @@ class MainWindow(QMainWindow):
             return
         camera.wanted = (camera.id, frame)  # the frame, not its place: places move
         camera.pending = True
-        if dim:
+        if not self.playing:  # a moving picture is not dimmed: it would flicker
             camera.view.show_waiting()  # no crossing timed on the frame before
         camera.worker.request(frame.path, frame.pts, camera.wanted)
 

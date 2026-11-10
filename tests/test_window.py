@@ -276,7 +276,7 @@ def test_playing_does_nothing_while_the_frame_asked_is_on_its_way(
     win.step(-60)
     moves: list[int] = []
     real = win._go
-    monkeypatch.setattr(win, "_go", lambda place, dim=True: moves.append(place))
+    monkeypatch.setattr(win, "_go", moves.append)
     win.play()
     camera = win.cameras["cam1"]
     camera.pending = True
