@@ -34,6 +34,7 @@ from app.recorder.sources import (
     LEAP_MS,
     CameraSettingsError,
     Source,
+    Stream,
     open_source,
     slewed,
 )
@@ -263,6 +264,11 @@ class _Recording:
                     self._answer_the_clock()
                     if self._record(source):
                         break
+                    if isinstance(source, Stream) and source.listen:
+                        # A phone that hung up is listened for again at once: nothing
+                        # is hammered, and it may be back in a moment, with its clock.
+                        self._hung_up()
+                        continue
                     detail = "the camera ended"
                 except _DiskFullError, CameraSettingsError:
                     raise
@@ -323,12 +329,16 @@ class _Recording:
         if self.phone and self.responder is None:  # off the frames' path once open
             self._answer_the_clock()
 
-    def _wait(self, detail: str) -> bool:
-        """The open segment closed, a pause before trying again; True when a stop
-        was asked for meanwhile."""
+    def _hung_up(self) -> None:
+        """The open segment closed, as at a reconnect, with no pause after it."""
         self._close()
         if self.writer is not None:
             self.writer.gap_reason = "reconnect"
+
+    def _wait(self, detail: str) -> bool:
+        """The open segment closed, a pause before trying again; True when a stop
+        was asked for meanwhile."""
+        self._hung_up()
         until = time.monotonic() + self.backoff.failed(time.monotonic())
         while time.monotonic() < until:
             self.beat.beat(state="reconnecting", detail=detail, clock=self.port_taken)

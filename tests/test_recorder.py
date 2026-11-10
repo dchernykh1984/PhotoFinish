@@ -774,6 +774,37 @@ def test_a_stream_without_moments_is_not_said_once_it_is_over(
     assert all(not clock for state, clock in said if state == "reconnecting")
 
 
+def test_a_phone_that_hangs_up_is_listened_for_again_at_once(
+    folder: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    phone_session()
+    monkeypatch.setattr(recorder, "ClockResponder", Responder)
+
+    class HangsUp(sources.Stream):
+        """A phone pushing here that hangs up -- to come back with its clock, say."""
+
+        def __init__(self) -> None:
+            super().__init__(
+                "rtmp://0.0.0.0:1999/live/x", {}, lambda: START, listen=True
+            )
+
+        def frames(self) -> Iterator[Any]:
+            for k in range(3):
+                yield render(START + k * 33, 640, 360), START + k * 33
+
+    cameras(monkeypatch, HangsUp(), Camera(folder, START + 5_000, 3, stop_after=2))
+    paused: list[float] = []
+
+    def failed(self: Backoff, now: float) -> float:
+        paused.append(now)
+        return 0.01
+
+    monkeypatch.setattr(Backoff, "failed", failed)
+    assert run("cam1") == 0
+    assert paused == []  # nothing listened for is hammered: no pause, at once
+    assert heartbeat(folder)["frames"] == 6
+
+
 def test_another_camera_gets_no_clock_exchange(
     folder: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
