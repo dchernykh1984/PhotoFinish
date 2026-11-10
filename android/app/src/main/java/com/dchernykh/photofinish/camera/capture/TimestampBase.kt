@@ -2,7 +2,7 @@ package com.dchernykh.photofinish.camera.capture
 
 import kotlin.math.abs
 
-/** The clock a camera stamps its frames with. */
+/** The clock an encoder's frames are stamped on. */
 enum class TimestampBase {
     /** SystemClock.elapsedRealtimeNanos: counts sleep. */
     REALTIME,
@@ -15,8 +15,10 @@ enum class TimestampBase {
         private const val NEAR_NS = 1_000_000_000L
 
         /**
-         * The clock a frame stamped at [sensorNs] was stamped on, read against both
-         * clocks as the frame arrives; null when neither is within a second of it.
+         * The clock a frame stamped at [sensorNs] was stamped on, read against both clocks
+         * as the frame arrives; null when neither is within a second of it. Clocks not yet
+         * apart -- a phone that has not slept -- give monotonic, the clock Android moves an
+         * encoder's frames to, so the choice holds once the phone has slept.
          */
         fun detect(
             sensorNs: Long,
@@ -27,8 +29,8 @@ enum class TimestampBase {
             val toMonotonic = abs(monotonicNs - sensorNs)
             return when {
                 minOf(toRealtime, toMonotonic) > NEAR_NS -> null
-                toRealtime <= toMonotonic -> REALTIME
-                else -> MONOTONIC
+                toMonotonic <= toRealtime -> MONOTONIC
+                else -> REALTIME
             }
         }
     }

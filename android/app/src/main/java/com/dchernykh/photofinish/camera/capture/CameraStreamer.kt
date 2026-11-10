@@ -66,11 +66,6 @@ class CameraStreamer(
     private var address: RtmpAddress? = null
     private var generation = 0
 
-    @Volatile private var base: TimestampBase? = null
-
-    /** The camera's clock was looked for at the first frame (or known beforehand). */
-    private var detected = false
-
     /** The camera into [preview]; with an [address], into the encoder and up to PhotoFinish too. */
     fun start(
         preview: Surface,
@@ -104,11 +99,8 @@ class CameraStreamer(
         val id = formats.cameraId ?: return onStatus(StreamerStatus.Failed("no back camera"))
         val mine = ++generation
         this.address = address
-        base = if (formats.realtimeTimestamps) TimestampBase.REALTIME else null
-        detected = base != null
         try {
-            if (address != null) startEncoder(format, address)
-            base?.let { startClock(it) }
+            if (address != null) startEncoder(format, address, mine)
             manager.openCamera(
                 id,
                 object : CameraDevice.StateCallback() {
@@ -190,29 +182,31 @@ class CameraStreamer(
                         CameraMetadata.CONTROL_VIDEO_STABILIZATION_MODE_OFF,
                     )
                 }
-            configured.setRepeatingRequest(request.build(), captureCallback, handler)
+            configured.setRepeatingRequest(request.build(), null, handler)
             if (encoderSurface == null) onStatus(StreamerStatus.Previewing)
         } catch (error: Exception) {
             onStatus(failed(error))
         }
     }
 
-    private val captureCallback =
-        object : CameraCaptureSession.CaptureCallback() {
-            override fun onCaptureStarted(
-                session: CameraCaptureSession,
-                request: CaptureRequest,
-                timestamp: Long,
-                frameNumber: Long,
-            ) {
-                if (detected || address == null) return
-                detected = true
-                val found = TimestampBase.detect(timestamp, SystemClock.elapsedRealtimeNanos(), System.nanoTime())
-                if (found == null) return onStatus(StreamerStatus.NoClock) // frames go without moments
-                base = found
-                startClock(found)
+    /**
+     * The clock the frames are stamped on, read from the first one the encoder gives: Android
+     * moves an encoder's frames from boot time to monotonic time, whatever the camera says of
+     * its own clock. Neither clock: the frames go without their moments, and the screen says so.
+     */
+    private fun clockOfFrames(
+        ptsUs: Long,
+        mine: Int,
+    ) {
+        val found = TimestampBase.detect(ptsUs * 1000, SystemClock.elapsedRealtimeNanos(), System.nanoTime())
+        handler.post {
+            when {
+                mine != generation -> Unit // closed meanwhile
+                found == null -> onStatus(StreamerStatus.NoClock)
+                else -> startClock(found)
             }
         }
+    }
 
     private fun startClock(base: TimestampBase) {
         val target = address ?: return
@@ -228,6 +222,7 @@ class CameraStreamer(
     private fun startEncoder(
         format: StreamFormat,
         address: RtmpAddress,
+        mine: Int,
     ) {
         val media =
             MediaFormat
@@ -258,7 +253,7 @@ class CameraStreamer(
             )
         uplink = link
         Thread({ link.run() }, "uplink").start()
-        drainer = Thread({ drain(codec, link) }, "encoder").apply { start() }
+        drainer = Thread({ drain(codec, link) { clockOfFrames(it, mine) } }, "encoder").apply { start() }
     }
 
     private fun close() {
@@ -314,15 +309,25 @@ class CameraStreamer(
             }
         }
 
-        /** The encoder's output, to the uplink: the stream's header, then the frames, until interrupted. */
+        /**
+         * The encoder's output, to the uplink: the stream's header, then the frames, until
+         * interrupted; [onFirstFrame] hears of the first frame's presentation time.
+         */
         private fun drain(
             codec: MediaCodec,
             link: Uplink,
+            onFirstFrame: (Long) -> Unit,
         ) {
             val info = MediaCodec.BufferInfo()
+            var waiting = true
+            val offer: (EncodedFrame) -> Unit = { frame ->
+                if (waiting) onFirstFrame(frame.ptsUs)
+                waiting = false
+                link.offer(frame)
+            }
             var more = true
             try {
-                while (more && !Thread.currentThread().isInterrupted) more = deliver(codec, link, info)
+                while (more && !Thread.currentThread().isInterrupted) more = deliver(codec, link, info, offer)
             } catch (_: IllegalStateException) {
                 // the encoder was stopped: the stream is over
             }
@@ -333,6 +338,7 @@ class CameraStreamer(
             codec: MediaCodec,
             link: Uplink,
             info: MediaCodec.BufferInfo,
+            offer: (EncodedFrame) -> Unit,
         ): Boolean {
             val index = codec.dequeueOutputBuffer(info, DEQUEUE_TIMEOUT_US)
             if (index == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) configureLink(link, codec.outputFormat)
@@ -348,7 +354,7 @@ class CameraStreamer(
                 flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0 -> configureFromUnits(link, Avc.splitAnnexB(bytes))
                 bytes.isNotEmpty() -> {
                     val keyframe = flags and MediaCodec.BUFFER_FLAG_KEY_FRAME != 0
-                    link.offer(EncodedFrame(bytes, info.presentationTimeUs, keyframe))
+                    offer(EncodedFrame(bytes, info.presentationTimeUs, keyframe))
                 }
             }
             return flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM == 0

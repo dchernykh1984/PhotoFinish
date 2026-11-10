@@ -36,11 +36,6 @@ class CameraFormats(
             ?.map { FpsRange(it.lower, it.upper) }
             .orEmpty()
 
-    /** The camera stamps its frames on elapsedRealtimeNanos; otherwise it is found at the first frame. */
-    val realtimeTimestamps: Boolean =
-        characteristics?.get(CameraCharacteristics.SENSOR_INFO_TIMESTAMP_SOURCE) ==
-            CameraMetadata.SENSOR_INFO_TIMESTAMP_SOURCE_REALTIME
-
     private val encoders =
         MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos.filter { info ->
             info.isEncoder && info.supportedTypes.any { it.equals(MediaFormat.MIMETYPE_VIDEO_AVC, ignoreCase = true) }
