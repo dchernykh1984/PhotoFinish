@@ -386,6 +386,25 @@ def test_a_phone_s_moment_seconds_behind_the_recorder_is_not_believed() -> None:
     assert all(now - 3_000 < ms <= now + 1_000 for ms in got)  # placed by arrival
 
 
+def test_a_phone_s_stream_says_when_its_frames_come_without_moments() -> None:
+    now = {"ms": START}
+    source = sources.Stream(
+        "rtmp://0.0.0.0:1935/live/x", {}, lambda: now["ms"], listen=True
+    )
+    stream = SimpleNamespace(
+        time_base=Fraction(1, 1000),
+        codec_context=SimpleNamespace(name="h264", extradata=b"\x01"),
+    )
+    place = source._placing(stream, phone=True)  # type: ignore[arg-type]
+    place(avcc(b"\x65\x88"), 0)  # type: ignore[arg-type]
+    assert source.unstamped
+    place(avcc(sei(START * 1000), b"\x41\x9a"), 33)  # type: ignore[arg-type]
+    assert not source.unstamped
+    streaming_app = source._placing(stream, phone=False)  # type: ignore[arg-type]
+    streaming_app(avcc(b"\x65\x88"), 66)  # type: ignore[arg-type]
+    assert not source.unstamped  # Larix and the like never carry them
+
+
 def test_a_phone_whose_clock_went_wrong_is_placed_by_arrival() -> None:
     got = receive_phone(lambda k: START * 1000 + k * 40_000)  # a year off
     now = time.time_ns() // 1_000_000

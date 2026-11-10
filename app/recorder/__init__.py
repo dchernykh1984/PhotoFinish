@@ -40,6 +40,7 @@ from app.recorder.sources import (
 
 LOW_DISK = 2 * 1024**3
 CLOCK_RETRY_S = 5.0  # a phone's clock-exchange port another program holds: tried again
+UNSTAMPED = "the phone sends its frames without their moments: placed by their arrival"
 # A heartbeat older than this: the recorder is gone. Longer than a camera open
 # blocks (OPEN_TIMEOUT_S), when no heartbeat is written.
 STALE_MS = 15_000
@@ -223,7 +224,7 @@ class _Recording:
         self.backoff = Backoff()
         self.responder: ClockResponder | None = None
         self.clock_tried = -CLOCK_RETRY_S  # time.monotonic() of the last try
-        self.clock_problem = ""  # why the exchange is left out, as recorder.json says
+        self.port_taken = ""  # why the exchange is left out: its port, taken
 
     def _answer_the_clock(self) -> None:
         """A phone's clock exchange answered on its port. A port another program
@@ -239,15 +240,12 @@ class _Recording:
         port = self.camera["settings"].get("port", cameras.RTMP_PORT)
         try:
             self.responder = ClockResponder(port, self.clock.micros)
-            problem = ""
+            self.port_taken = ""
         except OSError as error:
-            problem = (
+            self.port_taken = (
                 f"UDP port {port} is taken ({error.strerror or error}): "
                 "the phone's frames are placed by their arrival"
             )
-        if problem != self.clock_problem:
-            self.clock_problem = problem
-            self.beat.beat(clock=problem)
 
     def run(self) -> int:
         try:
@@ -294,7 +292,9 @@ class _Recording:
         for item in source.frames():
             if item is None:
                 self._answer_the_clock()  # open before the phone's first frame
-                self.beat.beat(state="connecting", detail=source.waiting)
+                self.beat.beat(
+                    state="connecting", detail=source.waiting, clock=self.port_taken
+                )
             else:
                 self._write(source, *item)
             if self.stop.exists():
@@ -318,7 +318,8 @@ class _Recording:
         counts: dict[str, Any] = {"frames": writer.frames, "segments": writer.segments}
         if self.beat.info["state"] != "recording":
             counts["detail"] = ""  # what was said while connecting is over
-        self.beat.beat(state="recording", **counts)
+        unstamped = UNSTAMPED if source.unstamped else ""
+        self.beat.beat(state="recording", clock=self.port_taken or unstamped, **counts)
         self._answer_the_clock()
 
     def _wait(self, detail: str) -> bool:

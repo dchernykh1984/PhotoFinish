@@ -25,6 +25,7 @@ from app.paths import app_path
 from app.recorder import frame_time
 from app.recorder.testcam import TestCamera
 
+PHONE_APP = "PhotoFinish Camera"  # the encoder its stream's metadata names
 OPEN_TIMEOUT_S = 10.0
 READ_TIMEOUT_S = 5.0
 LOOK_OVER_US = "500000"  # how long FFmpeg reads a pushed stream before the first frame
@@ -38,6 +39,7 @@ class CameraSettingsError(ValueError):
 
 class Source(Protocol):
     fps: float
+    unstamped: bool  # a phone's frames coming without their moments
 
     @property
     def waiting(self) -> str: ...  # what the recorder says while it yields None
@@ -133,6 +135,7 @@ class UsbCamera:
     """A camera on the computer: avfoundation, dshow or video4linux2 by platform."""
 
     waiting = ""
+    unstamped = False
 
     def __init__(self, settings: dict[str, Any], clock: Callable[[], int]) -> None:
         self.fps = float(settings.get("fps", 30))
@@ -180,6 +183,7 @@ class Stream:
     ) -> None:
         self.url, self.options, self.listen = url, options, listen
         self._waiting = waiting
+        self.unstamped = False
         self.fps = 30.0
         self.anchor = Anchor(clock)
 
@@ -202,14 +206,15 @@ class Stream:
         with container:
             stream = container.streams.video[0]
             self.fps = float(stream.average_rate or stream.guessed_rate or 30)
-            place = self._placing(stream)
+            phone = container.metadata.get("encoder") == PHONE_APP
+            place = self._placing(stream, phone)
             for packet in container.demux(stream):
                 if packet.pts is None or packet.dts is None:
                     continue
                 yield packet, place(packet, packet.pts)
 
     def _placing(
-        self, stream: av.video.stream.VideoStream
+        self, stream: av.video.stream.VideoStream, phone: bool = False
     ) -> Callable[[av.Packet, int], int]:
         """Each packet's moment: its own when it carries one the clock can believe,
         else its arrival. The clock as it is read, not the anchor on the arrival, is
@@ -227,6 +232,9 @@ class Stream:
             moment = frame_time.moment_ms(memoryview(packet)) if stamped else None
             if moment is None or not self._believed(moment):
                 moment = self.anchor(float(pts * unit))
+                self.unstamped = phone  # said in the camera list
+            else:
+                self.unstamped = False
             if not latest or pts > latest[0]:  # a B-frame keeps its own
                 if latest:
                     moment = max(moment, latest[1] + 1)
@@ -246,6 +254,7 @@ class LiveFile:
     """A video file played as if a camera were filming it now."""
 
     waiting = ""
+    unstamped = False
 
     def __init__(
         self, path: str, clock: Callable[[], int], sleep: Callable[[float], None]
