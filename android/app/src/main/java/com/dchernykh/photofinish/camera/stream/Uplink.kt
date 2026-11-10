@@ -13,7 +13,10 @@ class EncodedFrame(
     val data: ByteArray,
     val ptsUs: Long,
     val keyframe: Boolean,
-)
+) {
+    /** The run of frames it belongs to: a run ends where frames were dropped. */
+    internal var run = 0
+}
 
 /** What the uplink says to the screen. */
 sealed interface UplinkStatus {
@@ -67,8 +70,8 @@ class Uplink(
 
     @Volatile private var sendingSince = 0L
 
-    /** Frames were dropped: the next one sent must be a keyframe. */
-    @Volatile private var resync = false
+    /** The run of frames being offered; the encoder's thread alone counts it. */
+    private var run = 0
 
     /** Frames dropped because the network fell behind. */
     @Volatile var dropped = 0L
@@ -82,11 +85,15 @@ class Uplink(
         record = Avc.configurationRecord(sps, pps)
     }
 
-    /** A frame from the encoder; when the queue is full it is emptied and a keyframe asked for. */
+    /**
+     * A frame from the encoder; when the queue is full it is emptied and a keyframe asked for,
+     * and the frames that follow make a new run: none of them is sent before its keyframe.
+     */
     fun offer(frame: EncodedFrame) {
+        frame.run = run
         if (!queue.offer(frame)) {
             dropped += queue.size + 1L
-            resync = true
+            run++
             queue.clear()
             requestKeyframe()
         }
@@ -132,13 +139,13 @@ class Uplink(
         queue.clear()
         requestKeyframe()
         var first: Long? = null
+        var sentRun: Int? = null
         val throughput = Throughput()
         while (running) {
-            // A connection starts on a keyframe, and so does what follows a drop.
+            // A connection starts on a keyframe, and so does a run after frames were dropped.
             val frame =
-                queue.poll(POLL_MS, TimeUnit.MILLISECONDS)?.takeIf { it.keyframe || first != null && !resync }
-                    ?: continue
-            resync = false
+                queue.poll(POLL_MS, TimeUnit.MILLISECONDS)?.takeIf { it.keyframe || it.run == sentRun } ?: continue
+            sentRun = frame.run
             val start = first ?: frame.ptsUs
             first = start
             // Each frame with its moment from the moment the clock is known.
