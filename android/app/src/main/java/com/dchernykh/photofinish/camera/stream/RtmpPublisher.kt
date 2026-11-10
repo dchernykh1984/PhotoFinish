@@ -44,7 +44,7 @@ class RtmpPublisher(
     private val address: RtmpAddress,
     private val connect: (RtmpAddress) -> RtmpConnection = ::socketConnection,
 ) : VideoSink {
-    private var connection: RtmpConnection? = null
+    @Volatile private var connection: RtmpConnection? = null
     private lateinit var writer: RtmpChunkWriter
     private lateinit var reader: RtmpChunkReader
     private var streamId = 0
@@ -54,6 +54,10 @@ class RtmpPublisher(
     override fun publish(metadata: Map<String, Any?>) {
         val opened = connect(address)
         connection = opened
+        if (closed) { // closed while it connected: it must not hold the server's one place
+            opened.close()
+            throw IOException("the stream was closed")
+        }
         val output = BufferedOutputStream(opened.output, BUFFER_SIZE)
         val input = BufferedInputStream(opened.input)
         handshake(input, output)
