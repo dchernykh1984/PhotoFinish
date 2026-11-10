@@ -580,6 +580,26 @@ def test_a_killed_recorder_costs_only_the_time_it_is_down(folder: Path) -> None:
     assert any(line.startswith(f"{last_before} ") for line in gaps)
 
 
+def test_a_phone_s_clock_exchange_left_out_is_said_whatever_the_state() -> None:
+    from app.recorder.launcher import describe
+
+    fresh = int(time.time() * 1000)
+    clock = "UDP port 1935 is taken: the phone's frames are placed by their arrival"
+    recording = {
+        "state": "recording",
+        "heartbeat_ms": fresh,
+        "frames": 5,
+        "clock": clock,
+    }
+    assert describe(recording) == f"recording, 5 frames; {clock}"
+    low = {**recording, "detail": "low disk"}
+    assert describe(low) == f"recording, 5 frames, under 2 GB free; {clock}"
+    waiting = {"state": "connecting", "heartbeat_ms": fresh, "detail": "waiting for x"}
+    assert (
+        describe({**waiting, "clock": clock}) == f"connecting: waiting for x; {clock}"
+    )
+
+
 def test_a_recorder_is_described_as_the_referee_needs() -> None:
     from app.recorder.launcher import describe
 

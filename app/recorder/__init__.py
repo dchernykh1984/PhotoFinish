@@ -126,6 +126,7 @@ class Heartbeat:
             "heartbeat_ms": 0,
             "state": "starting",
             "detail": "",
+            "clock": "",  # why a phone's clock exchange is left out; "" when it is not
             "frames": 0,
             "segments": 0,
             "free_bytes": 0,
@@ -136,7 +137,7 @@ class Heartbeat:
     def beat(self, **changes: Any) -> None:
         news = any(
             key in changes and self.info[key] != changes[key]
-            for key in ("state", "detail")
+            for key in ("state", "detail", "clock")
         )
         self.info.update(changes)
         now = time.monotonic()
@@ -222,13 +223,13 @@ class _Recording:
         self.backoff = Backoff()
         self.responder: ClockResponder | None = None
         self.clock_tried = -CLOCK_RETRY_S  # time.monotonic() of the last try
-        self.clock_problem = ""  # what the camera list says while the port is taken
+        self.clock_problem = ""  # why the exchange is left out, as recorder.json says
 
     def _answer_the_clock(self) -> None:
         """A phone's clock exchange answered on its port. A port another program
         holds is tried again every CLOCK_RETRY_S, the phone streaming or not, and
-        the camera list says so meanwhile: the phone's frames are then placed by
-        their arrival."""
+        recorder.json's ``clock`` says so meanwhile, which the camera list shows:
+        the phone's frames are then placed by their arrival."""
         if self.responder is not None or self.camera.get("connection") != "rtmp":
             return
         now = time.monotonic()
@@ -246,7 +247,7 @@ class _Recording:
             )
         if problem != self.clock_problem:
             self.clock_problem = problem
-            self.beat.beat(detail=problem)
+            self.beat.beat(clock=problem)
 
     def run(self) -> int:
         try:
@@ -293,10 +294,7 @@ class _Recording:
         for item in source.frames():
             if item is None:
                 self._answer_the_clock()  # open before the phone's first frame
-                waiting = "; ".join(
-                    t for t in (source.waiting, self.clock_problem) if t
-                )
-                self.beat.beat(state="connecting", detail=waiting)
+                self.beat.beat(state="connecting", detail=source.waiting)
             else:
                 self._write(source, *item)
             if self.stop.exists():
@@ -318,10 +316,8 @@ class _Recording:
             _disk(writer.write, image, ms)
         self.backoff.running(time.monotonic())
         counts: dict[str, Any] = {"frames": writer.frames, "segments": writer.segments}
-        # What was said connecting is over; a taken port is said again once the
-        # low disk that took its place is over.
-        if self.beat.info["state"] != "recording" or not self.beat.info["detail"]:
-            counts["detail"] = self.clock_problem
+        if self.beat.info["state"] != "recording":
+            counts["detail"] = ""  # what was said while connecting is over
         self.beat.beat(state="recording", **counts)
         self._answer_the_clock()
 
