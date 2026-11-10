@@ -20,7 +20,7 @@ from PySide6.QtCore import (
     QTimer,
     Signal,
 )
-from PySide6.QtGui import QCloseEvent, QImage, QKeySequence, QShortcut
+from PySide6.QtGui import QCloseEvent, QImage, QKeySequence, QShortcut, QWheelEvent
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -159,7 +159,8 @@ class MainWindow(QMainWindow):
         self.analysis_box = QCheckBox("Find riders (experimental)")
         self.analysis_box.setChecked(analysis.settings(self.session)["on"])
         self.analysis_box.toggled.connect(self._analysis_on)
-        self.model_box = QComboBox()
+        self.model_box = _StillCombo()
+        self.model_box.setFocusPolicy(Qt.FocusPolicy.NoFocus)  # the keys move video
         self.model_box.setToolTip(
             "What finds riders: motion in the zone, or a detection model, downloaded "
             "once when first chosen"
@@ -1463,6 +1464,14 @@ class MainWindow(QMainWindow):
 
 
 _OWN_FILE = "?file"  # the model list's last item: a file of the referee's own
+
+
+class _StillCombo(QComboBox):
+    """A list the wheel does not turn: scrolling past it in the middle of a race
+    must not change the model, restarting every analyser or a download."""
+
+    def wheelEvent(self, event: QWheelEvent) -> None:  # noqa: N802 - Qt's name
+        event.ignore()
 
 
 class _Fetch(QObject):
