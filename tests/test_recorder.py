@@ -750,6 +750,30 @@ def test_a_phone_streaming_without_its_moments_is_said(
     assert any("without their moments" in clock for clock in clocks)
 
 
+def test_a_stream_without_moments_is_not_said_once_it_is_over(
+    folder: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    phone_session()
+    monkeypatch.setattr(recorder, "ClockResponder", Responder)
+
+    class Unstamped(Camera):
+        clock_note = sources.UNSTAMPED
+
+    said: list[tuple[str, str]] = []
+    real = Heartbeat.beat
+
+    def beat(self: Heartbeat, **changes: Any) -> None:
+        real(self, **changes)
+        said.append((self.info["state"], self.info["clock"]))
+
+    lost = Unstamped(folder, START, 3, then=OSError("the phone went away"))
+    cameras(monkeypatch, lost, Camera(folder, START + 5_000, 3, stop_after=2))
+    monkeypatch.setattr(Heartbeat, "beat", beat)
+    assert run("cam1") == 0
+    assert ("recording", sources.UNSTAMPED) in said
+    assert all(not clock for state, clock in said if state == "reconnecting")
+
+
 def test_another_camera_gets_no_clock_exchange(
     folder: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
