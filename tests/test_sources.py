@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import itertools
 import socket
 import sys
 import threading
@@ -9,6 +10,7 @@ import time
 from collections.abc import Iterator
 from fractions import Fraction
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import av
@@ -196,9 +198,10 @@ def push(port: int, frames: int, moment_us: Any = None) -> None:
 
         def send(packets: list[av.Packet]) -> None:
             for packet in packets:
-                if moment_us is not None and packet.pts is not None:
+                moment = None if moment_us is None else moment_us(packet.pts)
+                if moment is not None:
                     stamped = av.Packet(
-                        b"\x00\x00\x00\x01" + sei(moment_us(packet.pts)) + bytes(packet)
+                        b"\x00\x00\x00\x01" + sei(moment) + bytes(packet)
                     )
                     stamped.pts, stamped.dts = packet.pts, packet.dts
                     stamped.time_base, stamped.stream = packet.time_base, stream
@@ -288,6 +291,30 @@ def test_a_phone_camera_s_frames_keep_the_moments_it_wrote_in_them() -> None:
 
     got = receive_phone(moment_us)
     assert got == [(first[0] + 500) // 1000 + k * 40 for k in range(20)]
+
+
+def test_a_phone_s_frames_keep_their_order_where_its_moments_begin() -> None:
+    first: list[int] = []
+
+    def moment_us(k: int) -> int | None:
+        if k < 10:
+            return None  # its clock not in step yet: placed by their arrival
+        first[:] = first or [time.time_ns() // 1000 - 300_000]  # taken earlier
+        return first[0] + (k - 10) * 33_333
+
+    got = receive_phone(moment_us)
+    assert all(b > a for a, b in itertools.pairwise(got))
+
+
+def test_b_frames_keep_their_moments_among_frames_kept_in_order() -> None:
+    source = sources.Stream("rtsp://10.0.0.2/live", {}, lambda: START)
+    stream = SimpleNamespace(
+        time_base=Fraction(1, 1000),
+        codec_context=SimpleNamespace(name="hevc", extradata=b""),
+    )
+    place = source._placing(stream)  # type: ignore[arg-type]
+    decoded = [0, 99, 33, 66]  # I, P, then the B-frames between them
+    assert [place(None, pts) for pts in decoded] == [START + pts for pts in decoded]  # type: ignore[arg-type]
 
 
 def test_a_phone_whose_clock_went_wrong_is_placed_by_arrival() -> None:
