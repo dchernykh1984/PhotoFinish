@@ -1562,14 +1562,53 @@ def test_a_download_of_another_model_holds_no_analyser_back(
     wait_until(lambda: win._fetching is None)
 
 
+def test_a_model_chosen_again_is_not_taken_for_the_download_stopped_before(
+    win: mw.MainWindow, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Tiny chosen, stopped, chosen again: the first download, ending late, is not
+    taken for the second, and the second's model is the one kept."""
+    tiny = models.MODELS[1]
+    calls: list[str] = []
+    second_started, second_may_end = threading.Event(), threading.Event()
+
+    def fetch(
+        model: models.Model,
+        progress: Callable[[int], None],
+        cancelled: Callable[[], bool] = lambda: False,
+    ) -> Path:
+        calls.append(model.key)
+        if len(calls) == 1:
+            while not cancelled():
+                time.sleep(0.01)
+            second_started.wait(5)  # it ends once the same model is asked again
+            raise models.FetchError(f"{model.title}: download stopped")
+        second_started.set()
+        second_may_end.wait(5)
+        return Path(model.file)
+
+    monkeypatch.setattr(mw.models, "fetch", fetch)
+    monkeypatch.setattr(mw.models, "ready", lambda model: False)
+    win._model_chosen(win.model_box.findData(tiny.file))
+    win._model_chosen(win.model_box.findData(""))
+    win._model_chosen(win.model_box.findData(tiny.file))
+    assert second_started.wait(5)
+    for _ in range(30):  # the first's "stopped" arrives meanwhile
+        QApplication.processEvents()
+        time.sleep(0.01)
+    assert win._fetching is tiny
+    assert "stopped" not in win.statusBar().currentMessage()
+    second_may_end.set()
+    wait_until(lambda: analysis.settings(session.load())["model"] == tiny.file)
+
+
 def test_a_closed_window_hears_nothing_from_a_download_still_running(
     win: mw.MainWindow,
 ) -> None:
-    win._fetching = models.MODELS[0]
+    job = models.Download(models.MODELS[0], lambda *a: None, lambda *a: None)
+    win._job = job
     win.close()
-    key = models.MODELS[0].key
-    win._fetched(key, "")  # an answer queued before the close, delivered after it
-    win._fetch_progress(key, 1_000_000)
+    win._fetched(job, "")  # an answer queued before the close, delivered after it
+    win._fetch_progress(job, 1_000_000)
     QApplication.processEvents()
     assert analysis.settings(session.load())["model"] == ""
 

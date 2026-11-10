@@ -159,3 +159,71 @@ def test_the_download_trusts_certifis_roots(monkeypatch: pytest.MonkeyPatch) -> 
     assert asked["timeout"] == models.TIMEOUT_S
     assert loaded == [certifi.where()]
     assert app_path(MODEL.file).name == "yolox_test.onnx"
+
+
+def test_a_download_tells_its_answers_with_itself(
+    base: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    heard: list[tuple[models.Download, object]] = []
+
+    def say(job: models.Download, what: object) -> None:
+        heard.append((job, what))
+
+    monkeypatch.setattr(models, "_open", serving(CONTENT))
+    job = models.Download(MODEL, say, say)
+    job.run()
+    assert heard[-1] == (job, "")
+    assert all(told is job for told, _ in heard)
+    assert models.ready(MODEL)
+
+
+@pytest.mark.parametrize(
+    ("failure", "said"),
+    [
+        (FetchError("YOLOX-Test: download stopped"), "YOLOX-Test: download stopped"),
+        (ValueError("odd"), "YOLOX-Test cannot be downloaded: odd"),
+    ],
+)
+def test_a_download_that_fails_tells_why(
+    monkeypatch: pytest.MonkeyPatch, failure: Exception, said: str
+) -> None:
+    def fetch(*args: object, **kwargs: object) -> Path:
+        raise failure
+
+    monkeypatch.setattr(models, "fetch", fetch)
+    heard: list[str] = []
+    models.Download(MODEL, lambda job, done: None, lambda job, e: heard.append(e)).run()
+    assert heard == [said]
+
+
+def test_a_download_cancelled_stops_at_its_next_read(
+    base: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(models, "_open", serving(CONTENT))
+    heard: list[str] = []
+    job = models.Download(MODEL, lambda job, done: None, lambda job, e: heard.append(e))
+    job.cancel()
+    job.run()
+    assert heard == ["YOLOX-Test: download stopped"]
+    assert not models.ready(MODEL)
+
+
+def test_each_download_has_a_part_of_its_own_and_crashed_parts_go(base: Path) -> None:
+    parts: list[set[str]] = []
+
+    class Reply(io.BytesIO):
+        def read(self, size: int | None = -1) -> bytes:
+            if self.tell() == 0:  # the part is open by the first read
+                parts.append({p.name for p in (base / "models").glob("*.part")})
+            return super().read(size)
+
+    models.fetch(MODEL, opener=lambda url: Reply(CONTENT))
+    models.fetch(MODEL, opener=lambda url: Reply(CONTENT))
+    (first,), (second,) = parts
+    assert first != second
+    assert first.startswith("yolox_test.onnx.")
+    crashed = base / "models" / "yolox_test.onnx.dead.part"
+    crashed.write_bytes(b"x")
+    models.clear_parts()
+    assert not crashed.exists()
+    assert (base / "models" / "yolox_test.onnx").exists()

@@ -12,7 +12,9 @@ import hashlib
 import http.client
 import math
 import os
+import secrets
 import ssl
+import threading
 import urllib.request
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -107,7 +109,9 @@ def fetch(
     ``cancelled`` says so the download stops. Raises FetchError, leaving nothing
     under the model's name."""
     path = app_path(model.file)
-    part = path.with_name(path.name + ".part")
+    # A part of its own: a download stopped and still ending never touches the
+    # next one's.
+    part = path.with_name(f"{path.name}.{secrets.token_hex(4)}.part")
     digest, done, told = hashlib.sha256(), 0, -1
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -135,6 +139,51 @@ def fetch(
         part.unlink(missing_ok=True)
         raise
     return path
+
+
+def clear_parts() -> None:
+    """The parts downloads cut short by a crash left behind; called when the window
+    starts, before any download of its own."""
+    for part in app_path(FOLDER).glob("*.part"):
+        part.unlink(missing_ok=True)
+
+
+class Download:
+    """One download of a model, on a thread of its own. ``cancel()`` stops it. Its
+    progress and its end are told with the download itself, so whoever started
+    it tells its answers from those of one since stopped, even of the same model.
+    """
+
+    def __init__(
+        self,
+        model: Model,
+        progress: Callable[[Download, int], None],
+        done: Callable[[Download, str], None],
+    ) -> None:
+        self.model = model
+        self._progress, self._done = progress, done
+        self._stop = threading.Event()
+
+    def start(self) -> None:
+        threading.Thread(target=self.run, daemon=True).start()
+
+    def cancel(self) -> None:
+        self._stop.set()
+
+    def run(self) -> None:
+        """The download, its end told: what went wrong, or nothing once it is there."""
+        try:
+            fetch(
+                self.model,
+                lambda done: self._progress(self, done),
+                cancelled=self._stop.is_set,
+            )
+        except FetchError as error:
+            self._done(self, str(error))
+        except Exception as error:  # whatever else: told, never left waiting
+            self._done(self, f"{self.model.title} cannot be downloaded: {error}")
+        else:
+            self._done(self, "")
 
 
 def _open(url: str) -> Any:
