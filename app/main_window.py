@@ -1229,6 +1229,9 @@ class MainWindow(QMainWindow):
             state = "starting" if watchdog.wanted else "not recording"
         if camera.index.unreadable:
             state += f"; segments that cannot be read: {len(camera.index.unreadable)}"
+        clash = cameras.port_clash(camera.settings, self.session["cameras"])
+        if clash:
+            state = f"{clash}; {state}"
         if self.analysis_box.isChecked() and camera.settings.get("record", True):
             state += f"; riders {self._riders_progress(camera)}"
         camera.item.setText(f"{camera.settings.get('name', camera.id)}: {state}")

@@ -56,6 +56,20 @@ def ports_taken(cameras: list[dict[str, Any]]) -> set[int]:
     return {port for camera in cameras if (port := _rtmp_port(camera)) is not None}
 
 
+def port_clash(camera: dict[str, Any], cameras: list[dict[str, Any]]) -> str | None:
+    """Why this phone records nothing when one before it in the session listens on
+    its port -- a session from before each phone had its own, or one edited by
+    hand; None when it has the port to itself."""
+    port = _rtmp_port(camera)
+    for other in cameras:
+        if port is None or other.get("id") == camera.get("id"):
+            return None
+        if _rtmp_port(other) == port:
+            name = other.get("name") or other.get("id")
+            return f"port {port} is {name}'s: remove this phone and add it again"
+    return None
+
+
 def _rtmp_port(camera: dict[str, Any]) -> int | None:
     """The port a phone listens on; None for another connection or settings that
     are not a phone's, which problems() reports instead."""
