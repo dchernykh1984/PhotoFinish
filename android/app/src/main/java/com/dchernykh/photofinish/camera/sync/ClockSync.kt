@@ -7,6 +7,7 @@ import java.net.DatagramSocket
 import java.net.InetSocketAddress
 import java.net.UnknownHostException
 import java.nio.ByteBuffer
+import kotlin.math.abs
 
 /** The clock exchange's messages (specs/003, contracts/phone-stream.md). */
 object ClockExchange {
@@ -56,7 +57,11 @@ data class Sample(
     val delay: Long get() = (t4 - t1) - (t3 - t2)
 }
 
-/** The recent exchanges; the offset trusted is the one of the shortest delay. */
+/**
+ * The recent exchanges; the offset trusted is the one of the shortest delay. An offset the
+ * delays cannot explain is the recorder's clock changed -- the recorder started again, or its
+ * computer's clock was set -- and the exchanges before it go.
+ */
 class ClockOffset(
     private val capacity: Int = 16,
 ) {
@@ -65,6 +70,11 @@ class ClockOffset(
     @Synchronized
     fun add(sample: Sample) {
         if (sample.delay < 0) return // clocks that went back mid-exchange: not believed
+        val best = best()
+        // Each offset is within half its delay of the truth; beyond that, and the drift, it moved.
+        if (best != null && abs(sample.offset - best.offset) > (sample.delay + best.delay) / 2 + DRIFT_US) {
+            samples.clear()
+        }
         samples.addLast(sample)
         while (samples.size > capacity) samples.removeFirst()
     }
@@ -72,6 +82,11 @@ class ClockOffset(
     /** The best exchange so far, or null before the first. */
     @Synchronized
     fun best(): Sample? = samples.minByOrNull { it.delay }
+
+    private companion object {
+        /** Two clocks 50 ppm apart, over the window's 32 s, with room to spare. */
+        const val DRIFT_US = 10_000L
+    }
 }
 
 /**
