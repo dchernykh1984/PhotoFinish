@@ -938,7 +938,7 @@ class MainWindow(QMainWindow):
             model = job.model
             self.model_box.setItemText(
                 self.model_box.findData(model.file),  # its own line, chosen or not
-                f"{model.title}: {done // 1_000_000} of {model.megabytes} MB",
+                f"{model.title}: {math.ceil(done / 1_000_000)} of {model.megabytes} MB",
             )
 
     def _fetched(self, job: models.Download, error: str) -> None:
