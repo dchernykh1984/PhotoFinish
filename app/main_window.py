@@ -4,7 +4,6 @@ Qt-free modules (session, video_index, recorder) and the widgets."""
 from __future__ import annotations
 
 import math
-import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -170,7 +169,7 @@ class MainWindow(QMainWindow):
             "once when first chosen"
         )
         self.model_box.activated.connect(self._model_chosen)
-        self._fetching: models.Model | None = None  # the model downloading
+        self._job: models.Download | None = None  # the download in progress
         self._fetch = _Fetch()
         self._fetch.progress.connect(self._fetch_progress)
         self._fetch.done.connect(self._fetched)
@@ -890,11 +889,11 @@ class MainWindow(QMainWindow):
         """A preset ready is chosen at once, one missing is downloaded first; the
         last item opens a file of the referee's own."""
         chosen = self.model_box.itemData(index)
-        if self._fetching is not None:
-            if chosen == self._fetching.file:
+        if self._job is not None:
+            if chosen == self._job.model.file:
                 return  # on its way already
-            self._fetch.cancel()  # another choice: the download in progress stops
-            self._fetching = None
+            self._job.cancel()  # another choice: the download in progress stops
+            self._job = None
         if chosen == _OWN_FILE:
             self.choose_model()
             self._show_model()  # a file not chosen leaves the model as it was
@@ -909,32 +908,36 @@ class MainWindow(QMainWindow):
         """The preset in use downloaded when it is missing -- an event folder copied
         without models/, a new copy of the program -- rather than left for the
         analysers to fail on."""
+        models.clear_parts()  # no download of this window's is running yet
         model = models.preset(analysis.settings(self.session)["model"])
         if model is not None and not models.ready(model):
             self._download(model)
 
+    @property
+    def _fetching(self) -> models.Model | None:
+        """The model downloading, if one is."""
+        return None if self._job is None else self._job.model
+
     def _download(self, model: models.Model) -> None:
         """The model fetched in the background; choosing anything else in the list
         stops it."""
-        self._fetching = model
         self._say(f"Downloading {model.label}...")
-        self._fetch.start(model)
+        self._job = self._fetch.start(model)
 
-    def _fetch_progress(self, key: str, done: int) -> None:
+    def _fetch_progress(self, job: models.Download, done: int) -> None:
         """How far the download is, in the model list itself: the status line keeps
         whatever warning it shows."""
-        model = self._fetching
-        if model is not None and model.key == key and not self.closed:
+        if job is self._job and not self.closed:
+            model = job.model
             self.model_box.setItemText(
                 self.model_box.currentIndex(),
                 f"{model.title}: {done // 1_000_000} of {model.megabytes} MB",
             )
 
-    def _fetched(self, key: str, error: str) -> None:
-        model = self._fetching
-        if self.closed or model is None or model.key != key:
+    def _fetched(self, job: models.Download, error: str) -> None:
+        if self.closed or job is not self._job:
             return  # queued before the window went, or a download since stopped
-        self._fetching = None
+        self._job, model = None, job.model
         if error:
             self._say(error)
             self._show_model()
@@ -1512,37 +1515,16 @@ class _StillCombo(QComboBox):
 
 
 class _Fetch(QObject):
-    """A model downloaded on a thread of its own, heard of through signals: Qt hands
-    them to the window's thread."""
+    """A model's download heard of through signals, which Qt hands to the window's
+    thread; the download itself is models.Download."""
 
-    progress = Signal(str, int)  # the model's key, bytes so far
-    done = Signal(str, str)  # the model's key, what went wrong (empty: it is there)
+    progress = Signal(object, int)  # the download, bytes so far
+    done = Signal(object, str)  # the download, what went wrong (empty: it is there)
 
-    def __init__(self) -> None:
-        super().__init__()
-        self._stop = threading.Event()
-
-    def start(self, model: models.Model) -> None:
-        self._stop = threading.Event()  # one per download: a stop is its own
-        threading.Thread(
-            target=self._run, args=(model, self._stop), daemon=True
-        ).start()
-
-    def cancel(self) -> None:
-        self._stop.set()
-
-    def _run(self, model: models.Model, stop: threading.Event) -> None:
-        def told(done: int) -> None:
-            self.progress.emit(model.key, done)
-
-        try:
-            models.fetch(model, told, cancelled=stop.is_set)
-        except models.FetchError as error:
-            self.done.emit(model.key, str(error))
-        except Exception as error:  # whatever else: said, the list never left off
-            self.done.emit(model.key, f"{model.title} cannot be downloaded: {error}")
-        else:
-            self.done.emit(model.key, "")
+    def start(self, model: models.Model) -> models.Download:
+        job = models.Download(model, self.progress.emit, self.done.emit)
+        job.start()
+        return job
 
 
 def _same_file(chosen: object, path: str) -> bool:
