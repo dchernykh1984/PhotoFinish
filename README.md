@@ -5,8 +5,9 @@ recorded against video from the finish line and correct their times. It reads
 the chronometer's results file and never writes to it; corrections go to files
 of its own, which FinishProtocolGenerator reads in place of the original.
 
-The finish camera is a phone on a tripod: a free streaming app on it sends the
-video to PhotoFinish over the local network, and PhotoFinish records it (see
+The finish camera is a phone on a tripod: PhotoFinish Camera, the phone app
+released with it, sends the video to PhotoFinish over the local network, each
+frame with the moment it was taken, and PhotoFinish records it (see
 [The camera: a phone](#the-camera-a-phone)).
 
 It records each finish camera in a process of its own that keeps recording when
@@ -21,16 +22,25 @@ a first session with the test camera:
 
 ## The camera: a phone
 
-1. Put a free streaming app that sends RTMP on the phone: Larix Broadcaster (tried:
-   2560x1440 at 60 fps; its free version writes "TEST STREAM" over the picture) or
-   IP Camera by ShenYao (free with ads, not tried yet).
+1. Install PhotoFinish Camera on the phone (Android 8 or newer):
+   `photofinish-camera-<version>.apk` from the
+   [latest release](https://github.com/dchernykh1984/PhotoFinish/releases/latest);
+   allow the browser or file manager to install apps when Android asks.
 2. Put the phone and the computer on one network: the phone's own hotspot will do.
-3. In PhotoFinish: Cameras -> Add... -> OK. The phone's streaming app is offered
-   first, with the address to type in the app, such as
-   `rtmp://10.0.0.5:1935/live/cam1`.
-4. In the app: that address, 60 fps (many phones give a third-party app 30 only),
-   1080p or 1440p, about 10 Mbit/s and a keyframe a second. Start streaming: the
-   camera list says "recording".
+3. In PhotoFinish: Cameras -> Add... The dialog shows the address to stream to,
+   such as `rtmp://10.0.0.5:1935/live/cam1`, and the same address as a QR code.
+   OK.
+4. In PhotoFinish Camera: "Scan PhotoFinish's code", pick the picture size and
+   the frame rate (60 fps first, when the phone gives it), "Start". The app says
+   how many frames a second it sends and how closely its clock is in step with
+   PhotoFinish's; the camera list says "recording".
+
+The app keeps the phone's camera clock in step with the recorder's and writes
+each frame's moment into the frame, so Wi-Fi delays do not move frames on the
+timeline. A free streaming app that sends RTMP still works -- Larix Broadcaster
+was tried at 2560x1440 and 60 fps; its free version writes "TEST STREAM" over the
+picture -- set to 60 fps, about 10 Mbit/s and a keyframe a second; its frames are
+placed by when they arrive.
 
 The phone runs for hours: keep it on a charger and out of direct sun, dim its
 screen, and keep the sun out of the frame.

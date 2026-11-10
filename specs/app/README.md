@@ -41,6 +41,12 @@ recorder is down and at most the 0.1 s before it.
 - A frame's moment is the computer's clock when the camera's first frame arrived plus the frame's
   own timestamp's distance from it: arrival jitter does not shake the timeline, and setting the
   computer's clock does not move frames already recorded.
+- A frame from PhotoFinish Camera carries its own moment: when the phone's camera took it, on the
+  recorder's clock, in an SEI the phone writes in front of the frame. The recorder of a phone
+  camera answers the phone's clock exchange over UDP on the camera's port, and the phone keeps
+  its camera clock in step from it (`specs/003-phone-camera-app/contracts/phone-stream.md`):
+  Wi-Fi delays do not move the frame. A port another program holds leaves the exchange out, and
+  the frames are placed by their arrival.
 - A segment is shown once it is closed, about a second after its first frame: the newest frame
   is on screen within 2 s of its capture for cameras with a keyframe at least every second.
 - Below 2 GB free the camera list says so; a full disk stops the recorder, which keeps what it
@@ -48,10 +54,15 @@ recorder is down and at most the 0.1 s before it.
 
 ## Cameras
 
-The camera is a phone on a tripod running a free streaming app that pushes its video here over the
-local network (RTMP: PhotoFinish listens); the phone's own hotspot or any Wi-Fi carries it. Adding a
-camera offers that first and shows the address to type in the app. Set the app to 60 fps, about
-10 Mbit/s and a keyframe a second: the newest frame waits for the next keyframe. Tried: a Xiaomi
+The camera is a phone on a tripod running PhotoFinish Camera, the Android app released with
+PhotoFinish (`android/`), or a free streaming app; either pushes its video here over the local
+network (RTMP: PhotoFinish listens), and the phone's own hotspot or any Wi-Fi carries it. Adding a
+camera offers that first and shows the address to type in the app and, as a QR code, for
+PhotoFinish Camera to scan. PhotoFinish Camera streams H.264 without sound at the size and rate
+chosen (60 fps first), a keyframe a second and a bitrate that follows the size, and connects again
+on its own after a loss; it keeps the screen on, and can dim it while it streams. A streaming app
+is set to 60 fps, about 10 Mbit/s and a keyframe a second: the newest frame waits for the next
+keyframe. Tried: a Xiaomi
 17 Ultra with Larix Broadcaster sent 2560x1440 at 59.9 fps, 9 Mbit/s, 0.15 s without frames in a
 minute. The other connections: network stream a camera serves (RTSP, over TCP or UDP), USB camera,
 test camera, video file. Action cameras were tried and dropped: the SJCAM SJ10 Pro sends only its
@@ -137,7 +148,12 @@ helps find the moments to look at.
 - The Linux builds cannot capture USB cameras (PyAV's Linux wheels have no video4linux2): the
   camera dialog says so, and a camera's stream or a file is used there instead.
 - A network camera's timestamps follow its own clock, which can drift from the computer's by a few
-  tenths of a second over a long day: align again when it shows.
+  tenths of a second over a long day: align again when it shows. PhotoFinish Camera's do not: its
+  clock is brought into step every 2 s.
+- PhotoFinish Camera has been tried on the Android emulator, whose camera stamps a frame a frame's
+  time later than it took it; the Xiaomi 17 Ultra and the Xiaomi 11 Ultra come first among real
+  phones. A phone whose camera stamps its frames on neither of Android's clocks streams them
+  without their moments, placed by their arrival, and the app says so.
 - A stream whose keyframes are farther apart than a second makes segments that long, and its
   newest frames wait that long.
 - Finding riders: a zone drawn or a model chosen applies from then on; segments already
