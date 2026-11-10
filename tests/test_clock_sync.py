@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import socket
 import struct
+import time
 
 import pytest
 
@@ -51,3 +52,29 @@ def test_a_port_taken_by_another_program_is_said_and_nothing_left_open() -> None
         other.bind(("127.0.0.1", 0))
         with pytest.raises(OSError):
             ClockResponder(other.getsockname()[1], lambda: 0, host="127.0.0.1")
+
+
+class Broken:
+    """A socket whose every read fails, as one on a network that went away."""
+
+    def __init__(self) -> None:
+        self.reads = 0
+
+    def recvfrom(self, size: int) -> tuple[bytes, object]:
+        self.reads += 1
+        raise OSError(50, "Network is down")
+
+    def close(self) -> None:
+        pass
+
+
+def test_a_socket_that_keeps_failing_is_tried_again_at_a_pace() -> None:
+    responder = ClockResponder(0, lambda: 0, host="127.0.0.1")
+    real, broken = responder.socket, Broken()
+    responder.socket = broken  # type: ignore[assignment]
+    time.sleep(0.6)  # the read under way times out, then the broken one is read
+    reads = broken.reads
+    time.sleep(0.3)
+    responder.close()
+    real.close()
+    assert broken.reads - reads <= 10  # not a core spinning beside the recorder
