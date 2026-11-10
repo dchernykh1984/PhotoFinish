@@ -354,8 +354,8 @@ an RTMP stream pushed from the same computer is received and recorded.
   state, in the same step as the output lines, so a crash cannot take a line twice or lose one. A
   restart resumes both.
 - **FR-018**: PhotoFinish needs no internet at the race; it talks to cameras over USB or the local
-  network only. The one site it talks to is a detection model's pinned source, once, when the
-  referee first chooses that model (002, FR-003).
+  network only. The one site it talks to is a detection model's pinned source, when the referee
+  chooses that model or it is missing at start (002, FR-003).
 
 ### Key Entities
 

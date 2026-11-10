@@ -10,8 +10,8 @@
 comment 8. Maintainer's decisions of 2026-10-28:
 
 - Lay the ground for analysing the video with neural networks on models run on the referee's
-  computer: chosen from presets and downloaded once (amended 2026-11-10), or a file of the
-  referee's own.
+  computer: chosen from presets and downloaded when chosen (amended 2026-11-10), or a file of
+  the referee's own.
 - Experimental: a rider's crossing is the moment they cross the vertical centre line of the frame.
 - Experimental: a hint of where someone is in the picture -- a motion sensor that ignores leaves
   moving in the wind -- and "next rider" / "previous rider". Index the video and look by hand only
@@ -98,9 +98,11 @@ moment: one suggestion appears within one frame interval of it.
 - **FR-002**: Analysis runs in a process of its own, below the recorder in priority, and never
   makes recording or the window wait (constitution, principle VI).
 - **FR-003**: Models are ONNX files. The referee chooses one of the presets -- YOLOX-Nano,
-  YOLOX-Tiny, YOLOX-S from the YOLOX releases -- which PhotoFinish downloads once, in the
-  background, from its pinned source, checks against its size and SHA-256 and keeps next to
-  itself, or a file of their own; nothing else is fetched. The first model supported is a COCO object detector with
+  YOLOX-Tiny, YOLOX-S from the YOLOX releases -- which PhotoFinish downloads in the background
+  from its pinned source when it is chosen, or at start when the one chosen is missing, checks
+  against its size and SHA-256 and keeps next to itself; or a file of their own. Nothing else
+  is fetched. Choosing anything else stops a download; only the analysers of the model
+  downloading wait for it. The first model supported is a COCO object detector with
   a licence that allows any use (YOLOX, Apache-2.0); the classes person and bicycle count as
   riders.
 - **FR-004**: The index stores, per camera, the stretches where a rider is in view, next to the
