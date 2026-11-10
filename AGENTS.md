@@ -5,7 +5,7 @@ referee checks the crossings a chronometer recorded against video from one or
 more cameras and corrects their times. It reads the chronometer's files and
 never writes to them; its corrections go to files of its own. Files are the
 source of truth, and nothing at the race needs a network: a detection model is
-downloaded once, when first chosen.
+downloaded when the referee chooses it, and again at start when it is missing.
 
 It records each camera in a process of its own that keeps recording when the
 window is gone, follows the chronometer's results file, and keeps the referee's

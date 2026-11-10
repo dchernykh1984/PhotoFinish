@@ -2,7 +2,8 @@
 Sync Impact Report
 - Version: 2.0.0 -> 2.1.0 (maintainer's decision of 2026-11-10).
 - Constraints: "offline first" now lets PhotoFinish download a detection model the referee
-  chooses, once, from a pinned source checked by its SHA-256; the race still needs no internet.
+  chooses, from a pinned source checked by its SHA-256, when it is chosen or found missing at
+  start; the race still needs no internet.
   Specifications 001 (FR-018) and 002 (FR-003) follow.
 
 Earlier:
@@ -99,8 +100,9 @@ AI credit anywhere. Every change goes through a pull request from a branch off `
   to itself (`app/paths.py`), so one copy of the folder serves one event.
 - Offline first: nothing PhotoFinish does at the race needs the internet. Cameras may be reached
   over a local network. A model for analysis is a file the referee chooses: one of the presets,
-  which PhotoFinish downloads once from its pinned source and checks against its SHA-256 before
-  keeping it next to itself, or a file of the referee's own.
+  which PhotoFinish downloads from its pinned source when it is chosen, or at start when it is
+  missing, and checks against its SHA-256 before keeping it next to itself; or a file of the
+  referee's own.
 
 ## Development Workflow
 
