@@ -265,6 +265,26 @@ def test_playing_asks_for_the_next_frame_once_the_one_on_its_way_is_shown(
     assert win.view.image != blue
 
 
+def test_a_move_while_playing_dims_until_the_frame_moved_to_is_on_screen(
+    recording: Path, make_window: Callable[[], mw.MainWindow], clock: list[float]
+) -> None:
+    """A frame asked for while playing is not dimmed. Moved to it -- a crossing
+    clicked, a seek -- the window must still wait for it before timing."""
+    win = make_window()
+    wait_until(showing(win, START + 69 * 33))
+    win.step(-60)
+    win.play()
+    clock[0] += 0.33
+    win._play_tick()  # frame 19 asked for, not dimmed
+    mw.MainWindow.seek_ms(win, START + 19 * 33)  # straight away, before it arrives
+    assert not win.playing
+    assert win.view.waiting
+    assert not win._frame_on_screen()
+    settled(win)
+    assert shown(win) == START + 19 * 33
+    assert win._frame_on_screen()
+
+
 def test_playing_does_nothing_while_the_frame_asked_is_on_its_way(
     recording: Path,
     make_window: Callable[[], mw.MainWindow],
