@@ -189,9 +189,11 @@ class UplinkTest {
         awaitConnected()
         link.offer(frame(0, keyframe = true))
         assertEquals(1_000_000L, momentOf(sink.next().units[0]))
+        link.offer(frame(3_000_000, keyframe = false)) // past the first exchanges' settling
+        sink.next()
         clock.set(exchange(1_005_000)) // 5 ms on, as a shorter round trip may say
-        link.offer(frame(1_000_000, keyframe = false)) // a second of frames later
-        assertEquals(1_000_000L + 1_002_000, momentOf(sink.next().units[0]))
+        link.offer(frame(4_000_000, keyframe = false)) // a second of frames later
+        assertEquals(4_000_000L + 1_002_000, momentOf(sink.next().units[0]))
     }
 
     @Test
