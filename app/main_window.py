@@ -184,6 +184,7 @@ class MainWindow(QMainWindow):
             self.camera_list.setCurrentRow(0)
         else:
             self._choose_camera(-1)
+        models.clear_parts()  # no download of this window's is running yet
         self._ensure_model()  # before the first poll starts any analyser
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.poll)
@@ -910,11 +911,12 @@ class MainWindow(QMainWindow):
 
     def _ensure_model(self) -> None:
         """The preset in use downloaded when it is missing -- an event folder copied
-        without models/, a new copy of the program -- rather than left for the
-        analysers to fail on."""
-        models.clear_parts()  # no download of this window's is running yet
+        without models/, a new copy of the program -- once finding riders is on:
+        never for a feature nobody turned on, nor on every start of an offline race.
+        """
         model = models.preset(analysis.settings(self.session)["model"])
-        if model is not None and not models.ready(model):
+        on = self.analysis_box.isChecked()
+        if on and model is not None and self._job is None and self._model_missing():
             self._download(model)
 
     def _model_missing(self) -> bool:
@@ -975,6 +977,7 @@ class MainWindow(QMainWindow):
     def _analysis_on(self, on: bool) -> None:
         self.session["analysis"] = {**analysis.settings(self.session), "on": on}
         self._save_session()
+        self._ensure_model()
         for camera in self.cameras.values():
             if on:
                 self._analyze(camera)
