@@ -88,6 +88,12 @@ def test_a_network_that_fails_is_said_and_leaves_nothing(base: Path) -> None:
     assert list((base / "models").iterdir()) == []
 
 
+def test_a_download_stopped_leaves_nothing(base: Path) -> None:
+    with pytest.raises(FetchError, match="YOLOX-Test: download stopped"):
+        models.fetch(MODEL, opener=serving(CONTENT), cancelled=lambda: True)
+    assert list((base / "models").iterdir()) == []
+
+
 def test_a_reply_cut_short_is_said_and_leaves_nothing(base: Path) -> None:
     class Cut(io.BytesIO):
         def read(self, size: int | None = -1) -> bytes:

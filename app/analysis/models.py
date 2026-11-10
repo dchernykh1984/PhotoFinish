@@ -98,10 +98,12 @@ def fetch(
     model: Model,
     progress: Callable[[int], None] = lambda done: None,
     opener: Opener | None = None,
+    cancelled: Callable[[], bool] = lambda: False,
 ) -> Path:
     """The model downloaded next to the program and checked; ``progress`` hears the
-    bytes so far at each whole megabyte and at the end, not at every chunk. Raises
-    FetchError, leaving nothing under the model's name."""
+    bytes so far at each whole megabyte and at the end, not at every chunk; once
+    ``cancelled`` says so the download stops. Raises FetchError, leaving nothing
+    under the model's name."""
     path = app_path(model.file)
     part = path.with_name(path.name + ".part")
     digest, done, told = hashlib.sha256(), 0, -1
@@ -109,6 +111,8 @@ def fetch(
         path.parent.mkdir(parents=True, exist_ok=True)
         with (opener or _open)(model.url) as reply, part.open("wb") as out:
             while chunk := reply.read(_CHUNK):
+                if cancelled():
+                    raise FetchError(f"{model.title}: download stopped")
                 done += len(chunk)
                 if done > model.size:
                     raise FetchError(f"{model.title}: more than the model pinned")
