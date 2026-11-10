@@ -7,12 +7,18 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import java.io.IOException
+import java.io.InputStream
+import java.io.OutputStream
 import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.Socket
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 
 /** A server that speaks just enough RTMP, as FFmpeg's listener does, to be published to. */
 private class FakeServer(
@@ -165,5 +171,42 @@ class RtmpPublisherTest {
         val address = RtmpAddress("127.0.0.1", server.localPort, "live", "x")
         assertThrows(IOException::class.java) { RtmpPublisher(address).publish(emptyMap()) }
         server.close()
+    }
+
+    @Test
+    fun `a publisher closed while it connects sends nothing and lets the connection go`() {
+        val connecting = CountDownLatch(1)
+        val connected = CountDownLatch(1)
+        val written = ByteArrayOutputStream()
+        val released = CountDownLatch(1)
+        val connection =
+            object : RtmpConnection {
+                override val input: InputStream = ByteArrayInputStream(ByteArray(0))
+                override val output: OutputStream = written
+
+                override fun close() = released.countDown()
+            }
+        val publisher =
+            RtmpPublisher(RtmpAddress("127.0.0.1", 1935, "live", "x")) {
+                connecting.countDown()
+                connected.await(5, TimeUnit.SECONDS) // a connect under way
+                connection
+            }
+        val failure = AtomicReference<Throwable?>()
+        val publishing =
+            Thread {
+                try {
+                    publisher.publish(emptyMap())
+                } catch (error: IOException) {
+                    failure.set(error)
+                }
+            }.apply { start() }
+        assertTrue(connecting.await(5, TimeUnit.SECONDS))
+        publisher.close() // a new format chosen: this connection must not take the server's place
+        connected.countDown()
+        publishing.join(5_000)
+        assertTrue(failure.get() is IOException)
+        assertTrue(released.await(1, TimeUnit.SECONDS))
+        assertEquals(0, written.size())
     }
 }
