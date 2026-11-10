@@ -21,7 +21,7 @@
              not restart the camera mid-stream. -->
         <activity
             android:name=".MainActivity"
-            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|touchscreen|uiMode|locale|layoutDirection|fontScale|density|colorMode|mcc|mnc"
             android:exported="true"
             android:screenOrientation="landscape"
             tools:ignore="DiscouragedApi,LockedOrientationActivity">
