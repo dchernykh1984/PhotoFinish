@@ -221,10 +221,10 @@ def test_the_address_waited_on_is_this_computer_s_as_it_is_now(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     here = ["127.0.0.1"]  # started before the computer joined the race Wi-Fi
-    looked: list[str] = []
+    looked_on: list[threading.Thread] = []
 
     def this_computer() -> str:
-        looked.append(here[0])
+        looked_on.append(threading.current_thread())
         return here[0]
 
     now = {"s": 100.0}
@@ -236,9 +236,15 @@ def test_the_address_waited_on_is_this_computer_s_as_it_is_now(
     here[0] = "192.168.1.20"
     now["s"] += 1  # said every second while it waits
     assert source.waiting == "waiting for rtmp://127.0.0.1:1936/live/x"
-    assert len(looked) == 1  # not looked up each time: with no network it may wait
+    assert len(looked_on) == 1  # not looked up each time: with no network it may wait
     now["s"] += 10
+    source.waiting  # noqa: B018 -- the look-up begins, off the recorder's loop
+    for _ in range(500):
+        if source.waiting.endswith("192.168.1.20:1936/live/x"):
+            break
+        threading.Event().wait(0.01)
     assert source.waiting == "waiting for rtmp://192.168.1.20:1936/live/x"
+    assert looked_on[-1] is not threading.current_thread()
 
 
 def test_an_rtmp_push_is_received_and_kept_as_it_came(tmp_path: Path) -> None:

@@ -12,6 +12,7 @@ hear a stop.
 from __future__ import annotations
 
 import sys
+import threading
 import time
 from collections.abc import Callable, Iterator
 from fractions import Fraction
@@ -81,13 +82,21 @@ def open_source(
         return Stream(settings["url"], options, clock)
     port = settings.get("port", cameras.RTMP_PORT)
 
-    looked: dict[str, Any] = {"at": -ADDRESS_FRESH_S, "address": ""}
+    looked: dict[str, Any] = {
+        "at": time.monotonic(),
+        "address": cameras.this_computer(),
+    }
+
+    def look_again() -> None:
+        looked["address"] = cameras.this_computer()
 
     def waiting() -> str:
-        # Looked up again now and then, not every second it is said: the computer may
-        # join a network meanwhile, and a lookup with none may take a while.
+        # Looked up again now and then, on a thread of its own: the computer may join
+        # a network meanwhile, and a lookup with none may take a while, during which
+        # nothing would listen for the phone.
         if time.monotonic() - looked["at"] >= ADDRESS_FRESH_S:
-            looked.update(at=time.monotonic(), address=cameras.this_computer())
+            looked["at"] = time.monotonic()
+            threading.Thread(target=look_again, daemon=True).start()
         return f"waiting for {cameras.rtmp_url(settings, looked['address'])}"
 
     url = f"rtmp://0.0.0.0:{port}/{settings['path']}"
