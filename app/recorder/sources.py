@@ -76,6 +76,9 @@ def open_source(
     )
 
 
+# A phone's own moment is believed up to this long before the frame is read: FFmpeg
+# looks a stream over for seconds before it gives the first frames.
+OWN_PAST_MS = 30_000
 SLEW = 0.001  # the share of the time passed by which a clock may be brought nearer
 LEAP_MS = 2000  # clocks further apart than this are not drifting: one jumped, or lags
 
@@ -156,7 +159,8 @@ class Stream:
     """A network stream, read (RTSP) or received (RTMP, ``listen``); its packets are
     kept as the camera encoded them. A packet that carries its own moment -- PhotoFinish
     Camera's, on the recorder's clock -- is placed by it, others by their arrival, and
-    so is one whose moment is more than LEAP_MS from its arrival."""
+    so is one whose moment is in the future or older than OWN_PAST_MS as it is read: a
+    phone whose clock went wrong."""
 
     def __init__(
         self,
@@ -199,9 +203,12 @@ class Stream:
     def _placing(
         self, stream: av.video.stream.VideoStream
     ) -> Callable[[av.Packet, int], int]:
-        """Each packet's moment: its own when it carries one near its arrival, else
-        its arrival. A frame after the latest one stays after it, as a phone's own
-        moments begin or end; a B-frame, earlier, keeps its own."""
+        """Each packet's moment: its own when it carries one the clock can believe,
+        else its arrival. The clock as it is read, not the anchor on the arrival, is
+        what the own moment is held against: the first frames come in a burst once
+        FFmpeg has looked the stream over, and the anchor is that late. A frame after
+        the latest one stays after it, as a phone's own moments begin or end; a
+        B-frame keeps its own."""
         rate = stream.time_base or Fraction(1, 1000)
         unit = Fraction(rate.numerator, rate.denominator) * 1000
         stamped = stream.codec_context.name == "h264"
@@ -212,7 +219,9 @@ class Stream:
         def place(packet: av.Packet, pts: int) -> int:
             placed = self.anchor(float(pts * unit))
             own = frame_time.moment_ms(bytes(packet), prefixed) if stamped else None
-            moment = placed if own is None or abs(own - placed) > LEAP_MS else own
+            now = self.anchor.clock()
+            believed = own is not None and now - OWN_PAST_MS <= own <= now + LEAP_MS
+            moment = own if own is not None and believed else placed
             if not latest or pts > latest[0]:
                 moment = max(moment, latest[1] + 1) if latest else moment
                 latest[:] = [pts, moment]

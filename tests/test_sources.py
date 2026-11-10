@@ -293,6 +293,19 @@ def test_a_phone_camera_s_frames_keep_the_moments_it_wrote_in_them() -> None:
     assert got == [(first[0] + 500) // 1000 + k * 40 for k in range(20)]
 
 
+def test_a_phone_s_moments_hold_though_ffmpeg_reads_its_first_seconds_late() -> None:
+    # FFmpeg looks a stream over before it gives its first frames: these come seconds
+    # after they were taken, and an anchor on their arrival is that far off.
+    first: list[int] = []
+
+    def moment_us(k: int) -> int:
+        first[:] = first or [time.time_ns() // 1000 - 4_000_000]
+        return first[0] + k * 33_333
+
+    got = receive_phone(moment_us)
+    assert got == [(first[0] + k * 33_333 + 500) // 1000 for k in range(20)]
+
+
 def test_a_phone_s_frames_keep_their_order_where_its_moments_begin() -> None:
     first: list[int] = []
 
