@@ -1377,8 +1377,11 @@ class MainWindow(QMainWindow):
         place, self._play_start = playback.play_on(
             camera.index, self._play_start, now, offset
         )
-        if place is None:
+        if place is None and camera.settings.get("record", True):
             self.go_live()  # caught up with the recording: it plays on live
+        elif place is None:  # a file opened as it is has no Live: it ends
+            self._halt()
+            self._go(len(camera.index) - 1)
         elif not camera.pending and (place != self.place or camera.shown != place):
             # Due, or passed over while one was on its way; while one is, nothing
             # is done at all: a slow decoder is not raced by the whole window.
