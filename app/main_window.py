@@ -1473,6 +1473,8 @@ class _Fetch(QObject):
             models.fetch(model, self.progress.emit)
         except models.FetchError as error:
             self.done.emit(str(error))
+        except Exception as error:  # whatever else: said, the list never left off
+            self.done.emit(f"{model.title} cannot be downloaded: {error}")
         else:
             self.done.emit("")
 

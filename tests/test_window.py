@@ -1402,11 +1402,18 @@ def test_a_model_preset_is_downloaded_once_then_used(
     assert analysis.settings(session.load())["model"] == nano.file
 
 
+@pytest.mark.parametrize(
+    "failure",
+    [
+        models.FetchError("YOLOX-S, finds the most cannot be downloaded: offline"),
+        ValueError("what nothing expected"),
+    ],
+)
 def test_a_model_that_cannot_be_downloaded_is_said_and_the_choice_stays(
-    win: mw.MainWindow, monkeypatch: pytest.MonkeyPatch
+    win: mw.MainWindow, monkeypatch: pytest.MonkeyPatch, failure: Exception
 ) -> None:
     def fetch(model: models.Model, progress: Callable[[int], None]) -> Path:
-        raise models.FetchError(f"{model.title} cannot be downloaded: offline")
+        raise failure
 
     monkeypatch.setattr(mw.models, "fetch", fetch)
     monkeypatch.setattr(mw.models, "ready", lambda model: False)
