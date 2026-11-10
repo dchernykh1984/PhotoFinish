@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">PhotoFinish камерасы</string>
+    <string name="address">PhotoFinish мекенжайы</string>
+    <string name="scan">PhotoFinish кодын сканерлеу</string>
+    <string name="scan_prompt">Камера қосқанда PhotoFinish көрсететін кодқа бағыттаңыз</string>
+    <string name="picture">Сурет</string>
+    <string name="fps">%1$d кадр/с</string>
+    <string name="start">Трансляцияны бастау</string>
+    <string name="stop">Тоқтату</string>
+    <string name="dim">Экранды күңгірттеу</string>
+    <string name="need_camera">Қолданбаға камераға рұқсат қажет</string>
+    <string name="no_format">Бұл телефонның камерасы мен кодтауышы қолданба тарататын өлшемдердің ешқайсысын бермейді</string>
+    <string name="camera_failed">Камера: %1$s</string>
+    <string name="no_clock">Камера сағаты белгісіз: кадрлар келген уақыты бойынша орналастырылады</string>
+    <string name="ready">Дайын: %1$s, %2$d кадр/с</string>
+    <string name="connecting">%1$s мекенжайына қосылу</string>
+    <string name="reconnecting">Байланыс үзілді (%1$s), қайта қосылуда</string>
+    <string name="streaming_clock">Трансляция: %1$.1f кадр/с, %2$.1f Мбит/с, сағат %3$.1f мс дәлдікпен салыстырылды</string>
+    <string name="streaming_no_clock">Трансляция: %1$.1f кадр/с, %2$.1f Мбит/с; сағат салыстырылмаған, кадрлар келген уақыты бойынша орналастырылады</string>
+</resources>

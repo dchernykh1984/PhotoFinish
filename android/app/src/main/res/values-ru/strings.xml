@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Камера PhotoFinish</string>
+    <string name="address">Адрес PhotoFinish</string>
+    <string name="scan">Сканировать код PhotoFinish</string>
+    <string name="scan_prompt">Наведите на код, который PhotoFinish показывает при добавлении камеры</string>
+    <string name="picture">Картинка</string>
+    <string name="fps">%1$d к/с</string>
+    <string name="start">Начать трансляцию</string>
+    <string name="stop">Остановить</string>
+    <string name="dim">Затемнить экран</string>
+    <string name="need_camera">Приложению нужен доступ к камере</string>
+    <string name="no_format">Камера и кодировщик этого телефона не дают ни одного размера, который транслирует приложение</string>
+    <string name="camera_failed">Камера: %1$s</string>
+    <string name="no_clock">Часы камеры неизвестны: кадры размещаются по времени прихода</string>
+    <string name="ready">Готово: %1$s, %2$d к/с</string>
+    <string name="connecting">Подключение к %1$s</string>
+    <string name="reconnecting">Связь потеряна (%1$s), подключаюсь снова</string>
+    <string name="streaming_clock">Трансляция: %1$.1f к/с, %2$.1f Мбит/с, часы сверены с точностью %3$.1f мс</string>
+    <string name="streaming_no_clock">Трансляция: %1$.1f к/с, %2$.1f Мбит/с; часы не сверены, кадры размещаются по времени прихода</string>
+</resources>

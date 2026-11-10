@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">PhotoFinish Camera</string>
+    <string name="address">PhotoFinish address</string>
+    <string name="scan">Scan PhotoFinish\'s code</string>
+    <string name="scan_prompt">Point at the code PhotoFinish shows when adding a camera</string>
+    <string name="picture">Picture</string>
+    <string name="fps">%1$d fps</string>
+    <string name="start">Start streaming</string>
+    <string name="stop">Stop</string>
+    <string name="dim">Dim the screen</string>
+    <string name="need_camera">PhotoFinish Camera needs the camera</string>
+    <string name="no_format">This phone\'s camera and encoder have no size the app streams</string>
+    <string name="camera_failed">Camera: %1$s</string>
+    <string name="no_clock">The camera\'s clock is unknown: frames are placed when they arrive</string>
+    <string name="ready">Ready: %1$s at %2$d fps</string>
+    <string name="connecting">Connecting to %1$s</string>
+    <string name="reconnecting">Connection lost (%1$s); connecting again</string>
+    <string name="streaming_clock">Streaming: %1$.1f fps, %2$.1f Mbit/s, clock in step within %3$.1f ms</string>
+    <string name="streaming_no_clock">Streaming: %1$.1f fps, %2$.1f Mbit/s; no clock exchange, frames placed when they arrive</string>
+</resources>
