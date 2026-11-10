@@ -31,9 +31,11 @@ Answer, 29 bytes:
 The phone notes `t4`, its clock when the answer arrived, and keeps for each exchange
 `offset = ((t2 - t1) + (t3 - t4)) / 2` and `delay = (t4 - t1) - (t3 - t2)`. The offset it uses
 follows the one of the shortest delay among the last 8 exchanges, made every 2 s (5 at once at
-the start), at 2 ms a second at most; a change of more than 50 ms is taken at once, and an
-exchange whose offset the delays cannot explain (the recorder's clock changed) clears the ones
-before it. A request of another length or tag gets no answer.
+the start), an older one counted 2 ms longer for each second of its age; it is taken as it
+comes over a connection's first 2 s of frames, then followed at 2 ms a second at most; a change
+of more than 50 ms is taken at once, and an exchange whose offset the delays cannot explain
+(the recorder's clock changed) clears the ones before it. A request of another length or tag
+gets no answer, and the recorder answers 50 requests a second at most, from any sender.
 
 ## The frame moment (H.264 SEI)
 
