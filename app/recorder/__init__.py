@@ -177,7 +177,7 @@ class _DiskFullError(Exception):
 
 def run(
     camera_id: str,
-    clock: Callable[[], int] | None = None,
+    clock: SteadyClock | None = None,
     sleep: Callable[[float], None] = time.sleep,
 ) -> int:
     """Record the camera until ``stop.request``; the process's exit code."""
@@ -209,7 +209,7 @@ class _Recording:
         folder: Path,
         camera: dict[str, Any],
         beat: Heartbeat,
-        clock: Callable[[], int],
+        clock: SteadyClock,
         sleep: Callable[[float], None],
         closed: list[str] | None = None,  # the segments as the start found them
     ) -> None:
@@ -228,13 +228,8 @@ class _Recording:
         if self.responder is not None or self.camera.get("connection") != "rtmp":
             return
         port = self.camera["settings"].get("port", cameras.RTMP_PORT)
-        clock = self.clock
-        # The recorder's own clock; a test's counts milliseconds.
-        micros = (
-            clock.micros if isinstance(clock, SteadyClock) else lambda: clock() * 1000
-        )
         with contextlib.suppress(OSError):
-            self.responder = ClockResponder(port, micros)
+            self.responder = ClockResponder(port, self.clock.micros)
 
     def run(self) -> int:
         try:
