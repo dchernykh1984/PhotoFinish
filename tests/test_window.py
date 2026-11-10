@@ -15,7 +15,7 @@ import numpy as np
 import pytest
 import shiboken6
 from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
-from PySide6.QtGui import QImage
+from PySide6.QtGui import QImage, QWheelEvent
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import (
     QApplication,
@@ -1389,6 +1389,27 @@ def test_finding_riders_is_set_up_beside_the_video(
     assert view.zone == ((0.4, 0.1), (0.6, 0.9))
     assert win.statusBar().currentMessage() == "The zone is drawn"
     view.grab()
+
+
+def test_the_model_list_turns_neither_with_the_wheel_nor_with_the_keys(
+    win: mw.MainWindow, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(mw.models, "fetch", lambda *a: pytest.fail("fetched"))
+    box = win.model_box
+    assert box.focusPolicy() == Qt.FocusPolicy.NoFocus
+    wheel = QWheelEvent(
+        QPointF(5, 5),
+        QPointF(5, 5),
+        QPoint(0, 0),
+        QPoint(0, -120),
+        Qt.MouseButton.NoButton,
+        Qt.KeyboardModifier.NoModifier,
+        Qt.ScrollPhase.NoScrollPhase,
+        False,
+    )
+    QApplication.sendEvent(box, wheel)
+    assert box.currentText() == "Motion only"
+    assert analysis.settings(session.load())["model"] == ""
 
 
 def test_a_model_preset_is_downloaded_once_then_used(
