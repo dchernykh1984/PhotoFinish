@@ -22,6 +22,7 @@ import numpy as np
 
 from app import cameras
 from app.paths import app_path
+from app.recorder import frame_time
 from app.recorder.testcam import TestCamera
 
 OPEN_TIMEOUT_S = 10.0
@@ -153,7 +154,8 @@ def usb_input(device: str) -> tuple[str, str]:
 
 class Stream:
     """A network stream, read (RTSP) or received (RTMP, ``listen``); its packets are
-    kept as the camera encoded them."""
+    kept as the camera encoded them. A packet that carries its own moment -- PhotoFinish
+    Camera's, on the recorder's clock -- is placed by it, others by their arrival."""
 
     def __init__(
         self,
@@ -189,10 +191,17 @@ class Stream:
             self.fps = float(stream.average_rate or stream.guessed_rate or 30)
             rate = stream.time_base or Fraction(1, 1000)
             unit = Fraction(rate.numerator, rate.denominator) * 1000
+            stamped = stream.codec_context.name == "h264"
+            # An avcC header: each unit after its length, as RTMP carries them.
+            prefixed = (stream.codec_context.extradata or b"")[:1] == b"\x01"
             for packet in container.demux(stream):
                 if packet.pts is None or packet.dts is None:
                     continue
-                yield packet, self.anchor(float(packet.pts * unit))
+                own = frame_time.moment_ms(bytes(packet), prefixed) if stamped else None
+                yield (
+                    packet,
+                    own if own is not None else self.anchor(float(packet.pts * unit)),
+                )
 
 
 class LiveFile:

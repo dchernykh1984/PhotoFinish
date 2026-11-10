@@ -27,6 +27,7 @@ from app.recorder.sources import (
     usb_input,
 )
 from app.recorder.testcam import render
+from tests.test_frame_time import sei
 
 START = 1_761_716_129_587
 
@@ -184,21 +185,33 @@ def free_port() -> int:
         return int(probe.getsockname()[1])
 
 
-def push(port: int, frames: int) -> None:
-    """What a camera app does: H.264 over RTMP to this computer, a keyframe a second."""
+def push(port: int, frames: int, moment_us: Any = None) -> None:
+    """What a camera app does: H.264 over RTMP to this computer, a keyframe a second;
+    each frame after the SEI of ``moment_us(frame)``, as PhotoFinish Camera does."""
     url = f"rtmp://127.0.0.1:{port}/live/test"
     with av.open(url, "w", format="flv") as container:
         options = {"g": "30", "tune": "zerolatency", "preset": "ultrafast"}
         stream = container.add_stream("libx264", rate=30, options=options)
         stream.width, stream.height, stream.pix_fmt = 640, 360, "yuv420p"
+
+        def send(packets: list[av.Packet]) -> None:
+            for packet in packets:
+                if moment_us is not None and packet.pts is not None:
+                    stamped = av.Packet(
+                        b"\x00\x00\x00\x01" + sei(moment_us(packet.pts)) + bytes(packet)
+                    )
+                    stamped.pts, stamped.dts = packet.pts, packet.dts
+                    stamped.time_base, stamped.stream = packet.time_base, stream
+                    stamped.is_keyframe = packet.is_keyframe
+                    packet = stamped
+                container.mux(packet)
+
         for k in range(frames):
             frame = av.VideoFrame.from_ndarray(render(START + k * 33, 640, 360))
             frame.pts = k
-            for packet in stream.encode(frame):
-                container.mux(packet)
+            send(stream.encode(frame))
             time.sleep(1 / 30)
-        for packet in stream.encode(None):
-            container.mux(packet)
+        send(stream.encode(None))
 
 
 def test_an_rtmp_push_is_received_and_kept_as_it_came(tmp_path: Path) -> None:
@@ -239,6 +252,31 @@ def test_an_rtmp_push_is_received_and_kept_as_it_came(tmp_path: Path) -> None:
         pts = [int(line.split()[0]) for line in lines]
         with av.open(str(path)) as container:
             assert [f.pts for f in container.decode(video=0)] == sorted(pts)
+
+
+def test_a_phone_camera_s_frames_keep_the_moments_it_wrote_in_them() -> None:
+    port = free_port()
+    camera = {"connection": "rtmp", "settings": {"port": port, "path": "live/test"}}
+    source = open_source(camera, lambda: time.time_ns() // 1_000_000)
+    got: list[tuple[av.Packet, int]] = []
+
+    def receive() -> None:
+        try:
+            for item in source.frames():
+                if item is not None:
+                    packet, ms = item
+                    assert isinstance(packet, av.Packet)
+                    got.append((packet, ms))
+        except OSError:
+            pass  # the camera app hung up
+
+    thread = threading.Thread(target=receive)
+    thread.start()
+    time.sleep(1.5)
+    # Moments far from now, 40 ms apart: frames are placed by them, not by arrival.
+    push(port, 20, moment_us=lambda k: START * 1000 + k * 40_000 + 400)
+    thread.join(timeout=30)
+    assert [ms for _, ms in got] == [START + k * 40 for k in range(20)]
 
 
 def test_moments_follow_a_camera_whose_clock_drifts_from_the_computers() -> None:
