@@ -26,6 +26,11 @@ from app.recorder import frame_time
 from app.recorder.testcam import TestCamera
 
 PHONE_APP = "PhotoFinish Camera"  # the encoder its stream's metadata names
+UNSTAMPED = "the phone sends its frames without their moments: placed by their arrival"
+NOT_IN_STEP = (
+    "the phone's moments are out of step with this computer's clock: its frames are "
+    "placed by their arrival"
+)
 OPEN_TIMEOUT_S = 10.0
 READ_TIMEOUT_S = 5.0
 LOOK_OVER_US = "500000"  # how long FFmpeg reads a pushed stream before the first frame
@@ -39,7 +44,7 @@ class CameraSettingsError(ValueError):
 
 class Source(Protocol):
     fps: float
-    unstamped: bool  # a phone's frames coming without their moments
+    clock_note: str  # why a phone's frames are placed by their arrival, or ""
 
     @property
     def waiting(self) -> str: ...  # what the recorder says while it yields None
@@ -136,7 +141,7 @@ class UsbCamera:
     """A camera on the computer: avfoundation, dshow or video4linux2 by platform."""
 
     waiting = ""
-    unstamped = False
+    clock_note = ""
 
     def __init__(self, settings: dict[str, Any], clock: Callable[[], int]) -> None:
         self.fps = float(settings.get("fps", 30))
@@ -184,7 +189,7 @@ class Stream:
     ) -> None:
         self.url, self.options, self.listen = url, options, listen
         self._waiting = waiting
-        self.unstamped = False
+        self.clock_note = ""
         self.fps = 30.0
         self.anchor = Anchor(clock)
 
@@ -232,7 +237,10 @@ class Stream:
             own = frame_time.moment_ms(memoryview(packet)) if stamped else None
             if not trusted:
                 trusted.append(own is not None and self._believed(own))
-            self.unstamped = phone and not trusted[0]  # said in the camera list
+                # Said in the camera list: a phone's frames without moments, or with
+                # moments out of step; another camera's never carry them.
+                missing = UNSTAMPED if own is None else NOT_IN_STEP
+                self.clock_note = missing if phone and not trusted[0] else ""
             if own is not None and trusted[0]:
                 return own
             return self.anchor(float(pts * unit))
@@ -251,7 +259,7 @@ class LiveFile:
     """A video file played as if a camera were filming it now."""
 
     waiting = ""
-    unstamped = False
+    clock_note = ""
 
     def __init__(
         self, path: str, clock: Callable[[], int], sleep: Callable[[float], None]
