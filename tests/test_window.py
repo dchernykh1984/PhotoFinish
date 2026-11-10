@@ -35,6 +35,12 @@ from app.recorder.testcam import read_time, render
 from app.widgets.camera_dialog import CameraDialog
 from tests.conftest import Zone, settled, wait_until
 
+
+def downloading(win: mw.MainWindow) -> models.Model | None:
+    """The model the window is downloading, if one."""
+    return None if win._job is None else win._job.model
+
+
 START = 1_761_716_129_587
 CAMERA = {"id": "cam1", "name": "Side", "connection": "test", "settings": {"fps": 30}}
 
@@ -1547,10 +1553,10 @@ def test_a_preset_missing_on_disk_is_downloaded_before_the_analysers_start(
     monkeypatch.setattr(mw.models, "ready", lambda model: model.key in fetched)
     win = make_window()
     win.poll()
-    assert win._fetching is models.MODELS[2]
+    assert downloading(win) is models.MODELS[2]
     assert analyzers == []  # no analyser fails on a model not there yet
     gate.set()
-    wait_until(lambda: win._fetching is None)
+    wait_until(lambda: downloading(win) is None)
     assert fetched == ["yolox_s"]
     assert [a.camera_id for a in analyzers] == ["cam1"]
 
@@ -1597,7 +1603,7 @@ def test_choosing_another_model_stops_a_download_and_nothing_waits_for_it(
     win._model_chosen(win.model_box.findData(""))
     assert stopped.wait(5)
     QApplication.processEvents()
-    assert win._fetching is None
+    assert downloading(win) is None
     assert "stopped" not in win.statusBar().currentMessage()
     assert analysis.settings(session.load())["model"] == ""
     assert win.model_box.currentText() == "Motion only"
@@ -1633,7 +1639,7 @@ def test_a_download_of_another_model_holds_no_analyser_back(
     win.poll()
     assert len(analyzers) == 2  # started again: not the model downloading
     gate.set()
-    wait_until(lambda: win._fetching is None)
+    wait_until(lambda: downloading(win) is None)
 
 
 def test_a_model_chosen_again_is_not_taken_for_the_download_stopped_before(
@@ -1669,7 +1675,7 @@ def test_a_model_chosen_again_is_not_taken_for_the_download_stopped_before(
     for _ in range(30):  # the first's "stopped" arrives meanwhile
         QApplication.processEvents()
         time.sleep(0.01)
-    assert win._fetching is tiny
+    assert downloading(win) is tiny
     assert "stopped" not in win.statusBar().currentMessage()
     second_may_end.set()
     wait_until(lambda: analysis.settings(session.load())["model"] == tiny.file)
@@ -1702,10 +1708,10 @@ def test_a_file_dialog_closed_without_a_file_leaves_the_download_going(
     monkeypatch.setattr(QFileDialog, "getOpenFileName", lambda *a: ("", ""))
     win = make_window()
     win._model_chosen(win.model_box.findData(mw._OWN_FILE))
-    assert win._fetching is yolox_s
+    assert downloading(win) is yolox_s
     assert win.model_box.currentText() == yolox_s.label
     may_end.set()
-    wait_until(lambda: win._fetching is None)
+    wait_until(lambda: downloading(win) is None)
     assert stopped == [False]
     assert [a.camera_id for a in analyzers] == ["cam1"]
 
@@ -1777,7 +1783,7 @@ def test_no_analyser_starts_while_the_model_in_use_is_missing(
         )
     )
     may_end.set()
-    wait_until(lambda: win._fetching is None)
+    wait_until(lambda: downloading(win) is None)
     win.poll()
     assert analyzers == []
     assert (
@@ -1872,7 +1878,7 @@ def test_a_model_preset_is_downloaded_once_then_used(
         "Model file...",
     ]
     win._model_chosen(win.model_box.findData(nano.file))
-    assert win._fetching is nano
+    assert downloading(win) is nano
     line = win.model_box.findData(nano.file)
     wait_until(lambda: win.model_box.itemText(line).endswith(": 1 of 4 MB"))
     said = "Downloading YOLOX-Nano, the fastest (4 MB)..."
@@ -1909,7 +1915,7 @@ def test_a_model_that_cannot_be_downloaded_is_said_and_the_choice_stays(
     monkeypatch.setattr(mw.models, "fetch", fetch)
     monkeypatch.setattr(mw.models, "ready", lambda model: False)
     win._model_chosen(win.model_box.findData(models.MODELS[2].file))
-    wait_until(lambda: win._fetching is None)
+    wait_until(lambda: downloading(win) is None)
     assert "YOLOX-S, finds the most cannot be downloaded" in (
         win.statusBar().currentMessage()
     )
