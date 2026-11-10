@@ -179,9 +179,11 @@ class CameraDialog(QDialog):
         shown = _ROWS[self.kind()]
         for key, row in self._rows.items():
             self.form.setRowVisible(row, key in shown)
+        clash = cameras.port_clash(self.camera(), self.others)
         if self.kind() == "rtmp":
             settings = self._settings()
-            if cameras.problems({"connection": "rtmp", "settings": settings}):
+            # Another phone's port: a phone scanning it would stream to that camera.
+            if clash or cameras.problems({"connection": "rtmp", "settings": settings}):
                 self.address.setText("")
                 self.qr.clear()
             else:
@@ -191,7 +193,6 @@ class CameraDialog(QDialog):
                     self.address.setText(url)
                     self.qr.setPixmap(qr_pixmap(url))
         found = cameras.problems(self.camera())
-        clash = cameras.port_clash(self.camera(), self.others)
         if self.kind() == "rtmp" and clash:
             found.append(clash)
         self.problems.setText("\n".join(found))
