@@ -15,6 +15,8 @@ import struct
 import threading
 from collections.abc import Callable
 
+from app import cameras
+
 TAG = b"PFTS"
 VERSION = 1
 REQUEST = struct.Struct(">4sBq")  # tag, version, t1: sent on the phone's clock
@@ -33,15 +35,16 @@ def answer(request: bytes, t2: int, t3: int) -> bytes | None:
     return ANSWER.pack(TAG, VERSION, t1, t2, t3)
 
 
-_SHARED = ipaddress.ip_network("100.64.0.0/10")  # a carrier's or Tailscale's
-
-
 def may_ask(host: str) -> bool:
-    """A sender on this network -- a private, shared, link-local or loopback
-    address -- and no stranger from beyond it: the answer is longer than the
-    request."""
+    """A sender on this network -- the computer itself, a link-local address or
+    one a phone shares this computer's network by -- and no stranger from beyond
+    it: the answer is longer than the request."""
     address = ipaddress.ip_address(host)
-    return address.is_private or address in _SHARED
+    return (
+        address.is_loopback
+        or address.is_link_local
+        or cameras.on_local_network(address)
+    )
 
 
 class ClockResponder:

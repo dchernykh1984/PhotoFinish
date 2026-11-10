@@ -85,11 +85,23 @@ def rtmp_url(settings: dict[str, Any], host: str) -> str:
     return f"rtmp://{host}:{settings.get('port', RTMP_PORT)}/{settings['path']}"
 
 
+# The networks a phone and this computer share: what routers and hotspots hand out,
+# first; then the rest of the private ranges, which virtual adapters favour, and a
+# carrier's or Tailscale's shared range.
 _HOME_NETWORKS = (
     ipaddress.ip_network("192.168.0.0/16"),
     ipaddress.ip_network("10.0.0.0/8"),
 )
-_LOCAL_NETWORKS = (*_HOME_NETWORKS, ipaddress.ip_network("172.16.0.0/12"))
+_LOCAL_NETWORKS = (
+    *_HOME_NETWORKS,
+    ipaddress.ip_network("172.16.0.0/12"),
+    ipaddress.ip_network("100.64.0.0/10"),
+)
+
+
+def on_local_network(address: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    """An address a phone on the same network as this computer may have."""
+    return any(address in net for net in _LOCAL_NETWORKS)
 
 
 def this_computer() -> str:
@@ -107,7 +119,7 @@ def this_computer() -> str:
     except OSError:
         found = []
     own = {ipaddress.ip_address(info[4][0]) for info in found}
-    usable = [ip for ip in own if any(ip in net for net in _LOCAL_NETWORKS)]
+    usable = [ip for ip in own if on_local_network(ip)]
     # Routers and hotspots hand out 192.168 and 10 first; virtual adapters favour 172.
     usable.sort(key=lambda ip: (not any(ip in net for net in _HOME_NETWORKS), ip))
     return str(usable[0]) if usable else "127.0.0.1"
