@@ -15,7 +15,7 @@
    journal hold every change.
 7. A second camera: add another test camera with the scene "flash"; "Mark event" on the flash on
    each camera, and both show the same moment.
-8. Real cameras: presets "SJCAM HD1080P over USB", "SJCAM HD1080P over its Wi-Fi" (join the
-   camera's Wi-Fi first) and "SJCAM SJ10 Pro over RTMP" (type the address the camera dialog and
-   the camera list show into the SJCAM app's live stream settings). All three say "untested"
-   until tried with the real cameras.
+8. A phone: put this computer on the phone's hotspot (or both on one Wi-Fi); Cameras -> Add...
+   offers the phone's streaming app first: OK, and type the address shown into a streaming app on
+   the phone (Larix Broadcaster, IP Camera) set to 60 fps, a keyframe a second and about
+   10 Mbit/s. The camera list says "recording" once the phone sends.

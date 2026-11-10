@@ -23,8 +23,12 @@ open questions:
   view.
 - A time between two frames may be set the way a caliper reads between its marks, or picked on a
   zoomed timeline (constitution, principle V).
-- Cameras: SJCAM HD1080P and SJCAM SJ10 Pro. Build what their specifications allow; the
-  maintainer and the developer debug them together later.
+- Cameras: phones on tripods, each running a free streaming app that sends its video to
+  PhotoFinish over the local network (RTMP). Tried on 2026-11-10: a Xiaomi 17 Ultra with Larix
+  Broadcaster sent 2560x1440 at 59.9 fps, 9 Mbit/s, with 0.15 s without frames in a minute. The
+  action cameras first planned were dropped: the SJCAM SJ10 Pro sends only its phone preview over
+  its own Wi-Fi (1280x720, about 0.9 Mbit/s, 23 fps on average, 1-3 s without frames every
+  5-15 s) and no video over its cable.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -223,26 +227,25 @@ the chronometer's time of that frame.
 
 ---
 
-### User Story 8 - The cameras the maintainer owns, and test cameras (Priority: P2)
+### User Story 8 - Phones as cameras, and test cameras (Priority: P2)
 
-The camera list offers connections and presets. Connections: a USB camera, a network stream
-PhotoFinish fetches (RTSP), a stream PhotoFinish receives (RTMP), a test camera and a video file
-played as if it were live. Presets for the maintainer's cameras fill a connection in: SJCAM HD1080P
-over USB (it shows up as a "PC Camera", 720p at 30 fps), SJCAM HD1080P over its own Wi-Fi
-(`rtsp://192.168.1.254/sjcam.mov` once the computer joins the camera's access point) and SJCAM SJ10
-Pro (the SJCAM app pushes the stream to `rtmp://<this computer>/live/<name>`; PhotoFinish shows the
-address to type in the app). A recording made by a camera on its own card can also be opened after
-the race and placed on the timeline by alignment.
+The finish camera is a phone on a tripod running a free streaming app that pushes its video to
+PhotoFinish over the local network (RTMP, to `rtmp://<this computer>/live/<name>`); the phone's own
+hotspot or any Wi-Fi carries it. Adding a camera offers that connection first and shows the address
+to type in the app. The other connections stay for what else is at hand: a network stream
+PhotoFinish fetches (RTSP), a USB camera, a test camera and a video file, played as if it were live
+or opened as it is and placed on the timeline by alignment.
 
-**Why this priority**: The maintainer's cameras are what will be used at races; the test camera and
-the file make every other story testable without them.
+**Why this priority**: Phones are what will be used at races; the test camera and the file make
+every other story testable without them.
 
 **Independent Test**: The test camera and a file played as live record on every release platform;
 an RTMP stream pushed from the same computer is received and recorded.
 
 **Acceptance Scenarios**:
 
-1. **Given** a preset never tried with its real camera, **Then** it is labelled "untested".
+1. **Given** a camera being added, **Then** the phone's streaming app is the connection offered,
+   with the address to type in the app.
 2. **Given** an RTMP push to the address shown, **Then** it is recorded like any camera.
 3. **Given** a camera with a variable frame rate, **Then** frame times come from each frame's own
    timestamp, not from its index.
@@ -272,12 +275,12 @@ an RTMP stream pushed from the same computer is received and recorded.
 - Daylight saving: the chronometers keep local standard time unless the desktop summer-time option
   is on; PhotoFinish writes times the same way, with the same option, and the offset of Story 7
   absorbs any remaining difference.
-- A network camera's picture arrives seconds late (about 4-5 s over the SJCAM Wi-Fi): until the
-  camera is aligned (Story 7), its frames show earlier riders than their arrival times suggest.
+- A network camera's picture arrives late, seconds over a crowded Wi-Fi: until the camera is
+  aligned (Story 7), its frames show earlier riders than their arrival times suggest.
 - A recording of many hours: the timeline zooms from the whole recording down to single frames.
 - An RTMP camera that never connects -- the computer's firewall blocks the port, or the phone
-  running the camera app is on another network: the camera's state says it is still waiting and
-  shows the address and port the camera app must reach.
+  running the streaming app is on another network: the camera's state says it is still waiting and
+  shows the address and port the streaming app must reach.
 - The output file is changed by something else while PhotoFinish runs: PhotoFinish notices, keeps
   the outside version in a backup, and writes its own list; the journal records it.
 - The referee chooses an output file that already has crossings PhotoFinish did not write: they
@@ -313,10 +316,9 @@ an RTMP stream pushed from the same computer is received and recorded.
   next one starts, so a crash costs the time the recorder is down and at most 0.1 s before it.
 - **FR-006**: Below 2 GB of free disk the referee is warned; on a full disk recording stops cleanly
   and says so.
-- **FR-007**: Camera connections: USB camera, RTSP stream, RTMP receiver, test camera, file played
-  as live. Presets: SJCAM HD1080P (USB), SJCAM HD1080P (Wi-Fi, RTSP), SJCAM SJ10 Pro (RTMP). A
-  preset not yet tried with its camera is labelled "untested". A recorded file can be opened as a
-  camera that does not record.
+- **FR-007**: Camera connections: a phone's streaming app pushing RTMP, offered first; RTSP stream,
+  USB camera, test camera, file played as live. A recorded file can be opened as a camera that
+  does not record.
 - **FR-008**: The referee chooses the input file and the output file. The output file holds
   `number#time#action#` lines in time order; a line taken from the input keeps its bytes until the
   referee changes it.
@@ -356,7 +358,7 @@ an RTMP stream pushed from the same computer is received and recorded.
 
 ### Key Entities
 
-- **Camera**: a connection or preset, its finish line, its offset and its state.
+- **Camera**: a connection, its finish line, its offset and its state.
 - **Recording**: one camera's video on disk, in pieces, with each frame's time.
 - **Input file / input list**: one file of crossings a chronometer, or several, write; read only.
 - **Output file / output list**: the referee's crossings, same format.
@@ -390,9 +392,10 @@ an RTMP stream pushed from the same computer is received and recorded.
 
 - Video is captured, recorded and decoded with FFmpeg through PyAV, which has wheels for every
   release platform; the plan picks the container and the piece length.
-- SJCAM SJ10 Pro: no confirmed USB webcam mode; it streams over RTMP from the SJCAM app. SJCAM
-  HD1080P (SJ4000 class): USB "PC Camera" at 720p30, and on the Wi-Fi model an RTSP stream through
-  the camera's access point with a delay of 4-5 s. Both are to be checked with the real cameras.
+- Phones: a free streaming app that pushes RTMP, set in the app to 60 fps, 1080p or 1440p, about
+  10 Mbit/s and a keyframe a second. Larix Broadcaster was tried (its free version writes "TEST
+  STREAM" over the picture); IP Camera by ShenYao is free with ads and still to be tried. Many
+  Android phones give a third-party app 30 fps only.
 - The output file is not uploaded anywhere in this feature; FinishProtocolGeneratorPython reads it
   as a finish file.
 - Reading bib numbers and finding riders in the video are specification 002.

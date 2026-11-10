@@ -8,7 +8,9 @@ source of truth, and nothing here needs a network.
 
 It records each camera in a process of its own that keeps recording when the
 window is gone, follows the chronometer's results file, and keeps the referee's
-crossings in an output file with a journal of every change.
+crossings in an output file with a journal of every change. The camera is a
+phone on a tripod whose free streaming app pushes RTMP to PhotoFinish; action
+cameras were tried and dropped, their live video being a low-quality preview.
 `specs/app/README.md` describes the program as it works today; the feature
 behind it is `specs/001-video-refinement/`, and the design discussion
 ChronometerPython issue #49.

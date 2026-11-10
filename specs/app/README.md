@@ -47,9 +47,15 @@ recorder is down and at most the 0.1 s before it.
 
 ## Cameras
 
-Connections: USB camera, network stream the camera serves (RTSP, over TCP or UDP), stream the
-camera sends here (RTMP: PhotoFinish listens and shows the address to type in the camera app),
-test camera, video file.
+The camera is a phone on a tripod running a free streaming app that pushes its video here over the
+local network (RTMP: PhotoFinish listens); the phone's own hotspot or any Wi-Fi carries it. Adding a
+camera offers that first and shows the address to type in the app. Set the app to 60 fps, about
+10 Mbit/s and a keyframe a second: the newest frame waits for the next keyframe. Tried: a Xiaomi
+17 Ultra with Larix Broadcaster sent 2560x1440 at 59.9 fps, 9 Mbit/s, 0.15 s without frames in a
+minute. The other connections: network stream a camera serves (RTSP, over TCP or UDP), USB camera,
+test camera, video file. Action cameras were tried and dropped: the SJCAM SJ10 Pro sends only its
+phone preview over its own Wi-Fi -- 1280x720, about 0.9 Mbit/s, seconds without frames -- and no
+video over its cable.
 
 A video file is either played as if filmed now (and recorded, for trying things out) or, the
 usual case, opened as it is: a camera's own recording from its card, placed by the file's creation
