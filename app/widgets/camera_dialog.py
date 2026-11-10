@@ -186,8 +186,10 @@ class CameraDialog(QDialog):
                 self.qr.clear()
             else:
                 self._here = self._here or cameras.this_computer()
-                self.address.setText(cameras.rtmp_url(settings, self._here))
-                self.qr.setPixmap(qr_pixmap(self.address.text()))
+                url = cameras.rtmp_url(settings, self._here)
+                if url != self.address.text():  # every key typed comes here
+                    self.address.setText(url)
+                    self.qr.setPixmap(qr_pixmap(url))
         found = cameras.problems(self.camera())
         clash = cameras.port_clash(self.camera(), self.others)
         if self.kind() == "rtmp" and clash:
