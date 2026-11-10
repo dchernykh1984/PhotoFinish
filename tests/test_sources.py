@@ -247,6 +247,30 @@ def test_the_address_waited_on_is_this_computer_s_as_it_is_now(
     assert looked_on[-1] is not threading.current_thread()
 
 
+def test_a_slow_address_lookup_is_not_begun_again_until_it_ends(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[int] = []
+    slow = threading.Event()
+
+    def this_computer() -> str:
+        calls.append(1)
+        if len(calls) > 1:
+            slow.wait(5)  # no network: the name lookup hangs
+        return "10.0.0.5"
+
+    now = {"s": 100.0}
+    monkeypatch.setattr(cameras, "this_computer", this_computer)
+    monkeypatch.setattr(time, "monotonic", lambda: now["s"])
+    camera = {"connection": "rtmp", "settings": {"port": 1937, "path": "live/x"}}
+    source = open_source(camera, lambda: START)
+    for _ in range(3):  # half a minute of waiting, the lookup still under way
+        now["s"] += 11
+        source.waiting  # noqa: B018
+    slow.set()
+    assert len(calls) == 2  # the one at the open, and one more: not one a time
+
+
 def test_an_rtmp_push_is_received_and_kept_as_it_came(tmp_path: Path) -> None:
     port = free_port()
     camera = {"connection": "rtmp", "settings": {"port": port, "path": "live/test"}}
