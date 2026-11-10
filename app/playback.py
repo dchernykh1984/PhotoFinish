@@ -9,6 +9,8 @@ from typing import Protocol
 
 import numpy as np
 
+SKIP_MS = 1000  # no frame for longer than this: a gap playing jumps over
+
 
 class Frames(Protocol):
     """A camera's recorded frames, by time: a VideoIndex or a FileIndex."""
@@ -17,18 +19,25 @@ class Frames(Protocol):
 
     def __len__(self) -> int: ...
 
-    def nearest(self, ms: int, within: int | None = None) -> int | None: ...
+
+type Start = tuple[float, int]  # the clock and the video's moment playing went on from
 
 
-def frame_due(
-    frames: Frames, started: tuple[float, int], now: float, offset: int
-) -> int | None:
-    """The place of the frame due at clock ``now``, playing having started at clock
-    ``started[0]`` on the video's moment ``started[1]``; ``offset`` is the camera's,
-    added to its frames' times. None once the newest frame is passed: playing on is
-    Live."""
+def play_on(
+    frames: Frames, started: Start, now: float, offset: int
+) -> tuple[int | None, Start]:
+    """The place of the frame due at clock ``now`` -- the last one at or before the
+    moment due -- and the start to go on from; ``offset`` is the camera's, added to
+    its frames' times. In a gap longer than SKIP_MS (a recorder restarted, a camera
+    that stalled) playing goes on from the first frame after it, rather than holding
+    one frame for the gap's length. None once the newest frame is passed: playing on
+    is Live."""
     clock, moment = started
-    due = moment + round((now - clock) * 1000)
-    if not len(frames) or due >= int(frames.ms[-1]) + offset:
-        return None
-    return frames.nearest(due - offset)
+    due = moment + round((now - clock) * 1000) - offset  # on the camera's times
+    if not len(frames) or due >= int(frames.ms[-1]):
+        return None, started
+    after = int(np.searchsorted(frames.ms, due, side="right"))
+    place = max(after - 1, 0)
+    if due - int(frames.ms[place]) > SKIP_MS:
+        return after, (now, int(frames.ms[after]) + offset)
+    return place, started

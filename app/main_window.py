@@ -1361,7 +1361,9 @@ class MainWindow(QMainWindow):
             self._halt()
             return
         offset, now = self._offset(), time.monotonic()
-        place = playback.frame_due(camera.index, self._play_start, now, offset)
+        place, self._play_start = playback.play_on(
+            camera.index, self._play_start, now, offset
+        )
         if place is None:
             self.go_live()  # caught up with the recording: it plays on live
         elif place != self.place or camera.shown != place:
