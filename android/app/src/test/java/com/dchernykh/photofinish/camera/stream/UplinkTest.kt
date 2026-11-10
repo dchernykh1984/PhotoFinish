@@ -31,10 +31,15 @@ private class FakeSink(
     private val failOn: Int = 0,
     private val hangOn: Int = 0,
     private val publishFailure: RuntimeException? = null,
+    private val gateOn: Int = 0,
 ) : VideoSink {
     val headers = CopyOnWriteArrayList<ByteArray>()
     val frames = LinkedBlockingQueue<Sent>()
     val closed = CountDownLatch(1)
+
+    /** A send that waits until [gate] opens, as on a slow network; [atGate] says it is there. */
+    val gate = CountDownLatch(1)
+    val atGate = CountDownLatch(1)
     private var count = 0
 
     override fun publish(metadata: Map<String, Any?>) {
@@ -51,6 +56,10 @@ private class FakeSink(
         nalUnits: List<ByteArray>,
     ) {
         count++
+        if (count == gateOn) {
+            atGate.countDown()
+            gate.await(5, TimeUnit.SECONDS)
+        }
         if (count == failOn) throw IOException("lost")
         if (count == hangOn) {
             closed.await(5, TimeUnit.SECONDS) // a dead Wi-Fi: the send hangs until closed
@@ -230,6 +239,22 @@ class UplinkTest {
         repeat(3) { link.offer(frame(it * 1_000_000L, keyframe = it == 0)) }
         assertEquals(3L, link.dropped)
         assertTrue(keyframesAsked.tryAcquire())
+    }
+
+    @Test
+    fun `frames dropped while a send waits are followed by a keyframe, not by what came after`() {
+        val sink = FakeSink(gateOn = 2)
+        val link = uplink(listOf(sink), fps = 1) // room for two frames
+        start(link)
+        awaitConnected()
+        link.offer(frame(0, keyframe = true))
+        link.offer(frame(1_000_000, keyframe = false))
+        assertTrue(sink.atGate.await(5, TimeUnit.SECONDS)) // its send is under way
+        repeat(3) { link.offer(frame((it + 2) * 1_000_000L, keyframe = false)) } // dropped
+        link.offer(frame(5_000_000, keyframe = false)) // after a gap: no picture without its keyframe
+        link.offer(frame(6_000_000, keyframe = true))
+        sink.gate.countDown()
+        assertEquals(listOf(0L, 1_000L, 6_000L), List(3) { sink.next().timestampMs })
     }
 
     @Test
