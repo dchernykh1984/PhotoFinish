@@ -35,7 +35,6 @@ video/<camera id>/
 | `name` | shown to the referee |
 | `connection` | `usb`, `rtsp`, `rtmp`, `test`, `file` |
 | `settings` | per connection: `device`, `width`, `height`, `fps` (`usb`); `url`, `transport` `tcp` or `udp` (`rtsp`); `port`, `path` (`rtmp`); `fps`, `width`, `height`, `scene` (`test`); `path` (`file`) |
-| `preset` | `sjcam-hd1080p-usb`, `sjcam-hd1080p-wifi`, `sjcam-sj10pro-rtmp` or none |
 | `finish_line` | `[[x1, y1], [x2, y2]]`, 0-1 image coordinates; default the vertical centre line |
 | `offset_ms` | added to this camera's frame times to put it on the first camera's timeline |
 | `record` | false for a file opened after the race |
@@ -76,7 +75,7 @@ leaves nothing in the journal.
   "summer_time": false,
   "finish_mode": false,
   "source_offset_ms": 0,
-  "cameras": [{"id": "cam1", "name": "Side", "connection": "test", "settings": {}, "preset": null,
+  "cameras": [{"id": "cam1", "name": "Side", "connection": "test", "settings": {},
                "finish_line": [[0.5, 0.0], [0.5, 1.0]], "offset_ms": 0, "record": true}],
   "analysis": {"on": false, "model": ""}
 }

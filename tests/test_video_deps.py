@@ -20,7 +20,7 @@ def test_the_recorder_s_encoder_and_container_are_there() -> None:
 
 
 def test_the_network_cameras_inputs_are_there() -> None:
-    # RTSP for the SJCAM HD1080P over Wi-Fi; FLV is RTMP's container (SJ10 Pro).
+    # RTSP for a camera that serves its stream; FLV is RTMP's container.
     assert {"rtsp", "flv"} <= av.formats_available
 
 
