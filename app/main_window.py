@@ -256,16 +256,18 @@ class MainWindow(QMainWindow):
         inputs.addWidget(self.input_button)
         inputs.addWidget(self.input_view)
         inputs.addLayout(input_buttons)
-        corrections = QHBoxLayout()
-        for label, slot in (
-            ("Time from frame", self.time_from_frame),
-            ("Type time...", self.type_time),
-            ("Number...", self.change_number),
-            ("Remove...", self.remove_line),
+        corrections = QGridLayout()  # two rows: in one they need more than 320 px
+        for place, (label, slot) in enumerate(
+            (
+                ("Time from frame", self.time_from_frame),
+                ("Type time...", self.type_time),
+                ("Number...", self.change_number),
+                ("Remove...", self.remove_line),
+            )
         ):
             button = QPushButton(label)
             button.clicked.connect(slot)
-            corrections.addWidget(button)
+            corrections.addWidget(button, place // 2, place % 2)
         outputs = QVBoxLayout()
         outputs.addWidget(QLabel("Output: the referee's crossings"))
         outputs.addWidget(self.output_view)
@@ -287,7 +289,8 @@ class MainWindow(QMainWindow):
             holder = QWidget()
             holder.setLayout(part)
             right.addWidget(holder)
-        right.setMinimumWidth(320)
+        # Never narrower than its rows need: a set minimum below that cuts labels.
+        right.setMinimumWidth(max(320, right.minimumSizeHint().width()))
 
         splitter = QSplitter()
         splitter.addWidget(left)

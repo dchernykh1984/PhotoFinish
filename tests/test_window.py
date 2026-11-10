@@ -16,7 +16,13 @@ import shiboken6
 from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
 from PySide6.QtGui import QImage
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QFileDialog, QInputDialog, QMessageBox
+from PySide6.QtWidgets import (
+    QApplication,
+    QFileDialog,
+    QInputDialog,
+    QMessageBox,
+    QPushButton,
+)
 
 from app import main_window as mw
 from app import output_list, session
@@ -1827,3 +1833,17 @@ def test_nothing_is_timed_on_a_frame_still_on_its_way(
     assert win.caliper == []
     assert win.number.text() == "15"
     assert (recording / "out.txt").read_text() == ""
+
+
+def test_every_button_shows_its_whole_label_at_the_opening_size(
+    win: mw.MainWindow,
+) -> None:
+    win.resize(1000, 700)  # the size app.main opens the window at
+    win.show()
+    QApplication.processEvents()
+    cut = [
+        button.text()
+        for button in win.findChildren(QPushButton)
+        if button.isVisible() and button.width() < button.sizeHint().width()
+    ]
+    assert cut == []
