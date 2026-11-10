@@ -878,31 +878,35 @@ class MainWindow(QMainWindow):
 
     # -- finding riders (experimental) -------------------------------------------
 
-    def choose_model(self) -> None:
+    def _own_model(self) -> str | None:
+        """A model file of the referee's own, None when none is chosen."""
         path, _ = QFileDialog.getOpenFileName(
             self, "A YOLOX detection model of your own", "", "ONNX model (*.onnx)"
         )
-        if path:
-            self._set_model(path)
+        return path or None
 
     def _model_chosen(self, index: int) -> None:
         """A preset ready is chosen at once, one missing is downloaded first; the
-        last item opens a file of the referee's own."""
+        last item opens a file of the referee's own. A choice made stops the download
+        in progress; a file dialog closed without one leaves it going."""
         chosen = self.model_box.itemData(index)
+        if chosen == _OWN_FILE:
+            chosen = self._own_model()
+            if chosen is None:
+                self._show_model()  # the model, and its download, as they were
+                return
         if self._job is not None:
             if chosen == self._job.model.file:
                 return  # on its way already
-            self._job.cancel()  # another choice: the download in progress stops
+            self._job.cancel()
             self._job = None
-        if chosen == _OWN_FILE:
-            self.choose_model()
-            self._show_model()  # a file not chosen leaves the model as it was
-            return
         model = models.preset(chosen)
         if model is not None and not models.ready(model):
             self._download(model)
         elif chosen != analysis.settings(self.session)["model"]:
-            self._set_model(chosen)  # the one in use again: no analyser restarted
+            self._set_model(chosen)
+        else:
+            self._show_model()  # the one in use again: nothing restarted, list redone
 
     def _ensure_model(self) -> None:
         """The preset in use downloaded when it is missing -- an event folder copied
@@ -930,7 +934,7 @@ class MainWindow(QMainWindow):
         if job is self._job and not self.closed:
             model = job.model
             self.model_box.setItemText(
-                self.model_box.currentIndex(),
+                self.model_box.findData(model.file),  # its own line, chosen or not
                 f"{model.title}: {done // 1_000_000} of {model.megabytes} MB",
             )
 

@@ -1601,6 +1601,66 @@ def test_a_model_chosen_again_is_not_taken_for_the_download_stopped_before(
     wait_until(lambda: analysis.settings(session.load())["model"] == tiny.file)
 
 
+def test_a_file_dialog_closed_without_a_file_leaves_the_download_going(
+    recording: Path,
+    make_window: Callable[[], mw.MainWindow],
+    analyzers: list[Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    yolox_s = models.MODELS[2]
+    saved = session.load()
+    saved["analysis"] = {"on": True, "model": yolox_s.file}
+    session.save(saved)
+    may_end = threading.Event()
+    stopped: list[bool] = []
+
+    def fetch(
+        model: models.Model,
+        progress: Callable[[int], None],
+        cancelled: Callable[[], bool] = lambda: False,
+    ) -> Path:
+        may_end.wait(5)
+        stopped.append(cancelled())
+        return Path(model.file)
+
+    monkeypatch.setattr(mw.models, "fetch", fetch)
+    monkeypatch.setattr(mw.models, "ready", lambda model: bool(stopped))
+    monkeypatch.setattr(QFileDialog, "getOpenFileName", lambda *a: ("", ""))
+    win = make_window()
+    win._model_chosen(win.model_box.findData(mw._OWN_FILE))
+    assert win._fetching is yolox_s
+    assert win.model_box.currentText() == yolox_s.label
+    may_end.set()
+    wait_until(lambda: win._fetching is None)
+    assert stopped == [False]
+    assert [a.camera_id for a in analyzers] == ["cam1"]
+
+
+def test_going_back_to_the_model_in_use_redoes_the_list(
+    win: mw.MainWindow, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    tiny = models.MODELS[1]
+
+    def fetch(
+        model: models.Model,
+        progress: Callable[[int], None],
+        cancelled: Callable[[], bool] = lambda: False,
+    ) -> Path:
+        progress(5_000_000)
+        while not cancelled():
+            time.sleep(0.01)
+        raise models.FetchError(f"{model.title}: download stopped")
+
+    monkeypatch.setattr(mw.models, "fetch", fetch)
+    monkeypatch.setattr(mw.models, "ready", lambda model: False)
+    win._model_chosen(win.model_box.findData(tiny.file))
+    line = win.model_box.findData(tiny.file)
+    wait_until(lambda: win.model_box.itemText(line) == "YOLOX-Tiny: 5 of 21 MB")
+    win._model_chosen(win.model_box.findData(""))
+    assert win.model_box.itemText(win.model_box.findData(tiny.file)) == tiny.label
+    assert win.model_box.currentText() == "Motion only"
+
+
 def test_a_closed_window_hears_nothing_from_a_download_still_running(
     win: mw.MainWindow,
 ) -> None:
@@ -1665,7 +1725,8 @@ def test_a_model_preset_is_downloaded_once_then_used(
     ]
     win._model_chosen(win.model_box.findData(nano.file))
     assert win._fetching is nano
-    wait_until(lambda: win.model_box.currentText().endswith(": 1 of 4 MB"))
+    line = win.model_box.findData(nano.file)
+    wait_until(lambda: win.model_box.itemText(line).endswith(": 1 of 4 MB"))
     said = "Downloading YOLOX-Nano, the fastest (4 MB)..."
     assert win.statusBar().currentMessage() == said  # not covered by progress
     gate.set()
