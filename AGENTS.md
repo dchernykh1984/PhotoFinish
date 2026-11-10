@@ -95,6 +95,10 @@ Python is pinned to 3.14.
 - **Conventional commits, one line, no body, no trailers.** `cz check` runs on
   every PR. Never add a `Co-Authored-By` line or assistant attribution to a commit,
   a PR body or an issue comment.
+- **Every change ships with automated tests.** A fix or a behaviour change
+  comes with a test that fails without it (`shipping-a-change`). A step CI
+  cannot run -- the macOS build, a real camera -- is checked by hand, and the
+  PR says how.
 - **Coverage gate is 90%**, with `app/main.py` and `app/main_window.py` omitted
   from the measurement. UI handlers are still covered by Qt-level tests through
   the `win` fixture - add one there when you touch a handler.
