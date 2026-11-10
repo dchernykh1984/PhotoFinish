@@ -135,6 +135,10 @@ class Uplink(
         publisher = connected
         connected.publish(metadata(format))
         awaitClock()
+        // A connection's frames all carry their moments, or none do: the recorder places frames
+        // without one by their arrival, seconds late at a connection's start, and a mix of the two
+        // would not keep its order. A clock that comes later makes a new connection.
+        val stamped = clock() != null
         connected.sendSequenceHeader(awaitRecord())
         queue.clear()
         requestKeyframe()
@@ -145,11 +149,11 @@ class Uplink(
             // A connection starts on a keyframe, and so does a run after frames were dropped.
             val frame =
                 queue.poll(POLL_MS, TimeUnit.MILLISECONDS)?.takeIf { it.keyframe || it.run == sentRun } ?: continue
+            val sample = clock()
+            if (!stamped && sample != null) throw IOException("the clock is in step now")
             sentRun = frame.run
             val start = first ?: frame.ptsUs
             first = start
-            // Each frame with its moment from the moment the clock is known.
-            val sample = clock()
             send(connected, frame, frame.ptsUs - start, sample)
             val rates = throughput.count(frame.data.size)
             if (rates != null) report(UplinkStatus.Streaming(rates.first, rates.second, sample?.delay?.div(1000.0)))
@@ -173,7 +177,7 @@ class Uplink(
         }
     }
 
-    /** Waits a little for the clock, so a connection's first frames carry their moments too. */
+    /** Waits a little for the clock, so that the connection's frames carry their moments. */
     private fun awaitClock() {
         val until = System.nanoTime() + waitForClockMs * 1_000_000
         while (clock() == null && System.nanoTime() < until && running) sleep(POLL_MS)
