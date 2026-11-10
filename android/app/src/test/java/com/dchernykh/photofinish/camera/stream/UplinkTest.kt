@@ -229,6 +229,23 @@ class UplinkTest {
     }
 
     @Test
+    fun `a connection that streamed is made again at once after each loss, all day`() {
+        val sinks = List(5) { FakeSink(failOn = 2) }
+        val link = uplink(sinks)
+        start(link)
+        for (sink in sinks.dropLast(1)) {
+            awaitConnected()
+            link.offer(frame(0, keyframe = true))
+            sink.next()
+            link.offer(frame(33_333, keyframe = false)) // lost
+            val since = System.nanoTime()
+            assertTrue(keyframesAsked.tryAcquire(900, TimeUnit.MILLISECONDS)) // the next, soon
+            keyframesAsked.release()
+            assertTrue((System.nanoTime() - since) / 1_000_000 < 900)
+        }
+    }
+
+    @Test
     fun `an answer the publisher cannot read is a lost connection too`() {
         val garbled = FakeSink(publishFailure = IllegalArgumentException("AMF0 type 12"))
         val link = uplink(listOf(garbled, FakeSink()))
