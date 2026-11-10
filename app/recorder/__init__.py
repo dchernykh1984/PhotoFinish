@@ -40,7 +40,6 @@ from app.recorder.sources import (
 
 LOW_DISK = 2 * 1024**3
 CLOCK_RETRY_S = 5.0  # a phone's clock-exchange port another program holds: tried again
-UNSTAMPED = "the phone sends its frames without their moments: placed by their arrival"
 # A heartbeat older than this: the recorder is gone. Longer than a camera open
 # blocks (OPEN_TIMEOUT_S), when no heartbeat is written.
 STALE_MS = 15_000
@@ -318,8 +317,8 @@ class _Recording:
         counts: dict[str, Any] = {"frames": writer.frames, "segments": writer.segments}
         if self.beat.info["state"] != "recording":
             counts["detail"] = ""  # what was said while connecting is over
-        unstamped = UNSTAMPED if source.unstamped else ""
-        self.beat.beat(state="recording", clock=self.port_taken or unstamped, **counts)
+        clock = self.port_taken or source.clock_note
+        self.beat.beat(state="recording", clock=clock, **counts)
         self._answer_the_clock()
 
     def _wait(self, detail: str) -> bool:

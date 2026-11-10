@@ -397,15 +397,15 @@ def test_a_phone_s_stream_says_when_its_frames_come_without_moments() -> None:
     )
     place = source._placing(stream, phone=True)  # type: ignore[arg-type]
     place(avcc(b"\x65\x88"), 0)  # type: ignore[arg-type]
-    assert source.unstamped
+    assert sources.UNSTAMPED == source.clock_note
     place(avcc(sei(START * 1000), b"\x41\x9a"), 33)  # type: ignore[arg-type]
-    assert source.unstamped  # a stream begun without them keeps placing by arrival
+    assert sources.UNSTAMPED == source.clock_note  # begun without: by arrival
     stamped = source._placing(stream, phone=True)  # type: ignore[arg-type]
     stamped(avcc(sei(START * 1000), b"\x65\x88"), 0)  # type: ignore[arg-type]
-    assert not source.unstamped  # the next connection, stamped from its start
+    assert not source.clock_note  # the next connection, stamped from its start
     streaming_app = source._placing(stream, phone=False)  # type: ignore[arg-type]
     streaming_app(avcc(b"\x65\x88"), 66)  # type: ignore[arg-type]
-    assert not source.unstamped  # Larix and the like never carry them
+    assert not source.clock_note  # Larix and the like never carry them
 
 
 def test_a_phone_s_frame_held_up_on_the_way_keeps_its_own_moment() -> None:
@@ -433,6 +433,7 @@ def test_a_phone_s_moment_from_the_future_is_not_believed() -> None:
     place = source._placing(stream, phone=True)  # type: ignore[arg-type]
     # A frame is read after it was taken: 1.5 s ahead is a clock out of step.
     assert place(avcc(sei((START + 1_500) * 1000), b"\x65\x88"), 0) == START  # type: ignore[arg-type]
+    assert sources.NOT_IN_STEP == source.clock_note  # stamped, but out of step
 
 
 def test_a_phone_whose_clock_went_wrong_is_placed_by_arrival() -> None:

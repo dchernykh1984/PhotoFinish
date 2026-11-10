@@ -21,7 +21,7 @@ import pytest
 
 import app.recorder as recorder
 from app import paths, session
-from app.recorder import Backoff, Heartbeat, SteadyClock, run
+from app.recorder import Backoff, Heartbeat, SteadyClock, run, sources
 from app.recorder import segments as segments_module
 from app.recorder.segments import SegmentWriter
 from app.recorder.testcam import read_time, render
@@ -123,7 +123,7 @@ class Camera:
     a stop is asked for after ``stop_after`` frames."""
 
     fps = 30.0
-    unstamped = False
+    clock_note = ""
 
     def __init__(
         self,
@@ -486,7 +486,7 @@ class Network:
     """A network camera: a wait for it to call in, then its packets."""
 
     fps = 30.0
-    unstamped = False
+    clock_note = ""
     waiting = "waiting for rtmp://10.0.0.5:1935/live/x"
 
     def __init__(self, folder: Path, path: Path) -> None:
@@ -644,7 +644,7 @@ class Waiting:
     clock exchanges had been opened when the first frame came."""
 
     fps = 30.0
-    unstamped = False
+    clock_note = ""
     waiting = "waiting for rtmp://10.0.0.5:1999/live/x"
 
     def __init__(self, folder: Path, made: list[int]) -> None:
@@ -735,7 +735,7 @@ def test_a_phone_streaming_without_its_moments_is_said(
     monkeypatch.setattr(recorder, "ClockResponder", Responder)
 
     class Unstamped(Camera):
-        unstamped = True  # connected before the exchange was answered, say
+        clock_note = sources.UNSTAMPED  # connected before the exchange was answered
 
     clocks: list[str] = []
     real = Heartbeat.beat

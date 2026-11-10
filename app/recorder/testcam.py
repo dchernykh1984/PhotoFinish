@@ -119,7 +119,7 @@ class TestCamera:
 
     __test__ = False  # a camera, not a pytest class
     waiting = ""  # it never waits
-    unstamped = False
+    clock_note = ""
 
     def __init__(
         self,
