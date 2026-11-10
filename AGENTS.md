@@ -117,6 +117,7 @@ Kit skills (`speckit-specify`, `speckit-plan`, `speckit-tasks`,
 - `reviewing-a-change` - the failure modes that matter for this tool.
 - `review-cycle` - review a branch or PR and land the fixes.
 - `qt-window-tests` - how to test the PySide6 window.
+- `trying-a-camera` - connecting a real camera and judging its video.
 
 ## Release
 
