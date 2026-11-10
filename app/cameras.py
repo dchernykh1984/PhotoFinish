@@ -89,6 +89,7 @@ _HOME_NETWORKS = (
     ipaddress.ip_network("192.168.0.0/16"),
     ipaddress.ip_network("10.0.0.0/8"),
 )
+_LOCAL_NETWORKS = (*_HOME_NETWORKS, ipaddress.ip_network("172.16.0.0/12"))
 
 
 def this_computer() -> str:
@@ -106,9 +107,7 @@ def this_computer() -> str:
     except OSError:
         found = []
     own = {ipaddress.ip_address(info[4][0]) for info in found}
-    usable = [
-        ip for ip in own if ip.is_private and not (ip.is_loopback or ip.is_link_local)
-    ]
+    usable = [ip for ip in own if any(ip in net for net in _LOCAL_NETWORKS)]
     # Routers and hotspots hand out 192.168 and 10 first; virtual adapters favour 172.
     usable.sort(key=lambda ip: (not any(ip in net for net in _HOME_NETWORKS), ip))
     return str(usable[0]) if usable else "127.0.0.1"
