@@ -229,7 +229,10 @@ class _Recording:
             return
         port = self.camera["settings"].get("port", cameras.RTMP_PORT)
         clock = self.clock
-        micros = getattr(clock, "micros", None) or (lambda: clock() * 1000)
+        # The recorder's own clock; a test's counts milliseconds.
+        micros = (
+            clock.micros if isinstance(clock, SteadyClock) else lambda: clock() * 1000
+        )
         with contextlib.suppress(OSError):
             self.responder = ClockResponder(port, micros)
 
