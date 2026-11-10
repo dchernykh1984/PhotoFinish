@@ -222,6 +222,7 @@ class _Recording:
         self.closed = closed
         self.backoff = Backoff()
         self.responder: ClockResponder | None = None
+        self.phone = camera.get("connection") == "rtmp"  # a phone answers the clock
         self.clock_tried = -CLOCK_RETRY_S  # time.monotonic() of the last try
         self.port_taken = ""  # why the exchange is left out: its port, taken
 
@@ -230,7 +231,7 @@ class _Recording:
         holds is tried again every CLOCK_RETRY_S, the phone streaming or not, and
         recorder.json's ``clock`` says so meanwhile, which the camera list shows:
         the phone's frames are then placed by their arrival."""
-        if self.responder is not None or self.camera.get("connection") != "rtmp":
+        if self.responder is not None or not self.phone:
             return
         now = time.monotonic()
         if now - self.clock_tried < CLOCK_RETRY_S:
@@ -319,7 +320,8 @@ class _Recording:
             counts["detail"] = ""  # what was said while connecting is over
         clock = self.port_taken or source.clock_note
         self.beat.beat(state="recording", clock=clock, **counts)
-        self._answer_the_clock()
+        if self.phone and self.responder is None:  # off the frames' path once open
+            self._answer_the_clock()
 
     def _wait(self, detail: str) -> bool:
         """The open segment closed, a pause before trying again; True when a stop
