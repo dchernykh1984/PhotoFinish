@@ -917,6 +917,11 @@ class MainWindow(QMainWindow):
         if model is not None and not models.ready(model):
             self._download(model)
 
+    def _model_missing(self) -> bool:
+        """The preset in use is not on the disk: on its way, or failed to come."""
+        model = models.preset(analysis.settings(self.session)["model"])
+        return model is not None and not models.ready(model)
+
     @property
     def _fetching(self) -> models.Model | None:
         """The model downloading, if one is."""
@@ -1009,11 +1014,8 @@ class MainWindow(QMainWindow):
     def _analyze(self, camera: Camera) -> None:
         """The camera's analyser running, started again 30 s after it last was; not
         beside the one stopped before, while that ends its segment."""
-        on_its_way = self._fetching
-        if on_its_way is not None and (
-            on_its_way.file == analysis.settings(self.session)["model"]
-        ):
-            return  # the model in use is on its way: started once it is there
+        if self._model_missing():
+            return  # started once it is there, never on a file that is not
         recorded = camera.settings.get("record", True)
         running = any(
             process is not None and process.state() != QProcess.ProcessState.NotRunning
@@ -1254,7 +1256,10 @@ class MainWindow(QMainWindow):
         if clash:
             state = f"{clash}; {state}"
         if self.analysis_box.isChecked() and camera.settings.get("record", True):
-            state += f"; riders {self._riders_progress(camera)}"
+            if self._model_missing() and self._job is None:
+                state += "; riders: the model is not here, choose it to download it"
+            else:
+                state += f"; riders {self._riders_progress(camera)}"
         camera.item.setText(f"{camera.settings.get('name', camera.id)}: {state}")
 
     def _riders_progress(self, camera: Camera) -> str:

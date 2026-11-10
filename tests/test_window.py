@@ -1700,6 +1700,47 @@ def test_going_back_to_the_model_in_use_redoes_the_list(
     assert win.model_box.currentText() == "Motion only"
 
 
+def test_no_analyser_starts_while_the_model_in_use_is_missing(
+    recording: Path,
+    make_window: Callable[[], mw.MainWindow],
+    analyzers: list[Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The start's download of YOLOX-S stopped by choosing YOLOX-Tiny, missing too:
+    YOLOX-S stays in use until Tiny is there, and no analyser starts on it."""
+    saved = session.load()
+    saved["analysis"] = {"on": True, "model": models.MODELS[2].file}
+    session.save(saved)
+    may_end = threading.Event()
+
+    def fetch(
+        model: models.Model,
+        progress: Callable[[int], None],
+        cancelled: Callable[[], bool] = lambda: False,
+    ) -> Path:
+        while not cancelled() and not may_end.is_set():
+            time.sleep(0.01)
+        if cancelled():
+            raise models.FetchError(f"{model.title}: download stopped")
+        raise models.FetchError(f"{model.title} cannot be downloaded: offline")
+
+    monkeypatch.setattr(mw.models, "fetch", fetch)
+    monkeypatch.setattr(mw.models, "ready", lambda model: False)
+    win = make_window()
+    win._model_chosen(win.model_box.findData(models.MODELS[1].file))
+    win.poll()
+    assert analyzers == []
+    may_end.set()
+    wait_until(lambda: win._fetching is None)
+    win.poll()
+    assert analyzers == []
+    assert (
+        win.camera_list.item(0)
+        .text()
+        .endswith("; riders: the model is not here, choose it to download it")
+    )
+
+
 def test_a_closed_window_hears_nothing_from_a_download_still_running(
     win: mw.MainWindow,
 ) -> None:
