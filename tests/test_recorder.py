@@ -557,6 +557,20 @@ def test_a_phone_s_clock_exchange_is_answered_while_its_recorder_runs(
     assert responder.closed
 
 
+def test_a_phone_s_exchange_reads_the_recorder_s_clock_to_the_microsecond(
+    folder: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    phone_session()
+    monkeypatch.setattr(Responder, "made", [])
+    monkeypatch.setattr(recorder, "ClockResponder", Responder)
+    cameras(monkeypatch, Camera(folder, START, 3, stop_after=2))
+    assert run("cam1") == 0  # the recorder's own clock
+    [responder] = Responder.made
+    read = [responder.micros() for _ in range(1000)]
+    assert abs(read[0] - time.time_ns() // 1000) < 1_000_000
+    assert any(us % 1000 for us in read)  # not milliseconds times a thousand
+
+
 def test_a_phone_whose_exchange_port_is_taken_is_still_recorded(
     folder: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
