@@ -51,6 +51,12 @@ one copied folder per event work. Resolve runtime files with `app_path()`,
 never against the current working directory: Finder can launch a macOS app
 from `/`.
 
+**Does the release build still do it?** Pull requests build on Linux only;
+the macOS and Windows steps run on a release. A feature that opens a camera
+or the network needs what only the bundle carries -- `NSCameraUsageDescription`
+written by `build.yml`, certifi's roots for HTTPS -- so check such a step by
+hand on the platform and say so in the PR.
+
 ## Tests
 
 A change to a Qt-free module needs a unit test - that is what the 90% coverage
