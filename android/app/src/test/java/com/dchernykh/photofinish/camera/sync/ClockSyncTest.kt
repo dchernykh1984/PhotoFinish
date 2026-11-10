@@ -36,6 +36,16 @@ class ClockSyncTest {
     }
 
     @Test
+    fun `an offset no delay explains is a recorder clock that changed, and the older ones go`() {
+        val offsets = ClockOffset()
+        offsets.add(Sample(0, 1002, 1002, 4)) // offset 1000, delay 4: the best
+        offsets.add(Sample(0, 1012, 1012, 30)) // offset 997: within what 30 us explain
+        assertEquals(4L, offsets.best()!!.delay)
+        offsets.add(Sample(0, 2_001_010, 2_001_010, 20)) // 2 s on: the recorder started again
+        assertEquals(2_001_000L, offsets.best()!!.offset)
+    }
+
+    @Test
     fun `the messages are tagged and sized`() {
         val request = ClockExchange.request(42)
         assertEquals(ClockExchange.REQUEST_SIZE, request.size)
