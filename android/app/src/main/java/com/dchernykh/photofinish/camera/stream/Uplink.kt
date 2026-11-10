@@ -95,7 +95,12 @@ class Uplink(
         publisher?.close()
     }
 
-    /** The uplink's loop, on a thread of its own, until [stop]. */
+    /**
+     * The uplink's loop, on a thread of its own, until [stop]. Whatever a connection throws -- a
+     * lost socket, an answer the publisher cannot read -- it connects again: an exception left to
+     * escape would end the app mid-race.
+     */
+    @Suppress("TooGenericExceptionCaught")
     fun run() {
         val watchdog = Thread({ watch() }, "uplink-watchdog").apply { isDaemon = true }
         watchdog.start()
@@ -105,7 +110,7 @@ class Uplink(
             try {
                 stream()
                 pause = FIRST_PAUSE_MS
-            } catch (error: IOException) {
+            } catch (error: Exception) {
                 publisher?.close()
                 if (!running) break
                 report(UplinkStatus.Reconnecting(error.message ?: error.javaClass.simpleName))

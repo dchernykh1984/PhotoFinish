@@ -30,13 +30,16 @@ private class Sent(
 private class FakeSink(
     private val failOn: Int = 0,
     private val hangOn: Int = 0,
+    private val publishFailure: RuntimeException? = null,
 ) : VideoSink {
     val headers = CopyOnWriteArrayList<ByteArray>()
     val frames = LinkedBlockingQueue<Sent>()
     val closed = CountDownLatch(1)
     private var count = 0
 
-    override fun publish(metadata: Map<String, Any?>) = Unit
+    override fun publish(metadata: Map<String, Any?>) {
+        publishFailure?.let { throw it }
+    }
 
     override fun sendSequenceHeader(record: ByteArray) {
         headers += record
@@ -196,6 +199,15 @@ class UplinkTest {
         link.offer(frame(33_333, keyframe = false)) // fails: the connection is lost
         awaitConnected() // after the pause, longer than a stall
         assertFalse(second.closed.await(600, TimeUnit.MILLISECONDS))
+    }
+
+    @Test
+    fun `an answer the publisher cannot read is a lost connection too`() {
+        val garbled = FakeSink(publishFailure = IllegalArgumentException("AMF0 type 12"))
+        val link = uplink(listOf(garbled, FakeSink()))
+        start(link)
+        awaitConnected() // the second connection: the first one's failure did not end the uplink
+        assertTrue(statuses.any { it is UplinkStatus.Reconnecting && it.reason == "AMF0 type 12" })
     }
 
     @Test
