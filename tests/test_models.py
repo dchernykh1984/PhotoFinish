@@ -133,6 +133,18 @@ def test_a_model_is_on_the_disk_before_it_takes_its_name_and_waits_for_a_scanner
     assert held == [0]
 
 
+def test_a_download_stopped_by_anything_else_leaves_no_part(base: Path) -> None:
+    class Odd(io.BytesIO):
+        def read(self, size: int | None = -1) -> bytes:
+            if self.tell():
+                raise ValueError("a chunk nobody expected")
+            return super().read(1000)
+
+    with pytest.raises(ValueError, match="a chunk nobody expected"):
+        models.fetch(MODEL, opener=lambda url: Odd(CONTENT))
+    assert list((base / "models").iterdir()) == []
+
+
 def test_a_model_cut_short_on_disk_is_not_ready(base: Path) -> None:
     path = models.fetch(MODEL, opener=serving(CONTENT))
     path.write_bytes(CONTENT[:-1])

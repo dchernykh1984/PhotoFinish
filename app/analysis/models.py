@@ -136,12 +136,17 @@ def fetch(
             raise FetchError(f"{model.title}: the download is not the model pinned")
         files.replace(part, path)  # a virus scanner holding it a moment: again
     except (OSError, http.client.HTTPException) as error:  # network, disk, a reply cut
-        part.unlink(missing_ok=True)
+        _drop(part)
         raise FetchError(f"{model.title} cannot be downloaded: {error}") from error
-    except FetchError:
-        part.unlink(missing_ok=True)
+    except BaseException:  # whatever else stopped it: nothing half-way is kept
+        _drop(part)
         raise
     return path
+
+
+def _drop(part: Path) -> None:
+    with contextlib.suppress(OSError):  # one a scanner holds: for clear_parts
+        part.unlink(missing_ok=True)
 
 
 def clear_parts() -> None:
