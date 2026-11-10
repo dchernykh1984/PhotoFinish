@@ -1793,6 +1793,32 @@ def test_no_analyser_starts_while_the_model_in_use_is_missing(
     )
 
 
+def test_a_missing_model_is_fetched_only_once_finding_riders_is_on(
+    recording: Path,
+    make_window: Callable[[], mw.MainWindow],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    saved = session.load()
+    saved["analysis"] = {"on": False, "model": models.MODELS[2].file}
+    session.save(saved)
+    fetched: list[str] = []
+
+    def fetch(
+        model: models.Model,
+        progress: Callable[[int], None],
+        cancelled: Callable[[], bool] = lambda: False,
+    ) -> Path:
+        fetched.append(model.key)
+        return Path(model.file)
+
+    monkeypatch.setattr(mw.models, "fetch", fetch)
+    monkeypatch.setattr(mw.models, "ready", lambda model: model.key in fetched)
+    win = make_window()
+    assert fetched == []  # off: no network at an offline race's start
+    win.analysis_box.setChecked(True)
+    wait_until(lambda: fetched == ["yolox_s"])
+
+
 def test_a_closed_window_hears_nothing_from_a_download_still_running(
     win: mw.MainWindow,
 ) -> None:
