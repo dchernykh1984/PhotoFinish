@@ -197,6 +197,21 @@ class UplinkTest {
     }
 
     @Test
+    fun `a clock that comes once a connection has run is left for the next, with no gap now`() {
+        val sink = FakeSink()
+        val clock = AtomicReference<Sample?>(null)
+        val link = uplink(listOf(sink, FakeSink()), waitForClockMs = 50, clock = clock)
+        link.stampWindowMs = 0 // the race under way
+        start(link)
+        awaitConnected()
+        link.offer(frame(0, keyframe = true))
+        sink.next()
+        clock.set(exchange(2_000_000))
+        link.offer(frame(33_333, keyframe = false))
+        assertEquals(listOf(Avc.type(byteArrayOf(0x41))), sink.next().units.map { Avc.type(it) })
+    }
+
+    @Test
     fun `a lost connection is made again, its header resent, from a keyframe`() {
         val first = FakeSink(failOn = 2)
         val second = FakeSink()
