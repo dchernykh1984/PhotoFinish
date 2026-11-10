@@ -289,6 +289,25 @@ def test_playing_asks_for_the_next_frame_once_the_one_on_its_way_is_shown(
     assert win.view.image != blue
 
 
+def test_pause_on_a_frame_already_on_screen_asks_for_nothing_again(
+    recording: Path, make_window: Callable[[], mw.MainWindow], clock: list[float]
+) -> None:
+    win = make_window()
+    wait_until(showing(win, START + 69 * 33))
+    win.step(-60)
+    win.play()
+    clock[0] += 0.33
+    win._play_tick()
+    wait_until(showing(win, START + 19 * 33))
+    camera = win.cameras["cam1"]
+    assert not camera.pending
+    asked = camera.wanted
+    win.pause()
+    assert camera.wanted == asked  # not asked again: no seek, no dimming
+    assert not win.view.waiting
+    assert win._frame_on_screen()
+
+
 def test_a_move_while_playing_dims_until_the_frame_moved_to_is_on_screen(
     recording: Path, make_window: Callable[[], mw.MainWindow], clock: list[float]
 ) -> None:

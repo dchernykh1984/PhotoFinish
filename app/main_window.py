@@ -1351,12 +1351,14 @@ class MainWindow(QMainWindow):
 
     def _halt(self, forget: bool = False) -> None:
         """Playing stops; ``forget`` also drops where Play started, so Stop no
-        longer goes back there -- the one place that state is reset. Frames asked
-        for while playing were not dimmed: asked again, whatever moves the video
-        next, so no crossing is timed on the frame before."""
+        longer goes back there -- the one place that state is reset. A frame asked
+        for while playing and still on its way was not dimmed: asked again,
+        whatever moves the video next, so no crossing is timed on the frame
+        before. One on screen already is the frame asked: left as it is."""
         if self.playing:
             for camera in self.cameras.values():
-                camera.wanted, camera.pending = None, False
+                if camera.pending:
+                    camera.wanted, camera.pending = None, False
         self.playing = False
         self.play_timer.stop()
         if forget:
