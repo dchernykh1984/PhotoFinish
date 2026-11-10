@@ -113,6 +113,11 @@ def test_the_rtmp_address_to_type_in_the_camera_app(
     assert cameras.this_computer() == "127.0.0.1"  # no network at all
     own[:] = ["127.0.1.1", "10.42.0.1"]  # an offline network with no gateway
     assert cameras.this_computer() == "10.42.0.1"
+    # A self-assigned address and a virtual machine's adapter are not the Wi-Fi.
+    own[:] = ["169.254.3.4", "172.27.0.1", "192.168.1.20"]
+    assert cameras.this_computer() == "192.168.1.20"
+    own[:] = ["169.254.3.4", "172.20.10.2"]  # an iPhone's hotspot
+    assert cameras.this_computer() == "172.20.10.2"
 
 
 def test_each_phone_listens_on_a_port_of_its_own() -> None:
