@@ -343,6 +343,53 @@ def test_a_push_s_first_frames_are_given_soon_not_after_seconds_of_look_over() -
     assert first and first[0] < 1500  # the first frame, read well within its seconds
 
 
+def test_a_push_whose_sound_comes_first_is_still_recorded() -> None:
+    # A streaming app may send a second of sound before its first picture: half a
+    # second's look-over must still find the video.
+    port = free_port()
+    camera = {"connection": "rtmp", "settings": {"port": port, "path": "live/test"}}
+    source = open_source(camera, lambda: time.time_ns() // 1_000_000)
+    got: list[int] = []
+
+    def receive() -> None:
+        try:
+            for item in source.frames():
+                if item is not None:
+                    got.append(item[1])
+        except OSError:
+            pass  # the app hung up
+
+    thread = threading.Thread(target=receive)
+    thread.start()
+    time.sleep(1.5)
+    url = f"rtmp://127.0.0.1:{port}/live/test"
+    with av.open(url, "w", format="flv") as out:
+        sound = out.add_stream("aac", rate=44100)
+        sound.layout = "mono"
+        options = {"g": "30", "tune": "zerolatency", "preset": "ultrafast"}
+        video = out.add_stream("libx264", rate=30, options=options)
+        video.width, video.height, video.pix_fmt = 640, 360, "yuv420p"
+        for k in range(43):  # a second of silence
+            frame = av.AudioFrame.from_ndarray(
+                np.zeros((1, 1024), dtype=np.float32), format="fltp", layout="mono"
+            )
+            frame.sample_rate, frame.pts = 44100, k * 1024
+            for packet in sound.encode(frame):
+                out.mux(packet)
+            time.sleep(1024 / 44100)
+        for k in range(30):
+            picture = av.VideoFrame.from_ndarray(render(START + k * 33, 640, 360))
+            picture.pts = k
+            for packet in video.encode(picture):
+                out.mux(packet)
+            time.sleep(1 / 30)
+        for packet in video.encode(None):
+            out.mux(packet)
+    thread.join(timeout=30)
+    assert len(got) == 30
+    assert source.fps == 30
+
+
 def test_a_phone_s_frames_keep_their_order_where_its_moments_begin() -> None:
     first: list[int] = []
 
