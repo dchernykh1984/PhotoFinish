@@ -7,6 +7,7 @@ import http.client
 import io
 import os
 import ssl
+import time
 import urllib.error
 from pathlib import Path
 from typing import Any
@@ -224,6 +225,28 @@ def test_each_download_has_a_part_of_its_own_and_crashed_parts_go(base: Path) ->
     assert first.startswith("yolox_test.onnx.")
     crashed = base / "models" / "yolox_test.onnx.dead.part"
     crashed.write_bytes(b"x")
+    long_ago = time.time() - models.STALE_S - 60
+    os.utime(crashed, (long_ago, long_ago))
+    going = base / "models" / "yolox_test.onnx.alive.part"  # another window's
+    going.write_bytes(b"x")
     models.clear_parts()
     assert not crashed.exists()
+    assert going.exists()
     assert (base / "models" / "yolox_test.onnx").exists()
+
+
+def test_a_part_a_scanner_holds_is_left_for_the_next_start(
+    base: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (base / "models").mkdir()
+    held = base / "models" / "yolox_test.onnx.held.part"
+    held.write_bytes(b"x")
+    long_ago = time.time() - models.STALE_S - 60
+    os.utime(held, (long_ago, long_ago))
+
+    def unlink(self: Path, missing_ok: bool = False) -> None:
+        raise PermissionError("held by another process")
+
+    monkeypatch.setattr(Path, "unlink", unlink)
+    models.clear_parts()  # no error: the window still starts
+    assert held.exists()
