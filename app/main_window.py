@@ -113,7 +113,6 @@ class MainWindow(QMainWindow):
         self.place: int | None = None  # the frame shown, in the camera's index
         self.moment: int | None = None  # the video's time shown, ms
         self.live = True
-        self.closed = False
         self.playing = False
         self.play_from: int | None = None  # the moment Play started from, for Stop
         self._play_start = (0.0, 0)  # the clock and the moment playing started at
@@ -923,11 +922,6 @@ class MainWindow(QMainWindow):
         model = models.preset(analysis.settings(self.session)["model"])
         return model is not None and not models.ready(model)
 
-    @property
-    def _fetching(self) -> models.Model | None:
-        """The model downloading, if one is."""
-        return None if self._job is None else self._job.model
-
     def _download(self, model: models.Model) -> None:
         """The model fetched in the background; choosing anything else in the list
         stops it."""
@@ -937,7 +931,7 @@ class MainWindow(QMainWindow):
     def _fetch_progress(self, job: models.Download, done: int) -> None:
         """How far the download is, in the model list itself: the status line keeps
         whatever warning it shows."""
-        if job is self._job and not self.closed:
+        if job is self._job:
             model = job.model
             self.model_box.setItemText(
                 self.model_box.findData(model.file),  # its own line, chosen or not
@@ -945,8 +939,8 @@ class MainWindow(QMainWindow):
             )
 
     def _fetched(self, job: models.Download, error: str) -> None:
-        if self.closed or job is not self._job:
-            return  # queued before the window went, or a download since stopped
+        if job is not self._job:
+            return  # a download since stopped, or the window gone
         self._job, model = None, job.model
         if error:
             self._say(error)
@@ -1517,9 +1511,9 @@ class MainWindow(QMainWindow):
         """The window goes; the recorders keep recording."""
         self.timer.stop()
         self.play_timer.stop()
-        self.closed = True  # a download that ends now is not acted on
-        if self._job is not None:
-            self._job.cancel()  # nor goes on with no window to use it
+        if self._job is not None:  # stopped, and any answer of its ignored
+            self._job.cancel()
+            self._job = None
         for camera in self.cameras.values():
             camera.worker.stop()
             self._stop_analyzer(camera)
