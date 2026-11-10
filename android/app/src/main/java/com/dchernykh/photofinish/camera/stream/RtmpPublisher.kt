@@ -9,7 +9,6 @@ import java.io.InputStream
 import java.io.OutputStream
 import java.net.InetSocketAddress
 import java.net.Socket
-import java.net.SocketTimeoutException
 import java.security.SecureRandom
 
 /** Where the frames go: an RTMP server, or a test's stand-in. */
@@ -32,6 +31,9 @@ interface VideoSink : Closeable {
 interface RtmpConnection : Closeable {
     val input: InputStream
     val output: OutputStream
+
+    /** Reads from now on wait as long as the server is quiet. */
+    fun clearReadTimeout() = Unit
 }
 
 /**
@@ -81,6 +83,9 @@ class RtmpPublisher(
             streamId,
             Amf0.encode("@setDataFrame", "onMetaData", Amf0.EcmaArray(metadata)),
         )
+        // Publishing, the server may stay quiet for long: a read timed out then could cut a
+        // message in two and leave the reader out of step.
+        opened.clearReadTimeout()
         Thread({ drain() }, "rtmp-reader").apply { isDaemon = true }.start()
     }
 
@@ -149,15 +154,11 @@ class RtmpPublisher(
      * Reads what the server sends while the frames go out, so its acknowledgements
      * never fill the socket over a long race, and answers its pings.
      */
+    @Suppress("TooGenericExceptionCaught") // an exception left to escape would end the app
     private fun drain() {
         try {
             while (!closed) {
-                val message =
-                    try {
-                        reader.read()
-                    } catch (_: SocketTimeoutException) {
-                        continue // a quiet server: nothing to drain
-                    }
+                val message = reader.read()
                 val pingRequest =
                     message.typeId == RtmpType.USER_CONTROL &&
                         message.payload.size >= 6 &&
@@ -169,6 +170,8 @@ class RtmpPublisher(
             }
         } catch (_: IOException) {
             // The connection ended: the publishing thread finds out on its next frame.
+        } catch (_: RuntimeException) {
+            // Bytes that are not RTMP: no more pings answered, and the frames go on.
         }
     }
 
@@ -224,14 +227,21 @@ class RtmpPublisher(
             return bytes
         }
 
-        fun socketConnection(address: RtmpAddress): RtmpConnection {
+        fun socketConnection(
+            address: RtmpAddress,
+            readTimeoutMs: Int = READ_TIMEOUT_MS,
+        ): RtmpConnection {
             val socket = Socket()
             socket.connect(InetSocketAddress(address.host, address.port), CONNECT_TIMEOUT_MS)
             socket.tcpNoDelay = true
-            socket.soTimeout = READ_TIMEOUT_MS
+            socket.soTimeout = readTimeoutMs
             return object : RtmpConnection {
                 override val input: InputStream = socket.getInputStream()
                 override val output: OutputStream = socket.getOutputStream()
+
+                override fun clearReadTimeout() {
+                    socket.soTimeout = 0
+                }
 
                 override fun close() = socket.close()
             }

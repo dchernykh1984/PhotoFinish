@@ -27,6 +27,7 @@ private class FakeServer(
     val socket = ServerSocket(0, 1, InetAddress.getLoopbackAddress())
     val received = LinkedBlockingQueue<RtmpMessage>()
     private lateinit var client: Socket
+    private lateinit var out: OutputStream
     private lateinit var writer: RtmpChunkWriter
 
     val address get() = RtmpAddress("127.0.0.1", socket.localPort, "live", "cam1")
@@ -43,6 +44,7 @@ private class FakeServer(
             output.flush()
             check(input.readNBytes(1536).contentEquals(s1)) { "C2 must echo S1" }
             val reader = RtmpChunkReader(input)
+            out = output
             writer = RtmpChunkWriter(output)
             try {
                 while (true) {
@@ -87,6 +89,18 @@ private class FakeServer(
     }
 
     fun ping() = writer.write(RtmpMessage(2, 0, RtmpType.USER_CONTROL, 0, byteArrayOf(0, 6, 0, 0, 1, 2)))
+
+    /** A ping whose header comes, then the rest after [pauseMs]: a slow network, a busy server. */
+    fun pingInTwo(pauseMs: Long) {
+        val ping = ByteArrayOutputStream()
+        RtmpChunkWriter(ping).write(RtmpMessage(2, 0, RtmpType.USER_CONTROL, 0, byteArrayOf(0, 6, 0, 0, 1, 2)))
+        val bytes = ping.toByteArray()
+        out.write(bytes, 0, 5)
+        out.flush()
+        Thread.sleep(pauseMs)
+        out.write(bytes, 5, bytes.size - 5)
+        out.flush()
+    }
 
     fun next(): RtmpMessage = received.poll(5, TimeUnit.SECONDS) ?: error("nothing received")
 
@@ -208,5 +222,17 @@ class RtmpPublisherTest {
         assertTrue(failure.get() is IOException)
         assertTrue(released.await(1, TimeUnit.SECONDS))
         assertEquals(0, written.size())
+    }
+
+    @Test
+    fun `a ping that comes in two parts a long pause apart is still answered`() {
+        val server = server()
+        server.serve()
+        val publisher = RtmpPublisher(server.address) { RtmpPublisher.socketConnection(it, readTimeoutMs = 200) }
+        publisher.publish(emptyMap())
+        server.nextOfType(RtmpType.DATA_AMF0) // publishing: from now on reads wait as long as it takes
+        server.pingInTwo(pauseMs = 600)
+        assertArrayEquals(byteArrayOf(0, 7, 0, 0, 1, 2), server.nextOfType(RtmpType.USER_CONTROL).payload)
+        publisher.close()
     }
 }
