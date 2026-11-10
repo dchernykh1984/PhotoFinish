@@ -155,7 +155,8 @@ def usb_input(device: str) -> tuple[str, str]:
 class Stream:
     """A network stream, read (RTSP) or received (RTMP, ``listen``); its packets are
     kept as the camera encoded them. A packet that carries its own moment -- PhotoFinish
-    Camera's, on the recorder's clock -- is placed by it, others by their arrival."""
+    Camera's, on the recorder's clock -- is placed by it, others by their arrival, and
+    so is one whose moment is more than LEAP_MS from its arrival."""
 
     def __init__(
         self,
@@ -197,11 +198,11 @@ class Stream:
             for packet in container.demux(stream):
                 if packet.pts is None or packet.dts is None:
                     continue
+                placed = self.anchor(float(packet.pts * unit))
                 own = frame_time.moment_ms(bytes(packet), prefixed) if stamped else None
-                yield (
-                    packet,
-                    own if own is not None else self.anchor(float(packet.pts * unit)),
-                )
+                if own is None or abs(own - placed) > LEAP_MS:
+                    own = placed  # none, or a phone whose clock went wrong
+                yield packet, own
 
 
 class LiveFile:

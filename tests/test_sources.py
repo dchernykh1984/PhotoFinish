@@ -254,29 +254,46 @@ def test_an_rtmp_push_is_received_and_kept_as_it_came(tmp_path: Path) -> None:
             assert [f.pts for f in container.decode(video=0)] == sorted(pts)
 
 
-def test_a_phone_camera_s_frames_keep_the_moments_it_wrote_in_them() -> None:
+def receive_phone(moment_us: Any) -> list[int]:
+    """The moments the frames of a phone stamping ``moment_us(frame)`` get."""
     port = free_port()
     camera = {"connection": "rtmp", "settings": {"port": port, "path": "live/test"}}
     source = open_source(camera, lambda: time.time_ns() // 1_000_000)
-    got: list[tuple[av.Packet, int]] = []
+    got: list[int] = []
 
     def receive() -> None:
         try:
             for item in source.frames():
                 if item is not None:
-                    packet, ms = item
-                    assert isinstance(packet, av.Packet)
-                    got.append((packet, ms))
+                    got.append(item[1])
         except OSError:
             pass  # the camera app hung up
 
     thread = threading.Thread(target=receive)
     thread.start()
     time.sleep(1.5)
-    # Moments far from now, 40 ms apart: frames are placed by them, not by arrival.
-    push(port, 20, moment_us=lambda k: START * 1000 + k * 40_000 + 400)
+    push(port, 20, moment_us)
     thread.join(timeout=30)
-    assert [ms for _, ms in got] == [START + k * 40 for k in range(20)]
+    assert len(got) == 20
+    return got
+
+
+def test_a_phone_camera_s_frames_keep_the_moments_it_wrote_in_them() -> None:
+    # 40 ms apart while they are sent 33 ms apart: placed by their moments.
+    first: list[int] = []
+
+    def moment_us(k: int) -> int:
+        first[:] = first or [time.time_ns() // 1000]  # the first frame's, as sent
+        return first[0] + k * 40_000
+
+    got = receive_phone(moment_us)
+    assert got == [(first[0] + 500) // 1000 + k * 40 for k in range(20)]
+
+
+def test_a_phone_whose_clock_went_wrong_is_placed_by_arrival() -> None:
+    got = receive_phone(lambda k: START * 1000 + k * 40_000)  # a year off
+    now = time.time_ns() // 1_000_000
+    assert all(abs(ms - now) < 10_000 for ms in got)
 
 
 def test_moments_follow_a_camera_whose_clock_drifts_from_the_computers() -> None:
