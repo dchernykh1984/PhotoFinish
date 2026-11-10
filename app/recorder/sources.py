@@ -218,19 +218,24 @@ class Stream:
         latest: list[int] = []  # the pts and the moment of the latest frame
 
         def place(packet: av.Packet, pts: int) -> int:
-            placed = self.anchor(float(pts * unit))
-            own = (
+            moment = (
                 frame_time.moment_ms(memoryview(packet), prefixed) if stamped else None
             )
-            now = self.anchor.clock()
-            believed = own is not None and now - OWN_PAST_MS <= own <= now + LEAP_MS
-            moment = own if own is not None and believed else placed
-            if not latest or pts > latest[0]:
-                moment = max(moment, latest[1] + 1) if latest else moment
+            if moment is None or not self._believed(moment):
+                moment = self.anchor(float(pts * unit))
+            if not latest or pts > latest[0]:  # a B-frame keeps its own
+                if latest:
+                    moment = max(moment, latest[1] + 1)
                 latest[:] = [pts, moment]
             return moment
 
         return place
+
+    def _believed(self, own: int) -> bool:
+        """A phone's own moment as its frame is read: none in the future, none older
+        than OWN_PAST_MS -- else the phone's clock went wrong."""
+        now = self.anchor.clock()
+        return now - OWN_PAST_MS <= own <= now + LEAP_MS
 
 
 class LiveFile:
