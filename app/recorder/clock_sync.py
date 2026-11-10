@@ -18,6 +18,7 @@ TAG = b"PFTS"
 VERSION = 1
 REQUEST = struct.Struct(">4sBq")  # tag, version, t1: sent on the phone's clock
 ANSWER = struct.Struct(">4sBqqq")  # tag, version, t1, t2 received, t3 sent here
+_RETRY_S = 0.1
 
 
 def answer(request: bytes, t2: int, t3: int) -> bytes | None:
@@ -65,9 +66,9 @@ class ClockResponder:
             except TimeoutError:
                 continue
             except OSError:
-                # Windows reports here that an earlier answer found no one; else
-                # the socket was closed.
-                if self._closed.is_set():
+                # Closed; or Windows saying an earlier answer found no one, or a
+                # network gone: tried again after a pause, not in a busy loop.
+                if self._closed.wait(_RETRY_S):
                     return
 
     def close(self) -> None:
