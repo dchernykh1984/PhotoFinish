@@ -256,7 +256,7 @@ class _Recording:
     def _run(self) -> int:
         try:
             while not self.stop.exists():
-                self.beat.beat(state="connecting", detail="")
+                self.beat.beat(state="connecting", detail="", clock=self.port_taken)
                 try:
                     source = open_source(self.camera, self.clock)  # settings checked
                     self._answer_the_clock()
@@ -329,7 +329,7 @@ class _Recording:
             self.writer.gap_reason = "reconnect"
         until = time.monotonic() + self.backoff.failed(time.monotonic())
         while time.monotonic() < until:
-            self.beat.beat(state="reconnecting", detail=detail)
+            self.beat.beat(state="reconnecting", detail=detail, clock=self.port_taken)
             if self.stop.exists():
                 return True
             self.sleep(min(0.1, max(until - time.monotonic(), 0)))
