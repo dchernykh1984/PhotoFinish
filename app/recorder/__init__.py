@@ -326,8 +326,7 @@ class _Recording:
             counts["detail"] = ""  # what was said while connecting is over
         clock = self.port_taken or source.clock_note
         self.beat.beat(state="recording", clock=clock, **counts)
-        if self.phone and self.responder is None:  # off the frames' path once open
-            self._answer_the_clock()
+        self._answer_the_clock()  # returns at its first check once open
 
     def _hung_up(self) -> None:
         """The open segment closed, as at a reconnect, with no pause after it."""
