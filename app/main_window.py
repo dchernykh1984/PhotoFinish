@@ -1283,11 +1283,8 @@ class MainWindow(QMainWindow):
             self._go(place)
 
     def go_live(self) -> None:
-        self._halt()
-        self.play_from = None
-        self.live = True
-        self.timeline.following = True
-        self._show_play()
+        self._halt(forget=True)
+        self._set_live(True)
         camera = self._camera()
         if camera is not None and len(camera.index):
             self._go(len(camera.index) - 1)
@@ -1295,13 +1292,11 @@ class MainWindow(QMainWindow):
     def _moved(self) -> None:
         """The referee moved the video: playing stops, Live is left, and Stop no
         longer goes back to where Play started."""
-        self._halt()
-        self.play_from = None
-        self._leave_live()
+        self._halt(forget=True)
+        self._set_live(False)
 
-    def _leave_live(self) -> None:
-        self.live = False
-        self.timeline.following = False
+    def _set_live(self, live: bool) -> None:
+        self.live = self.timeline.following = live
         self._show_play()
 
     # -- playing ---------------------------------------------------------------
@@ -1318,7 +1313,7 @@ class MainWindow(QMainWindow):
         the other cameras follow it, as they follow every move."""
         if self.place is None or self.moment is None:
             return
-        self._leave_live()
+        self._set_live(False)
         self.playing, self.play_from = True, self.moment
         self._play_start = (time.monotonic(), self.moment)
         self.play_timer.start(PLAY_MS)
@@ -1328,7 +1323,7 @@ class MainWindow(QMainWindow):
         """The frame shown held, and asked for again: one passed while playing may
         not have reached the screen, and timing waits for the one asked."""
         self._halt()
-        self._leave_live()
+        self._set_live(False)
         if self.place is not None:
             for camera in self.cameras.values():
                 camera.wanted, camera.pending = None, False
@@ -1342,9 +1337,13 @@ class MainWindow(QMainWindow):
         else:
             self.seek_ms(self.play_from)
 
-    def _halt(self) -> None:
+    def _halt(self, forget: bool = False) -> None:
+        """Playing stops; ``forget`` also drops where Play started, so Stop no
+        longer goes back there -- the one place that state is reset."""
         self.playing = False
         self.play_timer.stop()
+        if forget:
+            self.play_from = None
         self._show_play()
 
     def _play_tick(self) -> None:

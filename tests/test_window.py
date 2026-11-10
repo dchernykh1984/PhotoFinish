@@ -2178,7 +2178,7 @@ def test_a_frame_asked_for_before_frames_were_sorted_anew_is_not_shown_for_anoth
     monkeypatch.setattr(
         camera.worker, "request", lambda path, pts, tag: asked.append(tag)
     )
-    win._leave_live()
+    win._set_live(False)
     win._go(68)
     win._go(69)  # frame 69 asked for, still decoding
     on_its_way = asked[-1]
