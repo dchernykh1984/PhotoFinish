@@ -78,9 +78,10 @@ def open_source(
     return Stream(url, options, clock, listen=True, waiting=waiting)
 
 
-# A phone's own moment is believed up to this long before the frame is read: FFmpeg
-# looks a stream over for seconds before it gives the first frames.
-OWN_PAST_MS = 30_000
+# A phone's own moment is believed up to this long before its frame is read: the
+# look-over, the phone's queue of up to 2 s and the network. Further back, the
+# phone's clock is not in step with this one: its frame is placed by its arrival.
+OWN_PAST_MS = 5_000
 SLEW = 0.001  # the share of the time passed by which a clock may be brought nearer
 LEAP_MS = 2000  # clocks further apart than this are not drifting: one jumped, or lags
 

@@ -367,6 +367,13 @@ def test_a_camera_this_computer_reads_is_not_looked_into_for_moments() -> None:
     assert place(packet, 0) == START  # type: ignore[arg-type]
 
 
+def test_a_phone_s_moment_seconds_behind_the_recorder_is_not_believed() -> None:
+    # The recorder's clock read again after a sleep, before the phone's next exchange.
+    got = receive_phone(lambda k: time.time_ns() // 1000 - 8_000_000)  # 8 s behind
+    now = time.time_ns() // 1_000_000
+    assert all(now - 3_000 < ms <= now + 1_000 for ms in got)  # placed by arrival
+
+
 def test_a_phone_whose_clock_went_wrong_is_placed_by_arrival() -> None:
     got = receive_phone(lambda k: START * 1000 + k * 40_000)  # a year off
     now = time.time_ns() // 1_000_000
