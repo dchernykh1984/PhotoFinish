@@ -73,6 +73,7 @@ from app.widgets.timeline import Timeline
 
 POLL_MS = 500
 PLAY_MS = 15  # how often playing looks for the next frame: oftener than any camera's
+FOLLOW_S = 0.25  # how often the lists follow a video playing: not at every frame
 NEAR_MS = 1000  # another camera's frame further from the moment than this: none
 STOP_MS = 3000  # an analyser stopped is killed if it has not ended by then
 OUTSIDE = "The output file was changed outside PhotoFinish: kept beside it"
@@ -117,6 +118,7 @@ class MainWindow(QMainWindow):
         self.playing = False
         self.play_from: int | None = None  # the moment Play started from, for Stop
         self._play_start = (0.0, 0)  # the clock and the moment playing started at
+        self._followed = -math.inf  # when the lists last followed the video
         self.play_timer = QTimer(self)
         self.play_timer.timeout.connect(self._play_tick)
         self.play_button = QPushButton("Pause")  # live, the video plays on
@@ -1406,7 +1408,11 @@ class MainWindow(QMainWindow):
         self.time_label.setText(f"{clock} LIVE" if self.live else clock)
         source = int(self.session.get("source_offset_ms", 0))
         self.source_label.setText(f"source {source:+d} ms")
-        self._follow_lists(moment)
+        if dim or time.monotonic() - self._followed >= FOLLOW_S:
+            # Following scans every line of both lists: at a seek, at once; while
+            # playing, a few times a second, or a long race slows the playing.
+            self._followed = time.monotonic()
+            self._follow_lists(moment)
         for other in self.cameras.values():
             self._show_at(other, place if other is camera else None, moment, dim)
         self._show_marks()
