@@ -123,6 +123,10 @@ jobs:
             plist="dist/${APP_BUNDLE_NAME}.app/Contents/Info.plist"
             plutil -replace CFBundleShortVersionString -string "$version" "$plist"
             plutil -replace CFBundleVersion -string "$version" "$plist"
+            # macOS kills a bundle that opens a camera without saying why
+            # (TCC): the recorder opens USB cameras through AVFoundation.
+            plutil -replace NSCameraUsageDescription \
+              -string "PhotoFinish records the cameras you add." "$plist"
             # Editing the plist breaks the ad-hoc signature PyInstaller
             # applied ("plist or signature have been modified"), so reseal it.
             codesign --force --sign - "dist/${APP_BUNDLE_NAME}.app"
