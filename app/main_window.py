@@ -1318,8 +1318,8 @@ class MainWindow(QMainWindow):
     def play(self) -> None:
         """The chosen camera's recording from the frame shown, at its own speed;
         the other cameras follow it, as they follow every move."""
-        if self.place is None or self.moment is None:
-            return
+        if self.moment is None:
+            return  # nothing shown yet: no moment to play from
         self._set_live(False)
         self.playing, self.play_from = True, self.moment
         self._play_start = (time.monotonic(), self.moment)
