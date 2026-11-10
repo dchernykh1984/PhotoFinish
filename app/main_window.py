@@ -900,6 +900,7 @@ class MainWindow(QMainWindow):
                 return  # on its way already
             self._job.cancel()
             self._job = None
+            self._show_model()  # the stopped one's progress off its line
         model = models.preset(chosen)
         if model is not None and not models.ready(model):
             self._download(model)
