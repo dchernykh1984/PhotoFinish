@@ -2,6 +2,7 @@ package com.dchernykh.photofinish.camera.stream
 
 import com.dchernykh.photofinish.camera.capture.StreamFormat
 import com.dchernykh.photofinish.camera.pairing.RtmpAddress
+import com.dchernykh.photofinish.camera.sync.OffsetSlew
 import com.dchernykh.photofinish.camera.sync.Sample
 import java.io.IOException
 import java.util.concurrent.LinkedBlockingQueue
@@ -56,6 +57,7 @@ class Uplink(
     internal var stallMs = STALL_MS
 
     private val queue = LinkedBlockingQueue<EncodedFrame>(maxOf(format.fps * QUEUE_SECONDS, 1))
+    private val slew = OffsetSlew()
 
     @Volatile private var record: ByteArray? = null
 
@@ -155,7 +157,7 @@ class Uplink(
         sample: Sample?,
     ) {
         val units = Avc.splitAnnexB(frame.data).toMutableList()
-        if (sample != null) units.add(0, Sei.frameMoment(frame.ptsUs + sample.offset))
+        if (sample != null) units.add(0, Sei.frameMoment(frame.ptsUs + slew.at(frame.ptsUs, sample.offset)))
         sendingSince = System.nanoTime()
         try {
             connected.sendFrame(sinceStartUs / 1000, frame.keyframe, units)
