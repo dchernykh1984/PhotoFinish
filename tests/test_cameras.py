@@ -136,10 +136,10 @@ def test_phones_sharing_a_port_both_say_so() -> None:
     test = {"id": "cam4", "connection": "test", "settings": {}}
     session_cameras = [first, second, third, test]
     assert port_clash(first, session_cameras) == (
-        "port 1935 is shared with cam2: remove one, add it again"
+        "port 1935 is also cam2's: each phone needs its own"
     )
     assert port_clash(second, session_cameras) == (
-        "port 1935 is shared with Line: remove one, add it again"
+        "port 1935 is also Line's: each phone needs its own"
     )
     assert port_clash(third, session_cameras) is None
     assert port_clash(test, session_cameras) is None

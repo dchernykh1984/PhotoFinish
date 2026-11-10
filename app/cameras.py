@@ -65,7 +65,7 @@ def port_clash(camera: dict[str, Any], cameras: list[dict[str, Any]]) -> str | N
         if port is not None and other.get("id") != camera.get("id"):
             if _rtmp_port(other) == port:
                 name = other.get("name") or other.get("id")
-                return f"port {port} is shared with {name}: remove one, add it again"
+                return f"port {port} is also {name}'s: each phone needs its own"
     return None
 
 
