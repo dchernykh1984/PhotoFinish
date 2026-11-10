@@ -195,6 +195,28 @@ def test_stop_goes_back_to_where_play_started_and_playing_on_reaches_live(
     wait_until(showing(win, START + 69 * 33))
 
 
+def test_playing_shows_a_frame_decoded_late_and_pause_shows_only_the_one_asked(
+    recording: Path, make_window: Callable[[], mw.MainWindow]
+) -> None:
+    """A decoder slower than the camera answers every request after the next one
+    is asked: playing shows those answers rather than a picture that never moves."""
+    win = make_window()
+    wait_until(showing(win, START + 69 * 33))
+    win.step(-60)
+    camera = win.cameras["cam1"]
+    late = (camera.id, camera.index.frame(0))
+    assert late != camera.wanted
+    red, blue = (QImage(8, 8, QImage.Format.Format_RGB888) for _ in range(2))
+    red.fill(Qt.GlobalColor.red)
+    blue.fill(Qt.GlobalColor.blue)
+    win.play()
+    win._decoded(late, red)
+    assert win.view.image == red
+    win.pause()
+    win._decoded(late, blue)
+    assert win.view.image != blue
+
+
 def test_pause_holds_the_live_picture_while_recording_goes_on(
     recording: Path, make_window: Callable[[], mw.MainWindow]
 ) -> None:

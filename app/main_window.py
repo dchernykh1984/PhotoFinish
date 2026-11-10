@@ -1400,8 +1400,13 @@ class MainWindow(QMainWindow):
         """A frame decoded, handed over in this window's thread: a lambda would run
         in the decoder's, where no widget may be touched."""
         camera = self.cameras.get(tag[0])
-        if camera is None or tag != camera.wanted:
-            return  # an answer to a request since replaced, or a camera removed
+        if camera is None:
+            return  # a camera removed
+        if tag != camera.wanted and not (self.playing and not image.isNull()):
+            # An answer to a request since replaced. While playing it is shown all
+            # the same: on a decoder slower than the camera every answer is late,
+            # and a frame late beats a picture that never moves.
+            return
         if image.isNull():
             camera.view.show_text("This frame cannot be shown")
         else:
