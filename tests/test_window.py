@@ -1391,6 +1391,37 @@ def test_finding_riders_is_set_up_beside_the_video(
     view.grab()
 
 
+def test_a_preset_missing_on_disk_is_downloaded_before_the_analysers_start(
+    recording: Path,
+    make_window: Callable[[], mw.MainWindow],
+    analyzers: list[Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An event folder copied without models/: the preset it uses comes back by
+    itself, and the analysers wait for it instead of failing on it."""
+    saved = session.load()
+    saved["analysis"] = {"on": True, "model": models.MODELS[2].file}
+    session.save(saved)
+    fetched: list[str] = []
+    gate = threading.Event()
+
+    def fetch(model: models.Model, progress: Callable[[int], None]) -> Path:
+        gate.wait(5)
+        fetched.append(model.key)
+        return Path(model.file)
+
+    monkeypatch.setattr(mw.models, "fetch", fetch)
+    monkeypatch.setattr(mw.models, "ready", lambda model: model.key in fetched)
+    win = make_window()
+    win.poll()
+    assert not win.model_box.isEnabled()
+    assert analyzers == []  # no analyser fails on a model not there yet
+    gate.set()
+    wait_until(win.model_box.isEnabled)
+    assert fetched == ["yolox_s"]
+    assert [a.camera_id for a in analyzers] == ["cam1"]
+
+
 def test_a_closed_window_hears_nothing_from_a_download_still_running(
     win: mw.MainWindow,
 ) -> None:

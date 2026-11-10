@@ -182,6 +182,7 @@ class MainWindow(QMainWindow):
             self.camera_list.setCurrentRow(0)
         else:
             self._choose_camera(-1)
+        self._ensure_model()  # before the first poll starts any analyser
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.poll)
         self.timer.start(POLL_MS)
@@ -892,7 +893,19 @@ class MainWindow(QMainWindow):
         model = models.preset(chosen)
         if model is None or models.ready(model):
             self._set_model(chosen)
-            return
+        else:
+            self._download(model)
+
+    def _ensure_model(self) -> None:
+        """The preset in use downloaded when it is missing -- an event folder copied
+        without models/, a new copy of the program -- rather than left for the
+        analysers to fail on."""
+        model = models.preset(analysis.settings(self.session)["model"])
+        if model is not None and not models.ready(model):
+            self._download(model)
+
+    def _download(self, model: models.Model) -> None:
+        """The model fetched in the background; the analysers wait for it."""
         self.model_box.setEnabled(False)
         self._fetching = model
         self._say(f"Downloading {model.label}...")
@@ -975,6 +988,8 @@ class MainWindow(QMainWindow):
     def _analyze(self, camera: Camera) -> None:
         """The camera's analyser running, started again 30 s after it last was; not
         beside the one stopped before, while that ends its segment."""
+        if self._fetching is not None:
+            return  # the model is on its way: started once it is there
         recorded = camera.settings.get("record", True)
         running = any(
             process is not None and process.state() != QProcess.ProcessState.NotRunning
