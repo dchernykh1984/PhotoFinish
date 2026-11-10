@@ -1391,6 +1391,16 @@ def test_finding_riders_is_set_up_beside_the_video(
     view.grab()
 
 
+def test_a_closed_window_hears_nothing_from_a_download_still_running(
+    win: mw.MainWindow,
+) -> None:
+    win._fetching = models.MODELS[0]
+    win.close()
+    win._fetch.done.emit("")  # the download ends after the window went
+    QApplication.processEvents()
+    assert analysis.settings(session.load())["model"] == ""
+
+
 def test_the_model_list_turns_neither_with_the_wheel_nor_with_the_keys(
     win: mw.MainWindow, monkeypatch: pytest.MonkeyPatch
 ) -> None:
