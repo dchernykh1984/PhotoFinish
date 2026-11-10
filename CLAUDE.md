@@ -24,7 +24,7 @@ ChronometerPython issue #49.
 | `app/session.py` | `data/session.json`: the files chosen, the cameras, the offsets. |
 | `app/output_list.py` | The output file, its state and its journal. |
 | `app/input_follow.py` | The chronometer's file followed into the output. |
-| `app/cameras.py` | Connections, presets, what a camera's settings must be. |
+| `app/cameras.py` | Connections and what a camera's settings must be. |
 | `app/recorder/` | The recorder process: sources, segments, test camera, launcher. |
 | `app/video_index.py`, `app/decoder.py` | Recorded frames found by time; one decoded. |
 | `app/interpolation.py` | The finish line and the caliper reading. |

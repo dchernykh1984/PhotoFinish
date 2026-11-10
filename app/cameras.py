@@ -1,4 +1,4 @@
-"""Camera connections, the maintainer's presets, and what a camera's settings must be.
+"""Camera connections and what a camera's settings must be.
 
 A camera is a dict in the session (data-model.md): ``connection`` is one of
 ``CONNECTIONS`` and ``settings`` holds what that connection needs. ``problems``
@@ -12,7 +12,6 @@ import re
 import socket
 import sys
 from collections.abc import Callable
-from dataclasses import dataclass, field
 from typing import Any
 
 import av
@@ -24,44 +23,6 @@ from app.recorder.testcam import SCENES
 CONNECTIONS = ("usb", "rtsp", "rtmp", "test", "file")
 RTMP_PORT = 1935
 _RTMP_PATH = re.compile(r"[A-Za-z0-9._~-]+(/[A-Za-z0-9._~-]+)*")
-
-
-@dataclass(frozen=True)
-class Preset:
-    """A camera the maintainer owns, as a connection filled in. ``tested`` once it
-    has recorded with that very camera."""
-
-    id: str
-    name: str
-    connection: str
-    settings: dict[str, Any] = field(default_factory=dict)
-    tested: bool = False
-
-    @property
-    def label(self) -> str:
-        return self.name if self.tested else f"{self.name} (untested)"
-
-
-PRESETS = (
-    Preset(
-        "sjcam-hd1080p-usb",
-        "SJCAM HD1080P over USB",
-        "usb",
-        {"device": "PC Camera", "width": 1280, "height": 720, "fps": 30},
-    ),
-    Preset(
-        "sjcam-hd1080p-wifi",
-        "SJCAM HD1080P over its Wi-Fi",
-        "rtsp",
-        {"url": "rtsp://192.168.1.254/sjcam.mov"},
-    ),
-    Preset(
-        "sjcam-sj10pro-rtmp",
-        "SJCAM SJ10 Pro over RTMP",
-        "rtmp",
-        {"port": RTMP_PORT, "path": "live/sj10pro"},
-    ),
-)
 
 
 def recording_problems(camera: dict[str, Any]) -> list[str]:

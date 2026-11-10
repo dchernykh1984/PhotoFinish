@@ -1,4 +1,4 @@
-"""Camera connections, presets and the settings each needs."""
+"""Camera connections and the settings each needs."""
 
 from __future__ import annotations
 
@@ -8,29 +8,13 @@ from typing import Any
 import pytest
 
 from app import cameras
-from app.cameras import PRESETS, problems
+from app.cameras import problems
 
 
 @pytest.fixture(autouse=True)
 def capture(monkeypatch: pytest.MonkeyPatch) -> None:
     """A computer that captures USB cameras, whatever this one does."""
     monkeypatch.setattr(cameras, "usb_capture", lambda: "avfoundation")
-
-
-def test_the_presets_fill_in_cameras_that_can_record_and_say_untested() -> None:
-    assert [p.id for p in PRESETS] == [
-        "sjcam-hd1080p-usb",
-        "sjcam-hd1080p-wifi",
-        "sjcam-sj10pro-rtmp",
-    ]
-    for preset in PRESETS:
-        assert preset.label.endswith(" (untested)")
-        assert (
-            problems({"connection": preset.connection, "settings": preset.settings})
-            == []
-        )
-    tested = cameras.Preset("x", "Tried", "test", tested=True)
-    assert tested.label == "Tried"
 
 
 GOOD: list[dict[str, Any]] = [

@@ -49,9 +49,7 @@ recorder is down and at most the 0.1 s before it.
 
 Connections: USB camera, network stream the camera serves (RTSP, over TCP or UDP), stream the
 camera sends here (RTMP: PhotoFinish listens and shows the address to type in the camera app),
-test camera, video file. Presets fill a connection in for the maintainer's cameras: SJCAM HD1080P
-over USB, SJCAM HD1080P over its Wi-Fi, SJCAM SJ10 Pro over RTMP; each is labelled "untested"
-until it has recorded with that very camera.
+test camera, video file.
 
 A video file is either played as if filmed now (and recorded, for trying things out) or, the
 usual case, opened as it is: a camera's own recording from its card, placed by the file's creation

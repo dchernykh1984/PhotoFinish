@@ -1,4 +1,4 @@
-"""Adding a camera: a preset or a connection, and what that connection needs."""
+"""Adding a camera: its connection, and what that connection needs."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
 )
 
 from app import cameras
-from app.cameras import PRESETS, RTMP_PORT
+from app.cameras import RTMP_PORT
 from app.recorder.testcam import SCENES
 
 CONNECTION_NAMES = {
@@ -48,10 +48,6 @@ class CameraDialog(QDialog):
         self.setWindowTitle("Add a camera")
         self.camera_id = camera_id
         self.name = QLineEdit(f"Camera {camera_id.removeprefix('cam')}")
-        self.preset = QComboBox()
-        self.preset.addItem("None", None)
-        for preset in PRESETS:
-            self.preset.addItem(preset.label, preset.id)
         self.connection = QComboBox()
         for key, label in CONNECTION_NAMES.items():
             self.connection.addItem(label, key)
@@ -103,7 +99,6 @@ class CameraDialog(QDialog):
 
         self.form = QFormLayout(self)
         self.form.addRow("Name", self.name)
-        self.form.addRow("Preset", self.preset)
         self.form.addRow("Connection", self.connection)
         self._rows = {
             "device": self._row("Camera", self.device),
@@ -122,7 +117,6 @@ class CameraDialog(QDialog):
         self.form.addRow(self.buttons)
 
         self._here: str | None = None  # this computer's address, looked up once
-        self.preset.currentIndexChanged.connect(self._apply_preset)
         for box in (self.connection, self.device, self.transport, self.scene):
             box.currentTextChanged.connect(self._check)
         for line in (self.name, self.url, self.path, self.file):
@@ -141,7 +135,6 @@ class CameraDialog(QDialog):
             "name": self.name.text().strip() or self.camera_id,
             "connection": self.kind(),
             "settings": self._settings(),
-            "preset": self.preset.currentData(),
             "finish_line": [[0.5, 0.0], [0.5, 1.0]],
             "offset_ms": 0,
             "record": self.kind() != "file" or self.live.isChecked(),
@@ -163,25 +156,6 @@ class CameraDialog(QDialog):
         if kind == "test":
             return {**size, "fps": fps, "scene": self.scene.currentText()}
         return {"path": self.file.text().strip()}
-
-    def _apply_preset(self) -> None:
-        preset = next((p for p in PRESETS if p.id == self.preset.currentData()), None)
-        if preset is None:
-            return
-        self.connection.setCurrentIndex(list(CONNECTION_NAMES).index(preset.connection))
-        settings = preset.settings
-        if "device" in settings:
-            self.device.setCurrentText(settings["device"])
-        if "width" in settings:
-            self.width_box.setValue(settings["width"])
-            self.height_box.setValue(settings["height"])
-        if "fps" in settings:
-            self.fps.setValue(settings["fps"])
-        self.url.setText(settings.get("url", self.url.text()))
-        self.port.setValue(settings.get("port", self.port.value()))
-        self.path.setText(settings.get("path", self.path.text()))
-        if not self.name.text().startswith(preset.name):
-            self.name.setText(preset.name)
 
     def _check(self) -> None:
         shown = _ROWS[self.kind()]

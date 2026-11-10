@@ -24,32 +24,29 @@ from tests.conftest import wait_until
 START = 1_761_716_129_587
 
 
-def test_the_dialog_fills_a_preset_in_and_says_untested() -> None:
-    dialog = CameraDialog(None, "cam3", ["FaceTime HD Camera", "PC Camera"])
-    labels = [dialog.preset.itemText(i) for i in range(dialog.preset.count())]
-    assert labels[0] == "None"
-    assert all(label.endswith("(untested)") for label in labels[1:])
-    dialog.preset.setCurrentIndex(1)
+def test_the_dialog_gives_each_connection_its_settings() -> None:
+    dialog = CameraDialog(None, "cam3", ["FaceTime HD Camera", "USB Camera"])
+    dialog.connection.setCurrentIndex(dialog.connection.findData("usb"))
+    dialog.device.setCurrentText("USB Camera")
     camera = dialog.camera()
     assert camera["connection"] == "usb"
     assert camera["settings"] == {
-        "device": "PC Camera",
+        "device": "USB Camera",
         "width": 1280,
         "height": 720,
         "fps": 30,
     }
-    assert camera["preset"] == "sjcam-hd1080p-usb"
-    assert camera["name"] == "SJCAM HD1080P over USB"
-    dialog.preset.setCurrentIndex(2)
+    assert "preset" not in camera
+    dialog.connection.setCurrentIndex(dialog.connection.findData("rtsp"))
+    dialog.url.setText("rtsp://10.0.0.2/live")
     assert dialog.camera()["settings"] == {
-        "url": "rtsp://192.168.1.254/sjcam.mov",
+        "url": "rtsp://10.0.0.2/live",
         "transport": "tcp",
     }
-    dialog.preset.setCurrentIndex(3)
-    assert dialog.camera()["settings"] == {"port": 1935, "path": "live/sj10pro"}
-    assert dialog.address.text().endswith(":1935/live/sj10pro")
-    dialog.preset.setCurrentIndex(0)  # back to none: the fields stay
-    assert dialog.kind() == "rtmp"
+    dialog.connection.setCurrentIndex(dialog.connection.findData("rtmp"))
+    dialog.path.setText("live/phone")
+    assert dialog.camera()["settings"] == {"port": 1935, "path": "live/phone"}
+    assert dialog.address.text().endswith(":1935/live/phone")
 
 
 def test_the_dialog_looks_this_computer_up_once(
