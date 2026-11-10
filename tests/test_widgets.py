@@ -7,6 +7,7 @@ from pathlib import Path
 import av
 import numpy as np
 import pytest
+import segno
 from PySide6.QtCore import QPoint, QPointF, Qt
 from PySide6.QtGui import QFont, QImage, QWheelEvent
 from PySide6.QtTest import QTest
@@ -15,7 +16,7 @@ from PySide6.QtWidgets import QApplication, QFileDialog
 from app import cameras
 from app.recorder.segments import SegmentWriter
 from app.recorder.testcam import render
-from app.widgets.camera_dialog import CameraDialog
+from app.widgets.camera_dialog import CameraDialog, qr_pixmap
 from app.widgets.camera_view import CameraView
 from app.widgets.decode_worker import DecodeWorker, to_qimage
 from app.widgets.timeline import LEAST_VIEW_MS, Timeline
@@ -64,6 +65,19 @@ def test_the_dialog_looks_this_computer_up_once(
         dialog.path.setText(typed)
     assert dialog.address.text() == "rtmp://10.0.0.5:1935/live/abc"
     assert len(looked) == 1
+
+
+def test_the_dialog_shows_the_address_as_a_qr_code_for_the_phone(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(cameras, "this_computer", lambda: "10.0.0.5")
+    dialog = CameraDialog(None, "cam1", [])
+    shown = dialog.qr.pixmap().toImage()
+    assert not shown.isNull()
+    assert shown == qr_pixmap("rtmp://10.0.0.5:1935/live/cam1").toImage()
+    assert not segno.make_qr(dialog.address.text()).is_micro
+    dialog.path.setText("/bad")  # no address: no code to scan
+    assert dialog.qr.pixmap().isNull()
 
 
 def test_a_second_phone_gets_a_port_of_its_own(monkeypatch: pytest.MonkeyPatch) -> None:
