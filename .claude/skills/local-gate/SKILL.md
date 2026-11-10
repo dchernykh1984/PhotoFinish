@@ -13,6 +13,13 @@ uv run pre-commit run --all-files     # pre-commit job
 uv run pytest                          # tests job
 ```
 
+A change under `android/` also runs the phone app's gate (the `android` job; JDK
+17 and the Android SDK, as the `android-app` skill sets them):
+
+```
+cd android && ./gradlew ktlintCheck detekt lintDebug testDebugUnitTest koverVerify assembleDebug assembleRelease
+```
+
 Iterating on one file is much faster with the default addopts turned off:
 
 ```

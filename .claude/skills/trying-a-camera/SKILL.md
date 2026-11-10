@@ -1,15 +1,21 @@
 ---
 name: trying-a-camera
-description: Connecting a real camera to PhotoFinish and judging its video - the phone with a streaming app, the numbers that tell a usable stream from a bad one, probing a camera's own Wi-Fi, and what the action cameras taught. Use when the maintainer debugs a camera, a stream looks bad, or a new phone, app or camera is tried.
+description: Connecting a real camera to PhotoFinish and judging its video - the phone with PhotoFinish Camera or a streaming app, the numbers that tell a usable stream from a bad one, probing a camera's own Wi-Fi, and what the action cameras taught. Use when the maintainer debugs a camera, a stream looks bad, or a new phone, app or camera is tried.
 ---
 
 # Trying a camera
 
 ## The camera is a phone
 
-A phone on a tripod runs a free streaming app that pushes RTMP to PhotoFinish.
+A phone on a tripod runs PhotoFinish Camera, our own app (`android/`, the
+`android-app` skill), or a free streaming app; either pushes RTMP to PhotoFinish.
 
-- **App.** Larix Broadcaster was tried: a Xiaomi 17 Ultra gave 2560x1440 at
+- **PhotoFinish Camera.** The add-camera dialog shows a QR code the app scans.
+  Each frame carries its moment on the recorder's clock, so the recording's
+  steps follow the camera, not the Wi-Fi. Tried on the emulator; the Xiaomi 17
+  Ultra, then the Xiaomi 11 Ultra, are the phones to make it work on first.
+  Install the APK from the release, or a debug build with `adb install`.
+- **Streaming apps.** Larix Broadcaster was tried: a Xiaomi 17 Ultra gave 2560x1440 at
   59.9 fps; its free version writes "TEST STREAM" over the picture. IP Camera by
   ShenYao is free with ads and still to be tried. PRISM dropped 60 fps on
   Android.
@@ -47,7 +53,9 @@ with av.open(bases[-2] + ".mkv") as video:
 ```
 
 A usable stream: the frame rate set, gaps under a percent of the time, the
-bitrate set. The SJCAM SJ10 Pro over its Wi-Fi gave 23 of 30 fps, 49 s without
+bitrate set. From PhotoFinish Camera, also every frame with its own moment and
+steps within a millisecond or two of the frame interval: the `android-app`
+skill reads them. The SJCAM SJ10 Pro over its Wi-Fi gave 23 of 30 fps, 49 s without
 frames in 204 s and 0.9 Mbit/s: unusable for timing.
 
 ## Probing a camera's own Wi-Fi
