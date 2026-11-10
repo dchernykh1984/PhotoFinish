@@ -120,7 +120,7 @@ class Uplink(
         val connected = connect(address)
         publisher = connected
         connected.publish(metadata(format))
-        val withMoments = awaitClock()
+        awaitClock()
         connected.sendSequenceHeader(awaitRecord())
         queue.clear()
         requestKeyframe()
@@ -134,12 +134,11 @@ class Uplink(
             resync = false
             val start = first ?: frame.ptsUs
             first = start
-            send(connected, frame, frame.ptsUs - start, if (withMoments) clock() else null)
+            // Each frame with its moment from the moment the clock is known.
+            val sample = clock()
+            send(connected, frame, frame.ptsUs - start, sample)
             val rates = throughput.count(frame.data.size)
-            if (rates != null) {
-                val delayMs = if (withMoments) clock()?.delay?.div(1000.0) else null
-                report(UplinkStatus.Streaming(rates.first, rates.second, delayMs))
-            }
+            if (rates != null) report(UplinkStatus.Streaming(rates.first, rates.second, sample?.delay?.div(1000.0)))
         }
     }
 
@@ -160,11 +159,10 @@ class Uplink(
         }
     }
 
-    /** Waits a little for the clock; true when frames will carry their moments. */
-    private fun awaitClock(): Boolean {
+    /** Waits a little for the clock, so a connection's first frames carry their moments too. */
+    private fun awaitClock() {
         val until = System.nanoTime() + waitForClockMs * 1_000_000
         while (clock() == null && System.nanoTime() < until && running) sleep(POLL_MS)
-        return clock() != null
     }
 
     private fun awaitRecord(): ByteArray {
