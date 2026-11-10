@@ -272,6 +272,28 @@ def test_a_click_on_the_timeline_moves_the_video_there(
     assert not win.live
 
 
+def test_a_phone_sharing_a_port_says_so_in_the_camera_list(
+    make_window: Callable[[], mw.MainWindow],
+) -> None:
+    phone = {"connection": "rtmp", "settings": {"port": 1935, "path": "live/a"}}
+    session.save(
+        {
+            **session.DEFAULTS,
+            "cameras": [
+                {**phone, "id": "cam1", "name": "Line"},
+                {**phone, "id": "cam2", "name": "Side"},
+            ],
+        }
+    )
+    win = make_window()
+    assert not win.camera_list.item(0).text().startswith("Line: port")
+    assert (
+        win.camera_list.item(1)
+        .text()
+        .startswith("Side: port 1935 is Line's: remove this phone and add it again")
+    )
+
+
 def test_a_camera_added_is_saved_and_its_recorder_started(
     win: mw.MainWindow, spawned: list[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
