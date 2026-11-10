@@ -353,8 +353,8 @@ class MainWindow(QMainWindow):
     # -- cameras ---------------------------------------------------------------
 
     def add_camera(self) -> None:
-        taken = cameras.ports_taken(self.session["cameras"])
-        dialog = CameraDialog(self, self._free_id(), usb_cameras(), taken)
+        cameras_now = self.session["cameras"]
+        dialog = CameraDialog(self, self._free_id(), usb_cameras(), cameras_now)
         if dialog.exec() != CameraDialog.DialogCode.Accepted:
             return
         camera = dialog.camera()
