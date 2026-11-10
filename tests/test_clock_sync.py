@@ -88,6 +88,7 @@ def test_only_a_sender_on_this_network_is_answered() -> None:
         "172.20.10.2",
         "169.254.3.4",
         "127.0.0.1",
+        "100.101.102.103",  # a carrier's or Tailscale's shared space
     ):
         assert clock_sync.may_ask(here), here
     for stranger in ("8.8.8.8", "1.1.1.1"):
