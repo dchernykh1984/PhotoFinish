@@ -9,19 +9,20 @@ into the frame itself (specs/003-phone-camera-app/contracts/phone-stream.md).
 
 from __future__ import annotations
 
-import ipaddress
 import socket
 import struct
 import threading
+import time
 from collections.abc import Callable
-
-from app import cameras
 
 TAG = b"PFTS"
 VERSION = 1
 REQUEST = struct.Struct(">4sBq")  # tag, version, t1: sent on the phone's clock
 ANSWER = struct.Struct(">4sBqqq")  # tag, version, t1, t2 received, t3 sent here
 _RETRY_S = 0.1
+# The answer is longer than the request: rationed, no stranger can make this computer
+# send much elsewhere -- 1.5 kB a second at most -- while hundreds of phones fit.
+ANSWERS_PER_S = 50
 
 
 def answer(request: bytes, t2: int, t3: int) -> bytes | None:
@@ -35,24 +36,20 @@ def answer(request: bytes, t2: int, t3: int) -> bytes | None:
     return ANSWER.pack(TAG, VERSION, t1, t2, t3)
 
 
-def may_ask(host: str) -> bool:
-    """A sender on this network -- the computer itself, a link-local address or
-    one a phone shares this computer's network by -- and no stranger from beyond
-    it: the answer is longer than the request."""
-    address = ipaddress.ip_address(host)
-    return (
-        address.is_loopback
-        or address.is_link_local
-        or cameras.on_local_network(address)
-    )
-
-
 class ClockResponder:
     """Answers the exchange on UDP ``port`` with ``micros``, on a thread of its own,
-    until closed."""
+    until closed: any sender, as a venue's Wi-Fi may hand out public addresses, but
+    ANSWERS_PER_S at most."""
 
-    def __init__(self, port: int, micros: Callable[[], int], host: str = "") -> None:
-        self.micros = micros
+    def __init__(
+        self,
+        port: int,
+        micros: Callable[[], int],
+        host: str = "",
+        monotonic: Callable[[], float] = time.monotonic,
+    ) -> None:
+        self.micros, self.monotonic = micros, monotonic
+        self._second, self._answered = 0.0, 0
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
             self.socket.bind((host, port))  # every interface: the phone is on Wi-Fi
@@ -76,7 +73,7 @@ class ClockResponder:
                 request, sender = self.socket.recvfrom(64)
                 t2 = self.micros()
                 reply = answer(request, t2, self.micros())
-                if reply is not None and may_ask(sender[0]):
+                if reply is not None and self.may_answer():
                     self.socket.sendto(reply, sender)
             except TimeoutError:
                 continue
@@ -85,6 +82,14 @@ class ClockResponder:
                 # network gone: tried again after a pause, not in a busy loop.
                 if self._closed.wait(_RETRY_S):
                     return
+
+    def may_answer(self) -> bool:
+        """Another answer this second: ANSWERS_PER_S at most."""
+        now = self.monotonic()
+        if now - self._second >= 1:
+            self._second, self._answered = now, 0
+        self._answered += 1
+        return self._answered <= ANSWERS_PER_S
 
     def close(self) -> None:
         self._closed.set()
