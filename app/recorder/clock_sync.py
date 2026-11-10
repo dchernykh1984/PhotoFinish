@@ -9,6 +9,7 @@ into the frame itself (specs/003-phone-camera-app/contracts/phone-stream.md).
 
 from __future__ import annotations
 
+import ipaddress
 import socket
 import struct
 import threading
@@ -30,6 +31,12 @@ def answer(request: bytes, t2: int, t3: int) -> bytes | None:
     if tag != TAG or version != VERSION:
         return None
     return ANSWER.pack(TAG, VERSION, t1, t2, t3)
+
+
+def may_ask(host: str) -> bool:
+    """A sender on this network -- a private, link-local or loopback address -- and
+    no stranger from beyond it: the answer is longer than the request."""
+    return ipaddress.ip_address(host).is_private
 
 
 class ClockResponder:
@@ -61,7 +68,7 @@ class ClockResponder:
                 request, sender = self.socket.recvfrom(64)
                 t2 = self.micros()
                 reply = answer(request, t2, self.micros())
-                if reply is not None:
+                if reply is not None and may_ask(sender[0]):
                     self.socket.sendto(reply, sender)
             except TimeoutError:
                 continue
