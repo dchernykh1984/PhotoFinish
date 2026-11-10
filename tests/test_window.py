@@ -1467,7 +1467,8 @@ def test_a_closed_window_hears_nothing_from_a_download_still_running(
 ) -> None:
     win._fetching = models.MODELS[0]
     win.close()
-    win._fetch.done.emit("")  # the download ends after the window went
+    win._fetched("")  # an answer queued before the close, delivered after it
+    win._fetch_progress(1_000_000)
     QApplication.processEvents()
     assert analysis.settings(session.load())["model"] == ""
 

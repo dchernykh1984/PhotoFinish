@@ -112,6 +112,7 @@ class MainWindow(QMainWindow):
         self.place: int | None = None  # the frame shown, in the camera's index
         self.moment: int | None = None  # the video's time shown, ms
         self.live = True
+        self.closed = False
         self.playing = False
         self.play_from: int | None = None  # the moment Play started from, for Stop
         self._play_start = (0.0, 0)  # the clock and the moment playing started at
@@ -915,13 +916,15 @@ class MainWindow(QMainWindow):
         """How far the download is, in the model list itself: the status line keeps
         whatever warning it shows."""
         model = self._fetching
-        if model is not None:
+        if model is not None and not self.closed:
             self.model_box.setItemText(
                 self.model_box.currentIndex(),
                 f"{model.title}: {done // 1_000_000} of {model.megabytes} MB",
             )
 
     def _fetched(self, error: str) -> None:
+        if self.closed:
+            return  # an answer queued before the window went: not acted on
         model, self._fetching = self._fetching, None
         self.model_box.setEnabled(True)
         if error or model is None:
@@ -1475,7 +1478,7 @@ class MainWindow(QMainWindow):
         """The window goes; the recorders keep recording."""
         self.timer.stop()
         self.play_timer.stop()
-        self._fetch.blockSignals(True)  # a download still running is not heard
+        self.closed = True  # a download that ends now is not acted on
         for camera in self.cameras.values():
             camera.worker.stop()
             self._stop_analyzer(camera)
