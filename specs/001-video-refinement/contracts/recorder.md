@@ -13,6 +13,8 @@ it keeps recording when the window is gone.
 ```
 
 `state`: `starting`, `connecting`, `recording`, `reconnecting`, `stopped`, `disk_full`, `failed`.
+`clock`: for a phone camera, why its clock exchange is left out -- its UDP port taken -- and so
+its frames placed by their arrival; "" otherwise. The camera list says it in every state.
 A heartbeat older than 15 s means the recorder is gone: a camera open blocks up to 10 s without
 one. A recorder whose process the window started and saw end is gone at once, unless it ended
 with exit code 3: then the other recorder's heartbeat tells.

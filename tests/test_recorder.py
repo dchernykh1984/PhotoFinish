@@ -626,15 +626,15 @@ def test_a_port_taken_is_tried_again_while_the_phone_streams_and_said_meanwhile(
 
     def beat(self: Heartbeat, **changes: Any) -> None:
         real(self, **changes)
-        details.append(self.info["detail"])
+        details.append(self.info["clock"])
 
     cameras(monkeypatch, Camera(folder, START, 6, stop_after=5))  # never drops
     monkeypatch.setattr(Heartbeat, "beat", beat)
     assert run("cam1") == 0
     [responder] = Responder.made
     assert responder.closed
-    assert any("UDP port 1999" in detail for detail in details)
-    assert heartbeat(folder)["detail"] == ""
+    assert any("UDP port 1999" in clock for clock in details)  # said meanwhile
+    assert heartbeat(folder)["clock"] == ""  # and no more once it is answered
 
 
 class Waiting:
@@ -677,7 +677,7 @@ def test_a_port_taken_is_tried_again_and_said_while_the_phone_is_waited_for(
 
     def beat(self: Heartbeat, **changes: Any) -> None:
         real(self, **changes)
-        details.append(self.info["detail"])
+        details.append(f"{self.info['detail']}; {self.info['clock']}")
 
     made: list[int] = []
     cameras(monkeypatch, Waiting(folder, made))
@@ -687,7 +687,7 @@ def test_a_port_taken_is_tried_again_and_said_while_the_phone_is_waited_for(
     assert any("waiting for" in d and "UDP port 1999" in d for d in details)
 
 
-def test_a_taken_port_is_said_again_once_low_disk_is_over(
+def test_a_taken_port_is_said_through_low_disk_and_after(
     folder: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     phone_session()
@@ -714,13 +714,14 @@ def test_a_taken_port_is_said_again_once_low_disk_is_over(
     def beat(self: Heartbeat, **changes: Any) -> None:
         self._written = 0.0  # every beat written, for the test
         real(self, **changes)
-        written.append(self.info["detail"])
+        written.append(f"{self.info['detail']}|{self.info['clock']}")
 
     cameras(monkeypatch, Freed(folder, START, 6, stop_after=5))
     monkeypatch.setattr(Heartbeat, "beat", beat)
     assert run("cam1") == 0
-    assert "low disk" in written
-    assert "UDP port 1999" in written[written.index("low disk") :][-2]
+    low = [w for w in written if w.startswith("low disk|")]
+    assert low and all("UDP port 1999" in w for w in low)  # said through low disk
+    assert "UDP port 1999" in heartbeat(folder)["clock"]  # and after it
 
 
 def test_another_camera_gets_no_clock_exchange(

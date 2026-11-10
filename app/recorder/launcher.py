@@ -217,6 +217,9 @@ def describe(info: dict[str, Any] | None) -> str:
         return "not responding"
     if state == "recording":
         text = f"recording, {info.get('frames', 0)} frames"
-        return f"{text}, under 2 GB free" if detail == "low disk" else text
-    text = _STATES.get(state, state)
-    return f"{text}: {detail}" if detail else text
+        text = f"{text}, under 2 GB free" if detail == "low disk" else text
+    else:
+        text = _STATES.get(state, state)
+        text = f"{text}: {detail}" if detail else text
+    clock = str(info.get("clock", ""))  # a phone's clock exchange left out, and why
+    return f"{text}; {clock}" if clock else text
