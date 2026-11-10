@@ -5,6 +5,10 @@ recorded against video from the finish line and correct their times. It reads
 the chronometer's results file and never writes to it; corrections go to files
 of its own, which FinishProtocolGenerator reads in place of the original.
 
+The finish camera is a phone on a tripod: a free streaming app on it sends the
+video to PhotoFinish over the local network, and PhotoFinish records it (see
+[The camera: a phone](#the-camera-a-phone)).
+
 It records each finish camera in a process of its own that keeps recording when
 the window is gone, shows every camera at one moment, follows the chronometer's
 file as it grows, and keeps the referee's crossings -- added from a frame,
@@ -14,6 +18,26 @@ pass -- by motion, or by a detection model downloaded beforehand -- and suggests
 crossings to accept or dismiss. What it does, in full: [`specs/app`](specs/app/README.md);
 a first session with the test camera:
 [quickstart](specs/001-video-refinement/quickstart.md).
+
+## The camera: a phone
+
+1. Put a free streaming app that sends RTMP on the phone: Larix Broadcaster (tried:
+   2560x1440 at 60 fps; its free version writes "TEST STREAM" over the picture) or
+   IP Camera by ShenYao (free with ads, not tried yet).
+2. Put the phone and the computer on one network: the phone's own hotspot will do.
+3. In PhotoFinish: Cameras -> Add... -> OK. The phone's streaming app is offered
+   first, with the address to type in the app, such as
+   `rtmp://10.0.0.5:1935/live/cam1`.
+4. In the app: that address, 60 fps (many phones give a third-party app 30 only),
+   1080p or 1440p, about 10 Mbit/s and a keyframe a second. Start streaming: the
+   camera list says "recording".
+
+The phone runs for hours: keep it on a charger and out of direct sun, dim its
+screen, and keep the sun out of the frame.
+
+Action cameras were tried and dropped: their live video is a low-quality preview
+(the SJCAM SJ10 Pro: 1280x720 at about 0.9 Mbit/s over its own Wi-Fi, with seconds
+without frames, and no video over its cable).
 
 ## Download a ready-made app
 
@@ -90,8 +114,8 @@ it a folder of its own rather than a shared downloads directory. On macOS the
 files land next to the `.app` bundle, in the folder that contains it.
 
 The session is `data/session.json` and each camera's recording is in
-`video/<camera>/`, so keep the folder on a disk with room: about 2 GB an hour
-for each USB camera at 720p.
+`video/<camera>/`, so keep the folder on a disk with room: about 4 GB an hour
+for each phone sending 9 Mbit/s (1440p at 60 fps).
 
 This is also how you run several events side by side: copy the folder per event,
 and each copy keeps its own data. A symlink or a Finder alias will not work for
