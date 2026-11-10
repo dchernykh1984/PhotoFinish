@@ -1687,6 +1687,28 @@ def test_a_closed_window_hears_nothing_from_a_download_still_running(
     assert analysis.settings(session.load())["model"] == ""
 
 
+def test_closing_the_window_stops_a_download(
+    win: mw.MainWindow, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    stopped = threading.Event()
+
+    def fetch(
+        model: models.Model,
+        progress: Callable[[int], None],
+        cancelled: Callable[[], bool] = lambda: False,
+    ) -> Path:
+        while not cancelled():
+            time.sleep(0.01)
+        stopped.set()
+        raise models.FetchError(f"{model.title}: download stopped")
+
+    monkeypatch.setattr(mw.models, "fetch", fetch)
+    monkeypatch.setattr(mw.models, "ready", lambda model: False)
+    win._model_chosen(win.model_box.findData(models.MODELS[2].file))
+    win.close()
+    assert stopped.wait(5)
+
+
 def test_the_model_list_turns_neither_with_the_wheel_nor_with_the_keys(
     win: mw.MainWindow, monkeypatch: pytest.MonkeyPatch
 ) -> None:

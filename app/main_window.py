@@ -1503,6 +1503,8 @@ class MainWindow(QMainWindow):
         self.timer.stop()
         self.play_timer.stop()
         self.closed = True  # a download that ends now is not acted on
+        if self._job is not None:
+            self._job.cancel()  # nor goes on with no window to use it
         for camera in self.cameras.values():
             camera.worker.stop()
             self._stop_analyzer(camera)
