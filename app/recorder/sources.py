@@ -87,14 +87,20 @@ def open_source(
         "address": cameras.this_computer(),
     }
 
+    looking = threading.Lock()  # one lookup at a time: a slow one is not piled on
+
     def look_again() -> None:
-        looked["address"] = cameras.this_computer()
+        try:
+            looked["address"] = cameras.this_computer()
+        finally:
+            looking.release()
 
     def waiting() -> str:
         # Looked up again now and then, on a thread of its own: the computer may join
         # a network meanwhile, and a lookup with none may take a while, during which
         # nothing would listen for the phone.
-        if time.monotonic() - looked["at"] >= ADDRESS_FRESH_S:
+        stale = time.monotonic() - looked["at"] >= ADDRESS_FRESH_S
+        if stale and looking.acquire(blocking=False):
             looked["at"] = time.monotonic()
             threading.Thread(target=look_again, daemon=True).start()
         return f"waiting for {cameras.rtmp_url(settings, looked['address'])}"
