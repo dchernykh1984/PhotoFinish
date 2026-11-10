@@ -190,19 +190,35 @@ class Stream:
         with container:
             stream = container.streams.video[0]
             self.fps = float(stream.average_rate or stream.guessed_rate or 30)
-            rate = stream.time_base or Fraction(1, 1000)
-            unit = Fraction(rate.numerator, rate.denominator) * 1000
-            stamped = stream.codec_context.name == "h264"
-            # An avcC header: each unit after its length, as RTMP carries them.
-            prefixed = (stream.codec_context.extradata or b"")[:1] == b"\x01"
+            place = self._placing(stream)
             for packet in container.demux(stream):
                 if packet.pts is None or packet.dts is None:
                     continue
-                placed = self.anchor(float(packet.pts * unit))
-                own = frame_time.moment_ms(bytes(packet), prefixed) if stamped else None
-                if own is None or abs(own - placed) > LEAP_MS:
-                    own = placed  # none, or a phone whose clock went wrong
-                yield packet, own
+                yield packet, place(packet, packet.pts)
+
+    def _placing(
+        self, stream: av.video.stream.VideoStream
+    ) -> Callable[[av.Packet, int], int]:
+        """Each packet's moment: its own when it carries one near its arrival, else
+        its arrival. A frame after the latest one stays after it, as a phone's own
+        moments begin or end; a B-frame, earlier, keeps its own."""
+        rate = stream.time_base or Fraction(1, 1000)
+        unit = Fraction(rate.numerator, rate.denominator) * 1000
+        stamped = stream.codec_context.name == "h264"
+        # An avcC header: each unit after its length, as RTMP carries them.
+        prefixed = (stream.codec_context.extradata or b"")[:1] == b"\x01"
+        latest: list[int] = []  # the pts and the moment of the latest frame
+
+        def place(packet: av.Packet, pts: int) -> int:
+            placed = self.anchor(float(pts * unit))
+            own = frame_time.moment_ms(bytes(packet), prefixed) if stamped else None
+            moment = placed if own is None or abs(own - placed) > LEAP_MS else own
+            if not latest or pts > latest[0]:
+                moment = max(moment, latest[1] + 1) if latest else moment
+                latest[:] = [pts, moment]
+            return moment
+
+        return place
 
 
 class LiveFile:
