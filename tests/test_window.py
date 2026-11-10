@@ -251,6 +251,30 @@ def test_playing_asks_for_the_next_frame_once_the_one_on_its_way_is_shown(
     assert win.view.image != blue
 
 
+def test_playing_follows_the_lists_a_few_times_a_second_not_at_every_frame(
+    recording: Path,
+    make_window: Callable[[], mw.MainWindow],
+    clock: list[float],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    win = make_window()
+    wait_until(showing(win, START + 69 * 33))
+    win.step(-60)
+    followed: list[int] = []
+    monkeypatch.setattr(win, "_follow_lists", followed.append)
+    win.play()
+    for _ in range(5):  # five frames, a sixth of a second
+        clock[0] += 0.033
+        win._play_tick()
+        win.cameras["cam1"].pending = False
+    assert followed == []
+    clock[0] += 0.1
+    win._play_tick()
+    assert len(followed) == 1
+    win.pause()
+    assert len(followed) == 2  # a held frame: at once
+
+
 def test_pause_holds_the_live_picture_while_recording_goes_on(
     recording: Path, make_window: Callable[[], mw.MainWindow]
 ) -> None:
