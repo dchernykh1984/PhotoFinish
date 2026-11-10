@@ -4,6 +4,7 @@ Qt-free modules (session, video_index, recorder) and the widgets."""
 from __future__ import annotations
 
 import math
+import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -11,10 +12,18 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-from PySide6.QtCore import QProcess, QProcessEnvironment, Qt, QTimer
+from PySide6.QtCore import (
+    QObject,
+    QProcess,
+    QProcessEnvironment,
+    Qt,
+    QTimer,
+    Signal,
+)
 from PySide6.QtGui import QCloseEvent, QImage, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QCheckBox,
+    QComboBox,
     QFileDialog,
     QGridLayout,
     QHBoxLayout,
@@ -31,6 +40,7 @@ from PySide6.QtWidgets import (
 )
 
 from app import analysis, paths, session, shared_event
+from app.analysis import models
 from app.analysis.activity import Activity, how_far
 from app.analysis.suggestions import Suggestions
 from app.input_follow import InputFollow
@@ -149,8 +159,16 @@ class MainWindow(QMainWindow):
         self.analysis_box = QCheckBox("Find riders (experimental)")
         self.analysis_box.setChecked(analysis.settings(self.session)["on"])
         self.analysis_box.toggled.connect(self._analysis_on)
-        self.model_button = QPushButton()
-        self.model_button.clicked.connect(self.choose_model)
+        self.model_box = QComboBox()
+        self.model_box.setToolTip(
+            "What finds riders: motion in the zone, or a detection model, downloaded "
+            "once when first chosen"
+        )
+        self.model_box.activated.connect(self._model_chosen)
+        self._fetching: models.Model | None = None  # the model downloading
+        self._fetch = _Fetch()
+        self._fetch.progress.connect(self._fetch_progress)
+        self._fetch.done.connect(self._fetched)
         self._show_model()
         self.suggestion_list = QListWidget()
         self.suggestion_list.itemClicked.connect(self._suggestion_picked)
@@ -221,9 +239,6 @@ class MainWindow(QMainWindow):
         zone_button.setToolTip("Click two corners of where riders pass the line")
         zone_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         zone_button.clicked.connect(self.draw_zone)
-        motion_only = QPushButton("Motion only")
-        motion_only.setToolTip("Find riders by motion, without a model")
-        motion_only.clicked.connect(lambda: self._set_model(""))
         previous_rider = QPushButton("< Previous rider")
         previous_rider.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         previous_rider.clicked.connect(self.previous_rider)
@@ -235,8 +250,7 @@ class MainWindow(QMainWindow):
         finding.addWidget(next_rider)
         finding.addWidget(self.analysis_box)
         finding.addWidget(zone_button)
-        finding.addWidget(self.model_button)
-        finding.addWidget(motion_only)
+        finding.addWidget(self.model_box)
         finding.addStretch()
         video = QVBoxLayout()
         video.addWidget(self.views, stretch=1)
@@ -860,10 +874,44 @@ class MainWindow(QMainWindow):
 
     def choose_model(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
-            self, "A detection model, downloaded beforehand", "", "ONNX model (*.onnx)"
+            self, "A YOLOX detection model of your own", "", "ONNX model (*.onnx)"
         )
         if path:
             self._set_model(path)
+
+    def _model_chosen(self, index: int) -> None:
+        """A preset ready is chosen at once, one missing is downloaded first; the
+        last item opens a file of the referee's own."""
+        chosen = self.model_box.itemData(index)
+        if chosen == _OWN_FILE:
+            self.choose_model()
+            self._show_model()  # a file not chosen leaves the model as it was
+            return
+        model = models.preset(chosen)
+        if model is None or models.ready(model):
+            self._set_model(chosen)
+            return
+        self.model_box.setEnabled(False)
+        self._fetching = model
+        self._say(f"Downloading {model.label}...")
+        self._fetch.start(model)
+
+    def _fetch_progress(self, done: int) -> None:
+        if self._fetching is not None:
+            total = math.ceil(self._fetching.size / 1_000_000)
+            self._say(
+                f"Downloading {self._fetching.title}: {done // 1_000_000} of {total} MB"
+            )
+
+    def _fetched(self, error: str) -> None:
+        model, self._fetching = self._fetching, None
+        self.model_box.setEnabled(True)
+        if error or model is None:
+            self._say(error)
+            self._show_model()
+            return
+        self._say(f"{model.title} downloaded")
+        self._set_model(model.file)
 
     def _set_model(self, path: str) -> None:
         self.session["analysis"] = {**analysis.settings(self.session), "model": path}
@@ -876,8 +924,17 @@ class MainWindow(QMainWindow):
                 self._analyze(camera)
 
     def _show_model(self) -> None:
-        model = analysis.settings(self.session)["model"]
-        self.model_button.setText(f"Model: {Path(model).name}" if model else "Model...")
+        """The presets, a file of the referee's own when one is chosen, and the model
+        in use selected."""
+        chosen = analysis.settings(self.session)["model"]
+        self.model_box.clear()
+        self.model_box.addItem("Motion only", "")
+        for model in models.MODELS:
+            self.model_box.addItem(model.label, model.file)
+        if chosen and models.preset(chosen) is None:
+            self.model_box.addItem(f"Model: {Path(chosen).name}", chosen)
+        self.model_box.addItem("Model file...", _OWN_FILE)
+        self.model_box.setCurrentIndex(self.model_box.findData(chosen))
 
     def _analysis_on(self, on: bool) -> None:
         self.session["analysis"] = {**analysis.settings(self.session), "on": on}
@@ -1391,6 +1448,28 @@ class MainWindow(QMainWindow):
             camera.worker.stop()
             self._stop_analyzer(camera)
         super().closeEvent(event)
+
+
+_OWN_FILE = "?file"  # the model list's last item: a file of the referee's own
+
+
+class _Fetch(QObject):
+    """A model downloaded on a thread of its own, heard of through signals: Qt hands
+    them to the window's thread."""
+
+    progress = Signal(int)  # bytes so far
+    done = Signal(str)  # what went wrong; empty once the model is there
+
+    def start(self, model: models.Model) -> None:
+        threading.Thread(target=self._run, args=(model,), daemon=True).start()
+
+    def _run(self, model: models.Model) -> None:
+        try:
+            models.fetch(model, self.progress.emit)
+        except models.FetchError as error:
+            self.done.emit(str(error))
+        else:
+            self.done.emit("")
 
 
 def _same_file(chosen: object, path: str) -> bool:

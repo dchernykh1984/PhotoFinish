@@ -25,8 +25,9 @@ from PySide6.QtWidgets import (
     QPushButton,
 )
 
+from app import analysis, output_list, session
 from app import main_window as mw
-from app import output_list, session
+from app.analysis import models
 from app.lines import parse_time, scale_time, to_line_scale
 from app.main_window import start_analyzer
 from app.recorder.segments import SegmentWriter
@@ -1319,16 +1320,20 @@ def test_finding_riders_is_set_up_beside_the_video(
     win.analysis_box.setChecked(True)
     assert session.load()["analysis"] == {"on": True, "model": ""}
     assert view.zone == ((0.35, 0.0), (0.65, 1.0))
-    model = recording / "yolox_s.onnx"
+    assert win.model_box.currentText() == "Motion only"
+    own_file = win.model_box.findData(mw._OWN_FILE)
+    model = recording / "my_yolox.onnx"
     for chosen in ("", str(model)):
         monkeypatch.setattr(
             QFileDialog, "getOpenFileName", lambda *a, c=chosen: (c, "")
         )
-        win.choose_model()
+        win._model_chosen(own_file)
+        own_file = win.model_box.findData(mw._OWN_FILE)
     assert session.load()["analysis"]["model"] == str(model)
-    assert win.model_button.text() == "Model: yolox_s.onnx"
-    win._set_model("")
-    assert win.model_button.text() == "Model..."
+    assert win.model_box.currentText() == "Model: my_yolox.onnx"
+    win._model_chosen(win.model_box.findData(""))
+    assert win.model_box.currentText() == "Motion only"
+    assert win.model_box.findData(str(model)) == -1  # a file no longer chosen: gone
     win.draw_zone()
     assert "corner of the zone" in win.statusBar().currentMessage()
     win.picture_clicked((0.6, 0.9))
@@ -1337,6 +1342,59 @@ def test_finding_riders_is_set_up_beside_the_video(
     assert view.zone == ((0.4, 0.1), (0.6, 0.9))
     assert win.statusBar().currentMessage() == "The zone is drawn"
     view.grab()
+
+
+def test_a_model_preset_is_downloaded_once_then_used(
+    win: mw.MainWindow, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """002 FR-003: a preset missing is fetched in the background, then chosen; one
+    already there is chosen at once."""
+    fetched: list[str] = []
+    nano = models.MODELS[0]
+
+    def fetch(model: models.Model, progress: Callable[[int], None]) -> Path:
+        progress(model.size // 2)
+        fetched.append(model.key)
+        return Path(model.file)
+
+    monkeypatch.setattr(mw.models, "fetch", fetch)
+    monkeypatch.setattr(mw.models, "ready", lambda model: model.key in fetched)
+    labels = [win.model_box.itemText(i) for i in range(win.model_box.count())]
+    assert labels == [
+        "Motion only",
+        "YOLOX-Nano, the fastest (4 MB)",
+        "YOLOX-Tiny (21 MB)",
+        "YOLOX-S, finds the most (36 MB)",
+        "Model file...",
+    ]
+    win._model_chosen(win.model_box.findData(nano.file))
+    assert not win.model_box.isEnabled()  # one download at a time
+    wait_until(lambda: analysis.settings(session.load())["model"] == nano.file)
+    assert fetched == ["yolox_nano"]
+    assert win.model_box.isEnabled()
+    assert win.model_box.currentText() == nano.label
+    assert win.statusBar().currentMessage() == "YOLOX-Nano, the fastest downloaded"
+    win._set_model("")
+    win._model_chosen(win.model_box.findData(nano.file))  # there now: no download
+    assert fetched == ["yolox_nano"]
+    assert analysis.settings(session.load())["model"] == nano.file
+
+
+def test_a_model_that_cannot_be_downloaded_is_said_and_the_choice_stays(
+    win: mw.MainWindow, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fetch(model: models.Model, progress: Callable[[int], None]) -> Path:
+        raise models.FetchError(f"{model.title} cannot be downloaded: offline")
+
+    monkeypatch.setattr(mw.models, "fetch", fetch)
+    monkeypatch.setattr(mw.models, "ready", lambda model: False)
+    win._model_chosen(win.model_box.findData(models.MODELS[2].file))
+    wait_until(win.model_box.isEnabled)
+    assert "YOLOX-S, finds the most cannot be downloaded" in (
+        win.statusBar().currentMessage()
+    )
+    assert analysis.settings(session.load())["model"] == ""
+    assert win.model_box.currentText() == "Motion only"
 
 
 def stretch_files(base: Path, stretches: list[list[int]]) -> None:

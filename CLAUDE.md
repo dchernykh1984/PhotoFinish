@@ -4,7 +4,8 @@ Photo finish for offline race timing: a PySide6 desktop app in which the finish
 referee checks the crossings a chronometer recorded against video from one or
 more cameras and corrects their times. It reads the chronometer's files and
 never writes to them; its corrections go to files of its own. Files are the
-source of truth, and nothing here needs a network.
+source of truth, and nothing at the race needs a network: a detection model is
+downloaded once, when first chosen.
 
 It records each camera in a process of its own that keeps recording when the
 window is gone, follows the chronometer's results file, and keeps the referee's
@@ -50,10 +51,11 @@ their original spelling. Finder may launch a macOS app with `/` as its working
 directory.
 
 Next to the program: `data/session.json` (the session), `video/<camera id>/`
-(each camera's segments, frame times, gaps and its recorder's heartbeat) and
-`temp/` (a copy of the output after each change). The output file the referee
+(each camera's segments, frame times, gaps and its recorder's heartbeat),
+`temp/` (a copy of the output after each change) and `models/` (the detection
+models downloaded). The output file the referee
 chooses has `<output>.state.json` and `<output>.journal.txt` beside it. `data/`,
-`video/` and `temp/` are gitignored: run from the repository, the program writes
+`video/`, `temp/` and `models/` are gitignored: run from the repository, the program writes
 them there.
 
 ## The other timing tools

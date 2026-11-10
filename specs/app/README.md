@@ -20,6 +20,7 @@ FinishProtocolGeneratorPython reads as a finish file. Built by
 | `temp/<output stem>-<place>/<stamp><suffix>` | The output as each change left it: a copy a change, as the chronometers keep theirs; `<place>` is six hex of the output's path. |
 | `video/<camera>/activity.jsonl`, `analyzer.json` | Finding riders (experimental): the stretches with a rider in view, a line per segment; how far the analyser has got. |
 | `video/<camera>/suggestions.jsonl`, `suggestions.done.jsonl` | Crossings a detection model suggested; those the referee accepted or dismissed. |
+| `models/<model>.onnx` | A detection model, downloaded the first time it is chosen and checked against its pinned SHA-256. |
 
 Formats: [output and journal](../001-video-refinement/contracts/output-and-journal.md),
 [recorder](../001-video-refinement/contracts/recorder.md),
@@ -113,9 +114,11 @@ helps find the moments to look at.
 - **Without a model** a rider is motion inside the camera's **Zone** (two clicks; by default a band
   around the finish line) that travels at least a quarter of the zone across the line within
   2 s: leaves and grass swaying in place mark nothing.
-- **With a model** -- a YOLOX COCO detector in ONNX, such as `yolox_s.onnx` (Apache-2.0) from the
-  YOLOX releases, downloaded beforehand and chosen with **Model...**; nothing is fetched -- a
-  rider is a person or a bicycle overlapping the zone, looked for twice a second on the CPU. A
+- **With a model** -- a YOLOX COCO detector in ONNX (Apache-2.0), chosen in the model list:
+  YOLOX-Nano, YOLOX-Tiny or YOLOX-S, each downloaded the first time it is chosen from the YOLOX
+  releases, checked against its pinned SHA-256 and kept in `models/` next to the program, or
+  **Model file...** for one of the referee's own; a download that fails is said and changes
+  nothing -- a rider is a person or a bicycle overlapping the zone, looked for twice a second on the CPU. A
   model that cannot be used is said in the camera list and the analysis stops.
 - The timeline shows the stretches with a rider in view; **Next rider** and **Previous rider**
   (PageDown, PageUp) jump between their starts; the camera list says how far each camera's
