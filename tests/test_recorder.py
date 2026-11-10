@@ -637,6 +637,56 @@ def test_a_port_taken_is_tried_again_while_the_phone_streams_and_said_meanwhile(
     assert heartbeat(folder)["detail"] == ""
 
 
+class Waiting:
+    """A phone not there yet: a wait for it, then its frames; ``made`` notes how many
+    clock exchanges had been opened when the first frame came."""
+
+    fps = 30.0
+    waiting = "waiting for rtmp://10.0.0.5:1999/live/x"
+
+    def __init__(self, folder: Path, made: list[int]) -> None:
+        self.folder, self.made = folder, made
+
+    def frames(self) -> Iterator[Any]:
+        for _ in range(3):
+            yield None
+        self.made.append(len(Responder.made))
+        for k in range(3):
+            if k == 2:
+                (self.folder / "stop.request").touch()
+            yield render(START + k * 33, 640, 360), START + k * 33
+
+
+def test_a_port_taken_is_tried_again_and_said_while_the_phone_is_waited_for(
+    folder: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    phone_session()
+    monkeypatch.setattr(Responder, "made", [])
+    monkeypatch.setattr(recorder, "CLOCK_RETRY_S", 0.0)
+    tries: list[int] = []
+
+    def taken_once(port: int, micros: Any) -> Responder:
+        tries.append(port)
+        if len(tries) <= 2:  # at the open, and at the first wait
+            raise OSError(errno.EADDRINUSE, "Address already in use")
+        return Responder(port, micros)
+
+    monkeypatch.setattr(recorder, "ClockResponder", taken_once)
+    details: list[str] = []
+    real = Heartbeat.beat
+
+    def beat(self: Heartbeat, **changes: Any) -> None:
+        real(self, **changes)
+        details.append(self.info["detail"])
+
+    made: list[int] = []
+    cameras(monkeypatch, Waiting(folder, made))
+    monkeypatch.setattr(Heartbeat, "beat", beat)
+    assert run("cam1") == 0
+    assert made == [1]  # open before the phone's first frame, so it can stamp it
+    assert any("waiting for" in d and "UDP port 1999" in d for d in details)
+
+
 def test_another_camera_gets_no_clock_exchange(
     folder: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
