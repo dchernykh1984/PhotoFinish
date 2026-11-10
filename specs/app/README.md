@@ -74,9 +74,10 @@ or a swaying patch.
 - **Keys** (they work while a number is typed): Left/Right one frame, Shift ten, Ctrl one second,
   End back to Live (L too, when no number is being typed: a number may hold an L). Live follows
   the newest frame.
-- **Play, Pause, Stop.** Play runs the chosen camera's recording from the frame shown at its own
-  speed, the other cameras following; a frame not decoded in time is passed, never waited for,
-  and playing on past the newest frame is Live. Pause holds the frame shown -- Live too, while
+- **Play, Pause, Stop.** Play runs the recording from the moment shown at its own speed, every
+  camera following. Each frame shown is one asked for, the next asked once it is on screen, so
+  a slow computer shows fewer frames, never late ones; a gap of more than a second in the
+  recording is jumped over, and playing on past the newest frame is Live. Pause holds the frame shown -- Live too, while
   recording goes on -- and asks for it again, so a crossing is timed on the frame on screen;
   while playing, timing waits for Pause. Stop goes back to the frame Play started from.
 - **Input.** New lines of the chronometer's file arrive in the output within 2 s, as they are. A
@@ -119,7 +120,8 @@ helps find the moments to look at.
   or at start when the one chosen is missing, checked against its pinned SHA-256 and kept in
   `models/` next to the program; or **Model file...** for one of the referee's own. The
   download's progress shows in the list; choosing anything else stops it, and a download that
-  fails is said and changes nothing -- a rider is a person or a bicycle overlapping the zone, looked for twice a second on the CPU. A
+  fails is said and changes nothing. While the model in use is missing no analyser starts, and
+  the camera list says so -- a rider is a person or a bicycle overlapping the zone, looked for twice a second on the CPU. A
   model that cannot be used is said in the camera list and the analysis stops.
 - The timeline shows the stretches with a rider in view; **Next rider** and **Previous rider**
   (PageDown, PageUp) jump between their starts; the camera list says how far each camera's
