@@ -292,7 +292,11 @@ class _Recording:
         """Frames into segments; True when a stop was asked for."""
         for item in source.frames():
             if item is None:
-                self.beat.beat(state="connecting", detail=source.waiting)
+                self._answer_the_clock()  # open before the phone's first frame
+                waiting = "; ".join(
+                    t for t in (source.waiting, self.clock_problem) if t
+                )
+                self.beat.beat(state="connecting", detail=waiting)
             else:
                 self._write(source, *item)
             if self.stop.exists():
