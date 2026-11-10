@@ -1746,9 +1746,18 @@ def test_no_analyser_starts_while_the_model_in_use_is_missing(
     monkeypatch.setattr(mw.models, "fetch", fetch)
     monkeypatch.setattr(mw.models, "ready", lambda model: False)
     win = make_window()
+    win.poll()
+    assert win.camera_list.item(0).text().endswith("; riders: the model is downloading")
     win._model_chosen(win.model_box.findData(models.MODELS[1].file))
     win.poll()
     assert analyzers == []
+    assert (
+        win.camera_list.item(0)
+        .text()
+        .endswith(  # Tiny comes, not S in use
+            "; riders: the model is not here, choose it to download it"
+        )
+    )
     may_end.set()
     wait_until(lambda: win._fetching is None)
     win.poll()

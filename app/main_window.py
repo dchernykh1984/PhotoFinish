@@ -1257,8 +1257,12 @@ class MainWindow(QMainWindow):
         if clash:
             state = f"{clash}; {state}"
         if self.analysis_box.isChecked() and camera.settings.get("record", True):
-            if self._model_missing() and self._job is None:
-                state += "; riders: the model is not here, choose it to download it"
+            if self._model_missing():
+                in_use = analysis.settings(self.session)["model"]
+                coming = self._job is not None and self._job.model.file == in_use
+                state += "; riders: the model is " + (
+                    "downloading" if coming else "not here, choose it to download it"
+                )
             else:
                 state += f"; riders {self._riders_progress(camera)}"
         camera.item.setText(f"{camera.settings.get('name', camera.id)}: {state}")
