@@ -1354,8 +1354,8 @@ class MainWindow(QMainWindow):
         self._show_play()
 
     def _play_tick(self) -> None:
-        """The frame due now, by the clock since Play: a frame the decoder has not
-        caught up with is passed, never waited for."""
+        """The frame due now, by the clock since Play, once the one on its way is
+        shown: a frame the decoder has not caught up with is passed over."""
         camera = self._camera()
         if not self.playing or camera is None or not len(camera.index):
             self._halt()
@@ -1366,8 +1366,10 @@ class MainWindow(QMainWindow):
         )
         if place is None:
             self.go_live()  # caught up with the recording: it plays on live
-        elif place != self.place or camera.shown != place:
-            self._go(place, dim=False)  # due, or still to be asked: one was on its way
+        elif not camera.pending and (place != self.place or camera.shown != place):
+            # Due, or passed over while one was on its way; while one is, nothing
+            # is done at all: a slow decoder is not raced by the whole window.
+            self._go(place, dim=False)
 
     def _show_play(self) -> None:
         self.play_button.setText("Pause" if self.live or self.playing else "Play")
