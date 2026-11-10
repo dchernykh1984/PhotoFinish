@@ -248,7 +248,7 @@ class Stream:
         # Only a phone pushing here stamps its frames: an RTSP camera's are not read.
         stamped = self.listen and stream.codec_context.name == "h264"
         trusted: list[bool] = []  # the first packet's say, for the whole stream
-        last: list[int] = []  # the last own moment given
+        last: list[int] = []  # the pts and moment of the last frame given
 
         def place(packet: av.Packet, pts: int) -> int:
             if trusted and not trusted[0]:  # by arrival: nothing more to look for
@@ -260,12 +260,15 @@ class Stream:
                 # moments out of step; another camera's never carry them.
                 missing = UNSTAMPED if own is None else NOT_IN_STEP
                 self.clock_note = missing if phone and not trusted[0] else ""
-            if own is None or not trusted[0]:
-                return self.anchor(float(pts * unit))
+                if not trusted[0]:
+                    return self.anchor(float(pts * unit))
+            if own is None:  # a trusted stream's frame without it: by its timestamp
+                own = last[1] + round(float((pts - last[0]) * unit))
             # A better exchange may move the phone's offset back a little, at its
             # start or in a step: its frames keep their order still.
-            last[:] = [max(own, last[0] + 1) if last else own]
-            return last[0]
+            moment = max(own, last[1] + 1) if last else own
+            last[:] = [pts, moment]
+            return moment
 
         return place
 
