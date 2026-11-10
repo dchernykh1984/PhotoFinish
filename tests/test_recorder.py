@@ -123,6 +123,7 @@ class Camera:
     a stop is asked for after ``stop_after`` frames."""
 
     fps = 30.0
+    unstamped = False
 
     def __init__(
         self,
@@ -485,6 +486,7 @@ class Network:
     """A network camera: a wait for it to call in, then its packets."""
 
     fps = 30.0
+    unstamped = False
     waiting = "waiting for rtmp://10.0.0.5:1935/live/x"
 
     def __init__(self, folder: Path, path: Path) -> None:
@@ -642,6 +644,7 @@ class Waiting:
     clock exchanges had been opened when the first frame came."""
 
     fps = 30.0
+    unstamped = False
     waiting = "waiting for rtmp://10.0.0.5:1999/live/x"
 
     def __init__(self, folder: Path, made: list[int]) -> None:
@@ -722,6 +725,29 @@ def test_a_taken_port_is_said_through_low_disk_and_after(
     low = [w for w in written if w.startswith("low disk|")]
     assert low and all("UDP port 1999" in w for w in low)  # said through low disk
     assert "UDP port 1999" in heartbeat(folder)["clock"]  # and after it
+
+
+def test_a_phone_streaming_without_its_moments_is_said(
+    folder: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    phone_session()
+    monkeypatch.setattr(Responder, "made", [])
+    monkeypatch.setattr(recorder, "ClockResponder", Responder)
+
+    class Unstamped(Camera):
+        unstamped = True  # connected before the exchange was answered, say
+
+    clocks: list[str] = []
+    real = Heartbeat.beat
+
+    def beat(self: Heartbeat, **changes: Any) -> None:
+        real(self, **changes)
+        clocks.append(self.info["clock"])
+
+    cameras(monkeypatch, Unstamped(folder, START, 4, stop_after=3))
+    monkeypatch.setattr(Heartbeat, "beat", beat)
+    assert run("cam1") == 0
+    assert any("without their moments" in clock for clock in clocks)
 
 
 def test_another_camera_gets_no_clock_exchange(
