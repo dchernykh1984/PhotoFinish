@@ -216,30 +216,25 @@ class Stream:
     def _placing(
         self, stream: av.video.stream.VideoStream, phone: bool = False
     ) -> Callable[[av.Packet, int], int]:
-        """Each packet's moment: its own when it carries one the clock can believe,
-        else its arrival. The clock as it is read, not the anchor on the arrival, is
-        what the own moment is held against: the first frames come in a burst once
-        FFmpeg has looked the stream over, and the anchor is that late. A frame after
-        the latest one stays after it, as a phone's own moments begin or end; a
-        B-frame keeps its own."""
+        """Each packet's moment: its own, when the stream's first packet carries one
+        the clock can believe as it is read, else its arrival -- for the whole stream.
+        The clock relation does not change within a connection, and a frame the Wi-Fi
+        held up for seconds keeps its own moment; a phone sends all its frames with
+        their moments or none, so the two never mix and the frames keep their order."""
         rate = stream.time_base or Fraction(1, 1000)
         unit = Fraction(rate.numerator, rate.denominator) * 1000
         # Only a phone pushing here stamps its frames: an RTSP camera's are not read.
         stamped = self.listen and stream.codec_context.name == "h264"
-        latest: list[int] = []  # the pts and the moment of the latest frame
+        trusted: list[bool] = []  # the first packet's say, for the whole stream
 
         def place(packet: av.Packet, pts: int) -> int:
-            moment = frame_time.moment_ms(memoryview(packet)) if stamped else None
-            if moment is None or not self._believed(moment):
-                moment = self.anchor(float(pts * unit))
-                self.unstamped = phone  # said in the camera list
-            else:
-                self.unstamped = False
-            if not latest or pts > latest[0]:  # a B-frame keeps its own
-                if latest:
-                    moment = max(moment, latest[1] + 1)
-                latest[:] = [pts, moment]
-            return moment
+            own = frame_time.moment_ms(memoryview(packet)) if stamped else None
+            if not trusted:
+                trusted.append(own is not None and self._believed(own))
+            self.unstamped = phone and not trusted[0]  # said in the camera list
+            if own is not None and trusted[0]:
+                return own
+            return self.anchor(float(pts * unit))
 
         return place
 
