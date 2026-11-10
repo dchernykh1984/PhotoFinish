@@ -1,0 +1,41 @@
+# Gradle version catalog: the single source of dependency and plugin versions.
+#
+# The toolchain is pinned as in ChronometerAndroid, below the 2026 AndroidX train
+# (AGP 9 / Gradle 9 / compileSdk 37 / Kotlin >= 2.3 / Compose 1.9+): detekt has no
+# stable Gradle-9 release, and AGP 8.13 cannot run on Gradle 9.
+
+[versions]
+agp = "8.13.2"
+kotlin = "2.2.21"
+ktlint-gradle = "14.2.0"
+detekt = "1.23.8"
+kover = "0.9.8"
+# The highest that builds against compileSdk 36 (as in ChronometerAndroid).
+coreKtx = "1.18.0"
+activityCompose = "1.11.0"
+composeBom = "2025.07.00"
+lifecycle = "2.8.7"
+# The QR code reader: ZXing's embedded scanner, Apache-2.0.
+zxingEmbedded = "4.3.0"
+junit = "4.13.2"
+
+[libraries]
+junit = { group = "junit", name = "junit", version.ref = "junit" }
+androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
+androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
+androidx-compose-ui = { group = "androidx.compose.ui", name = "ui" }
+androidx-compose-ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics" }
+androidx-compose-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
+androidx-compose-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
+androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3" }
+androidx-lifecycle-runtime-compose = { group = "androidx.lifecycle", name = "lifecycle-runtime-compose", version.ref = "lifecycle" }
+zxing-android-embedded = { group = "com.journeyapps", name = "zxing-android-embedded", version.ref = "zxingEmbedded" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+ktlint = { id = "org.jlleitschuh.gradle.ktlint", version.ref = "ktlint-gradle" }
+detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }
+kover = { id = "org.jetbrains.kotlinx.kover", version.ref = "kover" }

@@ -8,5 +8,14 @@
 # auto-detect which files are text.
 * text=auto eol=lf
 
+# PhotoFinish Camera's Gradle wrapper, as ChronometerAndroid keeps it: the Unix
+# script LF and executable; the Windows one as Gradle ships it, CRLF, which a
+# batch file needs and Git must not normalise.
+android/gradlew text eol=lf
+android/gradlew.bat -text
+
 # Binary assets Git must never convert or diff.
 *.ico binary
+*.jar binary
+*.jks binary
+*.png binary
