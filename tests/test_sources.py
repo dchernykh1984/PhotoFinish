@@ -399,10 +399,28 @@ def test_a_phone_s_stream_says_when_its_frames_come_without_moments() -> None:
     place(avcc(b"\x65\x88"), 0)  # type: ignore[arg-type]
     assert source.unstamped
     place(avcc(sei(START * 1000), b"\x41\x9a"), 33)  # type: ignore[arg-type]
-    assert not source.unstamped
+    assert source.unstamped  # a stream begun without them keeps placing by arrival
+    stamped = source._placing(stream, phone=True)  # type: ignore[arg-type]
+    stamped(avcc(sei(START * 1000), b"\x65\x88"), 0)  # type: ignore[arg-type]
+    assert not source.unstamped  # the next connection, stamped from its start
     streaming_app = source._placing(stream, phone=False)  # type: ignore[arg-type]
     streaming_app(avcc(b"\x65\x88"), 66)  # type: ignore[arg-type]
     assert not source.unstamped  # Larix and the like never carry them
+
+
+def test_a_phone_s_frame_held_up_on_the_way_keeps_its_own_moment() -> None:
+    now = {"ms": START}
+    source = sources.Stream(
+        "rtmp://0.0.0.0:1935/live/x", {}, lambda: now["ms"], listen=True
+    )
+    stream = SimpleNamespace(
+        time_base=Fraction(1, 1000), codec_context=SimpleNamespace(name="h264")
+    )
+    place = source._placing(stream, phone=True)  # type: ignore[arg-type]
+    assert place(avcc(sei((START - 300) * 1000), b"\x65\x88"), 0) == START - 300  # type: ignore[arg-type]
+    now["ms"] = START + 7_000  # Wi-Fi held the next frame up for seconds
+    late = place(avcc(sei((START - 267) * 1000), b"\x41\x9a"), 33)  # type: ignore[arg-type]
+    assert late == START - 267  # its own moment still: the phone's clock is in step
 
 
 def test_a_phone_whose_clock_went_wrong_is_placed_by_arrival() -> None:
