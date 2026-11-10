@@ -13,7 +13,7 @@ data class RtmpAddress(
     /** The connect command's tcUrl: the address without the stream. */
     val tcUrl: String get() = "rtmp://${hostForUrl()}:$port/$app"
 
-    override fun toString(): String = "rtmp://${hostForUrl()}:$port/$app/$stream"
+    override fun toString(): String = if (stream.isEmpty()) tcUrl else "$tcUrl/$stream"
 
     private fun hostForUrl(): String = if (':' in host) "[$host]" else host
 
@@ -22,15 +22,18 @@ data class RtmpAddress(
         private const val SCHEME = "rtmp://"
         private const val MAX_PORT = 65535
 
-        /** The address in [text], or null when it is not an `rtmp://` address with a path. */
+        /**
+         * The address in [text], or null when it is not an `rtmp://` address with a path. A path
+         * of one part, which PhotoFinish takes too, is the application with no stream name.
+         */
         fun parse(text: String): RtmpAddress? {
             val trimmed = text.trim()
             val rest = if (trimmed.startsWith(SCHEME, ignoreCase = true)) trimmed.substring(SCHEME.length) else ""
             val (host, port) = hostAndPort(rest.substringBefore('/', "")) ?: return null
             val path = rest.substringAfter('/', "").trim('/')
-            val app = path.substringBefore('/', "")
+            val app = path.substringBefore('/')
             val stream = path.substringAfter('/', "")
-            return if (app.isEmpty() || stream.isEmpty()) null else RtmpAddress(host, port, app, stream)
+            return if (app.isEmpty()) null else RtmpAddress(host, port, app, stream)
         }
 
         /** `host`, `host:port` or `[v6 host]:port`; the port defaults to RTMP's. */

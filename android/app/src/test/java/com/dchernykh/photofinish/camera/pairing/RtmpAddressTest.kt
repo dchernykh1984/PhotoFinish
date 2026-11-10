@@ -28,12 +28,19 @@ class RtmpAddressTest {
     }
 
     @Test
+    fun `a path of one part, which PhotoFinish takes too, is the application alone`() {
+        val address = RtmpAddress.parse("rtmp://10.0.0.5:1935/cam1/")!!
+        assertEquals(RtmpAddress("10.0.0.5", 1935, "cam1", ""), address)
+        assertEquals("rtmp://10.0.0.5:1935/cam1", address.toString())
+        assertEquals("rtmp://10.0.0.5:1935/cam1", address.tcUrl)
+    }
+
+    @Test
     fun `anything else is not an address`() {
         listOf(
             "http://10.0.0.2/live/x",
             "rtmp://10.0.0.2",
-            "rtmp://10.0.0.2/live",
-            "rtmp://10.0.0.2/live/",
+            "rtmp://10.0.0.2/",
             "rtmp:///live/x",
             "rtmp://10.0.0.2:0/live/x",
             "rtmp://10.0.0.2:70000/live/x",
