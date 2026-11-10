@@ -1478,9 +1478,11 @@ def test_a_model_preset_is_downloaded_once_then_used(
     already there is chosen at once."""
     fetched: list[str] = []
     nano = models.MODELS[0]
+    gate = threading.Event()
 
     def fetch(model: models.Model, progress: Callable[[int], None]) -> Path:
         progress(model.size // 2)
+        gate.wait(5)
         fetched.append(model.key)
         return Path(model.file)
 
@@ -1496,6 +1498,10 @@ def test_a_model_preset_is_downloaded_once_then_used(
     ]
     win._model_chosen(win.model_box.findData(nano.file))
     assert not win.model_box.isEnabled()  # one download at a time
+    wait_until(lambda: win.model_box.currentText().endswith(": 1 of 4 MB"))
+    said = "Downloading YOLOX-Nano, the fastest (4 MB)..."
+    assert win.statusBar().currentMessage() == said  # not covered by progress
+    gate.set()
     wait_until(lambda: analysis.settings(session.load())["model"] == nano.file)
     assert fetched == ["yolox_nano"]
     assert win.model_box.isEnabled()

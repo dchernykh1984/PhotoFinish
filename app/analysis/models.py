@@ -45,8 +45,12 @@ class Model:
         return f"{_RELEASE}{self.key}.onnx"
 
     @property
+    def megabytes(self) -> int:
+        return math.ceil(self.size / 1_000_000)
+
+    @property
     def label(self) -> str:
-        return f"{self.title} ({math.ceil(self.size / 1_000_000)} MB)"
+        return f"{self.title} ({self.megabytes} MB)"
 
 
 MODELS = (
@@ -96,10 +100,11 @@ def fetch(
     opener: Opener | None = None,
 ) -> Path:
     """The model downloaded next to the program and checked; ``progress`` hears the
-    bytes so far. Raises FetchError, leaving nothing under the model's name."""
+    bytes so far at each whole megabyte and at the end, not at every chunk. Raises
+    FetchError, leaving nothing under the model's name."""
     path = app_path(model.file)
     part = path.with_name(path.name + ".part")
-    digest, done = hashlib.sha256(), 0
+    digest, done, told = hashlib.sha256(), 0, -1
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         with (opener or _open)(model.url) as reply, part.open("wb") as out:
@@ -109,7 +114,9 @@ def fetch(
                     raise FetchError(f"{model.title}: more than the model pinned")
                 digest.update(chunk)
                 out.write(chunk)
-                progress(done)
+                if done // 1_000_000 > told or done == model.size:
+                    told = done // 1_000_000
+                    progress(done)
         if done != model.size or digest.hexdigest() != model.sha256:
             raise FetchError(f"{model.title}: the download is not the model pinned")
         part.replace(path)

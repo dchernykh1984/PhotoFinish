@@ -912,10 +912,13 @@ class MainWindow(QMainWindow):
         self._fetch.start(model)
 
     def _fetch_progress(self, done: int) -> None:
-        if self._fetching is not None:
-            total = math.ceil(self._fetching.size / 1_000_000)
-            self._say(
-                f"Downloading {self._fetching.title}: {done // 1_000_000} of {total} MB"
+        """How far the download is, in the model list itself: the status line keeps
+        whatever warning it shows."""
+        model = self._fetching
+        if model is not None:
+            self.model_box.setItemText(
+                self.model_box.currentIndex(),
+                f"{model.title}: {done // 1_000_000} of {model.megabytes} MB",
             )
 
     def _fetched(self, error: str) -> None:
