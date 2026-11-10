@@ -150,6 +150,9 @@ helps find the moments to look at.
 - A network camera's timestamps follow its own clock, which can drift from the computer's by a few
   tenths of a second over a long day: align again when it shows. PhotoFinish Camera's do not: its
   clock is brought into step every 2 s.
+- On a network with no gateway this computer's address is looked up by its name, which on
+  some Linux systems gives only a loopback address: the camera dialog then shows no QR code,
+  and the address is typed in the phone.
 - PhotoFinish Camera has been tried on the Android emulator, whose camera stamps a frame a frame's
   time later than it took it; the Xiaomi 17 Ultra and the Xiaomi 11 Ultra come first among real
   phones. A phone whose camera stamps its frames on neither of Android's clocks streams them

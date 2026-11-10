@@ -40,7 +40,10 @@ CONNECTION_NAMES = {  # the phone's streaming app first: the camera PhotoFinish 
     "test": "Test camera",
     "file": "Video file",
 }
-NO_NETWORK = "No network address: join this computer and the phone to one network"
+NO_NETWORK = (
+    "No network address found: join this computer and the phone to one network, "
+    "or type this computer's address in the phone"
+)
 NETWORK_POLL_MS = 2000
 _ROWS = {  # the fields each connection shows
     "usb": ("device", "size", "fps"),
