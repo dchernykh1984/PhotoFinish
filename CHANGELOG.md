@@ -1,5 +1,67 @@
 # Changelog
 
+## [0.4.0](https://github.com/dchernykh1984/PhotoFinish/compare/v0.3.2...v0.4.0) (2026-11-10)
+
+
+### Features
+
+* **analysis:** offer detection model presets that download on first choice ([e49eea8](https://github.com/dchernykh1984/PhotoFinish/commit/e49eea8b98bb246ca588cff3b31fbeeecde55bbf))
+* **cameras:** drop the action cameras' presets ([7369650](https://github.com/dchernykh1984/PhotoFinish/commit/7369650bbe302ea97920f86001300d8cd47301a7))
+* **cameras:** offer the phone's streaming app first when adding a camera ([1ce6ff7](https://github.com/dchernykh1984/PhotoFinish/commit/1ce6ff7dc0bf443c2a35e25f9799f1b13546151e))
+* **window:** play, pause and stop the video ([ac37ec1](https://github.com/dchernykh1984/PhotoFinish/commit/ac37ec12a1a197ae55adcd6bfe4c5fc1a23fb7ea))
+
+
+### Bug Fixes
+
+* **analysis:** choosing the model in use again no longer restarts the analysers ([3131443](https://github.com/dchernykh1984/PhotoFinish/commit/3131443fb6400da01eb8e465818bf40c98e6ecd8))
+* **analysis:** clear only old download parts at start, and never fail on one held ([493ac16](https://github.com/dchernykh1984/PhotoFinish/commit/493ac163b432816c0f91d54e452f6d219a0b2d07))
+* **analysis:** count a download's megabytes so a whole one reaches its size ([cecab06](https://github.com/dchernykh1984/PhotoFinish/commit/cecab06eefeaeefae3eb8faa7467363d7b18b384))
+* **analysis:** fetch a missing model only once finding riders is on ([c170fe3](https://github.com/dchernykh1984/PhotoFinish/commit/c170fe33d1ea2044a4a9554cd278d3ebc2f7dcfc))
+* **analysis:** fetch the chosen model by itself when it is missing, before analysing ([0e32e63](https://github.com/dchernykh1984/PhotoFinish/commit/0e32e631036195d76f7c4c270e333aafdb325115))
+* **analysis:** free the model list and say why when a download fails in any way ([ffed61e](https://github.com/dchernykh1984/PhotoFinish/commit/ffed61e9682aa0cd2eb5201e76e8be1616ddc981))
+* **analysis:** keep a download going when no file is chosen, and redo the list after a stop ([09fe2cc](https://github.com/dchernykh1984/PhotoFinish/commit/09fe2cc0c730bf6c151f06c239364679f4d6e185))
+* **analysis:** keep the model from changing under a scroll wheel or the arrow keys ([f606003](https://github.com/dchernykh1984/PhotoFinish/commit/f606003b6ccebbfd4652ad2ea0200a1fb6fee00e))
+* **analysis:** leave no part of a download behind, whatever stops it ([3f0c60d](https://github.com/dchernykh1984/PhotoFinish/commit/3f0c60da2537ac2b30d1642e1c8a87c2834004b6))
+* **analysis:** let another choice stop a slow download, holding back only the model in use ([1e69fb0](https://github.com/dchernykh1984/PhotoFinish/commit/1e69fb09fa6452bad3e72d4a130cc4bdc7613f01))
+* **analysis:** point the suggestions' hint at the model list, not a button gone ([5b810d1](https://github.com/dchernykh1984/PhotoFinish/commit/5b810d1f90f4da36af3229ed9faf72f97fc90609))
+* **analysis:** put a downloaded model on the disk before it takes its name, past a scanner ([eaf7b18](https://github.com/dchernykh1984/PhotoFinish/commit/eaf7b1867a6b1efd00003574f2428526b420d430))
+* **analysis:** say the model in use is missing even while another one downloads ([1d90784](https://github.com/dchernykh1984/PhotoFinish/commit/1d90784b20421c91b7124c968d45032e0c3db75b))
+* **analysis:** show a download's progress in the model list, not over the status line ([9d73c0b](https://github.com/dchernykh1984/PhotoFinish/commit/9d73c0b365fea2229c9c00749125c1a3413325c6))
+* **analysis:** show the model downloading in the closed list, not the one before ([21d4323](https://github.com/dchernykh1984/PhotoFinish/commit/21d43234440c9983d2ac1b3da5032188bb7cbe67))
+* **analysis:** start no analyser while the model in use is missing, and say so ([a3b6b83](https://github.com/dchernykh1984/PhotoFinish/commit/a3b6b8359d70cea19e8c687a565b8dc92b2e4f10))
+* **analysis:** take a stopped download's progress off the list when another starts ([04b4f66](https://github.com/dchernykh1984/PhotoFinish/commit/04b4f66b3ad65fe9bff587f1112cbf55f7ccf90e))
+* **analysis:** tell a download from one stopped before it, each in a part file of its own ([ba4b549](https://github.com/dchernykh1984/PhotoFinish/commit/ba4b549bf45dbe808a0fe12d3fcee0646fabe114))
+* **cameras:** add a camera even when the session holds a phone with broken settings ([b091b16](https://github.com/dchernykh1984/PhotoFinish/commit/b091b1692429b5949d736f3e1eb40922adc61f35))
+* **cameras:** give each phone a port of its own, so a second one records too ([9296b31](https://github.com/dchernykh1984/PhotoFinish/commit/9296b3160462e9a2dd246e9fc38185620ec939c9))
+* **cameras:** say in the camera list when a phone shares another's port ([be8d553](https://github.com/dchernykh1984/PhotoFinish/commit/be8d553c964c31655b9214e2a19dbec4036c8379))
+* **cameras:** tell both phones sharing a port, not only the later one ([5382abe](https://github.com/dchernykh1984/PhotoFinish/commit/5382abe8b1bd39f5aac8b8d96906a34523a7f8ac))
+* **window:** a closed window ignores a download's answer already on its way ([782863d](https://github.com/dchernykh1984/PhotoFinish/commit/782863d1a97bd9ae9982b471e38e6c17f9e6b903))
+* **window:** a closed window no longer acts on a model download that ends later ([8f602d6](https://github.com/dchernykh1984/PhotoFinish/commit/8f602d6f41975195016e8a04165640271dbbc375))
+* **window:** a file played to its end stops on its last frame instead of going Live ([6ce172c](https://github.com/dchernykh1984/PhotoFinish/commit/6ce172c2c42ec5ae73d29cac777df5a1def168a7))
+* **window:** follow the lists a few times a second while playing, so a long race plays smoothly ([011b54d](https://github.com/dchernykh1984/PhotoFinish/commit/011b54d1cce045ed7ec9f18b43bc4072dddedfa2))
+* **window:** keep the picture moving while playing on a decoder slower than the camera ([ce7e35b](https://github.com/dchernykh1984/PhotoFinish/commit/ce7e35b13aab8b0879b2073ab1facc1b79c9d521))
+* **window:** leave the window alone while the frame asked for is still decoding ([ab1e83d](https://github.com/dchernykh1984/PhotoFinish/commit/ab1e83d0e0e8b8c0ff65233220349f9a1d6740b2))
+* **window:** pause without decoding again the frames already on screen ([05da57e](https://github.com/dchernykh1984/PhotoFinish/commit/05da57e78da92ae4411fd7df1ae61f954e8359ab))
+* **window:** play from the moment shown even where the chosen camera has no frame ([078ffcf](https://github.com/dchernykh1984/PhotoFinish/commit/078ffcf8c9733e919bc206e75dbc3d925ad97937))
+* **window:** play on past a gap in the recording instead of holding one frame through it ([907d529](https://github.com/dchernykh1984/PhotoFinish/commit/907d52983a43ff37c360acb5dd249a3903d4e70f))
+* **window:** play on to the first frame of a camera that started later ([b1ecd63](https://github.com/dchernykh1984/PhotoFinish/commit/b1ecd6369a6095e3e2f80e2ed8b2db1ef2932f0a))
+* **window:** play only frames asked for, so a camera with no frame at the moment stays blank ([a784cd7](https://github.com/dchernykh1984/PhotoFinish/commit/a784cd732fa7551d4ee9d053cb5b0a00a27204b1))
+* **window:** stop a model download when the window closes ([c7a4422](https://github.com/dchernykh1984/PhotoFinish/commit/c7a4422ec7de9b6fa2379367503dfbcd6b474592))
+* **window:** stop always stops playing, even with no frame to go back to ([0a63888](https://github.com/dchernykh1984/PhotoFinish/commit/0a638884d7ae72bf92e9b167271efc12fa56efc0))
+* **window:** stop no longer jumps back after the referee moved the video ([59c2440](https://github.com/dchernykh1984/PhotoFinish/commit/59c244096e9e489b732df4e2b6cb962cac710438))
+* **window:** wait for the frame moved to while playing before timing on it ([dfb14c4](https://github.com/dchernykh1984/PhotoFinish/commit/dfb14c4244bb509b1decef6de2d6e8e9d756118d))
+
+
+### Documentation
+
+* **constitution:** let PhotoFinish download a detection model once, when chosen ([6b510a8](https://github.com/dchernykh1984/PhotoFinish/commit/6b510a80defb2cbbd4374ed5a61e4f3feca6ee9e))
+* describe playing over gaps and a model in use that is missing ([a6cf2b3](https://github.com/dchernykh1984/PhotoFinish/commit/a6cf2b3ebc7acfa83d149258ff635be50f2a4606))
+* make a phone with a free streaming app the finish camera ([7b163c3](https://github.com/dchernykh1984/PhotoFinish/commit/7b163c385fc1aa2328b5921c059a42123d4cba7f))
+* remind that every change ships with automated tests ([b7d9a68](https://github.com/dchernykh1984/PhotoFinish/commit/b7d9a68ed2e338655179fd3643e0fcf200f784f0))
+* say a model is fetched when chosen or found missing, and that another choice stops it ([3dc3762](https://github.com/dchernykh1984/PhotoFinish/commit/3dc3762de7ab7a08e100e32ab01eb44aa9d24039))
+* **skills:** add trying-a-camera, connecting a real camera and judging its video ([82298e2](https://github.com/dchernykh1984/PhotoFinish/commit/82298e211278c1fbecc71d457e7b49497dd0a64b))
+* **skills:** check by hand what only a release build runs ([2df1f56](https://github.com/dchernykh1984/PhotoFinish/commit/2df1f56ee0d71975a39576e0e8538e388b327b20))
+
 ## [0.3.2](https://github.com/dchernykh1984/PhotoFinish/compare/v0.3.1...v0.3.2) (2026-11-10)
 
 
