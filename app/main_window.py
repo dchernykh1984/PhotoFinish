@@ -62,6 +62,7 @@ from app.widgets.number_field import NumberField
 from app.widgets.timeline import Timeline
 
 POLL_MS = 500
+PLAY_MS = 15  # how often playing looks for the next frame: oftener than any camera's
 NEAR_MS = 1000  # another camera's frame further from the moment than this: none
 STOP_MS = 3000  # an analyser stopped is killed if it has not ended by then
 OUTSIDE = "The output file was changed outside PhotoFinish: kept beside it"
@@ -101,6 +102,12 @@ class MainWindow(QMainWindow):
         self.place: int | None = None  # the frame shown, in the camera's index
         self.moment: int | None = None  # the video's time shown, ms
         self.live = True
+        self.playing = False
+        self.play_from: int | None = None  # the moment Play started from, for Stop
+        self._play_start = (0.0, 0)  # the clock and the moment playing started at
+        self.play_timer = QTimer(self)
+        self.play_timer.timeout.connect(self._play_tick)
+        self.play_button = QPushButton("Pause")  # live, the video plays on
         self.shared_event: shared_event.SharedEvent | None = None
 
         self.placeholder = CameraView()
@@ -165,7 +172,7 @@ class MainWindow(QMainWindow):
     # -- layout ----------------------------------------------------------------
 
     def _layout(self) -> QSplitter:
-        transport = QHBoxLayout()
+        moves = []
         for label, slot in (
             ("<< 1 s", lambda: self.step_ms(-1000)),
             ("< 10", lambda: self.step(-10)),
@@ -176,8 +183,18 @@ class MainWindow(QMainWindow):
             ("Live", self.go_live),
         ):
             button = QPushButton(label)
-            button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             button.clicked.connect(slot)
+            moves.append(button)
+        self.play_button.setToolTip(
+            "Play the video at its own speed from the frame shown, or hold the frame"
+        )
+        self.play_button.clicked.connect(self.play_or_pause)
+        stop = QPushButton("Stop")
+        stop.setToolTip("Stop playing and go back to the frame Play started from")
+        stop.clicked.connect(self.stop)
+        transport = QHBoxLayout()
+        for button in (*moves[:3], self.play_button, stop, *moves[3:]):
+            button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             transport.addWidget(button)
         transport.addStretch()
         transport.addWidget(self.source_label)
@@ -777,6 +794,9 @@ class MainWindow(QMainWindow):
     def _frame_on_screen(self) -> bool:
         """False, said, while the frame stepped to is still on its way: the picture
         on screen is the one before, and timing on it would time another frame."""
+        if self.playing:
+            self._say("Pause the video first: the frame shown is moving")
+            return False
         if self.view.waiting:
             self._say("The frame is still on its way: try again in a moment")
             return False
@@ -1144,12 +1164,14 @@ class MainWindow(QMainWindow):
     def step(self, frames: int) -> None:
         camera, place = self._camera(), self._place()
         if camera is not None and place is not None:
+            self._halt()
             self._leave_live()
             self._go(camera.index.step(place, frames))
 
     def step_ms(self, ms: int) -> None:
         camera, place = self._camera(), self._place()
         if camera is not None and place is not None:
+            self._halt()
             self._leave_live()
             self._go(camera.index.step_ms(place, ms))
 
@@ -1165,12 +1187,15 @@ class MainWindow(QMainWindow):
         camera = self._camera()
         place = None if camera is None else camera.index.nearest(ms - self._offset())
         if place is not None:
+            self._halt()
             self._leave_live()
             self._go(place)
 
     def go_live(self) -> None:
+        self._halt()
         self.live = True
         self.timeline.following = True
+        self._show_play()
         camera = self._camera()
         if camera is not None and len(camera.index):
             self._go(len(camera.index) - 1)
@@ -1178,6 +1203,69 @@ class MainWindow(QMainWindow):
     def _leave_live(self) -> None:
         self.live = False
         self.timeline.following = False
+        self._show_play()
+
+    # -- playing ---------------------------------------------------------------
+
+    def play_or_pause(self) -> None:
+        """Hold the video, live or playing; play it when it is held."""
+        if self.live or self.playing:
+            self.pause()
+        else:
+            self.play()
+
+    def play(self) -> None:
+        """The chosen camera's recording from the frame shown, at its own speed;
+        the other cameras follow it, as they follow every move."""
+        if self.place is None or self.moment is None:
+            return
+        self._leave_live()
+        self.playing, self.play_from = True, self.moment
+        self._play_start = (time.monotonic(), self.moment)
+        self.play_timer.start(PLAY_MS)
+        self._show_play()
+
+    def pause(self) -> None:
+        """The frame shown held, and asked for again: one passed while playing may
+        not have reached the screen, and timing waits for the one asked."""
+        self._halt()
+        self._leave_live()
+        if self.place is not None:
+            for camera in self.cameras.values():
+                camera.wanted = None
+            self._go(self.place)
+
+    def stop(self) -> None:
+        """Playing stopped, back at the frame Play started from."""
+        if self.play_from is None:
+            self.pause()
+        else:
+            self.seek_ms(self.play_from)
+
+    def _halt(self) -> None:
+        self.playing = False
+        self.play_timer.stop()
+        self._show_play()
+
+    def _play_tick(self) -> None:
+        """The frame due now, by the clock since Play: a frame the decoder has not
+        caught up with is passed, never waited for."""
+        camera = self._camera()
+        if not self.playing or camera is None or not len(camera.index):
+            self._halt()
+            return
+        clock, moment = self._play_start
+        due = moment + round((time.monotonic() - clock) * 1000)
+        offset = self._offset()
+        if due >= int(camera.index.ms[-1]) + offset:
+            self.go_live()  # caught up with the recording: it plays on live
+            return
+        place = camera.index.nearest(due - offset)
+        if place is not None and place != self.place:
+            self._go(place, dim=False)
+
+    def _show_play(self) -> None:
+        self.play_button.setText("Pause" if self.live or self.playing else "Play")
 
     def _refresh(self, force: bool = False) -> None:
         kept = {
@@ -1203,13 +1291,15 @@ class MainWindow(QMainWindow):
         nothing_yet = self.place is None and self.moment is None
         if len(camera.index) and (self.live or nothing_yet):
             self._go(len(camera.index) - 1)
-        elif self.place is not None:
-            self._go(self.place)  # the frame shown, maybe at a new place, asked again
+        elif self.place is not None:  # the frame shown, maybe at a new place, again
+            self._go(self.place, dim=not self.playing)
 
     def _frame_shown(self, camera: Camera) -> Frame | None:
         return None if camera.shown is None else camera.index.frame(camera.shown)
 
-    def _go(self, place: int) -> None:
+    def _go(self, place: int, dim: bool = True) -> None:
+        """The video at ``place`` of the chosen camera; ``dim`` marks each frame on
+        its way, which playing does not: the moving picture would flicker."""
         camera = self._camera()
         if camera is None:
             return
@@ -1223,10 +1313,12 @@ class MainWindow(QMainWindow):
         self.source_label.setText(f"source {source:+d} ms")
         self._follow_lists(moment)
         for other in self.cameras.values():
-            self._show_at(other, place if other is camera else None, moment)
+            self._show_at(other, place if other is camera else None, moment, dim)
         self._show_marks()
 
-    def _show_at(self, camera: Camera, place: int | None, moment: int) -> None:
+    def _show_at(
+        self, camera: Camera, place: int | None, moment: int, dim: bool = True
+    ) -> None:
         """The camera's frame at ``place``, or else its frame nearest ``moment`` --
         none when the nearest is more than NEAR_MS away: a camera that did not film
         that moment says so instead of showing another."""
@@ -1243,7 +1335,8 @@ class MainWindow(QMainWindow):
         if (camera.id, frame) == camera.wanted:
             return
         camera.wanted = (camera.id, frame)  # the frame, not its place: places move
-        camera.view.show_waiting()  # no crossing timed on the frame before
+        if dim:
+            camera.view.show_waiting()  # no crossing timed on the frame before
         camera.worker.request(frame.path, frame.pts, camera.wanted)
 
     def _decoded(self, tag: tuple[str, Frame], image: QImage) -> None:
@@ -1293,6 +1386,7 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802 - Qt's name
         """The window goes; the recorders keep recording."""
         self.timer.stop()
+        self.play_timer.stop()
         for camera in self.cameras.values():
             camera.worker.stop()
             self._stop_analyzer(camera)
