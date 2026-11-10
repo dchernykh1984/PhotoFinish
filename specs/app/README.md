@@ -45,8 +45,13 @@ recorder is down and at most the 0.1 s before it.
   recorder's clock, in an SEI the phone writes in front of the frame. The recorder of a phone
   camera answers the phone's clock exchange over UDP on the camera's port, and the phone keeps
   its camera clock in step from it (`specs/003-phone-camera-app/contracts/phone-stream.md`):
-  Wi-Fi delays do not move the frame. A port another program holds leaves the exchange out, and
-  the frames are placed by their arrival.
+  Wi-Fi delays do not move the frame. A connection's first frame decides for all of it: a moment
+  not after the frame was read and at most 5 s before it is believed; else -- no moments, or a
+  phone clock out of step -- its frames are placed by their arrival, and the camera list says
+  why. A port another program holds is tried again every 5 s, and said meanwhile. A phone that
+  hangs up is listened for again at once. A pushed stream is looked over for half a second
+  before its first frame (FFmpeg's default is five), so frames placed by their arrival are not
+  seconds late.
 - A segment is shown once it is closed, about a second after its first frame: the newest frame
   is on screen within 2 s of its capture for cameras with a keyframe at least every second.
 - Below 2 GB free the camera list says so; a full disk stops the recorder, which keeps what it
