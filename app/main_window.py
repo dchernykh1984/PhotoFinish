@@ -1114,7 +1114,9 @@ class MainWindow(QMainWindow):
         if not settings["on"]:
             return
         if not settings["model"]:
-            hint = QListWidgetItem("Suggestions need a detection model: Model...")
+            hint = QListWidgetItem(
+                "Suggestions need a detection model: choose one in the model list"
+            )
             hint.setFlags(Qt.ItemFlag.NoItemFlags)
             self.suggestion_list.addItem(hint)
             return

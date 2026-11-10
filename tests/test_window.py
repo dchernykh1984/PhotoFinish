@@ -2181,7 +2181,7 @@ def test_suggestions_need_a_model(
     assert (
         win.suggestion_list.item(0)
         .text()
-        .startswith("Suggestions need a detection model")
+        .startswith("Suggestions need a detection model: choose one in the model list")
     )
     win.suggestion_list.setCurrentRow(0)
     win.dismiss_suggestion()
