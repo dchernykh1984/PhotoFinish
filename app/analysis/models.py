@@ -8,6 +8,7 @@ not the one pinned is never kept under the model's name.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import http.client
 import math
@@ -15,6 +16,7 @@ import os
 import secrets
 import ssl
 import threading
+import time
 import urllib.request
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -30,6 +32,7 @@ FOLDER = "models"  # next to the program, beside data/ and video/
 _RELEASE = "https://github.com/Megvii-BaseDetection/YOLOX/releases/download/0.1.1rc0/"
 _CHUNK = 1 << 16
 TIMEOUT_S = 30
+STALE_S = 600  # a part not written to for this long belongs to no download
 
 
 @dataclass(frozen=True)
@@ -142,10 +145,14 @@ def fetch(
 
 
 def clear_parts() -> None:
-    """The parts downloads cut short by a crash left behind; called when the window
-    starts, before any download of its own."""
+    """The parts downloads cut short by a crash left behind: those not written to
+    for STALE_S, since a newer one may be another window's download still going.
+    One that cannot go -- a scanner holds it on Windows -- waits for the next start.
+    """
     for part in app_path(FOLDER).glob("*.part"):
-        part.unlink(missing_ok=True)
+        with contextlib.suppress(OSError):
+            if time.time() - part.stat().st_mtime > STALE_S:
+                part.unlink()
 
 
 class Download:
