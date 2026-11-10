@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import io
 import itertools
 from collections.abc import Sequence
 from typing import Any
 
+import segno
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -36,7 +40,7 @@ CONNECTION_NAMES = {  # the phone's streaming app first: the camera PhotoFinish 
 _ROWS = {  # the fields each connection shows
     "usb": ("device", "size", "fps"),
     "rtsp": ("url", "transport"),
-    "rtmp": ("port", "path", "address"),
+    "rtmp": ("port", "path", "address", "qr"),
     "test": ("size", "fps", "scene"),
     "file": ("file", "live"),
 }
@@ -79,6 +83,10 @@ class CameraDialog(QDialog):
         self.port = _number(1, 65535, free)
         self.path = QLineEdit(f"live/{camera_id}")
         self.address = QLabel()
+        self.address.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse
+        )
+        self.qr = QLabel()
         self.scene = QComboBox()
         self.scene.addItems(SCENES)
         self.scene.setCurrentText("bar")
@@ -118,6 +126,7 @@ class CameraDialog(QDialog):
             "port": self._row("Port", self.port),
             "path": self._row("Stream path", self.path),
             "address": self._row("Type in the streaming app", self.address),
+            "qr": self._row("Or scan it with PhotoFinish Camera", self.qr),
             "scene": self._row("Scene", self.scene),
             "file": self._row("Video file", file_row),
             "live": self._row("", self.live),
@@ -174,9 +183,11 @@ class CameraDialog(QDialog):
             settings = self._settings()
             if cameras.problems({"connection": "rtmp", "settings": settings}):
                 self.address.setText("")
+                self.qr.clear()
             else:
                 self._here = self._here or cameras.this_computer()
                 self.address.setText(cameras.rtmp_url(settings, self._here))
+                self.qr.setPixmap(qr_pixmap(self.address.text()))
         found = cameras.problems(self.camera())
         clash = cameras.port_clash(self.camera(), self.others)
         if self.kind() == "rtmp" and clash:
@@ -193,6 +204,16 @@ class CameraDialog(QDialog):
     def _row(self, label: str, field: QWidget | QHBoxLayout) -> int:
         self.form.addRow(label, field)
         return self.form.rowCount() - 1
+
+
+def qr_pixmap(text: str) -> QPixmap:
+    """``text`` as a QR code for the phone to scan: a full-size one, as a phone's
+    scanner may not read the micro kind."""
+    png = io.BytesIO()
+    segno.make_qr(text, error="m").save(png, kind="png", scale=5, border=2)
+    pixmap = QPixmap()
+    pixmap.loadFromData(png.getvalue(), "PNG")
+    return pixmap
 
 
 def _number(least: int, most: int, value: int) -> QSpinBox:
