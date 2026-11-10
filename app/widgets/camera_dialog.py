@@ -9,7 +9,7 @@ from collections.abc import Sequence
 from typing import Any
 
 import segno
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -39,6 +39,7 @@ CONNECTION_NAMES = {  # the phone's streaming app first: the camera PhotoFinish 
     "file": "Video file",
 }
 NO_NETWORK = "No network address: join this computer and the phone to one network"
+NETWORK_POLL_MS = 2000
 _ROWS = {  # the fields each connection shows
     "usb": ("device", "size", "fps"),
     "rtsp": ("url", "transport"),
@@ -136,7 +137,12 @@ class CameraDialog(QDialog):
         self.form.addRow(self.problems)
         self.form.addRow(self.buttons)
 
-        self._here: str | None = None  # this computer's address, once it has one
+        self._here: str | None = None  # this computer's address, looked up at the open
+        # A computer with no network address yet is looked for again every 2 s, not at
+        # every key typed: a lookup with no network may take a while.
+        self._network = QTimer(self)
+        self._network.setInterval(NETWORK_POLL_MS)
+        self._network.timeout.connect(self._look_for_network)
         for box in (self.connection, self.device, self.transport, self.scene):
             box.currentTextChanged.connect(self._check)
         for line in (self.name, self.url, self.path, self.file):
@@ -200,10 +206,12 @@ class CameraDialog(QDialog):
         if not clash and not cameras.problems(
             {"connection": "rtmp", "settings": settings}
         ):
-            if not self._here or ipaddress.ip_address(self._here).is_loopback:
-                self._here = cameras.this_computer()  # looked for until a network comes
+            if self._here is None:
+                self._here = cameras.this_computer()
             scannable = not ipaddress.ip_address(self._here).is_loopback
             text = cameras.rtmp_url(settings, self._here) if scannable else NO_NETWORK
+            if not scannable and not self._network.isActive():
+                self._network.start()
         if text == self.address.text():  # every key typed comes here
             return
         self.address.setText(text)
@@ -211,6 +219,12 @@ class CameraDialog(QDialog):
             self.qr.setPixmap(qr_pixmap(text))
         else:
             self.qr.clear()
+
+    def _look_for_network(self) -> None:
+        """This computer's address looked for again: it may have joined a network."""
+        self._network.stop()
+        self._here = cameras.this_computer()
+        self._check()
 
     def _choose_file(self) -> None:
         path, _ = QFileDialog.getOpenFileName(self, "A video file", "", "Video (*.*)")

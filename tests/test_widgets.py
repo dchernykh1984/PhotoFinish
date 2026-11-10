@@ -126,18 +126,28 @@ def test_a_port_another_phone_has_shows_no_address_to_scan(
     assert dialog.qr.pixmap().isNull()
 
 
-def test_a_computer_with_no_network_address_shows_no_code_until_it_joins_one(
+def test_a_computer_with_no_network_address_shows_the_code_once_it_joins_one(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     here = ["127.0.0.1"]  # no network yet
-    monkeypatch.setattr(cameras, "this_computer", lambda: here[0])
+    looked: list[str] = []
+
+    def this_computer() -> str:
+        looked.append(here[0])
+        return here[0]
+
+    monkeypatch.setattr(cameras, "this_computer", this_computer)
     dialog = CameraDialog(None, "cam1", [])
     assert dialog.qr.pixmap().isNull()  # a phone scanning it would stream to itself
     assert "network" in dialog.address.text()
+    assert dialog._network.isActive()  # looked for again on its own
+    QTest.keyClicks(dialog.name, "abc")
+    assert len(looked) == 1  # not at every key, which would wait for the lookup
     here[0] = "10.0.0.5"  # the referee joins the race Wi-Fi, the dialog still open
-    QTest.keyClicks(dialog.path, "a")
-    assert dialog.address.text() == "rtmp://10.0.0.5:1935/live/cam1a"
+    dialog._look_for_network()  # what the timer does
+    assert dialog.address.text() == "rtmp://10.0.0.5:1935/live/cam1"
     assert not dialog.qr.pixmap().isNull()
+    assert not dialog._network.isActive()
 
 
 def test_the_dialog_keeps_ok_off_while_the_camera_cannot_record(
