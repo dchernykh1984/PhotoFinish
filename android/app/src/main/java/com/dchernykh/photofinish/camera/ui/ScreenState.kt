@@ -17,7 +17,7 @@ class ScreenState(
     private val formats: CameraFormats,
 ) {
     /** The sizes the phone gives the app, 1080p first. */
-    val resolutions: List<Resolution> = FormatChoice.resolutions(formats.sizes, formats::encoderTakes)
+    val resolutions: List<Resolution> = FormatChoice.resolutions(formats.sizes, formats::takes)
 
     var address by mutableStateOf(settings.address)
         private set
@@ -44,7 +44,7 @@ class ScreenState(
                 FormatChoice.rates(
                     formats.ranges,
                     it,
-                    formats::encoderTakes,
+                    formats::takes,
                 )
             }.orEmpty()
 
