@@ -7,6 +7,7 @@ import threading
 import time
 from collections.abc import Callable
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import av
@@ -135,6 +136,78 @@ def test_the_keys_step_and_go_live(
     win.step(-5)
     QTest.keyClick(win, Qt.Key.Key_L)
     wait_until(showing(win, START + 69 * 33))
+
+
+@pytest.fixture
+def clock(monkeypatch: pytest.MonkeyPatch) -> list[float]:
+    """The window's clock, moved by hand: playing shows the frame due by it."""
+    now = [1000.0]
+    monkeypatch.setattr(mw, "time", SimpleNamespace(monotonic=lambda: now[0]))
+    return now
+
+
+def test_play_runs_the_video_at_its_own_speed_and_pause_holds_it(
+    recording: Path, make_window: Callable[[], mw.MainWindow], clock: list[float]
+) -> None:
+    win = make_window()
+    wait_until(showing(win, START + 69 * 33))
+    assert win.play_button.text() == "Pause"  # live, the video plays on
+    win.step(-60)
+    assert win.play_button.text() == "Play"
+    win.play()
+    assert win.play_timer.isActive()
+    assert win.play_button.text() == "Pause"
+    clock[0] += 0.33  # ten frames on
+    win._play_tick()
+    wait_until(showing(win, START + 19 * 33))
+    assert not win._frame_on_screen()  # no crossing timed on a moving picture
+    win.pause()
+    assert not win.play_timer.isActive()
+    assert win.play_button.text() == "Play"
+    clock[0] += 1.0
+    win._play_tick()  # a tick already on its way moves nothing
+    settled(win)
+    assert shown(win) == START + 19 * 33
+    assert win._frame_on_screen()
+
+
+def test_stop_goes_back_to_where_play_started_and_playing_on_reaches_live(
+    recording: Path, make_window: Callable[[], mw.MainWindow], clock: list[float]
+) -> None:
+    win = make_window()
+    wait_until(showing(win, START + 69 * 33))
+    win.step(-60)
+    win.play()
+    clock[0] += 0.33
+    win._play_tick()
+    wait_until(showing(win, START + 19 * 33))
+    win.stop()
+    wait_until(showing(win, START + 9 * 33))
+    assert not win.playing
+    assert win.play_button.text() == "Play"
+    win.play()
+    clock[0] += 5.0  # past the newest frame
+    win._play_tick()
+    assert win.live
+    assert not win.play_timer.isActive()
+    assert win.play_button.text() == "Pause"
+    wait_until(showing(win, START + 69 * 33))
+
+
+def test_pause_holds_the_live_picture_while_recording_goes_on(
+    recording: Path, make_window: Callable[[], mw.MainWindow]
+) -> None:
+    win = make_window()
+    wait_until(showing(win, START + 69 * 33))
+    win.play_or_pause()
+    assert not win.live
+    assert win.play_button.text() == "Play"
+    record(recording, START + 5000, 10)
+    win.poll()
+    settled(win)
+    assert shown(win) == START + 69 * 33
+    win.play_or_pause()
+    assert win.playing
 
 
 def test_a_click_on_the_timeline_moves_the_video_there(

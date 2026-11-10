@@ -69,6 +69,11 @@ or a swaying patch.
 - **Keys** (they work while a number is typed): Left/Right one frame, Shift ten, Ctrl one second,
   End back to Live (L too, when no number is being typed: a number may hold an L). Live follows
   the newest frame.
+- **Play, Pause, Stop.** Play runs the chosen camera's recording from the frame shown at its own
+  speed, the other cameras following; a frame not decoded in time is passed, never waited for,
+  and playing on past the newest frame is Live. Pause holds the frame shown -- Live too, while
+  recording goes on -- and asks for it again, so a crossing is timed on the frame on screen;
+  while playing, timing waits for Pause. Stop goes back to the frame Play started from.
 - **Input.** New lines of the chronometer's file arrive in the output within 2 s, as they are. A
   line the chronometer changes is held back, highlighted with both contents, until "Copy to
   output"; a line that is gone leaves its output line marked; a line the referee removed is not
