@@ -29,13 +29,16 @@ Answer, 29 bytes:
 | 21-28 | `t3`: the recorder's clock when the answer left |
 
 The phone notes `t4`, its clock when the answer arrived, and keeps for each exchange
-`offset = ((t2 - t1) + (t3 - t4)) / 2` and `delay = (t4 - t1) - (t3 - t2)`. The offset it uses is
-the one of the shortest delay among the last 16 exchanges, made every 2 s (5 at once at the
-start). A request of another length or tag gets no answer.
+`offset = ((t2 - t1) + (t3 - t4)) / 2` and `delay = (t4 - t1) - (t3 - t2)`. The offset it uses
+follows the one of the shortest delay among the last 8 exchanges, made every 2 s (5 at once at
+the start), at 2 ms a second at most; a change of more than 50 ms is taken at once, and an
+exchange whose offset the delays cannot explain (the recorder's clock changed) clears the ones
+before it. A request of another length or tag gets no answer.
 
 ## The frame moment (H.264 SEI)
 
-Each frame the app sends once it has an offset begins with an SEI NAL unit (type 6) holding one
+Each frame of a connection made once the app has an offset begins with an SEI NAL unit (type 6)
+holding one
 `user_data_unregistered` message (payload type 5):
 
 | Bytes | Field |
