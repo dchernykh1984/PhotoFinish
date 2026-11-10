@@ -210,23 +210,6 @@ class RtmpPublisher(
         private fun describe(values: List<Any?>): String =
             (values.getOrNull(3) as? Map<*, *>)?.get("description")?.toString() ?: values.toString()
 
-        private fun int32(value: Long): ByteArray =
-            byteArrayOf((value shr 24).toByte(), (value shr 16).toByte(), (value shr 8).toByte(), value.toByte())
-
-        private fun readFully(
-            input: InputStream,
-            length: Int,
-        ): ByteArray {
-            val bytes = ByteArray(length)
-            var offset = 0
-            while (offset < length) {
-                val read = input.read(bytes, offset, length - offset)
-                if (read < 0) throw IOException("the server closed the connection during the handshake")
-                offset += read
-            }
-            return bytes
-        }
-
         fun socketConnection(
             address: RtmpAddress,
             readTimeoutMs: Int = READ_TIMEOUT_MS,

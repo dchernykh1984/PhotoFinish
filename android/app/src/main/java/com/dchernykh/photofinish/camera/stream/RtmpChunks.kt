@@ -85,14 +85,30 @@ class RtmpChunkWriter(
         out: ByteArrayOutputStream,
         value: Long,
     ) = out.write(int32(value))
+}
 
-    private fun int32(value: Long): ByteArray =
-        byteArrayOf(
-            (value shr 24).toByte(),
-            (value shr 16).toByte(),
-            (value shr 8).toByte(),
-            value.toByte(),
-        )
+/** [value]'s low four bytes, big-endian, as RTMP writes its numbers. */
+internal fun int32(value: Long): ByteArray =
+    byteArrayOf(
+        (value shr 24).toByte(),
+        (value shr 16).toByte(),
+        (value shr 8).toByte(),
+        value.toByte(),
+    )
+
+/** [length] bytes from [input]; the stream ending before them throws EOFException. */
+internal fun readFully(
+    input: InputStream,
+    length: Int,
+): ByteArray {
+    val bytes = ByteArray(length)
+    var offset = 0
+    while (offset < length) {
+        val read = input.read(bytes, offset, length - offset)
+        if (read < 0) throw EOFException("the server closed the connection")
+        offset += read
+    }
+    return bytes
 }
 
 /**
@@ -141,7 +157,7 @@ class RtmpChunkReader(
         readHeader(format, stream)
         val partial = stream.partial ?: ByteArrayOutputStream(stream.length).also { stream.partial = it }
         val length = minOf(chunkSize, stream.length - partial.size())
-        partial.write(readFully(length))
+        partial.write(readFully(input, length))
         if (partial.size() < stream.length) return null
         stream.partial = null
         return RtmpMessage(
@@ -194,18 +210,7 @@ class RtmpChunkReader(
 
     private fun readInt24(): Int = (readByte() shl 16) or (readByte() shl 8) or readByte()
 
-    private fun readInt32Value(): Long = readInt32(readFully(4))
-
-    private fun readFully(length: Int): ByteArray {
-        val bytes = ByteArray(length)
-        var offset = 0
-        while (offset < length) {
-            val read = input.read(bytes, offset, length - offset)
-            if (read < 0) throw EOFException("the server closed the connection")
-            offset += read
-        }
-        return bytes
-    }
+    private fun readInt32Value(): Long = readInt32(readFully(input, 4))
 
     companion object {
         fun readInt32(bytes: ByteArray): Long =
