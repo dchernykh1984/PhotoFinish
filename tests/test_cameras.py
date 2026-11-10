@@ -116,3 +116,14 @@ def test_each_phone_listens_on_a_port_of_its_own() -> None:
     ]
     assert ports_taken(session_cameras) == {1935, 1936}
     assert ports_taken([]) == set()
+
+
+def test_a_phone_with_settings_not_a_phones_takes_no_port() -> None:
+    broken: list[dict[str, Any]] = [
+        {"connection": "rtmp", "settings": {"port": None}},
+        {"connection": "rtmp", "settings": {"port": "abc"}},
+        {"connection": "rtmp", "settings": {"port": True}},
+        {"connection": "rtmp", "settings": [1935]},
+        {"connection": "rtmp", "settings": None},
+    ]
+    assert ports_taken(broken) == set()

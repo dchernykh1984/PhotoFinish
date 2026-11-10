@@ -53,11 +53,17 @@ def problems(camera: dict[str, Any]) -> list[str]:
 def ports_taken(cameras: list[dict[str, Any]]) -> set[int]:
     """The ports the session's phones listen on: one recorder holds a port, so each
     phone needs one of its own."""
-    return {
-        int((camera.get("settings") or {}).get("port", RTMP_PORT))
-        for camera in cameras
-        if camera.get("connection") == "rtmp"
-    }
+    return {port for camera in cameras if (port := _rtmp_port(camera)) is not None}
+
+
+def _rtmp_port(camera: dict[str, Any]) -> int | None:
+    """The port a phone listens on; None for another connection or settings that
+    are not a phone's, which problems() reports instead."""
+    settings = camera.get("settings")
+    if camera.get("connection") != "rtmp" or not isinstance(settings, dict):
+        return None
+    port = settings.get("port", RTMP_PORT)
+    return port if isinstance(port, int) and not isinstance(port, bool) else None
 
 
 def rtmp_url(settings: dict[str, Any], host: str) -> str:
