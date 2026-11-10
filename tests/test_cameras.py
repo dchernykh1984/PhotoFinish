@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 
 from app import cameras
-from app.cameras import problems
+from app.cameras import ports_taken, problems
 
 
 @pytest.fixture(autouse=True)
@@ -105,3 +105,14 @@ def test_the_rtmp_address_to_type_in_the_camera_app(
 
     monkeypatch.setattr(socket, "socket", Unrouted)
     assert cameras.this_computer() == "127.0.0.1"
+
+
+def test_each_phone_listens_on_a_port_of_its_own() -> None:
+    session_cameras: list[dict[str, Any]] = [
+        {"connection": "rtmp", "settings": {"path": "live/a"}},
+        {"connection": "rtmp", "settings": {"port": 1936, "path": "live/b"}},
+        {"connection": "test", "settings": {"port": 1937}},
+        {"connection": "rtmp"},
+    ]
+    assert ports_taken(session_cameras) == {1935, 1936}
+    assert ports_taken([]) == set()

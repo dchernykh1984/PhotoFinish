@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import itertools
+from collections.abc import Collection
 from typing import Any
 
 from PySide6.QtWidgets import (
@@ -42,7 +44,11 @@ _ROWS = {  # the fields each connection shows
 
 class CameraDialog(QDialog):
     def __init__(
-        self, parent: QWidget | None, camera_id: str, usb_names: list[str]
+        self,
+        parent: QWidget | None,
+        camera_id: str,
+        usb_names: list[str],
+        taken: Collection[int] = (),
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle("Add a camera")
@@ -67,7 +73,9 @@ class CameraDialog(QDialog):
         self.url = QLineEdit()
         self.transport = QComboBox()
         self.transport.addItems(["tcp", "udp"])
-        self.port = _number(1, 65535, RTMP_PORT)
+        self.taken = frozenset(taken)  # the ports the other phones listen on
+        free = next(p for p in itertools.count(RTMP_PORT) if p not in self.taken)
+        self.port = _number(1, 65535, free)
         self.path = QLineEdit(f"live/{camera_id}")
         self.address = QLabel()
         self.scene = QComboBox()
@@ -169,6 +177,10 @@ class CameraDialog(QDialog):
                 self._here = self._here or cameras.this_computer()
                 self.address.setText(cameras.rtmp_url(settings, self._here))
         found = cameras.problems(self.camera())
+        if self.kind() == "rtmp" and self.port.value() in self.taken:
+            found.append(
+                f"port {self.port.value()} is another phone's: each needs its own"
+            )
         self.problems.setText("\n".join(found))
         ok = self.buttons.button(QDialogButtonBox.StandardButton.Ok)
         ok.setEnabled(not found)
