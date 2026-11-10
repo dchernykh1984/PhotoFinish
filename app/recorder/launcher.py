@@ -221,5 +221,6 @@ def describe(info: dict[str, Any] | None) -> str:
     else:
         text = _STATES.get(state, state)
         text = f"{text}: {detail}" if detail else text
-    clock = str(info.get("clock", ""))  # a phone's clock exchange left out, and why
+    # Why a phone's frames are placed by their arrival, while it records or waits.
+    clock = "" if state in ENDED else str(info.get("clock", ""))
     return f"{text}; {clock}" if clock else text

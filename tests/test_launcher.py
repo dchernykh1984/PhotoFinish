@@ -598,6 +598,8 @@ def test_a_phone_s_clock_exchange_left_out_is_said_whatever_the_state() -> None:
     assert (
         describe({**waiting, "clock": clock}) == f"connecting: waiting for x; {clock}"
     )
+    stopped = {"state": "stopped", "heartbeat_ms": 0, "clock": clock}
+    assert describe(stopped) == "stopped"  # nothing placed any more
 
 
 def test_a_recorder_is_described_as_the_referee_needs() -> None:
