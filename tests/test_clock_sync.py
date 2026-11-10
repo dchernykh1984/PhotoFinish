@@ -78,3 +78,17 @@ def test_a_socket_that_keeps_failing_is_tried_again_at_a_pace() -> None:
     responder.close()
     real.close()
     assert broken.reads - reads <= 10  # not a core spinning beside the recorder
+
+
+def test_only_a_sender_on_this_network_is_answered() -> None:
+    # The answer is longer than the request: no stranger may make it go elsewhere.
+    for here in (
+        "192.168.31.106",
+        "10.0.2.15",
+        "172.20.10.2",
+        "169.254.3.4",
+        "127.0.0.1",
+    ):
+        assert clock_sync.may_ask(here), here
+    for stranger in ("8.8.8.8", "1.1.1.1"):
+        assert not clock_sync.may_ask(stranger), stranger
