@@ -196,6 +196,24 @@ def test_a_file_played_to_its_end_stops_on_its_last_frame(
     assert shown(win) == START + 69 * 33
 
 
+def test_stop_stops_playing_even_with_no_frame_to_go_back_to(
+    recording: Path,
+    make_window: Callable[[], mw.MainWindow],
+    clock: list[float],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    win = make_window()
+    wait_until(showing(win, START + 69 * 33))
+    win.step(-60)
+    win.play()
+    camera = win.cameras["cam1"]
+    monkeypatch.setattr(camera.index, "nearest", lambda *a, **k: None)
+    win.stop()
+    assert not win.playing
+    assert not win.play_timer.isActive()
+    assert win.play_button.text() == "Play"
+
+
 def test_play_starts_from_the_moment_shown_where_the_camera_has_no_frame(
     recording: Path, make_window: Callable[[], mw.MainWindow], clock: list[float]
 ) -> None:
