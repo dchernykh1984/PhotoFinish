@@ -306,6 +306,31 @@ def test_a_phone_s_moments_hold_though_ffmpeg_reads_its_first_seconds_late() -> 
     assert got == [(first[0] + k * 33_333 + 500) // 1000 for k in range(20)]
 
 
+def test_a_push_s_first_frames_are_given_soon_not_after_seconds_of_look_over() -> None:
+    port = free_port()
+    camera = {"connection": "rtmp", "settings": {"port": port, "path": "live/test"}}
+    source = open_source(camera, lambda: time.time_ns() // 1_000_000)
+    first: list[int] = []
+
+    def moment_us(k: int) -> int:
+        return time.time_ns() // 1000  # each frame's moment: as it is encoded
+
+    def receive() -> None:
+        try:
+            for item in source.frames():
+                if item is not None and not first:
+                    first.append(time.time_ns() // 1_000_000 - item[1])
+        except OSError:
+            pass  # the camera app hung up
+
+    thread = threading.Thread(target=receive)
+    thread.start()
+    time.sleep(1.5)
+    push(port, 90, moment_us)  # three seconds: FFmpeg's look-over would wait them out
+    thread.join(timeout=30)
+    assert first and first[0] < 1500  # the first frame, read well within its seconds
+
+
 def test_a_phone_s_frames_keep_their_order_where_its_moments_begin() -> None:
     first: list[int] = []
 

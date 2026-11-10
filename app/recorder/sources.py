@@ -27,6 +27,7 @@ from app.recorder.testcam import TestCamera
 
 OPEN_TIMEOUT_S = 10.0
 READ_TIMEOUT_S = 5.0
+LOOK_OVER_US = "500000"  # how long FFmpeg reads a pushed stream before the first frame
 
 type Item = tuple[np.ndarray | av.VideoFrame | av.Packet, int] | None
 
@@ -71,9 +72,10 @@ def open_source(
     port = settings.get("port", cameras.RTMP_PORT)
     waiting = f"waiting for {cameras.rtmp_url(settings, cameras.this_computer())}"
     url = f"rtmp://0.0.0.0:{port}/{settings['path']}"
-    return Stream(
-        url, {"listen": "1", "timeout": "1"}, clock, listen=True, waiting=waiting
-    )
+    # FFmpeg looks a stream over before it gives its first frame -- five seconds
+    # by default -- and the frames placed by their arrival would be that late.
+    options = {"listen": "1", "timeout": "1", "analyzeduration": LOOK_OVER_US}
+    return Stream(url, options, clock, listen=True, waiting=waiting)
 
 
 # A phone's own moment is believed up to this long before the frame is read: FFmpeg
