@@ -571,6 +571,27 @@ def test_a_phone_whose_exchange_port_is_taken_is_still_recorded(
     assert heartbeat(folder)["frames"] == 5
 
 
+def test_a_port_taken_at_the_start_is_tried_again_as_the_phone_connects_again(
+    folder: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    phone_session()
+    monkeypatch.setattr(Responder, "made", [])
+    tries: list[int] = []
+
+    def taken_once(port: int, micros: Any) -> Responder:
+        tries.append(port)
+        if len(tries) == 1:  # the recorder before this one still lets go of it
+            raise OSError(errno.EADDRINUSE, "Address already in use")
+        return Responder(port, micros)
+
+    monkeypatch.setattr(recorder, "ClockResponder", taken_once)
+    lost = Camera(folder, START, 3, then=OSError("the phone went away"))
+    cameras(monkeypatch, lost, Camera(folder, START + 5_000, 5, stop_after=4))
+    assert run("cam1") == 0
+    [responder] = Responder.made
+    assert responder.closed
+
+
 def test_another_camera_gets_no_clock_exchange(
     folder: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
