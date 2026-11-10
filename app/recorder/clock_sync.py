@@ -33,10 +33,15 @@ def answer(request: bytes, t2: int, t3: int) -> bytes | None:
     return ANSWER.pack(TAG, VERSION, t1, t2, t3)
 
 
+_SHARED = ipaddress.ip_network("100.64.0.0/10")  # a carrier's or Tailscale's
+
+
 def may_ask(host: str) -> bool:
-    """A sender on this network -- a private, link-local or loopback address -- and
-    no stranger from beyond it: the answer is longer than the request."""
-    return ipaddress.ip_address(host).is_private
+    """A sender on this network -- a private, shared, link-local or loopback
+    address -- and no stranger from beyond it: the answer is longer than the
+    request."""
+    address = ipaddress.ip_address(host)
+    return address.is_private or address in _SHARED
 
 
 class ClockResponder:
