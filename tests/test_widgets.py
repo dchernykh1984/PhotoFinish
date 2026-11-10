@@ -60,7 +60,6 @@ def test_the_dialog_looks_this_computer_up_once(
 
     monkeypatch.setattr(cameras, "this_computer", here)
     dialog = CameraDialog(None, "cam1", [])
-    dialog.connection.setCurrentIndex(2)  # RTMP
     for typed in ("live/a", "live/ab", "live/abc"):
         dialog.path.setText(typed)
     assert dialog.address.text() == "rtmp://10.0.0.5:1935/live/abc"
@@ -73,16 +72,20 @@ def test_the_dialog_keeps_ok_off_while_the_camera_cannot_record(
     dialog = CameraDialog(None, "cam1", [])
     ok = dialog.buttons.button(dialog.buttons.StandardButton.Ok)
     assert dialog.camera()["name"] == "Camera 1"
-    assert dialog.camera()["settings"]["scene"] == "bar"
+    # The phone's streaming app first, its address ready to type in.
+    assert dialog.connection.currentText().startswith("Phone streaming app")
+    assert dialog.camera()["settings"] == {"port": 1935, "path": "live/cam1"}
     assert ok.isEnabled()
-    dialog.connection.setCurrentIndex(0)  # USB, no camera named
-    assert not ok.isEnabled()
+    dialog.connection.setCurrentIndex(dialog.connection.findData("usb"))
+    assert not ok.isEnabled()  # no camera named
     assert "name is missing" in dialog.problems.text()
-    dialog.connection.setCurrentIndex(2)  # RTMP
+    dialog.connection.setCurrentIndex(dialog.connection.findData("rtmp"))
     dialog.path.setText("/bad")
     assert dialog.address.text() == ""
     assert not ok.isEnabled()
-    dialog.connection.setCurrentIndex(4)  # a file
+    dialog.connection.setCurrentIndex(dialog.connection.findData("test"))
+    assert dialog.camera()["settings"]["scene"] == "bar"
+    dialog.connection.setCurrentIndex(dialog.connection.findData("file"))
     monkeypatch.setattr(
         QFileDialog, "getOpenFileName", lambda *args: ("/videos/race.mp4", "")
     )

@@ -24,10 +24,10 @@ from app import cameras
 from app.cameras import RTMP_PORT
 from app.recorder.testcam import SCENES
 
-CONNECTION_NAMES = {
+CONNECTION_NAMES = {  # the phone's streaming app first: the camera PhotoFinish expects
+    "rtmp": "Phone streaming app, sending here (RTMP)",
+    "rtsp": "Network stream a camera serves (RTSP)",
     "usb": "USB camera",
-    "rtsp": "Network stream the camera serves (RTSP)",
-    "rtmp": "Stream the camera sends here (RTMP)",
     "test": "Test camera",
     "file": "Video file",
 }
@@ -51,7 +51,7 @@ class CameraDialog(QDialog):
         self.connection = QComboBox()
         for key, label in CONNECTION_NAMES.items():
             self.connection.addItem(label, key)
-        self.connection.setCurrentIndex(list(CONNECTION_NAMES).index("test"))
+        self.connection.setCurrentIndex(list(CONNECTION_NAMES).index("rtmp"))
         self.device = QComboBox()
         self.device.setEditable(True)
         self.device.addItems(usb_names)
@@ -108,7 +108,7 @@ class CameraDialog(QDialog):
             "transport": self._row("Transport", self.transport),
             "port": self._row("Port", self.port),
             "path": self._row("Stream path", self.path),
-            "address": self._row("Type in the camera app", self.address),
+            "address": self._row("Type in the streaming app", self.address),
             "scene": self._row("Scene", self.scene),
             "file": self._row("Video file", file_row),
             "live": self._row("", self.live),

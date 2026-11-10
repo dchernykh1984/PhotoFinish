@@ -234,7 +234,7 @@ def test_a_camera_added_is_saved_and_its_recorder_started(
     (camera,) = session.load()["cameras"]
     assert (camera["id"], camera["connection"], camera["record"]) == (
         "cam1",
-        "test",
+        "rtmp",  # a phone's streaming app, the dialog's first choice
         True,
     )
     assert spawned == ["cam1"]
