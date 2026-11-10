@@ -72,12 +72,12 @@ fun CameraScreen(
     streamer: CameraStreamer,
 ) {
     val granted = rememberCameraPermission()
-    val resumed = rememberResumed()
+    val started = rememberStarted()
     var preview by remember { mutableStateOf<PreviewSurface?>(null) }
     val format = state.format
     val target = if (state.streaming) state.parsedAddress else null
     // The camera starts once the preview has the stream's size, and again on every change.
-    val surface = preview?.takeIf { resumed && granted && it.size == format?.resolution }?.surface
+    val surface = preview?.takeIf { started && granted && it.size == format?.resolution }?.surface
     LaunchedEffect(surface, format, target) {
         streamer.stop()
         if (surface != null && format != null) streamer.start(surface, format, target)
@@ -117,20 +117,24 @@ private fun rememberCameraPermission(): Boolean {
     return granted
 }
 
+/**
+ * The screen is on view: from ON_START to ON_STOP, not only while resumed, so a system dialog
+ * over the screen -- a pause -- does not cut the stream mid-race.
+ */
 @Composable
-private fun rememberResumed(): Boolean {
-    var resumed by remember { mutableStateOf(false) }
+private fun rememberStarted(): Boolean {
+    var started by remember { mutableStateOf(false) }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     DisposableEffect(lifecycle) {
         val observer =
             LifecycleEventObserver { _, event ->
-                if (event == Lifecycle.Event.ON_RESUME) resumed = true
-                if (event == Lifecycle.Event.ON_PAUSE) resumed = false
+                if (event == Lifecycle.Event.ON_START) started = true
+                if (event == Lifecycle.Event.ON_STOP) started = false
             }
         lifecycle.addObserver(observer)
         onDispose { lifecycle.removeObserver(observer) }
     }
-    return resumed
+    return started
 }
 
 /** The screen as dark as the phone allows while [dimmed]; the stream goes on. */
