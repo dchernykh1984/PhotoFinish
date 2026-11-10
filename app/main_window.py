@@ -1346,11 +1346,14 @@ class MainWindow(QMainWindow):
 
     def stop(self) -> None:
         """Playing stopped, back at the frame Play started from; after the referee
-        moved the video, or Live caught it up, only held."""
-        if self.play_from is None:
+        moved the video, or Live caught it up, or with no frame to go back to,
+        only held."""
+        started = self.play_from
+        self._halt()  # stopped, whatever follows
+        if started is None:
             self.pause()
         else:
-            self.seek_ms(self.play_from)
+            self.seek_ms(started)
 
     def _halt(self, forget: bool = False) -> None:
         """Playing stops; ``forget`` also drops where Play started, so Stop no
