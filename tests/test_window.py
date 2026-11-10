@@ -220,24 +220,33 @@ def test_stop_after_the_video_was_moved_only_holds_it(
     assert shown(win) == START + 69 * 33
 
 
-def test_playing_shows_a_frame_decoded_late_and_pause_shows_only_the_one_asked(
-    recording: Path, make_window: Callable[[], mw.MainWindow]
+def test_playing_asks_for_the_next_frame_once_the_one_on_its_way_is_shown(
+    recording: Path, make_window: Callable[[], mw.MainWindow], clock: list[float]
 ) -> None:
-    """A decoder slower than the camera answers every request after the next one
-    is asked: playing shows those answers rather than a picture that never moves."""
+    """On a decoder slower than the camera every frame shown is one asked for:
+    the next waits for it, and a late answer never shows on a camera that has
+    no frame at the moment."""
     win = make_window()
     wait_until(showing(win, START + 69 * 33))
     win.step(-60)
     camera = win.cameras["cam1"]
-    late = (camera.id, camera.index.frame(0))
-    assert late != camera.wanted
     red, blue = (QImage(8, 8, QImage.Format.Format_RGB888) for _ in range(2))
     red.fill(Qt.GlobalColor.red)
     blue.fill(Qt.GlobalColor.blue)
     win.play()
-    win._decoded(late, red)
+    camera.pending = True  # frame 9 still on its way
+    asked = camera.wanted
+    assert asked is not None
+    clock[0] += 0.33
+    win._play_tick()
+    assert camera.wanted == asked  # frame 19 waits
+    win._decoded(asked, red)
     assert win.view.image == red
-    win.pause()
+    win._play_tick()
+    wait_until(lambda: win.view.image != red)  # frame 19, asked now
+    assert shown(win) == START + 19 * 33
+    late = (camera.id, camera.index.frame(0))
+    camera.wanted, camera.pending = None, False  # no frame at this moment
     win._decoded(late, blue)
     assert win.view.image != blue
 

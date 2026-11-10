@@ -93,6 +93,7 @@ class Camera:
     suggestions: Suggestions
     shown: int | None = None  # the frame on its view, in its index
     wanted: tuple[str, Frame] | None = None  # the frame last asked for
+    pending: bool = False  # that frame asked for and not decoded yet
     analyzer: Any = None  # its analyser process, while finding riders is on
     analyzer_started: float = -math.inf  # monotonic
     stopping: Any = None  # the analyser stopped, while it ends its segment
@@ -1320,7 +1321,7 @@ class MainWindow(QMainWindow):
         self._leave_live()
         if self.place is not None:
             for camera in self.cameras.values():
-                camera.wanted = None
+                camera.wanted, camera.pending = None, False
             self._go(self.place)
 
     def stop(self) -> None:
@@ -1347,8 +1348,8 @@ class MainWindow(QMainWindow):
         place = playback.frame_due(camera.index, self._play_start, now, offset)
         if place is None:
             self.go_live()  # caught up with the recording: it plays on live
-        elif place != self.place:
-            self._go(place, dim=False)
+        elif place != self.place or camera.shown != place:
+            self._go(place, dim=False)  # due, or still to be asked: one was on its way
 
     def _show_play(self) -> None:
         self.play_button.setText("Pause" if self.live or self.playing else "Play")
@@ -1411,9 +1412,13 @@ class MainWindow(QMainWindow):
         if place is None:
             target = moment - int(camera.settings.get("offset_ms", 0))
             place = camera.index.nearest(target, within=NEAR_MS)
+        if not dim and camera.pending:
+            # Playing: the frame due waits for the one on its way, so a decoder
+            # slower than the camera shows every frame it can, each the one asked.
+            return
         camera.shown = place
         if place is None:
-            camera.wanted = None
+            camera.wanted, camera.pending = None, False
             if len(camera.index):
                 camera.view.show_text("No frame at this moment")
             return
@@ -1421,6 +1426,7 @@ class MainWindow(QMainWindow):
         if (camera.id, frame) == camera.wanted:
             return
         camera.wanted = (camera.id, frame)  # the frame, not its place: places move
+        camera.pending = True
         if dim:
             camera.view.show_waiting()  # no crossing timed on the frame before
         camera.worker.request(frame.path, frame.pts, camera.wanted)
@@ -1429,13 +1435,9 @@ class MainWindow(QMainWindow):
         """A frame decoded, handed over in this window's thread: a lambda would run
         in the decoder's, where no widget may be touched."""
         camera = self.cameras.get(tag[0])
-        if camera is None:
-            return  # a camera removed
-        if tag != camera.wanted and not (self.playing and not image.isNull()):
-            # An answer to a request since replaced. While playing it is shown all
-            # the same: on a decoder slower than the camera every answer is late,
-            # and a frame late beats a picture that never moves.
-            return
+        if camera is None or tag != camera.wanted:
+            return  # an answer to a request since replaced, or a camera removed
+        camera.pending = False
         if image.isNull():
             camera.view.show_text("This frame cannot be shown")
         else:
