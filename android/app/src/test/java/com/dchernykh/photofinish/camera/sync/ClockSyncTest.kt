@@ -110,4 +110,11 @@ class ClockSyncTest {
         assertFalse(sync.exchange())
         silent.close()
     }
+
+    @Test
+    fun `a host that does not resolve is an exchange unanswered`() {
+        val sync = ClockSync("photofinish.invalid", 1935, { 0 })
+        assertFalse(sync.exchange()) // not an exception, which would end the app
+        sync.close()
+    }
 }
