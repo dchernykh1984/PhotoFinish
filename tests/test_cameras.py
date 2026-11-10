@@ -129,15 +129,17 @@ def test_a_phone_with_settings_not_a_phones_takes_no_port() -> None:
     assert ports_taken(broken) == set()
 
 
-def test_a_phone_on_the_port_of_one_before_it_says_so() -> None:
+def test_phones_sharing_a_port_both_say_so() -> None:
     first = {"id": "cam1", "name": "Line", "connection": "rtmp", "settings": {}}
     second = {"id": "cam2", "connection": "rtmp", "settings": {"port": 1935}}
     third = {"id": "cam3", "connection": "rtmp", "settings": {"port": 1936}}
     test = {"id": "cam4", "connection": "test", "settings": {}}
     session_cameras = [first, second, third, test]
-    assert port_clash(first, session_cameras) is None  # it holds the port
+    assert port_clash(first, session_cameras) == (
+        "port 1935 is shared with cam2: remove one, add it again"
+    )
     assert port_clash(second, session_cameras) == (
-        "port 1935 is Line's: remove this phone and add it again"
+        "port 1935 is shared with Line: remove one, add it again"
     )
     assert port_clash(third, session_cameras) is None
     assert port_clash(test, session_cameras) is None

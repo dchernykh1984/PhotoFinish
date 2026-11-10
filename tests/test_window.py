@@ -378,12 +378,9 @@ def test_a_phone_sharing_a_port_says_so_in_the_camera_list(
         }
     )
     win = make_window()
-    assert not win.camera_list.item(0).text().startswith("Line: port")
-    assert (
-        win.camera_list.item(1)
-        .text()
-        .startswith("Side: port 1935 is Line's: remove this phone and add it again")
-    )
+    lines = [win.camera_list.item(i).text() for i in range(2)]
+    assert lines[0].startswith("Line: port 1935 is shared with Side: remove one")
+    assert lines[1].startswith("Side: port 1935 is shared with Line: remove one")
 
 
 def test_a_camera_added_is_saved_and_its_recorder_started(
