@@ -888,6 +888,11 @@ class MainWindow(QMainWindow):
         """A preset ready is chosen at once, one missing is downloaded first; the
         last item opens a file of the referee's own."""
         chosen = self.model_box.itemData(index)
+        if self._fetching is not None:
+            if chosen == self._fetching.file:
+                return  # on its way already
+            self._fetch.cancel()  # another choice: the download in progress stops
+            self._fetching = None
         if chosen == _OWN_FILE:
             self.choose_model()
             self._show_model()  # a file not chosen leaves the model as it was
@@ -907,28 +912,28 @@ class MainWindow(QMainWindow):
             self._download(model)
 
     def _download(self, model: models.Model) -> None:
-        """The model fetched in the background; the analysers wait for it."""
-        self.model_box.setEnabled(False)
+        """The model fetched in the background; choosing anything else in the list
+        stops it."""
         self._fetching = model
         self._say(f"Downloading {model.label}...")
         self._fetch.start(model)
 
-    def _fetch_progress(self, done: int) -> None:
+    def _fetch_progress(self, key: str, done: int) -> None:
         """How far the download is, in the model list itself: the status line keeps
         whatever warning it shows."""
         model = self._fetching
-        if model is not None and not self.closed:
+        if model is not None and model.key == key and not self.closed:
             self.model_box.setItemText(
                 self.model_box.currentIndex(),
                 f"{model.title}: {done // 1_000_000} of {model.megabytes} MB",
             )
 
-    def _fetched(self, error: str) -> None:
-        if self.closed:
-            return  # an answer queued before the window went: not acted on
-        model, self._fetching = self._fetching, None
-        self.model_box.setEnabled(True)
-        if error or model is None:
+    def _fetched(self, key: str, error: str) -> None:
+        model = self._fetching
+        if self.closed or model is None or model.key != key:
+            return  # queued before the window went, or a download since stopped
+        self._fetching = None
+        if error:
             self._say(error)
             self._show_model()
             return
@@ -995,8 +1000,11 @@ class MainWindow(QMainWindow):
     def _analyze(self, camera: Camera) -> None:
         """The camera's analyser running, started again 30 s after it last was; not
         beside the one stopped before, while that ends its segment."""
-        if self._fetching is not None:
-            return  # the model is on its way: started once it is there
+        on_its_way = self._fetching
+        if on_its_way is not None and (
+            on_its_way.file == analysis.settings(self.session)["model"]
+        ):
+            return  # the model in use is on its way: started once it is there
         recorded = camera.settings.get("record", True)
         running = any(
             process is not None and process.state() != QProcess.ProcessState.NotRunning
@@ -1502,21 +1510,34 @@ class _Fetch(QObject):
     """A model downloaded on a thread of its own, heard of through signals: Qt hands
     them to the window's thread."""
 
-    progress = Signal(int)  # bytes so far
-    done = Signal(str)  # what went wrong; empty once the model is there
+    progress = Signal(str, int)  # the model's key, bytes so far
+    done = Signal(str, str)  # the model's key, what went wrong (empty: it is there)
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._stop = threading.Event()
 
     def start(self, model: models.Model) -> None:
-        threading.Thread(target=self._run, args=(model,), daemon=True).start()
+        self._stop = threading.Event()  # one per download: a stop is its own
+        threading.Thread(
+            target=self._run, args=(model, self._stop), daemon=True
+        ).start()
 
-    def _run(self, model: models.Model) -> None:
+    def cancel(self) -> None:
+        self._stop.set()
+
+    def _run(self, model: models.Model, stop: threading.Event) -> None:
+        def told(done: int) -> None:
+            self.progress.emit(model.key, done)
+
         try:
-            models.fetch(model, self.progress.emit)
+            models.fetch(model, told, cancelled=stop.is_set)
         except models.FetchError as error:
-            self.done.emit(str(error))
+            self.done.emit(model.key, str(error))
         except Exception as error:  # whatever else: said, the list never left off
-            self.done.emit(f"{model.title} cannot be downloaded: {error}")
+            self.done.emit(model.key, f"{model.title} cannot be downloaded: {error}")
         else:
-            self.done.emit("")
+            self.done.emit(model.key, "")
 
 
 def _same_file(chosen: object, path: str) -> bool:

@@ -1436,7 +1436,11 @@ def test_a_preset_missing_on_disk_is_downloaded_before_the_analysers_start(
     fetched: list[str] = []
     gate = threading.Event()
 
-    def fetch(model: models.Model, progress: Callable[[int], None]) -> Path:
+    def fetch(
+        model: models.Model,
+        progress: Callable[[int], None],
+        cancelled: Callable[[], bool] = lambda: False,
+    ) -> Path:
         gate.wait(5)
         fetched.append(model.key)
         return Path(model.file)
@@ -1445,10 +1449,10 @@ def test_a_preset_missing_on_disk_is_downloaded_before_the_analysers_start(
     monkeypatch.setattr(mw.models, "ready", lambda model: model.key in fetched)
     win = make_window()
     win.poll()
-    assert not win.model_box.isEnabled()
+    assert win._fetching is models.MODELS[2]
     assert analyzers == []  # no analyser fails on a model not there yet
     gate.set()
-    wait_until(win.model_box.isEnabled)
+    wait_until(lambda: win._fetching is None)
     assert fetched == ["yolox_s"]
     assert [a.camera_id for a in analyzers] == ["cam1"]
 
@@ -1471,13 +1475,77 @@ def test_choosing_the_model_in_use_again_restarts_nothing(
     assert analyzers[0].running
 
 
+def test_choosing_another_model_stops_a_download_and_nothing_waits_for_it(
+    win: mw.MainWindow, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A download trickling in on a venue's mobile link: the referee goes back to
+    motion only, and the download stops without a word."""
+    stopped = threading.Event()
+
+    def fetch(
+        model: models.Model,
+        progress: Callable[[int], None],
+        cancelled: Callable[[], bool] = lambda: False,
+    ) -> Path:
+        while not cancelled():
+            time.sleep(0.01)
+        stopped.set()
+        raise models.FetchError(f"{model.title}: download stopped")
+
+    monkeypatch.setattr(mw.models, "fetch", fetch)
+    monkeypatch.setattr(mw.models, "ready", lambda model: False)
+    win._model_chosen(win.model_box.findData(models.MODELS[2].file))
+    assert win.model_box.isEnabled()  # another choice stays open
+    win._model_chosen(win.model_box.findData(""))
+    assert stopped.wait(5)
+    QApplication.processEvents()
+    assert win._fetching is None
+    assert "stopped" not in win.statusBar().currentMessage()
+    assert analysis.settings(session.load())["model"] == ""
+    assert win.model_box.currentText() == "Motion only"
+
+
+def test_a_download_of_another_model_holds_no_analyser_back(
+    recording: Path,
+    make_window: Callable[[], mw.MainWindow],
+    analyzers: list[Any],
+    monkeypatch: pytest.MonkeyPatch,
+    clock: list[float],
+) -> None:
+    saved = session.load()
+    saved["analysis"] = {"on": True, "model": ""}
+    session.save(saved)
+    gate = threading.Event()
+
+    def fetch(
+        model: models.Model,
+        progress: Callable[[int], None],
+        cancelled: Callable[[], bool] = lambda: False,
+    ) -> Path:
+        gate.wait(5)
+        raise models.FetchError(f"{model.title} cannot be downloaded: offline")
+
+    monkeypatch.setattr(mw.models, "fetch", fetch)
+    monkeypatch.setattr(mw.models, "ready", lambda model: False)
+    win = make_window()
+    assert len(analyzers) == 1
+    win._model_chosen(win.model_box.findData(models.MODELS[2].file))
+    analyzers[0].running = False  # the analyser of the model in use ends
+    clock[0] += 60
+    win.poll()
+    assert len(analyzers) == 2  # started again: not the model downloading
+    gate.set()
+    wait_until(lambda: win._fetching is None)
+
+
 def test_a_closed_window_hears_nothing_from_a_download_still_running(
     win: mw.MainWindow,
 ) -> None:
     win._fetching = models.MODELS[0]
     win.close()
-    win._fetched("")  # an answer queued before the close, delivered after it
-    win._fetch_progress(1_000_000)
+    key = models.MODELS[0].key
+    win._fetched(key, "")  # an answer queued before the close, delivered after it
+    win._fetch_progress(key, 1_000_000)
     QApplication.processEvents()
     assert analysis.settings(session.load())["model"] == ""
 
@@ -1485,7 +1553,7 @@ def test_a_closed_window_hears_nothing_from_a_download_still_running(
 def test_the_model_list_turns_neither_with_the_wheel_nor_with_the_keys(
     win: mw.MainWindow, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(mw.models, "fetch", lambda *a: pytest.fail("fetched"))
+    monkeypatch.setattr(mw.models, "fetch", lambda *a, **k: pytest.fail("fetched"))
     box = win.model_box
     assert box.focusPolicy() == Qt.FocusPolicy.NoFocus
     wheel = QWheelEvent(
@@ -1512,7 +1580,11 @@ def test_a_model_preset_is_downloaded_once_then_used(
     nano = models.MODELS[0]
     gate = threading.Event()
 
-    def fetch(model: models.Model, progress: Callable[[int], None]) -> Path:
+    def fetch(
+        model: models.Model,
+        progress: Callable[[int], None],
+        cancelled: Callable[[], bool] = lambda: False,
+    ) -> Path:
         progress(model.size // 2)
         gate.wait(5)
         fetched.append(model.key)
@@ -1529,7 +1601,7 @@ def test_a_model_preset_is_downloaded_once_then_used(
         "Model file...",
     ]
     win._model_chosen(win.model_box.findData(nano.file))
-    assert not win.model_box.isEnabled()  # one download at a time
+    assert win._fetching is nano
     wait_until(lambda: win.model_box.currentText().endswith(": 1 of 4 MB"))
     said = "Downloading YOLOX-Nano, the fastest (4 MB)..."
     assert win.statusBar().currentMessage() == said  # not covered by progress
@@ -1555,13 +1627,17 @@ def test_a_model_preset_is_downloaded_once_then_used(
 def test_a_model_that_cannot_be_downloaded_is_said_and_the_choice_stays(
     win: mw.MainWindow, monkeypatch: pytest.MonkeyPatch, failure: Exception
 ) -> None:
-    def fetch(model: models.Model, progress: Callable[[int], None]) -> Path:
+    def fetch(
+        model: models.Model,
+        progress: Callable[[int], None],
+        cancelled: Callable[[], bool] = lambda: False,
+    ) -> Path:
         raise failure
 
     monkeypatch.setattr(mw.models, "fetch", fetch)
     monkeypatch.setattr(mw.models, "ready", lambda model: False)
     win._model_chosen(win.model_box.findData(models.MODELS[2].file))
-    wait_until(win.model_box.isEnabled)
+    wait_until(lambda: win._fetching is None)
     assert "YOLOX-S, finds the most cannot be downloaded" in (
         win.statusBar().currentMessage()
     )
