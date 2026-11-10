@@ -18,7 +18,7 @@ import numpy as np
 import pytest
 
 from app import cameras
-from app.recorder import sources
+from app.recorder import frame_time, sources
 from app.recorder.segments import SegmentWriter
 from app.recorder.sources import (
     Anchor,
@@ -493,6 +493,29 @@ def test_a_phone_s_moment_from_the_future_is_not_believed() -> None:
     # A frame is read after it was taken: 1.5 s ahead is a clock out of step.
     assert place(avcc(sei((START + 1_500) * 1000), b"\x65\x88"), 0) == START  # type: ignore[arg-type]
     assert sources.NOT_IN_STEP == source.clock_note  # stamped, but out of step
+
+
+def test_a_stream_placed_by_arrival_is_looked_into_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    looked: list[int] = []
+    real = frame_time.moment_ms
+
+    def counted(packet: Any) -> int | None:
+        looked.append(1)
+        return real(packet)
+
+    monkeypatch.setattr(frame_time, "moment_ms", counted)
+    source = sources.Stream(
+        "rtmp://0.0.0.0:1935/live/x", {}, lambda: START, listen=True
+    )
+    stream = SimpleNamespace(
+        time_base=Fraction(1, 1000), codec_context=SimpleNamespace(name="h264")
+    )
+    place = source._placing(stream, phone=False)  # type: ignore[arg-type]
+    for k in range(3):  # Larix, say: no moments, all race long
+        place(avcc(b"\x41\x9a"), k * 33)  # type: ignore[arg-type]
+    assert len(looked) == 1
 
 
 def test_a_phone_whose_clock_went_wrong_is_placed_by_arrival() -> None:

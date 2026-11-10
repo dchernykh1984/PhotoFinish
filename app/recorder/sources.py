@@ -241,6 +241,8 @@ class Stream:
         trusted: list[bool] = []  # the first packet's say, for the whole stream
 
         def place(packet: av.Packet, pts: int) -> int:
+            if trusted and not trusted[0]:  # by arrival: nothing more to look for
+                return self.anchor(float(pts * unit))
             own = frame_time.moment_ms(memoryview(packet)) if stamped else None
             if not trusted:
                 trusted.append(own is not None and self._believed(own))
