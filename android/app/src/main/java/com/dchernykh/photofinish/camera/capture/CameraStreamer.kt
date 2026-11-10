@@ -114,7 +114,11 @@ class CameraStreamer(
 
                     override fun onDisconnected(camera: CameraDevice) {
                         camera.close()
-                        if (mine == generation) onStatus(StreamerStatus.Failed("the camera was taken by another app"))
+                        if (mine ==
+                            generation
+                        ) {
+                            openAgain(preview, format, address, "the camera was taken by another app")
+                        }
                     }
 
                     override fun onError(
@@ -122,7 +126,7 @@ class CameraStreamer(
                         error: Int,
                     ) {
                         camera.close()
-                        if (mine == generation) onStatus(StreamerStatus.Failed("camera error $error"))
+                        if (mine == generation) openAgain(preview, format, address, "camera error $error")
                     }
                 },
                 handler,
@@ -131,6 +135,22 @@ class CameraStreamer(
             close()
             onStatus(failed(error))
         }
+    }
+
+    /**
+     * The camera lost mid-stream -- another app took it, its service started again: all closed,
+     * said on the screen, and opened again in a moment, as long as nothing else was asked for.
+     */
+    private fun openAgain(
+        preview: Surface,
+        format: StreamFormat,
+        address: RtmpAddress?,
+        reason: String,
+    ) {
+        close()
+        val mine = generation
+        onStatus(StreamerStatus.Failed("$reason; trying again"))
+        handler.postDelayed({ if (mine == generation) open(preview, format, address) }, OPEN_AGAIN_MS)
     }
 
     // The list form serves minSdk 26 as well as SessionConfiguration; a camera gone meanwhile
@@ -203,25 +223,20 @@ class CameraStreamer(
         ptsUs: Long,
         mine: Int,
     ) {
-        val found = TimestampBase.detect(ptsUs * 1000, SystemClock.elapsedRealtimeNanos(), System.nanoTime())
-        handler.post {
-            when {
-                mine != generation -> Unit // closed meanwhile
-                found == null -> onStatus(StreamerStatus.NoClock)
-                else -> startClock(found)
-            }
-        }
-    }
-
-    private fun startClock(base: TimestampBase) {
-        val target = address ?: return
-        if (sync != null) return
-        val clock: () -> Long =
-            when (base) {
+        val clock: (() -> Long)? =
+            when (TimestampBase.detect(ptsUs * 1000, SystemClock.elapsedRealtimeNanos(), System.nanoTime())) {
                 TimestampBase.REALTIME -> ({ SystemClock.elapsedRealtimeNanos() / 1000 })
                 TimestampBase.MONOTONIC -> ({ System.nanoTime() / 1000 })
+                null -> null
             }
-        sync = ClockSync(target.host, target.port, clock).also { it.start() }
+        handler.post {
+            val target = address
+            when {
+                mine != generation || target == null || sync != null -> Unit // closed meanwhile
+                clock == null -> onStatus(StreamerStatus.NoClock)
+                else -> sync = ClockSync(target.host, target.port, clock).also { it.start() }
+            }
+        }
     }
 
     private fun startEncoder(
@@ -296,6 +311,7 @@ class CameraStreamer(
     companion object {
         private const val DEQUEUE_TIMEOUT_US = 10_000L
         private const val DRAIN_JOIN_MS = 500L
+        private const val OPEN_AGAIN_MS = 2_000L
 
         private fun failed(error: Exception) = StreamerStatus.Failed(error.message ?: error.javaClass.simpleName)
 
