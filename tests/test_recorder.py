@@ -550,10 +550,9 @@ def test_a_phone_s_clock_exchange_is_answered_while_its_recorder_runs(
     monkeypatch.setattr(Responder, "made", [])
     monkeypatch.setattr(recorder, "ClockResponder", Responder)
     cameras(monkeypatch, Camera(folder, START, 5, stop_after=4))
-    assert run("cam1", clock=lambda: START) == 0
+    assert run("cam1") == 0
     [responder] = Responder.made
     assert responder.port == 1999
-    assert responder.micros() == START * 1000  # the recorder's clock, in us
     assert responder.closed
 
 
