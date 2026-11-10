@@ -217,6 +217,18 @@ def push(port: int, frames: int, moment_us: Any = None) -> None:
         send(stream.encode(None))
 
 
+def test_the_address_waited_on_is_this_computer_s_as_it_is_now(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    here = ["127.0.0.1"]  # started before the computer joined the race Wi-Fi
+    monkeypatch.setattr(cameras, "this_computer", lambda: here[0])
+    camera = {"connection": "rtmp", "settings": {"port": 1936, "path": "live/x"}}
+    source = open_source(camera, lambda: START)
+    assert source.waiting == "waiting for rtmp://127.0.0.1:1936/live/x"
+    here[0] = "192.168.1.20"
+    assert source.waiting == "waiting for rtmp://192.168.1.20:1936/live/x"
+
+
 def test_an_rtmp_push_is_received_and_kept_as_it_came(tmp_path: Path) -> None:
     port = free_port()
     camera = {"connection": "rtmp", "settings": {"port": port, "path": "live/test"}}

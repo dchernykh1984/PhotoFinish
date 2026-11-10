@@ -38,7 +38,9 @@ class CameraSettingsError(ValueError):
 
 class Source(Protocol):
     fps: float
-    waiting: str  # what the recorder says while the source yields None
+
+    @property
+    def waiting(self) -> str: ...  # what the recorder says while it yields None
 
     def frames(self) -> Iterator[Item]: ...
 
@@ -70,7 +72,10 @@ def open_source(
         options = {"rtsp_transport": settings.get("transport", "tcp")}
         return Stream(settings["url"], options, clock)
     port = settings.get("port", cameras.RTMP_PORT)
-    waiting = f"waiting for {cameras.rtmp_url(settings, cameras.this_computer())}"
+
+    def waiting() -> str:  # looked up each time: the computer may join a network
+        return f"waiting for {cameras.rtmp_url(settings, cameras.this_computer())}"
+
     url = f"rtmp://0.0.0.0:{port}/{settings['path']}"
     # FFmpeg looks a stream over before it gives its first frame -- five seconds
     # by default -- and the frames placed by their arrival would be that late.
@@ -171,16 +176,16 @@ class Stream:
         options: dict[str, str],
         clock: Callable[[], int],
         listen: bool = False,
-        waiting: str = "",
+        waiting: Callable[[], str] = str,
     ) -> None:
-        self.url, self.options, self.listen, self.waiting = (
-            url,
-            options,
-            listen,
-            waiting,
-        )
+        self.url, self.options, self.listen = url, options, listen
+        self._waiting = waiting
         self.fps = 30.0
         self.anchor = Anchor(clock)
+
+    @property
+    def waiting(self) -> str:
+        return self._waiting()
 
     def frames(self) -> Iterator[Item]:
         # A listening open waits a second for the camera app at a time; a stream
