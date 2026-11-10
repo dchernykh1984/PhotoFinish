@@ -10,8 +10,10 @@ downloaded when the referee chooses it, and again at start when it is missing.
 It records each camera in a process of its own that keeps recording when the
 window is gone, follows the chronometer's results file, and keeps the referee's
 crossings in an output file with a journal of every change. The camera is a
-phone on a tripod whose free streaming app pushes RTMP to PhotoFinish; action
-cameras were tried and dropped, their live video being a low-quality preview.
+phone on a tripod running PhotoFinish Camera (`android/`, released with the
+program), which pushes RTMP with each frame's moment on the recorder's clock; a
+free streaming app works too. Action cameras were tried and dropped, their live
+video being a low-quality preview.
 `specs/app/README.md` describes the program as it works today; the feature
 behind it is `specs/001-video-refinement/`, and the design discussion
 ChronometerPython issue #49.
@@ -28,7 +30,8 @@ ChronometerPython issue #49.
 | `app/output_list.py` | The output file, its state and its journal. |
 | `app/input_follow.py` | The chronometer's file followed into the output. |
 | `app/cameras.py` | Connections and what a camera's settings must be. |
-| `app/recorder/` | The recorder process: sources, segments, test camera, launcher. |
+| `app/recorder/` | The recorder process: sources, segments, test camera, launcher; the phone's clock exchange (`clock_sync.py`) and frame moments (`frame_time.py`). |
+| `android/` | PhotoFinish Camera, the phone app: Kotlin, its own Gradle build (see the `android-app` skill). |
 | `app/video_index.py`, `app/decoder.py` | Recorded frames found by time; one decoded. |
 | `app/interpolation.py` | The finish line and the caliper reading. |
 | `app/shared_event.py` | Cameras in step on an event they all show. |
@@ -77,6 +80,7 @@ uv run pre-commit install                # once per clone: checks at every commi
 uv run python -m app.main                # run the app (never python app/main.py)
 uv run pytest                            # tests, -n auto, coverage gate 90%
 uv run pre-commit run --all-files        # everything CI's pre-commit job runs
+cd android && ./gradlew ktlintCheck detekt lintDebug testDebugUnitTest koverVerify assembleDebug assembleRelease   # the phone app's gate (JDK 17, Android SDK)
 ```
 
 `uv sync` installs the dev group by default (`tool.uv.default-groups = ["dev"]`);
@@ -116,16 +120,18 @@ Kit skills (`speckit-specify`, `speckit-plan`, `speckit-tasks`,
 
 ## Skills
 
-- `shipping-a-change` - branch, failing-first test, commit, PR, the six checks.
+- `shipping-a-change` - branch, failing-first test, commit, PR, the seven checks.
 - `local-gate` - the checks CI runs and the rules that fail a commit most often.
 - `reviewing-a-change` - the failure modes that matter for this tool.
 - `review-cycle` - review a branch or PR and land the fixes.
 - `qt-window-tests` - how to test the PySide6 window.
 - `trying-a-camera` - connecting a real camera and judging its video.
+- `android-app` - PhotoFinish Camera: its gate, trying it with a recorder, its release.
 
 ## Release
 
 release-please owns versioning: merging `feat:` or `fix:` commits to `main`
 opens a release PR, and merging that cuts the tag, builds the portable apps for
-every platform and attaches them to the GitHub release. Do not bump the version
+every platform and PhotoFinish Camera's signed APK, and attaches them to the
+GitHub release. Do not bump the version
 in `pyproject.toml` by hand.
