@@ -101,6 +101,7 @@ logs/
 # next to itself (app/paths.py): never commit them.
 /data/
 /video/
+/models/
 
 # ===== OS =====
 

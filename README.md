@@ -14,7 +14,7 @@ the window is gone, shows every camera at one moment, follows the chronometer's
 file as it grows, and keeps the referee's crossings -- added from a frame,
 corrected, or read between two frames like a caliper -- in an output file with a
 journal of every change. An experimental helper, off by default, marks where riders
-pass -- by motion, or by a detection model downloaded beforehand -- and suggests
+pass -- by motion, or by a detection model downloaded once when chosen -- and suggests
 crossings to accept or dismiss. What it does, in full: [`specs/app`](specs/app/README.md);
 a first session with the test camera:
 [quickstart](specs/001-video-refinement/quickstart.md).
