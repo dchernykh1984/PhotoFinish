@@ -24,3 +24,5 @@ request.
 - [001-video-refinement](001-video-refinement/spec.md): live finish video and the referee's list
   of crossings.
 - [002-video-analysis](002-video-analysis/spec.md): finding riders in the video (experimental).
+- [003-phone-camera-app](003-phone-camera-app/spec.md): PhotoFinish Camera, the phone app that
+  streams to PhotoFinish with each frame's moment.
