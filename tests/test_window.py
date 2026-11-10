@@ -172,6 +172,20 @@ def test_play_runs_the_video_at_its_own_speed_and_pause_holds_it(
     assert win._frame_on_screen()
 
 
+def test_play_starts_from_the_moment_shown_where_the_camera_has_no_frame(
+    recording: Path, make_window: Callable[[], mw.MainWindow], clock: list[float]
+) -> None:
+    win = make_window()
+    wait_until(showing(win, START + 69 * 33))
+    win.step(-60)
+    win.place = None  # a camera chosen that did not film this moment
+    win.play()
+    assert win.playing
+    clock[0] += 0.33
+    win._play_tick()
+    wait_until(showing(win, START + 19 * 33))
+
+
 def test_stop_goes_back_to_where_play_started_and_playing_on_reaches_live(
     recording: Path, make_window: Callable[[], mw.MainWindow], clock: list[float]
 ) -> None:
