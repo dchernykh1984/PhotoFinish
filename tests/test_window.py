@@ -195,6 +195,31 @@ def test_stop_goes_back_to_where_play_started_and_playing_on_reaches_live(
     wait_until(showing(win, START + 69 * 33))
 
 
+def test_stop_after_the_video_was_moved_only_holds_it(
+    recording: Path, make_window: Callable[[], mw.MainWindow], clock: list[float]
+) -> None:
+    win = make_window()
+    wait_until(showing(win, START + 69 * 33))
+    win.step(-60)
+    win.play()
+    clock[0] += 0.33
+    win._play_tick()
+    wait_until(showing(win, START + 19 * 33))
+    win.pause()
+    win.step(-5)
+    win.stop()
+    settled(win)
+    assert shown(win) == START + 14 * 33  # not back at 9, where Play started
+    win.play()
+    clock[0] += 5.0
+    win._play_tick()  # caught up: Live
+    wait_until(showing(win, START + 69 * 33))
+    win.stop()
+    assert not win.live
+    settled(win)
+    assert shown(win) == START + 69 * 33
+
+
 def test_playing_shows_a_frame_decoded_late_and_pause_shows_only_the_one_asked(
     recording: Path, make_window: Callable[[], mw.MainWindow]
 ) -> None:
