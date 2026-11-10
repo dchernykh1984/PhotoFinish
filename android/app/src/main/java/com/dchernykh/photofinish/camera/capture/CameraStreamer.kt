@@ -9,6 +9,7 @@ import android.hardware.camera2.CameraMetadata
 import android.hardware.camera2.CaptureRequest
 import android.media.MediaCodec
 import android.media.MediaCodecInfo
+import android.media.MediaCodecList
 import android.media.MediaFormat
 import android.os.Build
 import android.os.Bundle
@@ -90,7 +91,8 @@ class CameraStreamer(
         }
     }
 
-    // CameraAccessException, SecurityException, IllegalArgumentException: all say the camera is not there.
+    // Whatever opening throws -- the camera gone or refused, an encoder that will not take the
+    // format -- is said on the screen: an exception left to escape would end the app.
     @Suppress("TooGenericExceptionCaught")
     @SuppressLint("MissingPermission") // the screen asks for the camera before starting
     private fun open(
@@ -104,9 +106,9 @@ class CameraStreamer(
         this.address = address
         base = if (formats.realtimeTimestamps) TimestampBase.REALTIME else null
         detected = base != null
-        if (address != null) startEncoder(format, address)
-        base?.let { startClock(it) }
         try {
+            if (address != null) startEncoder(format, address)
+            base?.let { startClock(it) }
             manager.openCamera(
                 id,
                 object : CameraDevice.StateCallback() {
@@ -132,47 +134,67 @@ class CameraStreamer(
                 handler,
             )
         } catch (error: Exception) {
-            onStatus(StreamerStatus.Failed(error.message ?: error.javaClass.simpleName))
+            close()
+            onStatus(failed(error))
         }
     }
 
-    @Suppress("DEPRECATION") // the list form serves minSdk 26 as well as SessionConfiguration
+    // The list form serves minSdk 26 as well as SessionConfiguration; a camera gone meanwhile
+    // throws, and is said on the screen.
+    @Suppress("DEPRECATION", "TooGenericExceptionCaught")
     private fun configure(
         camera: CameraDevice,
         preview: Surface,
         format: StreamFormat,
     ) {
         val targets = listOfNotNull(preview, encoderSurface)
-        camera.createCaptureSession(
-            targets,
-            object : CameraCaptureSession.StateCallback() {
-                override fun onConfigured(configured: CameraCaptureSession) {
-                    session = configured
-                    val template =
-                        if (encoderSurface == null) CameraDevice.TEMPLATE_PREVIEW else CameraDevice.TEMPLATE_RECORD
-                    val request =
-                        camera.createCaptureRequest(template).apply {
-                            targets.forEach { addTarget(it) }
-                            set(
-                                CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE,
-                                Range(format.range.lower, format.range.upper),
-                            )
-                            // Electronic stabilisation warps the picture: not for a finish line.
-                            set(
-                                CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE,
-                                CameraMetadata.CONTROL_VIDEO_STABILIZATION_MODE_OFF,
-                            )
-                        }
-                    configured.setRepeatingRequest(request.build(), captureCallback, handler)
-                    if (encoderSurface == null) onStatus(StreamerStatus.Previewing)
-                }
+        try {
+            camera.createCaptureSession(
+                targets,
+                object : CameraCaptureSession.StateCallback() {
+                    override fun onConfigured(configured: CameraCaptureSession) {
+                        session = configured
+                        startFrames(configured, camera, targets, format)
+                    }
 
-                override fun onConfigureFailed(failed: CameraCaptureSession) {
-                    onStatus(StreamerStatus.Failed("the camera cannot give ${format.resolution} at ${format.fps} fps"))
+                    override fun onConfigureFailed(failed: CameraCaptureSession) {
+                        onStatus(
+                            StreamerStatus.Failed("the camera cannot give ${format.resolution} at ${format.fps} fps"),
+                        )
+                    }
+                },
+                handler,
+            )
+        } catch (error: Exception) {
+            onStatus(failed(error))
+        }
+    }
+
+    /** The frames, one request repeated: at the stream's rate, without stabilisation. */
+    @Suppress("TooGenericExceptionCaught") // a camera gone meanwhile, said on the screen
+    private fun startFrames(
+        configured: CameraCaptureSession,
+        camera: CameraDevice,
+        targets: List<Surface>,
+        format: StreamFormat,
+    ) {
+        try {
+            val template = if (encoderSurface == null) CameraDevice.TEMPLATE_PREVIEW else CameraDevice.TEMPLATE_RECORD
+            val request =
+                camera.createCaptureRequest(template).apply {
+                    targets.forEach { addTarget(it) }
+                    set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, Range(format.range.lower, format.range.upper))
+                    // Electronic stabilisation warps the picture: not for a finish line.
+                    set(
+                        CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE,
+                        CameraMetadata.CONTROL_VIDEO_STABILIZATION_MODE_OFF,
+                    )
                 }
-            },
-            handler,
-        )
+            configured.setRepeatingRequest(request.build(), captureCallback, handler)
+            if (encoderSurface == null) onStatus(StreamerStatus.Previewing)
+        } catch (error: Exception) {
+            onStatus(failed(error))
+        }
     }
 
     private val captureCallback =
@@ -221,11 +243,11 @@ class CameraStreamer(
                     setInteger(MediaFormat.KEY_BITRATE_MODE, MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_VBR)
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) setInteger(MediaFormat.KEY_MAX_B_FRAMES, 0)
                 }
-        val codec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
+        val codec = encoderFor(media)
+        encoder = codec
         codec.configure(media, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
         encoderSurface = codec.createInputSurface()
         codec.start()
-        encoder = codec
         val link =
             Uplink(
                 address = address,
@@ -274,6 +296,15 @@ class CameraStreamer(
     companion object {
         private const val DEQUEUE_TIMEOUT_US = 10_000L
         private const val DRAIN_JOIN_MS = 500L
+
+        private fun failed(error: Exception) = StreamerStatus.Failed(error.message ?: error.javaClass.simpleName)
+
+        /** An encoder that takes [format] -- the phone's default one may not -- else that default. */
+        private fun encoderFor(format: MediaFormat): MediaCodec =
+            MediaCodecList(MediaCodecList.REGULAR_CODECS)
+                .findEncoderForFormat(format)
+                ?.let { MediaCodec.createByCodecName(it) }
+                ?: MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
 
         private fun requestKeyframe(codec: MediaCodec) {
             try {
