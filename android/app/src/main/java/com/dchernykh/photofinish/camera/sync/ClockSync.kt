@@ -79,13 +79,23 @@ class ClockOffset(
         while (samples.size > capacity) samples.removeFirst()
     }
 
-    /** The best exchange so far, or null before the first. */
+    /**
+     * The best exchange so far, or null before the first: the shortest round trip, an old one
+     * counted 2 ms longer for each second of its age, as the recorder's clock may have moved
+     * a millisecond a second toward its computer's since.
+     */
     @Synchronized
-    fun best(): Sample? = samples.minByOrNull { it.delay }
+    fun best(): Sample? {
+        val newest = samples.lastOrNull()?.t4 ?: return null
+        return samples.minByOrNull { it.delay + (newest - it.t4) / AGE_DIVISOR }
+    }
 
     private companion object {
-        /** Two clocks 50 ppm apart, over the window's 16 s, with room to spare. */
-        const val DRIFT_US = 10_000L
+        /** The recorder's clock moving a millisecond a second, over the window's 16 s, and room. */
+        const val DRIFT_US = 20_000L
+
+        /** 2 ms for each second of an exchange's age. */
+        const val AGE_DIVISOR = 500L
     }
 }
 

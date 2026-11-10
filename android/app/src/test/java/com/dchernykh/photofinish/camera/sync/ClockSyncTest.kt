@@ -46,6 +46,19 @@ class ClockSyncTest {
     }
 
     @Test
+    fun `an old exchange gives way to a fresher one only a little worse`() {
+        // The recorder's clock may move 1 ms a second towards its computer's: age counts.
+        val offsets = ClockOffset()
+        offsets.add(Sample(0, 1_001, 1_001, 2)) // a 2 us round trip
+        offsets.add(Sample(14_000_000, 14_001_004, 14_001_004, 14_000_008)) // 8 us, 14 s on
+        assertEquals(8L, offsets.best()!!.delay)
+        val fresh = ClockOffset()
+        fresh.add(Sample(0, 3_000, 3_000, 2_000)) // 2 ms
+        fresh.add(Sample(5_000_000, 5_026_000, 5_026_000, 5_050_000)) // 50 ms, 5 s on
+        assertEquals(2_000L, fresh.best()!!.delay) // much better still, though older
+    }
+
+    @Test
     fun `the messages are tagged and sized`() {
         val request = ClockExchange.request(42)
         assertEquals(ClockExchange.REQUEST_SIZE, request.size)
