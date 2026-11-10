@@ -318,8 +318,10 @@ class _Recording:
             _disk(writer.write, image, ms)
         self.backoff.running(time.monotonic())
         counts: dict[str, Any] = {"frames": writer.frames, "segments": writer.segments}
-        if self.beat.info["state"] != "recording":
-            counts["detail"] = self.clock_problem  # what was said connecting is over
+        # What was said connecting is over; a taken port is said again once the
+        # low disk that took its place is over.
+        if self.beat.info["state"] != "recording" or not self.beat.info["detail"]:
+            counts["detail"] = self.clock_problem
         self.beat.beat(state="recording", **counts)
         self._answer_the_clock()
 

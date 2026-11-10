@@ -687,6 +687,42 @@ def test_a_port_taken_is_tried_again_and_said_while_the_phone_is_waited_for(
     assert any("waiting for" in d and "UDP port 1999" in d for d in details)
 
 
+def test_a_taken_port_is_said_again_once_low_disk_is_over(
+    folder: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    phone_session()
+
+    def taken(port: int, micros: Any) -> None:
+        raise OSError(errno.EADDRINUSE, "Address already in use")
+
+    monkeypatch.setattr(recorder, "ClockResponder", taken)
+    free = {"bytes": recorder.LOW_DISK - 1}  # low at first, then freed
+    monkeypatch.setattr(
+        shutil, "disk_usage", lambda path: SimpleNamespace(free=free["bytes"])
+    )
+
+    class Freed(Camera):
+        def frames(self) -> Iterator[tuple[np.ndarray, int]]:
+            for k, item in enumerate(super().frames()):
+                if k == 2:
+                    free["bytes"] = recorder.LOW_DISK
+                yield item
+
+    real = Heartbeat.beat
+    written: list[str] = []
+
+    def beat(self: Heartbeat, **changes: Any) -> None:
+        self._written = 0.0  # every beat written, for the test
+        real(self, **changes)
+        written.append(self.info["detail"])
+
+    cameras(monkeypatch, Freed(folder, START, 6, stop_after=5))
+    monkeypatch.setattr(Heartbeat, "beat", beat)
+    assert run("cam1") == 0
+    assert "low disk" in written
+    assert "UDP port 1999" in written[written.index("low disk") :][-2]
+
+
 def test_another_camera_gets_no_clock_exchange(
     folder: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
