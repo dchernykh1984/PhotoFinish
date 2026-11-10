@@ -161,19 +161,23 @@ class UplinkTest {
     }
 
     @Test
-    fun `frames carry their moments from when the clock comes, however late`() {
-        val sink = FakeSink()
+    fun `a clock that comes late makes a new connection, whose frames all carry their moments`() {
+        val unstamped = FakeSink()
+        val stamped = FakeSink()
         val clock = AtomicReference<Sample?>(null)
-        val link = uplink(listOf(sink), waitForClockMs = 50, clock = clock)
+        val link = uplink(listOf(unstamped, stamped), waitForClockMs = 50, clock = clock)
         start(link)
         awaitConnected()
         link.offer(frame(0, keyframe = true))
-        assertEquals(listOf(Avc.NAL_IDR), sink.next().units.map { Avc.type(it) })
+        assertEquals(listOf(Avc.NAL_IDR), unstamped.next().units.map { Avc.type(it) })
         clock.set(exchange(2_000_000)) // the exchange gets through at last
-        link.offer(frame(33_333, keyframe = false))
-        val stamped = sink.next()
-        assertEquals(Avc.NAL_SEI, Avc.type(stamped.units[0]))
-        assertEquals(33_333L + 2_000_000, momentOf(stamped.units[0]))
+        link.offer(frame(33_333, keyframe = false)) // not on a connection whose frames had none
+        awaitConnected()
+        link.offer(frame(66_666, keyframe = true))
+        val first = stamped.next()
+        assertEquals(Avc.NAL_SEI, Avc.type(first.units[0]))
+        assertEquals(66_666L + 2_000_000, momentOf(first.units[0]))
+        assertTrue(unstamped.frames.isEmpty())
     }
 
     @Test
