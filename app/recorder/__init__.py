@@ -71,24 +71,28 @@ class SteadyClock:
 
     def __call__(self) -> int:
         with self._lock:
-            now = time.monotonic_ns()
-            steady = self._wall + (now - self._steady) / 1_000_000 + self._skew
-            ahead = time.time_ns() / 1_000_000 - steady
-            if ahead > LEAP_MS:
-                self._anchor()  # it slept, or its clock was set forward
-                steady = self._wall
-            elif ahead >= -LEAP_MS:  # drift; a clock set back is not followed
-                self._skew = slewed(self._skew, ahead, (now - self._then) / 1_000_000)
-                steady = self._wall + (now - self._steady) / 1_000_000 + self._skew
-            self._then = now
-            self._last = max(self._last, int(steady))
+            self._last = max(self._last, int(self._now_ms()))
             return self._last
 
     def micros(self) -> int:
-        """The clock now in Unix microseconds, as last brought near the computer's."""
+        """The clock now in Unix microseconds. It keeps the clock near the
+        computer's as a call does: a phone stamping every frame leaves the
+        exchange the only reader."""
         with self._lock:
-            elapsed_ms = (time.monotonic_ns() - self._steady) / 1_000_000
-            return round((self._wall + elapsed_ms + self._skew) * 1000)
+            return round(self._now_ms() * 1000)
+
+    def _now_ms(self) -> float:
+        now = time.monotonic_ns()
+        steady = self._wall + (now - self._steady) / 1_000_000 + self._skew
+        ahead = time.time_ns() / 1_000_000 - steady
+        if ahead > LEAP_MS:
+            self._anchor()  # it slept, or its clock was set forward
+            steady = self._wall
+        elif ahead >= -LEAP_MS:  # drift; a clock set back is not followed
+            self._skew = slewed(self._skew, ahead, (now - self._then) / 1_000_000)
+            steady = self._wall + (now - self._steady) / 1_000_000 + self._skew
+        self._then = now
+        return steady
 
 
 class Backoff:

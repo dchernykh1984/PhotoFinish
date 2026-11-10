@@ -100,6 +100,24 @@ def test_the_steady_clock_reads_to_the_microsecond_for_a_phone_s_exchange(
     assert clock() == now["wall"] // 1_000_000
 
 
+def test_the_microseconds_follow_the_computer_when_nothing_else_reads_the_clock(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A phone stamps every frame: only its clock exchange reads the clock.
+    now = {"wall": 1_794_329_044_562_000_000, "steady": 5_000_000_000}
+    monkeypatch.setattr(time, "time_ns", lambda: now["wall"])
+    monkeypatch.setattr(time, "monotonic_ns", lambda: now["steady"])
+    clock = SteadyClock()
+    now["wall"] += 1_200_000_000_000  # the laptop slept twenty minutes
+    now["steady"] += 2_000_000_000
+    assert clock.micros() == now["wall"] // 1000  # read again: the computer's time
+    for _ in range(12 * 60):  # an exchange a minute, 50 ppm apart, twelve hours
+        now["steady"] += 60_000_000_000
+        now["wall"] += 60_003_000_000
+        last = clock.micros()
+    assert abs(last - now["wall"] // 1000) <= 1000
+
+
 class Camera:
     """A source: ``count`` frames from ``start``, then ``then`` (raised) or the end;
     a stop is asked for after ``stop_after`` frames."""
