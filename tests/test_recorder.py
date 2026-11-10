@@ -589,6 +589,7 @@ def test_a_port_taken_at_the_start_is_tried_again_as_the_phone_connects_again(
 ) -> None:
     phone_session()
     monkeypatch.setattr(Responder, "made", [])
+    monkeypatch.setattr(recorder, "CLOCK_RETRY_S", 0.0)  # the reconnect comes sooner
     tries: list[int] = []
 
     def taken_once(port: int, micros: Any) -> Responder:
@@ -603,6 +604,37 @@ def test_a_port_taken_at_the_start_is_tried_again_as_the_phone_connects_again(
     assert run("cam1") == 0
     [responder] = Responder.made
     assert responder.closed
+
+
+def test_a_port_taken_is_tried_again_while_the_phone_streams_and_said_meanwhile(
+    folder: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    phone_session()
+    monkeypatch.setattr(Responder, "made", [])
+    monkeypatch.setattr(recorder, "CLOCK_RETRY_S", 0.0)  # every frame, for the test
+    tries: list[int] = []
+
+    def taken_twice(port: int, micros: Any) -> Responder:
+        tries.append(port)
+        if len(tries) <= 2:
+            raise OSError(errno.EADDRINUSE, "Address already in use")
+        return Responder(port, micros)
+
+    monkeypatch.setattr(recorder, "ClockResponder", taken_twice)
+    details: list[str] = []
+    real = Heartbeat.beat
+
+    def beat(self: Heartbeat, **changes: Any) -> None:
+        real(self, **changes)
+        details.append(self.info["detail"])
+
+    cameras(monkeypatch, Camera(folder, START, 6, stop_after=5))  # never drops
+    monkeypatch.setattr(Heartbeat, "beat", beat)
+    assert run("cam1") == 0
+    [responder] = Responder.made
+    assert responder.closed
+    assert any("UDP port 1999" in detail for detail in details)
+    assert heartbeat(folder)["detail"] == ""
 
 
 def test_another_camera_gets_no_clock_exchange(
