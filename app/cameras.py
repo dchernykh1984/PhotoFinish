@@ -8,6 +8,7 @@ such a camera.
 
 from __future__ import annotations
 
+import ipaddress
 import re
 import socket
 import sys
@@ -85,13 +86,22 @@ def rtmp_url(settings: dict[str, Any], host: str) -> str:
 
 
 def this_computer() -> str:
-    """This computer's address on the local network, for a camera app to push to."""
+    """This computer's address on the local network, for a camera app to push to:
+    the one its default route leaves by; on a network with no gateway -- an offline
+    race's -- one of its own private addresses; loopback when it has none."""
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
         try:
             probe.connect(("192.0.2.1", 9))  # picks the route; no packet is sent
             return str(probe.getsockname()[0])
         except OSError:
-            return "127.0.0.1"
+            pass
+    try:
+        found = socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET)
+    except OSError:
+        found = []
+    own = [ipaddress.ip_address(info[4][0]) for info in found]
+    private = sorted(str(ip) for ip in own if ip.is_private and not ip.is_loopback)
+    return private[0] if private else "127.0.0.1"
 
 
 def usb_capture() -> str | None:

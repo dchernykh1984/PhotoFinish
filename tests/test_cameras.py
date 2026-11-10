@@ -104,7 +104,15 @@ def test_the_rtmp_address_to_type_in_the_camera_app(
             raise OSError("no route")
 
     monkeypatch.setattr(socket, "socket", Unrouted)
-    assert cameras.this_computer() == "127.0.0.1"
+    own: list[str] = []
+    monkeypatch.setattr(
+        socket,
+        "getaddrinfo",
+        lambda *a, **k: [(socket.AF_INET, 0, 0, "", (ip, 0)) for ip in own],
+    )
+    assert cameras.this_computer() == "127.0.0.1"  # no network at all
+    own[:] = ["127.0.1.1", "10.42.0.1"]  # an offline network with no gateway
+    assert cameras.this_computer() == "10.42.0.1"
 
 
 def test_each_phone_listens_on_a_port_of_its_own() -> None:
