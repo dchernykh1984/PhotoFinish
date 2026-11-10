@@ -50,6 +50,16 @@ def problems(camera: dict[str, Any]) -> list[str]:
     return found
 
 
+def ports_taken(cameras: list[dict[str, Any]]) -> set[int]:
+    """The ports the session's phones listen on: one recorder holds a port, so each
+    phone needs one of its own."""
+    return {
+        int((camera.get("settings") or {}).get("port", RTMP_PORT))
+        for camera in cameras
+        if camera.get("connection") == "rtmp"
+    }
+
+
 def rtmp_url(settings: dict[str, Any], host: str) -> str:
     """The address the camera app pushes to."""
     return f"rtmp://{host}:{settings.get('port', RTMP_PORT)}/{settings['path']}"

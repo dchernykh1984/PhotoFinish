@@ -39,7 +39,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app import analysis, paths, session, shared_event
+from app import analysis, cameras, paths, session, shared_event
 from app.analysis import models
 from app.analysis.activity import Activity, how_far
 from app.analysis.suggestions import Suggestions
@@ -348,7 +348,8 @@ class MainWindow(QMainWindow):
     # -- cameras ---------------------------------------------------------------
 
     def add_camera(self) -> None:
-        dialog = CameraDialog(self, self._free_id(), usb_cameras())
+        taken = cameras.ports_taken(self.session["cameras"])
+        dialog = CameraDialog(self, self._free_id(), usb_cameras(), taken)
         if dialog.exec() != CameraDialog.DialogCode.Accepted:
             return
         camera = dialog.camera()

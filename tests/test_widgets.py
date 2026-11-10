@@ -66,6 +66,18 @@ def test_the_dialog_looks_this_computer_up_once(
     assert len(looked) == 1
 
 
+def test_a_second_phone_gets_a_port_of_its_own(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(cameras, "this_computer", lambda: "10.0.0.5")
+    dialog = CameraDialog(None, "cam2", [], taken={1935})
+    ok = dialog.buttons.button(dialog.buttons.StandardButton.Ok)
+    assert dialog.camera()["settings"] == {"port": 1936, "path": "live/cam2"}
+    assert dialog.address.text() == "rtmp://10.0.0.5:1936/live/cam2"
+    assert ok.isEnabled()
+    dialog.port.setValue(1935)
+    assert "port 1935 is another phone's" in dialog.problems.text()
+    assert not ok.isEnabled()
+
+
 def test_the_dialog_keeps_ok_off_while_the_camera_cannot_record(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
