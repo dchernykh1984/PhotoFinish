@@ -59,6 +59,9 @@ class Uplink(
     /** How long a send may hang before the connection is given up. */
     internal var stallMs = STALL_MS
 
+    /** How long into a connection a clock that comes makes a new one: its start, not the race. */
+    internal var stampWindowMs = STAMP_WINDOW_MS
+
     private val queue = LinkedBlockingQueue<EncodedFrame>(maxOf(format.fps * QUEUE_SECONDS, 1))
     private val slew = OffsetSlew()
 
@@ -140,9 +143,11 @@ class Uplink(
         connected.publish(metadata(format))
         awaitClock()
         // A connection's frames all carry their moments, or none do: the recorder places frames
-        // without one by their arrival, seconds late at a connection's start, and a mix of the two
-        // would not keep its order. A clock that comes later makes a new connection.
+        // without one by their arrival, later than they were taken, and a mix of the two would
+        // not keep its order. A clock that comes at the start makes a new connection; one that
+        // comes once the race may be under way is left for the next, as a new one is a gap.
         val stamped = clock() != null
+        val until = System.nanoTime() + stampWindowMs * 1_000_000
         connected.sendSequenceHeader(awaitRecord())
         queue.clear()
         requestKeyframe()
@@ -153,8 +158,8 @@ class Uplink(
             // A connection starts on a keyframe, and so does a run after frames were dropped.
             val frame =
                 queue.poll(POLL_MS, TimeUnit.MILLISECONDS)?.takeIf { it.keyframe || it.run == sentRun } ?: continue
-            val sample = clock()
-            if (!stamped && sample != null) throw IOException("the clock is in step now")
+            val sample = clock()?.takeIf { stamped }
+            if (!stamped && clock() != null && System.nanoTime() < until) throw IOException("the clock is in step now")
             sentRun = frame.run
             val start = first ?: frame.ptsUs
             first = start
@@ -242,6 +247,7 @@ class Uplink(
         private const val MAX_PAUSE_MS = 8_000L
         private const val WAIT_FOR_CLOCK_MS = 3_000L
         private const val STALL_MS = 5_000L
+        private const val STAMP_WINDOW_MS = 10_000L
         private const val VIDEO_CODEC_AVC = 7
 
         private fun metadata(format: StreamFormat): Map<String, Any?> =
