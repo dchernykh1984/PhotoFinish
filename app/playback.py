@@ -29,15 +29,18 @@ def play_on(
     """The place of the frame due at clock ``now`` -- the last one at or before the
     moment due -- and the start to go on from; ``offset`` is the camera's, added to
     its frames' times. In a gap longer than SKIP_MS (a recorder restarted, a camera
-    that stalled) playing goes on from the first frame after it, rather than holding
-    one frame for the gap's length. None once the newest frame is passed: playing on
-    is Live."""
+    that stalled, one that started later) playing goes on from the first frame
+    after it, rather than holding one frame for the gap's length. None once the
+    newest frame is passed: playing on is Live."""
     clock, moment = started
     due = moment + round((now - clock) * 1000) - offset  # on the camera's times
     if not len(frames) or due >= int(frames.ms[-1]):
         return None, started
     after = int(np.searchsorted(frames.ms, due, side="right"))
-    place = max(after - 1, 0)
-    if due - int(frames.ms[place]) > SKIP_MS:
+    if after == 0:  # before the camera's first frame: the same as a gap
+        if int(frames.ms[0]) - due > SKIP_MS:
+            return 0, (now, int(frames.ms[0]) + offset)
+        return 0, started
+    if due - int(frames.ms[after - 1]) > SKIP_MS:
         return after, (now, int(frames.ms[after]) + offset)
-    return place, started
+    return after - 1, started

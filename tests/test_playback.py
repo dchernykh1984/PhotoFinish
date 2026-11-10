@@ -52,3 +52,12 @@ def test_playing_jumps_over_a_gap_instead_of_holding_a_frame_through_it() -> Non
     place, start = play_on(frames, start, 2.0, 0)
     assert (place, start) == (10, (2.0, after_gap))  # on from the frame after it
     assert play_on(frames, start, 2.033, 0) == (11, start)
+
+
+def test_playing_from_before_the_cameras_first_frame_jumps_to_it() -> None:
+    frames = Frames(10, first=300_000)  # a camera that started five minutes later
+    place, start = play_on(frames, (0.0, 1000), 0.0, 0)
+    assert (place, start) == (0, (0.0, 300_000))
+    assert play_on(frames, start, 0.033, 0) == (1, start)
+    near = (0.0, 300_000 - 500)  # half a second before it: held, not jumped
+    assert play_on(frames, near, 0.0, 0) == (0, near)
