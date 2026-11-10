@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.2](https://github.com/dchernykh1984/PhotoFinish/compare/v0.3.1...v0.3.2) (2026-11-10)
+
+
+### Bug Fixes
+
+* **build:** declare camera use so macOS lets the app open a USB camera ([2fe4a58](https://github.com/dchernykh1984/PhotoFinish/commit/2fe4a587d7b9bf66f528406c49b6fe6f51e8cc70))
+* **window:** lay the output list's four buttons in two rows so no label is cut ([0eb1030](https://github.com/dchernykh1984/PhotoFinish/commit/0eb10300189c9b628d1c1ece02bef4204c397306))
+
 ## [0.3.1](https://github.com/dchernykh1984/PhotoFinish/compare/v0.3.0...v0.3.1) (2026-11-07)
 
 
