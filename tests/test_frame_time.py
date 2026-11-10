@@ -45,12 +45,6 @@ def test_a_moment_with_zero_bytes_comes_through_their_escaping() -> None:
     assert frame_time.moment_ms(avcc(unit, IDR)) == (moment_us + 500) // 1000
 
 
-def test_annex_b_packets_are_read_too() -> None:
-    packet = b"\x00\x00\x00\x01" + sei(MOMENT_US) + b"\x00\x00\x01" + IDR
-    assert frame_time.moment_ms(packet, length_prefixed=False) == 1_794_329_044_563
-    assert frame_time.moment_ms(IDR, length_prefixed=False) is None
-
-
 def test_another_sei_before_it_is_passed_over() -> None:
     long = bytes([5, 0xFF, 0x2D]) + bytes(300) + b"\x80"  # size 255 + 45
     other = b"\x06" + escape(long)
