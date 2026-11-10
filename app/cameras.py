@@ -85,6 +85,12 @@ def rtmp_url(settings: dict[str, Any], host: str) -> str:
     return f"rtmp://{host}:{settings.get('port', RTMP_PORT)}/{settings['path']}"
 
 
+_HOME_NETWORKS = (
+    ipaddress.ip_network("192.168.0.0/16"),
+    ipaddress.ip_network("10.0.0.0/8"),
+)
+
+
 def this_computer() -> str:
     """This computer's address on the local network, for a camera app to push to:
     the one its default route leaves by; on a network with no gateway -- an offline
@@ -99,9 +105,13 @@ def this_computer() -> str:
         found = socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET)
     except OSError:
         found = []
-    own = [ipaddress.ip_address(info[4][0]) for info in found]
-    private = sorted(str(ip) for ip in own if ip.is_private and not ip.is_loopback)
-    return private[0] if private else "127.0.0.1"
+    own = {ipaddress.ip_address(info[4][0]) for info in found}
+    usable = [
+        ip for ip in own if ip.is_private and not (ip.is_loopback or ip.is_link_local)
+    ]
+    # Routers and hotspots hand out 192.168 and 10 first; virtual adapters favour 172.
+    usable.sort(key=lambda ip: (not any(ip in net for net in _HOME_NETWORKS), ip))
+    return str(usable[0]) if usable else "127.0.0.1"
 
 
 def usb_capture() -> str | None:
