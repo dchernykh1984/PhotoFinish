@@ -63,7 +63,7 @@ data class Sample(
  * computer's clock was set -- and the exchanges before it go.
  */
 class ClockOffset(
-    private val capacity: Int = 16,
+    private val capacity: Int = 8, // 16 s of exchanges: a better one soon, an old one soon gone
 ) {
     private val samples = ArrayDeque<Sample>()
 
@@ -84,7 +84,7 @@ class ClockOffset(
     fun best(): Sample? = samples.minByOrNull { it.delay }
 
     private companion object {
-        /** Two clocks 50 ppm apart, over the window's 32 s, with room to spare. */
+        /** Two clocks 50 ppm apart, over the window's 16 s, with room to spare. */
         const val DRIFT_US = 10_000L
     }
 }
