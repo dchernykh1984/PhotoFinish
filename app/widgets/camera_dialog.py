@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
+import contextlib
 import io
 import ipaddress
 import itertools
+import threading
 from collections.abc import Sequence
 from typing import Any
 
 import segno
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -50,6 +52,8 @@ _ROWS = {  # the fields each connection shows
 
 
 class CameraDialog(QDialog):
+    _found = Signal(str)  # this computer's address, looked up off the window's thread
+
     def __init__(
         self,
         parent: QWidget | None,
@@ -143,6 +147,7 @@ class CameraDialog(QDialog):
         self._network = QTimer(self)
         self._network.setInterval(NETWORK_POLL_MS)
         self._network.timeout.connect(self._look_for_network)
+        self._found.connect(self._network_found)
         for box in (self.connection, self.device, self.transport, self.scene):
             box.currentTextChanged.connect(self._check)
         for line in (self.name, self.url, self.path, self.file):
@@ -221,9 +226,18 @@ class CameraDialog(QDialog):
             self.qr.clear()
 
     def _look_for_network(self) -> None:
-        """This computer's address looked for again: it may have joined a network."""
+        """This computer's address looked for again, as it may have joined a network:
+        off the window's thread, as a lookup with no network may take a while."""
         self._network.stop()
-        self._here = cameras.this_computer()
+        threading.Thread(target=self._look_up, daemon=True).start()
+
+    def _look_up(self) -> None:
+        here = cameras.this_computer()
+        with contextlib.suppress(RuntimeError):  # the dialog closed meanwhile
+            self._found.emit(here)
+
+    def _network_found(self, here: str) -> None:
+        self._here = here
         self._check()
 
     def _choose_file(self) -> None:

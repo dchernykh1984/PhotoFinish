@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 
 import av
@@ -144,8 +145,17 @@ def test_a_computer_with_no_network_address_shows_the_code_once_it_joins_one(
     QTest.keyClicks(dialog.name, "abc")
     assert len(looked) == 1  # not at every key, which would wait for the lookup
     here[0] = "10.0.0.5"  # the referee joins the race Wi-Fi, the dialog still open
+    lookup = threading.current_thread()
+    looked_on: list[threading.Thread] = []
+
+    def look_on_a_thread() -> str:
+        looked_on.append(threading.current_thread())
+        return here[0]
+
+    monkeypatch.setattr(cameras, "this_computer", look_on_a_thread)
     dialog._look_for_network()  # what the timer does
-    assert dialog.address.text() == "rtmp://10.0.0.5:1935/live/cam1"
+    wait_until(lambda: dialog.address.text() == "rtmp://10.0.0.5:1935/live/cam1")
+    assert looked_on and looked_on[0] is not lookup  # off the window's thread
     assert not dialog.qr.pixmap().isNull()
     assert not dialog._network.isActive()
 
