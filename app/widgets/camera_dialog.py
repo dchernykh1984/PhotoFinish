@@ -151,6 +151,8 @@ class CameraDialog(QDialog):
         self._network.setInterval(NETWORK_POLL_MS)
         self._network.timeout.connect(self._look_for_network)
         self._found.connect(self._network_found)
+        self._closed = False  # the window keeps a closed dialog: its polling ends
+        self.finished.connect(self._close_network)
         for box in (self.connection, self.device, self.transport, self.scene):
             box.currentTextChanged.connect(self._check)
         for line in (self.name, self.url, self.path, self.file):
@@ -232,7 +234,12 @@ class CameraDialog(QDialog):
         """This computer's address looked for again, as it may have joined a network:
         off the window's thread, as a lookup with no network may take a while."""
         self._network.stop()
-        threading.Thread(target=self._look_up, daemon=True).start()
+        if not self._closed:
+            threading.Thread(target=self._look_up, daemon=True).start()
+
+    def _close_network(self) -> None:
+        self._closed = True
+        self._network.stop()
 
     def _look_up(self) -> None:
         here = cameras.this_computer()
@@ -240,8 +247,9 @@ class CameraDialog(QDialog):
             self._found.emit(here)
 
     def _network_found(self, here: str) -> None:
-        self._here = here
-        self._check()
+        if not self._closed:
+            self._here = here
+            self._check()
 
     def _choose_file(self) -> None:
         path, _ = QFileDialog.getOpenFileName(self, "A video file", "", "Video (*.*)")
