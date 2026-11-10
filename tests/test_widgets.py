@@ -160,6 +160,24 @@ def test_a_computer_with_no_network_address_shows_the_code_once_it_joins_one(
     assert not dialog._network.isActive()
 
 
+def test_a_closed_dialog_looks_for_a_network_no_more(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    looked: list[str] = []
+
+    def no_network() -> str:
+        looked.append("127.0.0.1")
+        return "127.0.0.1"
+
+    monkeypatch.setattr(cameras, "this_computer", no_network)
+    dialog = CameraDialog(None, "cam1", [])
+    assert dialog._network.isActive()
+    dialog.reject()  # cancelled: the window keeps the dialog, but not its polling
+    assert not dialog._network.isActive()
+    dialog._look_for_network()  # a tick already under way
+    assert len(looked) == 1
+
+
 def test_the_dialog_keeps_ok_off_while_the_camera_cannot_record(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
