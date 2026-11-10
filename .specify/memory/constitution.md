@@ -1,5 +1,11 @@
 <!--
 Sync Impact Report
+- Version: 2.0.0 -> 2.1.0 (maintainer's decision of 2026-11-10).
+- Constraints: "offline first" now lets PhotoFinish download a detection model the referee
+  chooses, once, from a pinned source checked by its SHA-256; the race still needs no internet.
+  Specifications 001 (FR-018) and 002 (FR-003) follow.
+
+Earlier:
 - Version: 1.0.0 -> 2.0.0 (maintainer's decisions of 2026-10-28, ChronometerPython issue #49,
   comment 8).
 - Redefined: III "A correction is never lost and always traceable" becomes "Every change is on
@@ -91,8 +97,10 @@ AI credit anywhere. Every change goes through a pull request from a branch off `
   platform.
 - Portable builds for Windows, macOS (Apple Silicon) and Linux; the program keeps its files next
   to itself (`app/paths.py`), so one copy of the folder serves one event.
-- Offline first: nothing PhotoFinish does needs the internet. Cameras may be reached over a local
-  network; models for analysis are files the referee downloads beforehand.
+- Offline first: nothing PhotoFinish does at the race needs the internet. Cameras may be reached
+  over a local network. A model for analysis is a file the referee chooses: one of the presets,
+  which PhotoFinish downloads once from its pinned source and checks against its SHA-256 before
+  keeping it next to itself, or a file of the referee's own.
 
 ## Development Workflow
 
@@ -112,4 +120,4 @@ the detail and are kept consistent with it. The maintainer amends it through a p
 bumps the version -- MAJOR for a principle removed or redefined, MINOR for one added or materially
 expanded, PATCH for wording -- and updates the Last Amended date.
 
-**Version**: 2.0.0 | **Ratified**: 2026-10-28 | **Last Amended**: 2026-10-29
+**Version**: 2.1.0 | **Ratified**: 2026-10-28 | **Last Amended**: 2026-11-10
