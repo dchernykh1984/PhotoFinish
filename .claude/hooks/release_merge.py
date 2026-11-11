@@ -7,8 +7,9 @@ skips both the pipeline and the approval. A release PR goes out as the
 shipping-a-change skill says: its pipeline approved and green, the PR approved,
 then merged. This denies `gh pr merge` of an open release PR with --admin, or
 before every check on its head has passed, and a merge that names its PR through
-the shell -- `$PR`, `$(...)` -- which it cannot look up. Any other command passes,
-and so does a merge gh cannot look up: the merge needs gh as well.
+the shell -- `$PR`, `$(...)` -- which it cannot look up. A PR is looked up where
+its merge runs, a cd before it followed. Any other command passes, and so does a
+merge gh cannot look up: the merge needs gh as well.
 
 shortcut: only `gh pr merge` is read; a merge through `gh api` or the web page is
 not -- look at those too if an agent ever merges that way.
@@ -25,6 +26,7 @@ import sys
 import time
 from collections.abc import Callable
 from functools import partial
+from pathlib import Path
 from typing import Any
 
 RELEASE_BRANCH = "release-please--"
@@ -55,6 +57,7 @@ LOOKUP_S = 20  # one PR looked up
 # .claude/settings.json: a hook cut short by it says nothing, and the merge runs.
 BUDGET_S = 80
 SKILL = "see the shipping-a-change skill, Releasing"
+CD = "\0cd"  # a merge's arguments start with it and a folder after a cd before it
 
 
 def merges(command: str) -> list[list[str]]:
@@ -108,9 +111,9 @@ def _merge_args(rest: list[str]) -> list[str] | None:
 
 
 def _given(before: list[str]) -> list[str]:
-    """What a merge takes from outside its words: the PR xargs adds from its input,
-    the shell's to fill as $PR is, and a GH_REPO set for gh or exported before, as
-    its --repo."""
+    """What a merge takes from outside its words: the folder a cd before it moved
+    to, the PR xargs adds from its input, the shell's to fill as $PR is, and a
+    GH_REPO set for gh or exported before, as its --repo."""
     stdin: list[str] = []
     repo: list[str] = []
     own = True  # gh's own command: the words back to the separator before it
@@ -123,7 +126,31 @@ def _given(before: list[str]) -> list[str]:
         elif word.startswith("GH_REPO=") and not repo:
             if own or before[at - 1 : at] == ["export"]:
                 repo = ["--repo", word.removeprefix("GH_REPO=")]
-    return stdin + repo
+    return _folder(before) + stdin + repo
+
+
+def _folder(before: list[str]) -> list[str]:
+    """[CD, the folder] of the last cd among the commands before; [] with none."""
+    folder: list[str] = []
+    begins = True  # a command begins at this word
+    for at, word in enumerate(before):
+        if word and set(word) <= SHELL_PUNCTUATION:
+            begins = True
+            continue
+        if begins and word == "cd":
+            after = before[at + 1 : at + 2]
+            given = after and not set(after[0]) <= SHELL_PUNCTUATION
+            folder = [CD, after[0] if given else "~"]
+        begins = False
+    return folder
+
+
+def where(args: list[str], cwd: str | None) -> tuple[str | None, list[str]]:
+    """The folder a merge runs in -- a cd before it, from ``cwd`` -- and its
+    arguments."""
+    if args[:1] != [CD]:
+        return cwd, args
+    return str(Path(cwd or ".") / Path(args[1]).expanduser()), args[2:]
 
 
 def _substituted(command: str) -> list[str]:
@@ -265,15 +292,17 @@ def passed(check: dict[str, Any]) -> bool:
 
 
 def refusal(
-    args: list[str], look: Callable[[list[str]], dict[str, Any] | None]
+    args: list[str],
+    look: Callable[[list[str]], dict[str, Any] | None],
+    folder: str = "",
 ) -> str | None:
-    """Why this merge must not run, or None when it may."""
+    """Why this merge, run in ``folder``, must not run, or None when it may."""
     view = target(args)
-    if any("$" in word or "`" in word for word in view):  # the shell's to expand
+    if any("$" in word or "`" in word for word in [*view, folder]):  # the shell's
         return (
-            "This merge names its PR or repo through the shell -- a variable, a "
-            "command's output -- which this hook cannot look up: name it by its "
-            f"number, so a release PR's pipeline is checked first; {SKILL}."
+            "This merge names its PR, repo or folder through the shell -- a "
+            "variable, a command's output -- which this hook cannot look up: name "
+            f"it as it is, so a release PR's pipeline is checked first; {SKILL}."
         )
     pr = look(view)
     if not pr or pr.get("state") != "OPEN":
@@ -318,10 +347,12 @@ def main() -> int:
         return 0
     cwd = payload.get("cwd") or None
     deadline = time.monotonic() + BUDGET_S
-    for args in merges(command):
+    for merge in merges(command):
+        here, args = where(merge, cwd)
         left = deadline - time.monotonic()
+        look = partial(look_up, cwd=here, timeout=min(LOOKUP_S, left))
         reason = (
-            refusal(args, partial(look_up, cwd=cwd, timeout=min(LOOKUP_S, left)))
+            refusal(args, look, here or "")
             if left >= 1
             else f"These merges take too long to check: one at a time; {SKILL}."
         )

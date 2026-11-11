@@ -40,7 +40,7 @@ class MergesTests(unittest.TestCase):
     def test_a_merge_in_a_chain_ends_at_the_next_command(self) -> None:
         self.assertEqual(
             HOOK.merges("cd x && gh pr merge 19 --rebase --admin && echo ok"),
-            [["19", "--rebase", "--admin"]],
+            [[HOOK.CD, "x", "19", "--rebase", "--admin"]],
         )
 
     def test_a_merge_in_a_quoted_script(self) -> None:
@@ -145,7 +145,16 @@ class MergesTests(unittest.TestCase):
         self.assertEqual(HOOK.merges("echo '$(gh pr merge 5 --admin)'"), [])  # text
         self.assertEqual(HOOK.merges("echo \\`gh pr merge 5\\`"), [])  # escaped: text
 
-    def test_no_merge(self) -> None:
+    def test_a_merge_after_a_cd_runs_in_its_folder(self) -> None:
+        merged = HOOK.merges("cd ../Other; git pull && cd sub && gh pr merge 12")
+        self.assertEqual(merged, [[HOOK.CD, "sub", "12"]])
+        self.assertEqual(HOOK.where(merged[0], "/repo"), ("/repo/sub", ["12"]))
+        self.assertEqual(HOOK.where(["12"], "/repo"), ("/repo", ["12"]))
+        home = HOOK.where(HOOK.merges("cd && gh pr merge 12")[0], "/repo")[0]
+        self.assertEqual(home, str(Path.home()))
+        absolute = HOOK.merges("cd /x/PhotoFinish && gh pr merge 12")[0]
+        self.assertEqual(HOOK.where(absolute, "/repo")[0], "/x/PhotoFinish")
+
         self.assertEqual(HOOK.merges("gh pr view 19 && gh run list"), [])
         self.assertEqual(HOOK.merges("echo 'unclosed"), [])
 
@@ -169,8 +178,8 @@ class TargetTests(unittest.TestCase):
 
 
 class RefusalTests(unittest.TestCase):
-    def refusal(self, args: list[str], found: dict | None) -> Any:
-        return HOOK.refusal(args, lambda view: found)
+    def refusal(self, args: list[str], found: dict | None, folder: str = "") -> Any:
+        return HOOK.refusal(args, lambda view: found, folder)
 
     def test_an_admin_merge_of_a_release_pr_is_denied_even_when_green(self) -> None:
         reason = self.refusal(["19", "--rebase", "--admin"], pr([check("tests")]))
@@ -184,13 +193,13 @@ class RefusalTests(unittest.TestCase):
 
     def test_a_pr_named_through_the_shell_is_denied(self) -> None:
         for args in (["$PR", "--admin"], ["$(gh"], ["`gh", "pr"], ["9", "-R", "$R"]):
-            self.assertIn("by its", self.refusal(args, None), args)
+            self.assertIn("through the shell", self.refusal(args, None), args)
         merged = HOOK.merges('gh pr merge "$(gh pr list -q .[0].number)" --admin')
-        self.assertIn("by its", self.refusal(merged[0], None))
+        self.assertIn("through the shell", self.refusal(merged[0], None))
 
     def test_a_pr_given_by_xargs_is_denied(self) -> None:
         merged = HOOK.merges("echo 19 | xargs gh pr merge --admin")
-        self.assertIn("by its", self.refusal(merged[0], None))
+        self.assertIn("through the shell", self.refusal(merged[0], None))
 
     def test_a_release_pr_with_no_checks_waits_for_their_approval(self) -> None:
         reason = self.refusal(["19", "--rebase"], pr([]))
@@ -253,6 +262,21 @@ class MainTests(unittest.TestCase):
         self.assertEqual(output["hookEventName"], "PreToolUse")
         self.assertEqual(output["permissionDecision"], "deny")
         self.assertIn("#19", output["permissionDecisionReason"])
+
+    def test_the_pr_is_looked_up_where_a_cd_before_the_merge_went(self) -> None:
+        payload = {
+            "cwd": "/repo",
+            "tool_input": {"command": "cd sub && gh pr merge 19"},
+        }
+        with (
+            patch.object(HOOK, "look_up", return_value=None) as look_up,
+            patch("sys.stdin", io.StringIO(json.dumps(payload))),
+            patch("sys.stdout", io.StringIO()),
+        ):
+            HOOK.main()
+        self.assertEqual(look_up.call_args.kwargs["cwd"], "/repo/sub")
+        cd_home = HOOK.refusal(["19"], lambda view: None, "/repo/$HOME")
+        self.assertIn("through the shell", cd_home)
 
     def test_merges_past_the_hook_s_time_are_denied(self) -> None:
         clock = iter([0.0, 10.0, 100.0]).__next__  # the second asked past the budget
