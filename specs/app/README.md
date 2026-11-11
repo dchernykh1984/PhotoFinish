@@ -112,7 +112,8 @@ or a swaying patch.
   power saver, frames dropped for the network in the last minute. Amber when worth a look -- 25 % or less and not
   charging, 40 degrees C, thermal moderate, -70 dBm, saver on, frames dropped -- red when the
   stream is at risk: 10 % or less and not charging, 45 degrees C, thermal severe, -80 dBm. A
-  status not heard for 5 s, by the recorder's clock, stays greyed with its time.
+  status not heard for 5 s, by this computer's clock, stays greyed with its time on the
+  recorder's.
 - **Keys** (they work while a number is typed): Left/Right one frame, Shift ten, Ctrl one second,
   End back to Live (L too, when no number is being typed: a number may hold an L). Live follows
   the newest frame. Ctrl+1 to Ctrl+9 show camera 1 to 9 alone, Ctrl+0 all of them, Ctrl+Up and

@@ -509,6 +509,8 @@ def test_a_phone_s_keyframes_tell_its_status_kept_through_a_new_connection() -> 
     assert source.phone == {}
     status = status_sei(b"battery=57;charging=1")
     place(avcc(sei(START * 1000), status, b"\x65\x88"), 0)  # type: ignore[arg-type]
+    heard = source.phone.pop("heard_ms")
+    assert abs(heard - time.time_ns() // 1_000_000) < 60_000  # this computer's clock
     assert source.phone == {"battery": "57", "charging": "1", "at_ms": START}
     now["ms"] = START + 5_000
     again = source._placing(stream, phone=True)  # type: ignore[arg-type]
