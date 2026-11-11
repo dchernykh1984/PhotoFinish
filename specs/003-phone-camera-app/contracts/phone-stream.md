@@ -67,6 +67,30 @@ packet as the RTMP demuxer gives it (length-prefixed NAL units), takes the momen
 millisecond as the frame's moment, and stores the packet unchanged: the SEI stays in the recording,
 and decoders ignore it.
 
+## The phone's status (H.264 SEI, `specs/005-phone-status`)
+
+Each keyframe -- one a second -- carries, after the frame's moment, a second SEI NAL unit with one
+`user_data_unregistered` message:
+
+| Bytes | Field |
+| --- | --- |
+| 0-15 | UUID `e1a46cea-b5ff-4c7d-b445-4c7dbd7ea281` |
+| 16-19 | `PFS1` |
+| 20- | the readings, ASCII: `key=value` pairs separated by `;` |
+
+| Key | Value |
+| --- | --- |
+| `battery` | percent, 0-100 |
+| `charging` | `1` or `0` |
+| `temp` | the battery's temperature, degrees C, one decimal |
+| `thermal` | Android's thermal status, 0 (none) to 6 (shutdown) |
+| `saver` | power saver on, `1` or `0` |
+| `wifi` | the Wi-Fi signal, dBm |
+| `dropped` | the frames the uplink dropped for the network since it connected |
+
+A reading the phone cannot tell is left out; a key the recorder does not know is kept and not
+shown. The message's size is written as SEI sizes are (a 255 for each full 255).
+
 ## The stream (RTMP)
 
 Plain RTMP as FFmpeg's listener takes it: the simple handshake, `connect` with the path's first

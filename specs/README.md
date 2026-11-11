@@ -28,3 +28,5 @@ request.
   streams to PhotoFinish with each frame's moment.
 - [004-phone-lenses](004-phone-lenses/spec.md): several lenses of one phone, the front camera
   among them, recorded at once; one camera large, and switching between cameras.
+- [005-phone-status](005-phone-status/spec.md): the phone's battery, heat, Wi-Fi and dropped
+  frames, shown on the laptop beside the recording banner.
