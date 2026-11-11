@@ -96,4 +96,14 @@ class LensesTest {
             plan.left,
         )
     }
+
+    @Test
+    fun `the preview goes to the first camera that starts`() {
+        val given = mutableListOf<Pair<String, Boolean>>()
+        startInTurn(listOf("front", "back", "other")) { camera, preview ->
+            given += camera to preview
+            camera != "front" // no size in common with the format chosen
+        }
+        assertEquals(listOf("front" to true, "back" to true, "other" to false), given)
+    }
 }

@@ -99,10 +99,10 @@ class CameraStreamer(
         plan.left.forEach { (lens, why) -> onStatus(lens, StreamerStatus.Left(why)) }
         val again = { reason: String -> openAgain(preview, format, targets, reason) }
         try {
-            plan.cameras.forEachIndexed { n, camera ->
-                val open = OpenCamera(if (n == 0) preview else null, mine, again)
+            startInTurn(plan.cameras) { camera, withPreview ->
+                val open = OpenCamera(if (withPreview) preview else null, mine, again)
                 opened += open
-                if (open.startStreams(camera, format)) manager.openCamera(camera.cameraId, open, handler)
+                open.startStreams(camera, format).also { if (it) manager.openCamera(camera.cameraId, open, handler) }
             }
         } catch (error: Exception) {
             close()
@@ -159,7 +159,7 @@ class CameraStreamer(
 
     /**
      * One camera device opened: the lenses it streams at one format, in one capture session, and
-     * the [preview] it shows -- the first camera's. [again] opens everything again after a loss.
+     * the [preview] it shows -- the first camera's that streams. [again] opens everything again after a loss.
      */
     private inner class OpenCamera(
         private val preview: Surface?,
