@@ -132,10 +132,20 @@ def analyzers(monkeypatch: pytest.MonkeyPatch) -> list[Analyzer]:
     return started
 
 
+def _offline(model: mw.models.Model, *args: object, **kwargs: object) -> Path:
+    raise mw.models.FetchError(f"{model.title} cannot be downloaded: no network")
+
+
 @pytest.fixture
 def make_window(
-    base: Path, spawned: list[str], analyzers: list[Analyzer]
+    base: Path,
+    spawned: list[str],
+    analyzers: list[Analyzer],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> Iterator[Callable[[], mw.MainWindow]]:
+    # A model a window would fetch -- the number reader, with a detector chosen --
+    # is not, from the tests: one that wants a download patches fetch itself.
+    monkeypatch.setattr(mw.models, "fetch", _offline)
     made: list[mw.MainWindow] = []
 
     def make() -> mw.MainWindow:
