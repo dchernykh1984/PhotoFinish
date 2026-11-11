@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import statistics
 from collections import Counter
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -108,6 +109,23 @@ def gathered(found: list[Seen], within_ms: int = GATHER_MS) -> list[Gathered]:
         else:
             nearest.append(one)
     return [Gathered(c, _number(c)) for c in crossings]
+
+
+def remaining(
+    crossing: Gathered, decided: Callable[[str, dict[str, Any]], str | None]
+) -> tuple[Gathered | None, str]:
+    """A crossing's suggestions still to decide, and how one of the others was
+    decided (``decided`` by camera and suggestion): a camera's suggestion arriving
+    after its crossing was decided is offered still -- it may be another rider --
+    with that said, never decided for the referee (006)."""
+    left, how = [], ""
+    for one in crossing.seen:
+        verdict = decided(one[1], one[2])
+        if verdict:
+            how = how or verdict
+        else:
+            left.append(one)
+    return (Gathered(left, _number(left)) if left else None), how
 
 
 def _number(crossing: list[Seen]) -> str:
