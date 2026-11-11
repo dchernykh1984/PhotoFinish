@@ -815,11 +815,6 @@ class MainWindow(QMainWindow):
 
     # -- the finish line and the caliper ----------------------------------------
 
-    def draw_finish_line(self) -> None:
-        """The finish line's edit mode: the next two clicks on a picture are its
-        ends."""
-        self.edit_line.setChecked(True)
-
     def _edit_line(self, on: bool) -> None:
         """The finish line's edit mode (006): two clicks on a picture set the common
         line, or with "This camera only" that camera's own; the mode stays on for
