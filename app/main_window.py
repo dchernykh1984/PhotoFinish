@@ -419,10 +419,11 @@ class MainWindow(QMainWindow):
         if dialog.exec() != CameraDialog.DialogCode.Accepted:
             return
         row = self.camera_list.count()
-        for camera in dialog.cameras():
-            self.session["cameras"].append(camera)
+        added = dialog.cameras()
+        self.session["cameras"].extend(added)
+        self._save_session()  # before their recorders start: they read the session
+        for camera in added:
             self._add(camera)
-        self._save_session()
         self.camera_list.setCurrentRow(row)
 
     def remove_camera(self) -> None:

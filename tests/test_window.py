@@ -30,6 +30,7 @@ from app import main_window as mw
 from app.analysis import models
 from app.lines import parse_time, scale_time, to_line_scale
 from app.main_window import start_analyzer
+from app.recorder import launcher
 from app.recorder.segments import SegmentWriter
 from app.recorder.testcam import read_time, render
 from app.widgets.camera_dialog import CameraDialog
@@ -476,10 +477,19 @@ def test_a_phone_with_several_lenses_adds_a_camera_for_each(
         return CameraDialog.DialogCode.Accepted
 
     monkeypatch.setattr(CameraDialog, "exec", accept)
+    saved_first: list[bool] = []
+    real = launcher.spawn
+
+    def spawn(camera_id: str) -> Any:  # a recorder reads its camera from the session
+        saved_first.append(camera_id in {c["id"] for c in session.load()["cameras"]})
+        return real(camera_id)
+
+    monkeypatch.setattr(launcher, "spawn", spawn)
     win.add_camera()
     added = [(c["id"], c["name"]) for c in session.load()["cameras"]]
     assert added == [("cam1", "Camera 1 main"), ("cam2", "Camera 1 ultra-wide")]
     assert spawned == ["cam1", "cam2"]
+    assert saved_first == [True, True]
     assert win.camera_list.currentRow() == 0  # the first of them chosen
 
 
