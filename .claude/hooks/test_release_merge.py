@@ -158,6 +158,16 @@ class MergesTests(unittest.TestCase):
         ):
             self.assertEqual(HOOK.merges(command), [[*merged, "--admin"]], command)
 
+    def test_a_cd_after_a_brace_or_a_keyword_begins_its_command(self) -> None:
+        for command in (
+            "{ cd ../X; gh pr merge 5 --admin; }",
+            "if cd ../X; then gh pr merge 5 --admin; fi",
+            "for x in 1; do cd ../X; gh pr merge 5 --admin; done",
+            "time cd ../X && gh pr merge 5 --admin",
+        ):
+            merged = HOOK.merges(command)
+            self.assertEqual(HOOK.where(merged[0], "/x/repo")[0], "/x/X", command)
+
     def test_pushd_moves_the_merge_and_popd_takes_it_back(self) -> None:
         for command, folder in (
             ("pushd ../X && gh pr merge 5", "/x/X"),
