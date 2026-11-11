@@ -140,6 +140,12 @@ class RefusalTests(unittest.TestCase):
             self.assertIn("--admin", self.refusal(["19", admin], green), admin)
         self.assertIsNone(self.refusal(["19", "--admin=false"], green))
 
+    def test_a_pr_named_through_the_shell_is_denied(self) -> None:
+        for args in (["$PR", "--admin"], ["$(gh"], ["`gh", "pr"], ["9", "-R", "$R"]):
+            self.assertIn("by its", self.refusal(args, None), args)
+        merged = HOOK.merges('gh pr merge "$(gh pr list -q .[0].number)" --admin')
+        self.assertIn("by its", self.refusal(merged[0], None))
+
     def test_a_release_pr_with_no_checks_waits_for_their_approval(self) -> None:
         reason = self.refusal(["19", "--rebase"], pr([]))
         self.assertIn("action_required", reason)

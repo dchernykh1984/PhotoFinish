@@ -6,8 +6,9 @@ maintainer to approve them, and its rollup stays empty until then; an admin merg
 skips both the pipeline and the approval. A release PR goes out as the
 shipping-a-change skill says: its pipeline approved and green, the PR approved,
 then merged. This denies `gh pr merge` of an open release PR with --admin, or
-before every check on its head has passed. Any other command passes, and so does a
-merge gh cannot look up: the merge needs gh as well.
+before every check on its head has passed, and a merge that names its PR through
+the shell -- `$PR`, `$(...)` -- which it cannot look up. Any other command passes,
+and so does a merge gh cannot look up: the merge needs gh as well.
 
 shortcut: only `gh pr merge` is read; a merge through `gh api` or the web page is
 not -- look at those too if an agent ever merges that way.
@@ -171,7 +172,14 @@ def refusal(
     args: list[str], look: Callable[[list[str]], dict[str, Any] | None]
 ) -> str | None:
     """Why this merge must not run, or None when it may."""
-    pr = look(target(args))
+    view = target(args)
+    if any("$" in word or "`" in word for word in view):  # the shell's to expand
+        return (
+            "This merge names its PR or repo through the shell -- a variable, a "
+            "command's output -- which this hook cannot look up: name it by its "
+            f"number, so a release PR's pipeline is checked first; {SKILL}."
+        )
+    pr = look(view)
     if not pr or pr.get("state") != "OPEN":
         return None
     if not str(pr.get("headRefName", "")).startswith(RELEASE_BRANCH):
