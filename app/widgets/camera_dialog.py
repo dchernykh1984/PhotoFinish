@@ -45,12 +45,6 @@ NO_NETWORK = (
     "or type this computer's address in the phone"
 )
 NETWORK_POLL_MS = 2000
-LENS_NAMES = {  # PhotoFinish Camera's lenses: a camera each (004, FR-001)
-    "main": "Main",
-    "ultrawide": "Ultra-wide",
-    "telephoto": "Telephoto",
-    "front": "Front",
-}
 _ROWS = {  # the fields each connection shows
     "usb": ("device", "size", "fps"),
     "rtsp": ("url", "transport"),
@@ -100,7 +94,7 @@ class CameraDialog(QDialog):
         free = next(p for p in itertools.count(RTMP_PORT) if p not in taken)
         self.port = _number(1, 65535, free)
         self.path = QLineEdit(f"live/{camera_id}")
-        self.lenses = {lens: QCheckBox(label) for lens, label in LENS_NAMES.items()}
+        self.lenses = {lens: QCheckBox(name) for lens, name in cameras.LENSES.items()}
         self.lenses["main"].setChecked(True)
         lens_row = QHBoxLayout()
         for tick in self.lenses.values():
@@ -201,7 +195,7 @@ class CameraDialog(QDialog):
             settings = first["settings"]
             if n:
                 settings = {"port": next(free), "path": f"live/{ids[n]}"}
-            name = f"{first['name']} {LENS_NAMES[lens].lower()}"
+            name = f"{first['name']} {cameras.LENSES[lens].lower()}"
             made.append(self._made(ids[n], name, settings))
         return made
 
