@@ -45,7 +45,8 @@ recorder, each frame with its moment.
 4. **Given** a lens the phone lacks, **Then** the phone says so for that lens and streams the
    others.
 5. **Given** lenses the phone cannot stream together, **Then** it streams the ones it can, in the
-   order of the code, and says which it left out.
+   order of the code, and says which it left out -- on its screen, and to the laptop in its status
+   (`specs/005-phone-status`), whose phone line names them.
 
 ---
 

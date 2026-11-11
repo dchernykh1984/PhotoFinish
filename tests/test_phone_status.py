@@ -10,6 +10,7 @@ from app.phone_status import (
     DROPPED,
     HEAT,
     HOT,
+    LEFT,
     OK,
     PLUGGED,
     SAVER,
@@ -30,6 +31,13 @@ def test_a_charging_phone_in_good_shape_worries_no_one() -> None:
         (f"{HEAT} 34{DEGREES}", OK),  # 34.5 rounds to the even 34
         (f"{WIFI} -61 dBm", OK),
     ]
+
+
+def test_the_lenses_the_phone_left_out_are_amber_by_name() -> None:
+    assert phone_status.readings({"left": "front,periscope"}) == [
+        (f"{LEFT} Front, periscope left out", WARN)  # a lens code of a later app
+    ]
+    assert phone_status.readings({"left": ""}) == []
 
 
 def test_a_battery_running_out_is_amber_then_red_unless_it_charges() -> None:

@@ -15,6 +15,8 @@ data class PhoneStatus(
     val saver: Boolean? = null,
     val wifiDbm: Int? = null,
     val dropped: Long? = null,
+    /** The lenses asked for and not streamed, by their codes (specs/004-phone-lenses). */
+    val left: List<String> = emptyList(),
 ) {
     /** The line the keyframes carry: `key=value` pairs, `;` between, a reading not known left out. */
     fun line(): String =
@@ -26,6 +28,7 @@ data class PhoneStatus(
             saver?.let { "saver=${flag(it)}" },
             wifiDbm?.let { "wifi=$it" },
             dropped?.let { "dropped=$it" },
+            left.takeIf { it.isNotEmpty() }?.let { "left=${it.joinToString(",")}" },
         ).joinToString(";")
 
     private fun flag(on: Boolean) = if (on) "1" else "0"

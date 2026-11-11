@@ -13,3 +13,4 @@
 - [x] T009 By hand: the emulator in tandem, its battery set low: three lenses' lines red at 9 %
   in the window, attached to their recorders (2026-11-11).
 - [ ] T010 By hand: the Xiaomi 17 Ultra on its own Wi-Fi and as the hotspot.
+- [x] T011 The lenses left out in the status (`left`) and on the phone's line; JVM and pytest.

@@ -22,4 +22,10 @@ class PhoneStatusTest {
         assertEquals("battery=9;charging=0", PhoneStatus(battery = 9, charging = false).line())
         assertEquals("", PhoneStatus().line())
     }
+
+    @Test
+    fun `the lenses left out go last, by their codes`() {
+        val status = PhoneStatus(battery = 80, left = listOf("front", "ultrawide"))
+        assertEquals("battery=80;left=front,ultrawide", status.line())
+    }
 }
