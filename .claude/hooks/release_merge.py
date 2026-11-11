@@ -73,7 +73,7 @@ def merges(command: str) -> list[list[str]]:
         if _name(word) == "gh" and words[at + 1 : at + 2] == ["pr"]:
             args = _merge_args(words[at + 2 :])
             if args is not None:
-                found.append(args)
+                found.append(_given(words[:at]) + args)
     return found
 
 
@@ -98,6 +98,25 @@ def _merge_args(rest: list[str]) -> list[str] | None:
             break
         args.append(arg)
     return before + args
+
+
+def _given(before: list[str]) -> list[str]:
+    """What a merge takes from outside its words: the PR xargs adds from its input,
+    the shell's to fill as $PR is, and a GH_REPO set for gh or exported before, as
+    its --repo."""
+    stdin: list[str] = []
+    repo: list[str] = []
+    own = True  # gh's own command: the words back to the separator before it
+    for at in range(len(before) - 1, -1, -1):
+        word = before[at]
+        if word and set(word) <= SHELL_PUNCTUATION:
+            own = False
+        elif own and _name(word) == "xargs":
+            stdin = ["$(xargs)"]
+        elif word.startswith("GH_REPO=") and not repo:
+            if own or before[at - 1 : at] == ["export"]:
+                repo = ["--repo", word.removeprefix("GH_REPO=")]
+    return stdin + repo
 
 
 def _uncommented(command: str) -> str:

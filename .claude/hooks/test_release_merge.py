@@ -119,6 +119,20 @@ class MergesTests(unittest.TestCase):
             HOOK.merges("gh pr merge 19 \\# --admin"), [["19", "#", "--admin"]]
         )
 
+    def test_a_pr_from_xargs_and_a_repo_from_gh_repo(self) -> None:
+        piped = HOOK.merges("gh pr list -q .[0].number | xargs gh pr merge --admin")
+        self.assertEqual(piped, [["$(xargs)", "--admin"]])  # denied, as $PR is
+        for command in (
+            "GH_REPO=o/r gh pr merge 19",
+            "export GH_REPO=o/r; gh pr merge 19",
+        ):
+            self.assertEqual(HOOK.merges(command), [["--repo", "o/r", "19"]], command)
+        self.assertEqual(
+            HOOK.merges("GH_REPO=o/r gh pr list; gh pr merge 19"), [["19"]]
+        )
+        given = HOOK.merges("GH_REPO=o/r gh pr merge 19 -R x/y")[0]
+        self.assertEqual(HOOK.target(given), ["19", "--repo", "x/y"])  # its flag first
+
     def test_no_merge(self) -> None:
         self.assertEqual(HOOK.merges("gh pr view 19 && gh run list"), [])
         self.assertEqual(HOOK.merges("echo 'unclosed"), [])
@@ -160,6 +174,10 @@ class RefusalTests(unittest.TestCase):
         for args in (["$PR", "--admin"], ["$(gh"], ["`gh", "pr"], ["9", "-R", "$R"]):
             self.assertIn("by its", self.refusal(args, None), args)
         merged = HOOK.merges('gh pr merge "$(gh pr list -q .[0].number)" --admin')
+        self.assertIn("by its", self.refusal(merged[0], None))
+
+    def test_a_pr_given_by_xargs_is_denied(self) -> None:
+        merged = HOOK.merges("echo 19 | xargs gh pr merge --admin")
         self.assertIn("by its", self.refusal(merged[0], None))
 
     def test_a_release_pr_with_no_checks_waits_for_their_approval(self) -> None:
