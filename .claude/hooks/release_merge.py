@@ -61,7 +61,7 @@ def merges(command: str) -> list[list[str]]:
     for at, word in enumerate(words):
         if _script(words, at):  # bash -c '...', eval '...': a command line in one word
             found += merges(word)
-        if words[at : at + 3] == ["gh", "pr", "merge"]:
+        if _name(word) == "gh" and words[at + 1 : at + 3] == ["pr", "merge"]:
             args = []
             for arg in words[at + 3 :]:
                 if arg and set(arg) <= SHELL_PUNCTUATION:  # &&, ;, |, a redirection
@@ -76,8 +76,16 @@ def _script(words: list[str], at: int) -> bool:
     what ``eval`` runs -- not a message or a pattern that names a merge."""
     if at >= 1 and words[at - 1] == "eval":
         return True
-    shell = words[at - 2].rsplit("/", 1)[-1] if at >= 2 else ""
-    return words[at - 1] == "-c" and shell in SHELLS if at >= 1 else False
+    if at < 2:
+        return False
+    flag = words[at - 1]  # -c, or -lc and the like
+    script = flag.startswith("-") and not flag.startswith("--") and "c" in flag
+    return script and _name(words[at - 2]) in SHELLS
+
+
+def _name(word: str) -> str:
+    """A program as a command names it, its folders left out: /usr/bin/gh is gh."""
+    return word.rsplit("/", 1)[-1]
 
 
 def target(args: list[str]) -> list[str]:
