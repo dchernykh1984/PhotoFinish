@@ -7,8 +7,9 @@
 set -uo pipefail
 
 payload="$(cat)"
+# A loose sieve -- any spaces, a line continuation: the Python reads the words.
 case "$payload" in
-  *"gh pr merge"*) ;;
+  *gh*merge*) ;;
   *) exit 0 ;;
 esac
 command -v uv >/dev/null 2>&1 || exit 0

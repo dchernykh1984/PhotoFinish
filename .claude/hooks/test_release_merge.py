@@ -56,6 +56,12 @@ class MergesTests(unittest.TestCase):
             [["19", "--body", "", "--admin"]],
         )
 
+    def test_a_merge_written_with_other_spaces_or_over_two_lines(self) -> None:
+        self.assertEqual(HOOK.merges("gh pr  merge 19\t--admin"), [["19", "--admin"]])
+        self.assertEqual(
+            HOOK.merges("gh pr \\\n merge 19 --admin"), [["19", "--admin"]]
+        )
+
     def test_no_merge(self) -> None:
         self.assertEqual(HOOK.merges("gh pr view 19 && gh run list"), [])
         self.assertEqual(HOOK.merges("echo 'unclosed"), [])
