@@ -6,6 +6,9 @@ read from where the last read stopped."""
 from __future__ import annotations
 
 import json
+import statistics
+from collections import Counter
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +16,9 @@ from app.analysis.analyzer import SUGGESTIONS
 from app.files import Appended, append
 
 DONE = "suggestions.done.jsonl"
+GATHER_MS = 300  # suggestions of several cameras this close: one crossing (006)
+
+type Seen = tuple[int, str, dict[str, Any]]  # its moment on the timeline, camera, it
 
 
 class Suggestions:
@@ -57,3 +63,56 @@ def _entries(lines: list[str]) -> list[dict[str, Any]]:
         if isinstance(entry, dict):
             entries.append(entry)
     return entries
+
+
+@dataclass
+class Gathered:
+    """One crossing as the cameras saw it (006, FR-003): each camera's suggestion,
+    the median of their moments, the number most read."""
+
+    moment: int
+    seen: list[Seen]
+    number: str
+
+    @property
+    def kept(self) -> Seen:
+        """The suggestion whose moment is nearest the median: the journal names it."""
+        return min(self.seen, key=lambda one: abs(one[0] - self.moment))
+
+
+def gathered(found: list[Seen], within_ms: int = GATHER_MS) -> list[Gathered]:
+    """The suggestions as crossings: each joins the first crossing begun within
+    ``within_ms`` before it that no suggestion of its camera is in yet -- one
+    camera's never gather, so riders abreast stay apart."""
+    crossings: list[list[Seen]] = []
+    for one in sorted(found, key=lambda seen: seen[0]):
+        crossing = next(
+            (
+                c
+                for c in crossings
+                if one[0] - c[0][0] <= within_ms and one[1] not in {s[1] for s in c}
+            ),
+            None,
+        )
+        if crossing is None:
+            crossings.append([one])
+        else:
+            crossing.append(one)
+    return [
+        Gathered(round(statistics.median(s[0] for s in c)), c, _number(c))
+        for c in crossings
+    ]
+
+
+def _number(crossing: list[Seen]) -> str:
+    """The number most of the cameras read, the surer reading between equals; ""
+    when none was read."""
+    read = [
+        (str(s[2]["number"]), float(s[2].get("number_sure", 0)))
+        for s in crossing
+        if s[2].get("number")
+    ]
+    if not read:
+        return ""
+    times = Counter(number for number, _ in read)
+    return max(read, key=lambda r: (times[r[0]], r[1]))[0]

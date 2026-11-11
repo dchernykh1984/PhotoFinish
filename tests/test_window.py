@@ -2420,6 +2420,34 @@ def test_numbers_and_crossings_start_every_analyser_again_on_what_it_runs(
     assert len(analyzers) == started + 2
 
 
+def test_a_crossing_two_cameras_saw_is_one_suggestion_with_the_number_read(
+    two: None, make_window: Callable[[], mw.MainWindow], base: Path
+) -> None:
+    """006 FR-003: once, at the median of the cameras' moments, decided together."""
+    analysis = {"on": True, "model": "m.onnx", "crossings": True}
+    session.save({**session.load(), "analysis": analysis})
+    for camera_id, ms in (("cam1", FLASH), ("cam2", FLASH + 20)):
+        frames = [["a.mkv", 1, ms - 10], ["a.mkv", 2, ms + 23]]
+        entry = {"id": f"{camera_id}-{ms}", "camera": camera_id, "ms": ms}
+        entry |= {"model": "m", "frames": frames, "fraction": 0.3}
+        entry |= {"number": "27", "number_sure": 0.95}
+        folder = base / "video" / camera_id
+        (folder / "suggestions.jsonl").write_text(json.dumps(entry) + "\n")
+    win = make_window()
+    assert win.suggestion_list.count() == 1
+    clock = scale_time(to_line_scale(FLASH + 10, False)).split(" ")[1]
+    assert win.suggestion_list.item(0).text() == f"{clock}  Side, Front  no. 27"
+    win.suggestion_list.setCurrentRow(0)
+    win.accept_suggestion()  # nothing typed: the number read
+    out = base / "out.txt"
+    expected = f"27#{scale_time(to_line_scale(FLASH + 10, False))}#nextLap#\n"
+    assert out.read_text() == expected
+    assert win.suggestion_list.count() == 0
+    for camera_id in ("cam1", "cam2"):
+        done = base / "video" / camera_id / "suggestions.done.jsonl"
+        assert "accepted" in done.read_text()
+
+
 def test_suggestions_need_a_model(
     recording: Path, make_window: Callable[[], mw.MainWindow]
 ) -> None:
@@ -2643,7 +2671,7 @@ def test_the_suggestion_chosen_stays_chosen_as_others_arrive(
     assert win.suggestion_list.count() == 3
     item = win.suggestion_list.currentItem()
     assert item is not None
-    assert item.data(Qt.ItemDataRole.UserRole)[1]["id"] == f"cam1-{START + 2000}"
+    assert item.data(Qt.ItemDataRole.UserRole).kept[2]["id"] == f"cam1-{START + 2000}"
 
 
 def test_a_crossing_written_whose_journal_failed_is_not_written_twice(

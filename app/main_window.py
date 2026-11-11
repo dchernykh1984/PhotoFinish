@@ -44,7 +44,7 @@ from PySide6.QtWidgets import (
 from app import analysis, cameras, paths, phone_status, playback, session, shared_event
 from app.analysis import models
 from app.analysis.activity import Activity, how_far
-from app.analysis.suggestions import Suggestions
+from app.analysis.suggestions import Gathered, Suggestions, gathered
 from app.input_follow import InputFollow
 from app.interpolation import (
     Line,
@@ -1248,17 +1248,21 @@ class MainWindow(QMainWindow):
         camera.stopping = process  # none before: _analyze cleared it to start this one
 
     def accept_suggestion(self) -> None:
-        """The crossing suggested, with the typed number, through the output's
-        usual path; the journal names the model that suggested it."""
+        """The crossing suggested -- by one camera or several, at their median
+        moment -- with the number typed, else the one read, through the output's
+        usual path; the journal names the camera at the median and its model."""
         chosen = self._suggestion()
         if chosen is None:
             return
-        camera, found = chosen
-        if self.output is None or not self.number.text().strip():
+        suggested = chosen
+        number = self.number.text().strip() or suggested.number
+        if self.output is None or not number:
             self._say("Type the rider's number first; the output file must be chosen")
             return
+        _, camera_id, found = suggested.kept
+        camera = self.cameras[camera_id]
         offsets = self._offsets(camera)
-        line_ms = self._line_ms(int(found["ms"]) + offsets["camera_ms"])
+        line_ms = self._line_ms(suggested.moment)
         change = Change(
             "interpolated",
             camera.id,
@@ -1267,42 +1271,47 @@ class MainWindow(QMainWindow):
             offsets,
             str(found.get("model", "")),
         )
-        number, action = self.number.text(), self._action()
+        action = self._action()
         if not self._correct(
             lambda output: output.add(number, line_ms, action, change)
         ):
             return  # not written: the suggestion stays offered, the number typed
         self.number.clear()
-        self._decide(camera, found, "accepted")
+        self._decide(suggested, "accepted")
 
     def dismiss_suggestion(self) -> None:
         chosen = self._suggestion()
         if chosen is not None:
-            self._decide(*chosen, "dismissed")
+            self._decide(chosen, "dismissed")
 
-    def _decide(self, camera: Camera, found: dict[str, Any], how: str) -> None:
-        """A suggestion decided leaves the list; a decision the disk refuses is said:
-        offered again after a restart, it would be accepted twice."""
-        try:
-            camera.suggestions.decide(str(found["id"]), how)
-        except OSError as error:
-            self._say(f"Done; the decision cannot be kept for a restart: {error}")
+    def _decide(self, suggested: Gathered, how: str) -> None:
+        """A crossing decided leaves the list, with every camera's suggestion of it;
+        a decision the disk refuses is said: offered again after a restart, it
+        would be accepted twice."""
+        for _, camera_id, found in suggested.seen:
+            camera = self.cameras.get(camera_id)
+            if camera is None:
+                continue
+            try:
+                camera.suggestions.decide(str(found["id"]), how)
+            except OSError as error:
+                self._say(f"Done; the decision cannot be kept for a restart: {error}")
         self._show_suggestions()
 
-    def _suggestion(self) -> tuple[Camera, dict[str, Any]] | None:
+    def _suggestion(self) -> Gathered | None:
         item = self.suggestion_list.currentItem()
-        data = None if item is None else item.data(Qt.ItemDataRole.UserRole)
-        if not data or data[0] not in self.cameras:
+        suggested = None if item is None else item.data(Qt.ItemDataRole.UserRole)
+        if not isinstance(suggested, Gathered) or suggested.kept[1] not in self.cameras:
             self._say("Choose a suggested crossing first")
             return None
-        return self.cameras[data[0]], data[1]
+        return suggested
 
     def _suggestion_picked(self, item: QListWidgetItem) -> None:
-        """The video at the suggested moment, on the camera that suggested it."""
-        data = item.data(Qt.ItemDataRole.UserRole)
-        if not data or data[0] not in self.cameras:
+        """The video at the suggested moment, on the camera at the median."""
+        suggested = item.data(Qt.ItemDataRole.UserRole)
+        if not isinstance(suggested, Gathered) or suggested.kept[1] not in self.cameras:
             return
-        camera_id, found = data
+        _, camera_id, found = suggested.kept
         self.camera_list.setCurrentRow(list(self.cameras).index(camera_id))
         self.seek_ms(int(found["ms"]) + self._offset())
 
@@ -1311,7 +1320,11 @@ class MainWindow(QMainWindow):
         stays chosen."""
         item = self.suggestion_list.currentItem()
         data = None if item is None else item.data(Qt.ItemDataRole.UserRole)
-        chosen = data[1].get("id") if data else None
+        chosen = (
+            {str(s[2].get("id")) for s in data.seen}
+            if isinstance(data, Gathered)
+            else set()
+        )
         self.suggestion_list.clear()
         settings = analysis.settings(self.session)
         if not settings["on"]:
@@ -1326,19 +1339,36 @@ class MainWindow(QMainWindow):
             self.suggestion_list.addItem(hint)
             return
         found = [
-            (int(s["ms"]) + int(c.settings.get("offset_ms", 0)), c, s)
+            (int(s["ms"]) + int(c.settings.get("offset_ms", 0)), c.id, s)
             for c in self.cameras.values()
             for s in c.suggestions.pending()
         ]
-        for moment, camera, suggestion in sorted(found, key=lambda f: f[0]):
-            clock = clock_of(self._line_ms(moment))
-            name = camera.settings.get("name", camera.id)
-            item = QListWidgetItem(f"{clock}  {name}")
-            item.setToolTip(f"Suggested by {suggestion.get('model')}")
-            item.setData(Qt.ItemDataRole.UserRole, (camera.id, suggestion))
+        for suggested in gathered(found):  # every camera's suggestion of one, once
+            item = QListWidgetItem(self._suggestion_text(suggested))
+            item.setToolTip(
+                "\n".join(
+                    f"{self._name(camera_id)}: {clock_of(self._line_ms(moment))} "
+                    f"by {suggestion.get('model')}"
+                    for moment, camera_id, suggestion in suggested.seen
+                )
+            )
+            item.setData(Qt.ItemDataRole.UserRole, suggested)
             self.suggestion_list.addItem(item)
-            if chosen is not None and suggestion.get("id") == chosen:
+            if chosen & {str(s[2].get("id")) for s in suggested.seen}:
                 self.suggestion_list.setCurrentItem(item)
+
+    def _suggestion_text(self, suggested: Gathered) -> str:
+        """A crossing in the list: its moment, the cameras that saw it, the number
+        read."""
+        names = ", ".join(self._name(camera_id) for _, camera_id, _ in suggested.seen)
+        number = f"  no. {suggested.number}" if suggested.number else ""
+        return f"{clock_of(self._line_ms(suggested.moment))}  {names}{number}"
+
+    def _name(self, camera_id: str) -> str:
+        camera = self.cameras.get(camera_id)
+        return (
+            camera_id if camera is None else str(camera.settings.get("name", camera_id))
+        )
 
     def _action(self) -> str:
         return "finish" if self.finish.isChecked() else "nextLap"
