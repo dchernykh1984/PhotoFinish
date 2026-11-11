@@ -22,6 +22,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import time
 from collections.abc import Callable
 from functools import partial
 from typing import Any
@@ -49,6 +50,10 @@ SHELLS = {"sh", "bash", "zsh", "dash"}
 WORD_START = set(" \t\n;&|()<>")  # what a word may begin after: a # there is a comment
 DESCRIPTOR = re.compile(r"(?<![\w./-])\d+(?=[<>])")
 FIELDS = "number,state,headRefName,statusCheckRollup"
+LOOKUP_S = 20  # one PR looked up
+# All of a command's merges looked up within this, inside the hook's 90 s timeout in
+# .claude/settings.json: a hook cut short by it says nothing, and the merge runs.
+BUDGET_S = 80
 SKILL = "see the shipping-a-change skill, Releasing"
 
 
@@ -181,7 +186,9 @@ def target(args: list[str]) -> list[str]:
     return pr + repo
 
 
-def look_up(view: list[str], cwd: str | None) -> dict[str, Any] | None:
+def look_up(
+    view: list[str], cwd: str | None, timeout: float = LOOKUP_S
+) -> dict[str, Any] | None:
     """The PR's state, branch and checks, or None when gh cannot say."""
     gh = shutil.which("gh")
     if gh is None:
@@ -192,7 +199,7 @@ def look_up(view: list[str], cwd: str | None) -> dict[str, Any] | None:
             cwd=cwd,
             capture_output=True,
             text=True,
-            timeout=20,
+            timeout=timeout,
             check=False,
         )
     except OSError, subprocess.TimeoutExpired:
@@ -265,9 +272,15 @@ def main() -> int:
     command = tool_input.get("command") if isinstance(tool_input, dict) else None
     if not isinstance(command, str):
         return 0
-    look = partial(look_up, cwd=payload.get("cwd") or None)
+    cwd = payload.get("cwd") or None
+    deadline = time.monotonic() + BUDGET_S
     for args in merges(command):
-        reason = refusal(args, look)
+        left = deadline - time.monotonic()
+        reason = (
+            refusal(args, partial(look_up, cwd=cwd, timeout=min(LOOKUP_S, left)))
+            if left >= 1
+            else f"These merges take too long to check: one at a time; {SKILL}."
+        )
         if reason:
             decision = {
                 "hookEventName": "PreToolUse",

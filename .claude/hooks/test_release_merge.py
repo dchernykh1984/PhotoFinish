@@ -8,6 +8,7 @@ import io
 import json
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import patch
 
@@ -231,7 +232,8 @@ class MainTests(unittest.TestCase):
         ):
             self.assertEqual(HOOK.main(), 0)
         for call in look_up.call_args_list:
-            self.assertEqual(call.kwargs, {"cwd": "/repo"})
+            self.assertEqual(call.kwargs["cwd"], "/repo")
+            self.assertLessEqual(call.kwargs["timeout"], HOOK.LOOKUP_S)
         return out.getvalue()
 
     def test_a_denied_merge_prints_the_decision(self) -> None:
@@ -240,6 +242,13 @@ class MainTests(unittest.TestCase):
         self.assertEqual(output["hookEventName"], "PreToolUse")
         self.assertEqual(output["permissionDecision"], "deny")
         self.assertIn("#19", output["permissionDecisionReason"])
+
+    def test_merges_past_the_hook_s_time_are_denied(self) -> None:
+        clock = iter([0.0, 10.0, 100.0]).__next__  # the second asked past the budget
+        with patch.object(HOOK, "time", SimpleNamespace(monotonic=clock)):
+            out = self.run_hook("gh pr merge 18 && gh pr merge 19", pr([], "feat/x"))
+        reason = json.loads(out)["hookSpecificOutput"]["permissionDecisionReason"]
+        self.assertIn("too long to check", reason)
 
     def test_an_allowed_command_prints_nothing(self) -> None:
         self.assertEqual(self.run_hook("gh pr merge 19 --rebase", pr([check("a")])), "")
