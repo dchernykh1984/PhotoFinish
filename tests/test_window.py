@@ -537,7 +537,7 @@ def test_a_removed_camera_stops_recording_and_keeps_its_video(
     assert win.camera_list.count() == 0
     assert win.view.text == "Add a camera"
     win.remove_camera()  # nothing chosen: nothing happens
-    assert win._free_id() == "cam2"  # cam1's recording is still on disk
+    assert win._free_ids(1) == ["cam2"]  # cam1's recording is still on disk
 
 
 def test_the_list_says_how_each_recorder_is(
