@@ -133,6 +133,7 @@ are ticked as they are done; what changes in the program as it works goes into
 - `local-gate` - the checks CI runs and the rules that fail a commit most often.
 - `reviewing-a-change` - the failure modes that matter for this tool.
 - `review-cycle` - review a branch or PR and land the fixes.
+- `review-cycles` - a series of review cycles: severity, the table, when it has converged.
 - `qt-window-tests` - how to test the PySide6 window.
 - `trying-a-camera` - connecting a real camera and judging its video.
 - `android-app` - PhotoFinish Camera: its gate, trying it with a recorder, its release.
