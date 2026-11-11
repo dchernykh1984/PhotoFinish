@@ -356,6 +356,26 @@ class MainTests(unittest.TestCase):
         cd_home = HOOK.refusal(["19"], lambda view: None, "/repo/$HOME")
         self.assertIn("through the shell", cd_home)
 
+    def test_a_lookup_that_does_not_answer_in_time_is_denied(self) -> None:
+        payload = {"cwd": "/repo", "tool_input": {"command": "gh pr merge 19 --admin"}}
+        out = io.StringIO()
+        with (
+            patch.object(HOOK, "look_up", side_effect=HOOK.SlowError),
+            patch("sys.stdin", io.StringIO(json.dumps(payload))),
+            patch("sys.stdout", out),
+        ):
+            HOOK.main()
+        reason = json.loads(out.getvalue())["hookSpecificOutput"][
+            "permissionDecisionReason"
+        ]
+        self.assertIn("did not answer in time", reason)
+        late = HOOK.subprocess.TimeoutExpired("gh", 1)
+        with (
+            patch.object(HOOK.shutil, "which", return_value="/usr/bin/gh"),
+            patch.object(HOOK.subprocess, "run", side_effect=late),
+        ):
+            self.assertRaises(HOOK.SlowError, HOOK.look_up, ["19"], "/repo", 1)
+
     def test_merges_past_the_hook_s_time_are_denied(self) -> None:
         clock = iter([0.0, 10.0, 100.0]).__next__  # the second asked past the budget
         with patch.object(HOOK, "time", SimpleNamespace(monotonic=clock)):
