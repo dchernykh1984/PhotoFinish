@@ -529,6 +529,20 @@ def test_one_camera_alone_and_the_keys_that_switch_between_cameras(
     assert (win.current, win.one_camera.isChecked()) == ("cam2", False)  # no camera 9
 
 
+def test_with_no_camera_chosen_up_is_the_last_and_down_the_first(
+    recording: Path, make_window: Callable[[], mw.MainWindow]
+) -> None:
+    three = [{**CAMERA, "id": f"cam{n}", "name": f"C{n}"} for n in (1, 2, 3)]
+    session.save({**session.DEFAULTS, "cameras": three})
+    win = make_window()
+    win.camera_list.setCurrentRow(-1)
+    win.next_camera(-1)
+    assert win.camera_list.currentRow() == 2
+    win.camera_list.setCurrentRow(-1)
+    win.next_camera(1)
+    assert win.camera_list.currentRow() == 0
+
+
 def test_choosing_a_camera_lays_the_views_out_again_only_in_one_camera_mode(
     recording: Path, make_window: Callable[[], mw.MainWindow]
 ) -> None:

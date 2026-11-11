@@ -434,9 +434,12 @@ class MainWindow(QMainWindow):
         """The next camera of the list, or the previous, at the moment shown."""
         count = self.camera_list.count()
         if count:
-            self.camera_list.setCurrentRow(
-                (self.camera_list.currentRow() + step) % count
-            )
+            row = self.camera_list.currentRow()
+            if (
+                row < 0
+            ):  # none chosen: down from before the first, up from past the last
+                row = -1 if step > 0 else count
+            self.camera_list.setCurrentRow((row + step) % count)
 
     def _one_camera_toggled(self) -> None:
         self._arrange()
