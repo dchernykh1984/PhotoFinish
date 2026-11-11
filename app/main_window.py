@@ -1050,7 +1050,10 @@ class MainWindow(QMainWindow):
                 return
         if self._job is not None:
             if chosen == self._job.model.file:
-                return  # on its way already
+                self._job_turns_on = (
+                    True  # on its way already: chosen for its crossings
+                )
+                return
             self._job.cancel()
             self._job = None
             self._show_model()  # the stopped one's progress off its line
