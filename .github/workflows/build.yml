@@ -103,8 +103,11 @@ jobs:
           pyi=(uv run --frozen --no-dev --group build pyinstaller)
           # PyAV ships FFmpeg's libraries inside its package, onnxruntime its
           # runtime: collect all of both.
+          # pyproject.toml carries the version a recorder writes in its heartbeat
+          # and the window compares with its own (specs/007).
           common=(--noconfirm --windowed --collect-all av --collect-all onnxruntime \
-                  --collect-submodules app --add-data "app/app.ico${sep}app")
+                  --collect-submodules app --add-data "app/app.ico${sep}app" \
+                  --add-data "pyproject.toml${sep}.")
           if [ "$RUNNER_OS" = "macOS" ]; then
             # --name sets the .app folder name, which is what the dock shows.
             # The zip around it keeps the artifact name, so download URLs are
@@ -193,6 +196,8 @@ jobs:
           wait "$pid"
           cat "$folder/recorder.json"
           grep -q '"state": "stopped"' "$folder/recorder.json"
+          version=$(awk -F'"' '/^version *= *"/ {print $2; exit}' pyproject.toml)
+          grep -q "\"version\": \"$version\"" "$folder/recorder.json"
           rm -rf dist/data dist/video
 
       - uses: actions/upload-artifact@v7

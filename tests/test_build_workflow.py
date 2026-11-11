@@ -76,3 +76,11 @@ def test_the_release_s_verify_job_names_its_repository_for_gh() -> None:
     verify = text[text.index("\n  verify:\n") :]
     assert "gh release view" in verify
     assert "GH_REPO: ${{ github.repository }}" in verify
+
+
+def test_the_frozen_app_knows_its_version_and_its_recorder_says_it() -> None:
+    # A window replaces a recorder of another version (specs/007): the frozen app
+    # reads its version from the pyproject.toml it carries.
+    text = WORKFLOW.read_text(encoding="utf-8")
+    assert '--add-data "pyproject.toml${sep}."' in text
+    assert '"version\\": \\"$version\\"" "$folder/recorder.json"' in text
