@@ -437,9 +437,8 @@ class MainWindow(QMainWindow):
         count = self.camera_list.count()
         if count:
             row = self.camera_list.currentRow()
-            if (
-                row < 0
-            ):  # none chosen: down from before the first, up from past the last
+            # None chosen: down from before the first, up from past the last.
+            if row < 0:
                 row = -1 if step > 0 else count
             self.camera_list.setCurrentRow((row + step) % count)
 
@@ -1050,9 +1049,8 @@ class MainWindow(QMainWindow):
                 return
         if self._job is not None:
             if chosen == self._job.model.file:
-                self._job_turns_on = (
-                    True  # on its way already: chosen for its crossings
-                )
+                # On its way already: chosen for its crossings.
+                self._job_turns_on = True
                 return
             self._job.cancel()
             self._job = None
