@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from app.analysis.suggestions import Suggestions
+from app.analysis.suggestions import Suggestions, gathered
 
 
 def test_suggestions_are_read_as_appended_and_decisions_kept(tmp_path: Path) -> None:
@@ -37,3 +37,39 @@ def test_a_crossing_suggested_twice_is_offered_once(tmp_path: Path) -> None:
     found = Suggestions(tmp_path)
     found.refresh()
     assert [s["id"] for s in found.pending()] == ["cam1-1000"]
+
+
+def test_several_cameras_suggestions_of_one_crossing_are_one() -> None:
+    """006 FR-003: at their median, with the number most read."""
+    side = (1_000, "cam1", {"id": "a", "number": "27", "number_sure": 0.9})
+    front = (1_040, "cam2", {"id": "b", "number": "21", "number_sure": 0.95})
+    top = (1_020, "cam3", {"id": "c", "number": "27", "number_sure": 0.8})
+    later = (1_400, "cam2", {"id": "d"})
+    [one, other] = gathered([front, later, side, top])
+    assert one.moment == 1_020
+    assert {s[1] for s in one.seen} == {"cam1", "cam2", "cam3"}
+    assert one.number == "27"  # two cameras read it
+    assert one.kept[1] == "cam3"  # its moment is the median
+    assert (other.moment, other.number, len(other.seen)) == (1_400, "", 1)
+
+
+def test_one_camera_s_suggestions_never_gather_so_riders_abreast_stay_apart() -> None:
+    first = (1_000, "cam1", {"id": "a"})
+    second = (1_000, "cam1", {"id": "a-2"})
+    seen = (1_010, "cam2", {"id": "b"})
+    also = (1_012, "cam2", {"id": "b-2"})
+    crossings = gathered([first, second, seen, also])
+    assert [[s[2]["id"] for s in c.seen] for c in crossings] == [
+        ["a", "b"],
+        ["a-2", "b-2"],
+    ]
+    assert gathered([first, (1_301, "cam2", {"id": "far"})], within_ms=300)[0].seen == [
+        first
+    ]
+
+
+def test_equal_readings_go_to_the_surer() -> None:
+    one = (1_000, "cam1", {"number": "18", "number_sure": 0.85})
+    two = (1_005, "cam2", {"number": "13", "number_sure": 0.91})
+    assert gathered([one, two])[0].number == "13"
+    assert gathered([]) == []
