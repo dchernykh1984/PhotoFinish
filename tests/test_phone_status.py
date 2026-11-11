@@ -78,3 +78,12 @@ def test_a_status_not_heard_for_five_seconds_is_stale() -> None:
 def test_a_status_heard_now_is_fresh_with_the_recorder_s_clock_ahead() -> None:
     # The computer's clock set back 10 s: the recorder's steady clock stays ahead.
     assert not phone_status.stale({"at_ms": 20_000, "heard_ms": 10_000}, 10_500)
+
+
+def test_the_lenses_a_phone_leaves_out_are_read_by_their_codes() -> None:
+    assert phone_status.lenses_left({"left": "front,telephoto"}) == {
+        "front",
+        "telephoto",
+    }
+    assert phone_status.lenses_left({"left": ""}) == set()
+    assert phone_status.lenses_left({}) == set()

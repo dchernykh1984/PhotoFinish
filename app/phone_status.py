@@ -48,10 +48,15 @@ def readings(status: dict[str, Any]) -> list[tuple[str, str]]:
     dropped = _number(status.get("dropped"))
     if dropped:
         found.append((f"{DROPPED} {dropped:.0f} frames dropped", WARN))
-    left = [LENSES.get(code, code) for code in str(status.get("left", "")).split(",")]
-    if any(left):  # its camera records nothing: the phone would not run it so
-        found.append((f"{LEFT} {', '.join(n for n in left if n)} left out", WARN))
+    left = [LENSES.get(code, code) for code in sorted(lenses_left(status))]
+    if left:  # its camera records nothing: the phone would not run it so
+        found.append((f"{LEFT} {', '.join(left)} left out", WARN))
     return found
+
+
+def lenses_left(status: dict[str, Any]) -> set[str]:
+    """The lenses, by their codes, the phone was asked for and does not stream."""
+    return {code for code in str(status.get("left", "")).split(",") if code}
 
 
 def stale(status: dict[str, Any], now_ms: int) -> bool:
