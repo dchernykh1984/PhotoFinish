@@ -358,8 +358,10 @@ an RTMP stream pushed from the same computer is received and recorded.
   state, in the same step as the output lines, so a crash cannot take a line twice or lose one. A
   restart resumes both.
 - **FR-018**: PhotoFinish needs no internet at the race; it talks to cameras over USB or the local
-  network only. The one site it talks to is a detection model's pinned source, when the referee
-  chooses that model or it is missing at start (002, FR-003).
+  network only. The sites it talks to are a detection model's pinned source, the YOLOX releases on
+  GitHub (002, FR-003), and the number reader's, RapidOCR's mirror on Hugging Face at a pinned
+  commit (006, FR-002): when the referee chooses them or they are missing at start. A laptop that
+  may reach only one of them gets them before the race.
 - **FR-019**: The window's top right corner says in large letters whether the cameras are
   recording now, whatever moment the referee is looking at: green RECORDING while every camera
   that records is, red NOT RECORDING while one is not -- naming each such camera and the time of
