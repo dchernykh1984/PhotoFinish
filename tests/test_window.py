@@ -1824,14 +1824,43 @@ def test_numbers_and_crossings_turned_off_while_the_model_comes_stay_off(
     }
 
 
-def test_a_detector_chosen_to_download_turns_numbers_and_crossings_on_at_once(
-    win: mw.MainWindow, monkeypatch: pytest.MonkeyPatch
+def test_a_detector_chosen_to_download_turns_numbers_and_crossings_on_as_it_comes(
+    recording: Path,
+    make_window: Callable[[], mw.MainWindow],
+    analyzers: list[Any],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     nano = models.MODELS[0]
+    saved = session.load()
+    saved["analysis"] = {"on": True, "model": "", "crossings": False}
+    session.save(saved)
     gate, _ = gated_fetch(monkeypatch)
+    win = make_window()
+    win.poll()
+    started = len(analyzers)
     win._model_chosen(win.model_box.findData(nano.file))
-    assert win.crossings_box.isChecked()  # as one ready does
-    win.crossings_box.setChecked(False)  # then turned off on purpose
+    assert not win.crossings_box.isChecked()  # motion alone still, until it comes
+    assert len(analyzers) == started  # none started again for nothing
+    gate.set()
+    wait_until(lambda: analysis.settings(session.load())["model"] == nano.file)
+    assert win.crossings_box.isChecked()
+    assert len(analyzers) == started + 1  # once, on the detector come
+
+
+def test_numbers_and_crossings_turned_while_a_chosen_detector_comes_stay_so(
+    recording: Path,
+    make_window: Callable[[], mw.MainWindow],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    nano = models.MODELS[0]
+    saved = session.load()
+    saved["analysis"] = {"on": True, "model": "", "crossings": False}
+    session.save(saved)
+    gate, _ = gated_fetch(monkeypatch)
+    win = make_window()
+    win._model_chosen(win.model_box.findData(nano.file))
+    win.crossings_box.setChecked(True)
+    win.crossings_box.setChecked(False)  # off on purpose, as it comes
     gate.set()
     wait_until(lambda: analysis.settings(session.load())["model"] == nano.file)
     assert not win.crossings_box.isChecked()

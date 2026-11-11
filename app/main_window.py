@@ -215,6 +215,9 @@ class MainWindow(QMainWindow):
         )
         self.model_box.activated.connect(self._model_chosen)
         self._job: models.Download | None = None  # the download in progress
+        # Its detector turns Numbers and crossings on as it comes: chosen in the list,
+        # and the switch left alone since.
+        self._job_turns_on = False
         self._fetch = _Fetch()
         self._fetch.progress.connect(self._fetch_progress)
         self._fetch.done.connect(self._fetched)
@@ -1066,9 +1069,7 @@ class MainWindow(QMainWindow):
         model = models.preset(chosen)
         if model is not None and not models.ready(model):
             self._download(model)
-            # Chosen for its crossings now, as one ready is: the switch is then the
-            # referee's while it comes.
-            self.crossings_box.setChecked(True)
+            self._job_turns_on = True  # chosen for its crossings, as one ready is
         elif chosen != analysis.settings(self.session)["model"]:
             self._set_model(chosen)
         else:
@@ -1095,6 +1096,7 @@ class MainWindow(QMainWindow):
         self._say(f"Downloading {model.label}...")
         self.model_box.setCurrentIndex(self.model_box.findData(model.file))  # shown
         self._job = self._fetch.start(model)
+        self._job_turns_on = False
 
     def _fetch_progress(self, job: models.Download, done: int) -> None:
         """How far the download is, in the model list itself: the status line keeps
@@ -1115,7 +1117,7 @@ class MainWindow(QMainWindow):
             self._show_model()
             return
         self._say(f"{model.title} downloaded")
-        self._set_model(model.file, turn_on=False)  # turned on as it was chosen
+        self._set_model(model.file, turn_on=self._job_turns_on)
 
     def _set_model(self, path: str, turn_on: bool = True) -> None:
         """The model chosen; a detector chosen turns numbers and crossings on, what
@@ -1154,6 +1156,7 @@ class MainWindow(QMainWindow):
         analyser started again on what it now runs -- none with no model chosen,
         motion alone either way."""
         self.session["analysis"] = {**analysis.settings(self.session), "crossings": on}
+        self._job_turns_on = False  # the referee's word since a detector was chosen
         self._save_session()
         self._show_switches()
         self._ensure_model()
