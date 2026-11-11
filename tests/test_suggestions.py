@@ -39,6 +39,17 @@ def test_a_decision_without_its_word_still_decides(tmp_path: Path) -> None:
     assert found.done == {"cam1-1000": "decided", "cam1-2000": "decided"}
 
 
+def test_suggestions_that_read_numbers_apart_are_two_riders() -> None:
+    """Each camera missed the other's rider: accepted together, one would be lost."""
+    twelve = (10, "camB", {"id": "b", "number": "12", "number_sure": 0.95})
+    unread = (100, "camC", {"id": "c"})
+    thirty_four = (200, "camA", {"id": "a", "number": "34", "number_sure": 0.9})
+    found = gathered([twelve, unread, thirty_four])
+    assert [[s[2]["id"] for s in g.seen] for g in found] == [["b", "c"], ["a"]]
+    assert [g.number for g in found] == ["12", "34"]
+    assert gathered([]) == []
+
+
 def test_a_crossing_suggested_twice_is_offered_once(tmp_path: Path) -> None:
     """The analyser killed between a segment's suggestions and its activity line
     analyses the segment again on restart."""
@@ -50,15 +61,15 @@ def test_a_crossing_suggested_twice_is_offered_once(tmp_path: Path) -> None:
 
 
 def test_several_cameras_suggestions_of_one_crossing_are_one() -> None:
-    """006 FR-003: at their median, with the number most read."""
+    """006 FR-003: at their median, with the number read."""
     side = (1_000, "cam1", {"id": "a", "number": "27", "number_sure": 0.9})
-    front = (1_040, "cam2", {"id": "b", "number": "21", "number_sure": 0.95})
+    front = (1_040, "cam2", {"id": "b"})  # not read there
     top = (1_020, "cam3", {"id": "c", "number": "27", "number_sure": 0.8})
     later = (1_400, "cam2", {"id": "d"})
     [one, other] = gathered([front, later, side, top])
     assert one.moment == 1_020
     assert {s[1] for s in one.seen} == {"cam1", "cam2", "cam3"}
-    assert one.number == "27"  # two cameras read it
+    assert one.number == "27"
     assert one.kept[1] == "cam3"  # its moment is the median
     assert (other.moment, other.number, len(other.seen)) == (1_400, "", 1)
 
@@ -78,13 +89,6 @@ def test_one_camera_s_suggestions_never_gather_so_riders_abreast_stay_apart() ->
     ]
 
 
-def test_equal_readings_go_to_the_surer() -> None:
-    one = (1_000, "cam1", {"number": "18", "number_sure": 0.85})
-    two = (1_005, "cam2", {"number": "13", "number_sure": 0.91})
-    assert gathered([one, two])[0].number == "13"
-    assert gathered([]) == []
-
-
 def test_a_suggestion_joins_the_nearest_crossing_not_the_first() -> None:
     """A rider one camera missed is not paired with the rider before."""
     a1 = (0, "cam1", {"id": "a1"})
@@ -100,14 +104,14 @@ def test_what_is_left_of_a_crossing_decided_in_part_is_offered_with_the_decision
     None
 ):
     side = (1_000, "cam1", {"id": "a", "number": "27", "number_sure": 0.9})
-    front = (1_030, "cam2", {"id": "b", "number": "31", "number_sure": 0.9})
+    front = (1_030, "cam2", {"id": "b", "number": "27", "number_sure": 0.85})
     [crossing] = gathered([side, front])
     decided = {"a": "accepted"}
     left, how = remaining(crossing, lambda camera, found: decided.get(found["id"]))
     assert left is not None
     assert ([s[2]["id"] for s in left.seen], left.number, how) == (
         ["b"],
-        "31",
+        "27",
         "accepted",
     )
     decided["b"] = "dismissed"

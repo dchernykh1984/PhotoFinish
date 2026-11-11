@@ -34,7 +34,7 @@ the rider. The referee checks it and accepts it -- with the number read, or one 
 **Why this priority**: It is the protocol built for the referee to check, instead of from nothing.
 
 **Independent Test**: Two cameras' suggestions 20 ms apart make one, at their middle, with the
-number most read; accepting it decides both.
+number read; accepting it decides both. Two whose numbers were read apart stay two.
 
 **Acceptance Scenarios**:
 
@@ -67,7 +67,8 @@ finish-line edit mode.
 
 - The number reader's models cannot be downloaded: suggestions come without numbers, and it is said.
 - Two riders crossing within 0.3 s on several cameras: suggestions of one camera are never merged
-  with each other, so each rider keeps one; a merge across cameras may pair them wrongly, and the
+  with each other, so each rider keeps one, nor are suggestions whose numbers were read apart; a
+  merge across cameras of riders whose numbers were not read may pair them wrongly, and the
   referee sees each camera's moment in the suggestion to tell.
 - A number half hidden by an arm: read as fewer digits, or not read; the referee types it.
 
@@ -84,8 +85,8 @@ finish-line edit mode.
   program. At a suggested crossing, the text in the rider's box is found and read; the digits of
   the most confident reading of at least 0.8 are the rider's number.
 - **FR-003**: Suggestions of different cameras within 0.3 s of each other, offsets applied, are one
-  crossing -- each joining the nearest -- listed once at the median camera's moment (for an even
-  count, the earlier of the two in the middle) with each camera's, the number most read, and
+  crossing -- each joining the nearest, unless they read different numbers: two riders -- listed once at the median camera's moment (for an even
+  count, the earlier of the two in the middle) with each camera's, the number read, and
   accepted or dismissed together; the journal names that camera and its frames, which give the
   time written. A camera's suggestion arriving after its crossing was decided is offered still,
   with that decision said: it may be another rider.
