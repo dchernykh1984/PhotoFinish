@@ -91,8 +91,8 @@ fun <T> startInTurn(
 /**
  * The first of the [options] for [streams] that [supports] takes -- for all of them, then for one
  * fewer, the last dropped -- and the streams dropped to get there. Where the camera takes none, the
- * smallest is tried: the first stream's last option, the others dropped -- one lens streamed
- * rather than none.
+ * first stream's first option is tried, the others dropped: one lens streamed rather than none,
+ * with the preview the phone's screen is aimed by.
  */
 fun <S, O> firstSupported(
     streams: List<S>,
@@ -103,7 +103,7 @@ fun <S, O> firstSupported(
         val supported = options(streams.take(count)).firstOrNull(supports)
         if (supported != null) return supported to streams.drop(count)
     }
-    return options(streams.take(1)).lastOrNull() to streams.drop(1)
+    return options(streams.take(1)).firstOrNull() to streams.drop(1)
 }
 
 /** Said when a camera's lenses stream in a session that has no room for the preview. */
