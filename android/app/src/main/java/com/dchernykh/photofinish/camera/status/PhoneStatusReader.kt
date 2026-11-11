@@ -14,8 +14,8 @@ import androidx.core.content.ContextCompat
 /**
  * The phone's status read from Android (specs/005-phone-status): the battery from its sticky
  * broadcast, the thermal status (Android 10) and the power saver from the power manager, the Wi-Fi
- * signal from the active network (Android 10) or the Wi-Fi manager. Read on the uplinks' threads,
- * once a second; a reading Android will not give is left out.
+ * signal from the active network (Android 10) or the Wi-Fi manager. Asked on the uplinks' threads,
+ * read once a second for all of them; a reading Android will not give is left out.
  */
 class PhoneStatusReader(
     context: Context,
@@ -25,7 +25,12 @@ class PhoneStatusReader(
     private val connectivity = context.getSystemService(ConnectivityManager::class.java)
     private val wifi = context.applicationContext.getSystemService(WifiManager::class.java)
 
-    fun read(): PhoneStatus {
+    private val recent = Recent(ONE_SECOND_NS) { readNow() }
+
+    /** The status, read at most once a second whatever the number of lenses asking. */
+    fun read(): PhoneStatus = recent.get()
+
+    private fun readNow(): PhoneStatus {
         val battery =
             ContextCompat.registerReceiver(
                 context,
@@ -64,5 +69,6 @@ class PhoneStatusReader(
         const val PERCENT = 100
         const val TENTHS = 10.0
         const val WEAKEST = -126
+        const val ONE_SECOND_NS = 1_000_000_000L
     }
 }
