@@ -599,6 +599,18 @@ def test_under_the_banner_each_phone_says_what_may_stop_its_stream(
     assert win.phones.isHidden()
 
 
+def test_a_phone_s_line_greys_once_its_recorder_stops_beating(
+    recording: Path, make_window: Callable[[], mw.MainWindow]
+) -> None:
+    win = make_window()
+    frozen = time.time_ns() // 1_000_000 - 8_000  # its last beat, 8 s ago
+    beat = {"state": "recording", "frames": 70, "detail": "", "heartbeat_ms": frozen}
+    beat["phone"] = {"battery": "57", "at_ms": frozen - 500}  # heard just before
+    (recording / "video" / "cam1" / "recorder.json").write_text(json.dumps(beat))
+    win.poll()
+    assert "color: gray" in win.phones.text()
+
+
 def test_the_corner_counts_only_cameras_that_record_and_names_them_as_text(
     base: Path, make_window: Callable[[], mw.MainWindow]
 ) -> None:

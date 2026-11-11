@@ -14,6 +14,7 @@ from typing import Any
 
 import numpy as np
 from PySide6.QtCore import (
+    QDateTime,
     QObject,
     QProcess,
     QProcessEnvironment,
@@ -1381,15 +1382,15 @@ class MainWindow(QMainWindow):
     def _show_phones(self) -> None:
         """Under the banner, a line per phone with what may stop its stream, each
         reading amber or red as it worries (specs/005); a status no longer the
-        phone's now greyed, with when it came -- old by the recorder's clock, which
-        wrote both the status's time and its heartbeat's."""
+        phone's now greyed, with when it came: a recorder that stopped beating
+        leaves its last status old too."""
+        now = QDateTime.currentMSecsSinceEpoch()
         lines = []
         for camera in self.cameras.values():
-            info = camera.info or {}
-            status = info.get("phone")
+            status = (camera.info or {}).get("phone")
             if not isinstance(status, dict) or not status:
                 continue
-            old = phone_status.stale(status, int(info.get("heartbeat_ms", 0)))
+            old = phone_status.stale(status, now)
             parts = [
                 html.escape(text)
                 if old or level not in LEVELS
