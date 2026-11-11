@@ -625,7 +625,8 @@ def test_under_the_banner_each_phone_says_what_may_stop_its_stream(
     now = time.time_ns() // 1_000_000
     beating(
         recording,
-        phone={"battery": "9", "charging": "0", "wifi": "-61"} | {"at_ms": now},
+        phone={"battery": "9", "charging": "0", "wifi": "-61"}
+        | {"at_ms": now, "heard_ms": now},
     )
     win = make_window()
     text = win.phones.text()
@@ -634,7 +635,8 @@ def test_under_the_banner_each_phone_says_what_may_stop_its_stream(
     assert f"<span style='color: {mw.RED}'>{phone_status.BATTERY} 9%</span>" in text
     assert f"{phone_status.WIFI} -61 dBm" in text  # fine: no colour of its own
     assert "gray" not in text
-    beating(recording, phone={"battery": "57", "charging": "1", "at_ms": START})
+    old = {"battery": "57", "charging": "1", "at_ms": START, "heard_ms": START}
+    beating(recording, phone=old)
     win.poll()  # a status heard long ago: the phone's last word, greyed, with its time
     last = scale_time(to_line_scale(START, False)).split(" ")[1].split(".")[0]
     assert "color: gray" in win.phones.text()
@@ -650,7 +652,8 @@ def test_a_phone_s_line_greys_once_its_recorder_stops_beating(
     win = make_window()
     frozen = time.time_ns() // 1_000_000 - 8_000  # its last beat, 8 s ago
     beat = {"state": "recording", "frames": 70, "detail": "", "heartbeat_ms": frozen}
-    beat["phone"] = {"battery": "57", "at_ms": frozen - 500}  # heard just before
+    heard = frozen - 500  # just before
+    beat["phone"] = {"battery": "57", "at_ms": heard, "heard_ms": heard}
     (recording / "video" / "cam1" / "recorder.json").write_text(json.dumps(beat))
     win.poll()
     assert "color: gray" in win.phones.text()

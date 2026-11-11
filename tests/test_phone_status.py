@@ -61,7 +61,12 @@ def test_a_reading_not_given_or_not_a_number_is_left_out() -> None:
 
 
 def test_a_status_not_heard_for_five_seconds_is_stale() -> None:
-    assert not phone_status.stale({"at_ms": "1000"}, 6_000)
-    assert phone_status.stale({"at_ms": 1000}, 6_001)
+    assert not phone_status.stale({"heard_ms": "1000"}, 6_000)
+    assert phone_status.stale({"heard_ms": 1000}, 6_001)
     assert phone_status.stale({}, 0)
-    assert phone_status.stale({"at_ms": 10_000}, 4_000)  # the clock set back 6 s
+    assert phone_status.stale({"heard_ms": 10_000}, 4_000)  # the clock set back 6 s
+
+
+def test_a_status_heard_now_is_fresh_with_the_recorder_s_clock_ahead() -> None:
+    # The computer's clock set back 10 s: the recorder's steady clock stays ahead.
+    assert not phone_status.stale({"at_ms": 20_000, "heard_ms": 10_000}, 10_500)

@@ -48,11 +48,11 @@ def readings(status: dict[str, Any]) -> list[tuple[str, str]]:
 
 
 def stale(status: dict[str, Any], now_ms: int) -> bool:
-    """The status is no longer the phone's now: none heard for STALE_MS -- or this
-    computer's clock was set back past it, which the recorder's steady clock that
-    timed the status does not follow."""
-    at = _number(status.get("at_ms"))
-    return at is None or abs(now_ms - at) > STALE_MS
+    """The status is no longer the phone's now: none heard for STALE_MS by this
+    computer's clock, or heard on the far side of that clock set back -- until the
+    phone's next."""
+    heard = _number(status.get("heard_ms"))
+    return heard is None or abs(now_ms - heard) > STALE_MS
 
 
 def _level(value: float, warn: float, bad: float) -> str:

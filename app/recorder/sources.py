@@ -285,10 +285,14 @@ class Stream:
 
     def _hear(self, packet: av.Packet) -> None:
         """The phone's status a keyframe carries, kept with when it came: through a
-        reconnect too, so its last readings stay once it stops (specs/005)."""
+        reconnect too, so its last readings stay once it stops (specs/005). When on
+        two clocks: the recorder's, the frames' own, to say it; this computer's, the
+        window's, to tell how old it is -- the recorder's does not follow a clock
+        set back."""
         status = frame_time.phone_status(memoryview(packet))
         if status is not None:
-            self.phone = {**status, "at_ms": self.anchor.clock()}
+            heard = time.time_ns() // 1_000_000
+            self.phone = {**status, "at_ms": self.anchor.clock(), "heard_ms": heard}
 
     def _believed(self, own: int) -> bool:
         """A phone's own moment as its frame is read: not after it, beyond what a
