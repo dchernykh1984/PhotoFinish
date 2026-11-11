@@ -64,6 +64,10 @@ class SegmentWriter:
         self._before_ms = _last_recorded(folder, closed)
         self.gap_reason = "restart" if self._before_ms is not None else "no frames"
         self._open: _Encoded | _Remuxed | None = None
+        # The connection the last packet came from (its stream, kept: an id could be
+        # a new one's), and the newest frame this run had before it.
+        self._source: av.stream.Stream | None = None
+        self._before_source_ms: int | None = None
         self._unlisted: list[str] = []  # closed, the list refused their names so far
 
     def write(self, image: np.ndarray | av.VideoFrame, ms: int) -> None:
@@ -79,19 +83,27 @@ class SegmentWriter:
 
     def write_packet(self, packet: av.Packet, ms: int) -> None:
         """A packet of a network camera, its frame taken at ``ms``. A segment starts
-        at a keyframe; packets before the first are of no use and are dropped."""
+        at a keyframe; packets before the first are of no use and are dropped. One of
+        a new connection at or before the newest frame this run had before it -- a
+        phone sending again what a dead connection may have lost (specs/007) -- is
+        written for the frames after it to decode, and not listed: the recording
+        lists each frame once."""
         if packet.pts is None or packet.dts is None or packet.stream is None:
             return  # nothing to place it by
         if not isinstance(self._open, _Remuxed) and not packet.is_keyframe:
             return
+        stream = packet.stream
+        if stream is not self._source:  # a new connection: what came before it
+            self._source, self._before_source_ms = stream, self._last_ms
+        # Within a connection a camera's B-frames come after the frame they precede.
+        again = self._before_source_ms is not None and ms <= self._before_source_ms
         # A camera's keyframes a second apart cut each one, a moment early or late.
         self._next(ms, cut=packet.is_keyframe, slack=KEYFRAME_SLACK_MS)
-        stream = packet.stream
         opened = self._segment(
             _Remuxed, lambda: _Remuxed(self.folder, packet, stream, ms)
         )
-        opened.add(packet, packet.pts, packet.dts, ms)
-        self.frames += 1
+        opened.add(packet, packet.pts, packet.dts, None if again else ms)
+        self.frames += not again
 
     def _segment[T: (_Encoded, _Remuxed)](
         self, kind: type[T], begun: Callable[[], T]
@@ -202,12 +214,14 @@ class _Remuxed:
         self.stream = self.container.add_stream_from_template(template)
         self.times: TextIO = _times(folder)
 
-    def add(self, packet: av.Packet, pts: int, dts: int, ms: int) -> None:
+    def add(self, packet: av.Packet, pts: int, dts: int, ms: int | None) -> None:
+        """The packet stored; its time listed unless ``ms`` is None."""
         packet.pts, packet.dts = pts - self.base, dts - self.base
         pts_ms = _in_ms(pts - self.base, self.time_base)
         packet.stream = self.stream
         self.container.mux(packet)
-        self.times.write(f"{pts_ms} {ms}\n")
+        if ms is not None:
+            self.times.write(f"{pts_ms} {ms}\n")
 
     def close(self) -> None:
         try:
