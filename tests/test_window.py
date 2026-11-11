@@ -1893,6 +1893,25 @@ def test_the_detector_in_use_chosen_again_turns_numbers_and_crossings_on(
     assert analysis.settings(session.load())["crossings"] is True
 
 
+def test_a_detector_chosen_again_while_it_comes_turns_numbers_and_crossings_on(
+    recording: Path,
+    make_window: Callable[[], mw.MainWindow],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    nano = models.MODELS[0]
+    saved = session.load()
+    saved["analysis"] = {"on": True, "model": nano.file, "crossings": True}
+    session.save(saved)
+    gate, _ = gated_fetch(monkeypatch)
+    win = make_window()
+    assert downloading(win) is nano  # the model in use, missing: fetched at start
+    win.crossings_box.setChecked(False)
+    win._model_chosen(win.model_box.findData(nano.file))  # chosen again, as it comes
+    gate.set()
+    wait_until(lambda: downloading(win) is None)
+    assert win.crossings_box.isChecked()
+
+
 def test_choosing_the_model_in_use_again_restarts_nothing(
     recording: Path,
     make_window: Callable[[], mw.MainWindow],
