@@ -76,14 +76,20 @@ internal class LensStream private constructor(
         ): LensStream {
             val media = mediaFormat(format)
             val codec = encoderFor(media)
+            var input: Surface? = null // released with the codec when its start fails
             val surface =
                 try {
                     codec.configure(media, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
-                    codec.createInputSurface().also { codec.start() }
+                    codec.createInputSurface().also {
+                        input = it
+                        codec.start()
+                    }
                 } catch (error: IllegalStateException) {
+                    input?.release()
                     codec.release()
                     throw error
                 } catch (error: IllegalArgumentException) {
+                    input?.release()
                     codec.release()
                     throw error
                 }
