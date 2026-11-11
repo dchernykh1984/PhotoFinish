@@ -468,6 +468,21 @@ def test_a_camera_added_is_saved_and_its_recorder_started(
     assert len(session.load()["cameras"]) == 1
 
 
+def test_a_phone_with_several_lenses_adds_a_camera_for_each(
+    win: mw.MainWindow, spawned: list[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def accept(dialog: CameraDialog) -> CameraDialog.DialogCode:
+        dialog.lenses["ultrawide"].setChecked(True)
+        return CameraDialog.DialogCode.Accepted
+
+    monkeypatch.setattr(CameraDialog, "exec", accept)
+    win.add_camera()
+    added = [(c["id"], c["name"]) for c in session.load()["cameras"]]
+    assert added == [("cam1", "Camera 1 main"), ("cam2", "Camera 1 ultra-wide")]
+    assert spawned == ["cam1", "cam2"]
+    assert win.camera_list.currentRow() == 0  # the first of them chosen
+
+
 def test_a_removed_camera_stops_recording_and_keeps_its_video(
     recording: Path,
     make_window: Callable[[], mw.MainWindow],

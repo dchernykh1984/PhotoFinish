@@ -367,15 +367,18 @@ class MainWindow(QMainWindow):
     # -- cameras ---------------------------------------------------------------
 
     def add_camera(self) -> None:
+        """A camera, or a phone's camera for each of its lenses ticked (004)."""
         cameras_now = self.session["cameras"]
-        dialog = CameraDialog(self, self._free_id(), usb_cameras(), cameras_now)
+        first, *spare = self._free_ids(len(cameras.LENSES))
+        dialog = CameraDialog(self, first, usb_cameras(), cameras_now, spare)
         if dialog.exec() != CameraDialog.DialogCode.Accepted:
             return
-        camera = dialog.camera()
-        self.session["cameras"].append(camera)
+        row = self.camera_list.count()
+        for camera in dialog.cameras():
+            self.session["cameras"].append(camera)
+            self._add(camera)
         self._save_session()
-        self._add(camera)
-        self.camera_list.setCurrentRow(self.camera_list.count() - 1)
+        self.camera_list.setCurrentRow(row)
 
     def remove_camera(self) -> None:
         camera = self._camera()
@@ -451,10 +454,17 @@ class MainWindow(QMainWindow):
         return self.placeholder if camera is None else camera.view
 
     def _free_id(self) -> str:
-        n = 1
-        while f"cam{n}" in self.cameras or folder_of(f"cam{n}").exists():
+        return self._free_ids(1)[0]
+
+    def _free_ids(self, count: int) -> list[str]:
+        """Ids no camera has, nor a recording on disk."""
+        found: list[str] = []
+        n = 0
+        while len(found) < count:
             n += 1
-        return f"cam{n}"
+            if f"cam{n}" not in self.cameras and not folder_of(f"cam{n}").exists():
+                found.append(f"cam{n}")
+        return found
 
     def _choose_camera(self, row: int) -> None:
         """Another camera to step through; the moment shown stays. A line or zone

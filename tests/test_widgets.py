@@ -115,6 +115,45 @@ def test_a_second_phone_gets_a_port_of_its_own(monkeypatch: pytest.MonkeyPatch) 
     assert not ok.isEnabled()
 
 
+def test_a_phone_with_several_lenses_is_a_camera_each_on_a_port_of_its_own(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(cameras, "this_computer", lambda: "10.0.0.5")
+    line = {"id": "cam1", "name": "Line", "connection": "rtmp", "settings": {}}
+    dialog = CameraDialog(None, "cam2", [], [line], ["cam3", "cam4", "cam5"])
+    ok = dialog.buttons.button(dialog.buttons.StandardButton.Ok)
+    dialog.name.setText("Finish")
+    assert dialog._lenses() == ["main"]  # the default: one camera, as before
+    dialog.lenses["telephoto"].setChecked(True)
+    dialog.lenses["front"].setChecked(True)
+    made = [(c["id"], c["name"], c["settings"]) for c in dialog.cameras()]
+    assert made == [
+        ("cam2", "Finish main", {"port": 1936, "path": "live/cam2"}),
+        ("cam3", "Finish telephoto", {"port": 1937, "path": "live/cam3"}),  # 1935: Line
+        ("cam4", "Finish front", {"port": 1938, "path": "live/cam4"}),
+    ]
+    code = (
+        "main rtmp://10.0.0.5:1936/live/cam2\n"
+        "telephoto rtmp://10.0.0.5:1937/live/cam3\n"
+        "front rtmp://10.0.0.5:1938/live/cam4"
+    )
+    assert dialog.address.text() == code
+    assert dialog.qr.pixmap().toImage() == qr_pixmap(code).toImage()
+    assert ok.isEnabled()
+    for lens in dialog.lenses.values():
+        lens.setChecked(False)
+    assert "no lens ticked" in dialog.problems.text()
+    assert not ok.isEnabled()
+    assert dialog.qr.pixmap().isNull()
+    dialog.lenses["telephoto"].setChecked(True)  # a lens alone: one camera, its line
+    assert [c["name"] for c in dialog.cameras()] == ["Finish"]
+    assert dialog.address.text() == "telephoto rtmp://10.0.0.5:1936/live/cam2"
+    dialog.connection.setCurrentIndex(dialog.connection.findData("test"))
+    dialog.lenses["main"].setChecked(True)
+    assert len(dialog.cameras()) == 1  # lenses are a phone's
+    assert ok.isEnabled()
+
+
 def test_a_port_another_phone_has_shows_no_address_to_scan(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

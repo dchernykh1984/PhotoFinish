@@ -85,6 +85,18 @@ def rtmp_url(settings: dict[str, Any], host: str) -> str:
     return f"rtmp://{host}:{settings.get('port', RTMP_PORT)}/{settings['path']}"
 
 
+# PhotoFinish Camera's lenses, as its pairing code names them (004, FR-002).
+LENSES = ("main", "ultrawide", "telephoto", "front")
+
+
+def pairing_text(streams: list[tuple[str, str]]) -> str:
+    """What the QR code holds for ``(lens, address)`` streams: the address alone for
+    the main lens alone, which any streaming app reads; else a line per lens."""
+    if [lens for lens, _ in streams] == ["main"]:
+        return streams[0][1]
+    return "\n".join(f"{lens} {url}" for lens, url in streams)
+
+
 # The networks a phone and this computer share: what routers and hotspots hand out,
 # first; then the rest of the private ranges, which virtual adapters favour, and a
 # carrier's or Tailscale's shared range.

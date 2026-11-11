@@ -90,6 +90,15 @@ def test_a_computer_without_usb_capture_says_so(
     ]
 
 
+def test_the_pairing_code_is_the_address_alone_only_for_the_main_lens_alone() -> None:
+    main, tele = "rtmp://10.0.0.5:1935/live/cam1", "rtmp://10.0.0.5:1936/live/cam2"
+    assert cameras.pairing_text([("main", main)]) == main  # any streaming app reads it
+    assert cameras.pairing_text([("telephoto", tele)]) == f"telephoto {tele}"
+    assert cameras.pairing_text([("main", main), ("telephoto", tele)]) == (
+        f"main {main}\ntelephoto {tele}"
+    )
+
+
 def test_the_rtmp_address_to_type_in_the_camera_app(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -91,7 +91,8 @@ switch to the other at the same moment and back to both.
   Ultra-wide, Telephoto and Front. Each ticked lens is a camera of its own: the name typed,
   followed by the lens when more than one is ticked; the next free id; the port typed for the
   first lens and the next free ports for the others; the path typed for the first and
-  `live/<id>` for the others; the lens kept in its settings.
+  `live/<id>` for the others. The session's format does not change: to PhotoFinish each is a
+  phone's camera like any other.
 - **FR-002**: The QR code holds the address alone for Main alone, else one line per lens,
   `<lens> <address>`, the lens one of `main`, `ultrawide`, `telephoto`, `front`
   ([contract](../003-phone-camera-app/contracts/phone-stream.md)). The text shown says the same.
