@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import json
 import statistics
-from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -70,7 +69,7 @@ def _entries(lines: list[str]) -> list[dict[str, Any]]:
 @dataclass
 class Gathered:
     """One crossing as the cameras saw it (006, FR-003): each camera's suggestion
-    and the number most read."""
+    and the number read."""
 
     seen: list[Seen]
     number: str
@@ -90,16 +89,17 @@ class Gathered:
 
 def gathered(found: list[Seen], within_ms: int = GATHER_MS) -> list[Gathered]:
     """The suggestions as crossings: each joins, of the crossings begun within
-    ``within_ms`` before it that no suggestion of its camera is in yet, the one
-    nearest its moment -- one camera's never gather, so riders abreast stay apart,
-    and a rider one camera missed is not paired with the rider before."""
+    ``within_ms`` before it that no suggestion of its camera is in yet, nor a number
+    read apart from its own, the one nearest its moment -- one camera's never
+    gather, so riders abreast stay apart, and a rider one camera missed is not
+    paired with the rider before; numbers read apart are two riders."""
     crossings: list[list[Seen]] = []
     for one in sorted(found, key=lambda seen: seen[0]):
         open_ = []
         for c in reversed(crossings):  # begun in order: the latest are the open ones
             if one[0] - c[0][0] > within_ms:
                 break  # and every one before it began earlier still
-            if one[1] not in {s[1] for s in c}:
+            if one[1] not in {s[1] for s in c} and _agrees(one, c):
                 open_.append(c)
         open_.reverse()  # in the order begun: between equals, the earlier is taken
         nearest = min(
@@ -112,6 +112,12 @@ def gathered(found: list[Seen], within_ms: int = GATHER_MS) -> list[Gathered]:
         else:
             nearest.append(one)
     return [Gathered(c, _number(c)) for c in crossings]
+
+
+def _agrees(one: Seen, crossing: list[Seen]) -> bool:
+    """No number read on the suggestion, or none on the crossing but its own."""
+    number = one[2].get("number")
+    return not number or all(s[2].get("number") in (None, "", number) for s in crossing)
 
 
 def remaining(
@@ -132,14 +138,6 @@ def remaining(
 
 
 def _number(crossing: list[Seen]) -> str:
-    """The number most of the cameras read, the surer reading between equals; ""
-    when none was read."""
-    read = [
-        (str(s[2]["number"]), float(s[2].get("number_sure", 0)))
-        for s in crossing
-        if s[2].get("number")
-    ]
-    if not read:
-        return ""
-    times = Counter(number for number, _ in read)
-    return max(read, key=lambda r: (times[r[0]], r[1]))[0]
+    """The number its cameras read -- none apart, as they gather -- "" when none
+    was read."""
+    return next((str(s[2]["number"]) for s in crossing if s[2].get("number")), "")
