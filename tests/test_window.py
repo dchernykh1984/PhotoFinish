@@ -2754,14 +2754,10 @@ def test_suggestions_need_a_model(
     session.save({**session.load(), "analysis": {"on": True, "model": ""}})
     suggest(recording, START + 1000)
     win = make_window()
-    said = "Numbers and crossings are off: riders are found by motion alone"
-    assert win.suggestion_list.item(0).text() == said  # so the list is empty
+    said = "Suggestions need a detection model: choose one in the model list"
+    assert win.suggestion_list.item(0).text() == said  # Numbers and crossings off too
     win.crossings_box.setChecked(True)
-    assert (
-        win.suggestion_list.item(0)
-        .text()
-        .startswith("Suggestions need a detection model: choose one in the model list")
-    )
+    assert win.suggestion_list.item(0).text() == said
     win.suggestion_list.setCurrentRow(0)
     win.dismiss_suggestion()
     win._suggestion_picked(win.suggestion_list.item(0))

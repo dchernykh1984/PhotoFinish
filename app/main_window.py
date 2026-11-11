@@ -1346,14 +1346,14 @@ class MainWindow(QMainWindow):
         settings = analysis.settings(self.session)
         if not settings["on"]:
             return
-        if not settings["crossings"]:  # whatever model is chosen: said
-            self._hint(
-                "Numbers and crossings are off: riders are found by motion alone"
-            )
-            return
-        if not settings["model"]:
+        if not settings["model"]:  # what to do first: choosing one turns them on
             self._hint(
                 "Suggestions need a detection model: choose one in the model list"
+            )
+            return
+        if not settings["crossings"]:
+            self._hint(
+                "Numbers and crossings are off: riders are found by motion alone"
             )
             return
         found = [  # the decided too: a late camera's suggestion may join one
