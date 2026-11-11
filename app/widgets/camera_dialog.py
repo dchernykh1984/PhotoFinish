@@ -45,10 +45,16 @@ NO_NETWORK = (
     "or type this computer's address in the phone"
 )
 NETWORK_POLL_MS = 2000
+LENS_NAMES = {  # PhotoFinish Camera's lenses: a camera each (004, FR-001)
+    "main": "Main",
+    "ultrawide": "Ultra-wide",
+    "telephoto": "Telephoto",
+    "front": "Front",
+}
 _ROWS = {  # the fields each connection shows
     "usb": ("device", "size", "fps"),
     "rtsp": ("url", "transport"),
-    "rtmp": ("port", "path", "address", "qr"),
+    "rtmp": ("port", "path", "lenses", "address", "qr"),
     "test": ("size", "fps", "scene"),
     "file": ("file", "live"),
 }
@@ -63,10 +69,12 @@ class CameraDialog(QDialog):
         camera_id: str,
         usb_names: list[str],
         others: Sequence[dict[str, Any]] = (),
+        spare_ids: Sequence[str] = (),
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle("Add a camera")
         self.camera_id = camera_id
+        self.spare_ids = list(spare_ids)  # free ids for a phone's other lenses
         self.name = QLineEdit(f"Camera {camera_id.removeprefix('cam')}")
         self.connection = QComboBox()
         for key, label in CONNECTION_NAMES.items():
@@ -92,6 +100,11 @@ class CameraDialog(QDialog):
         free = next(p for p in itertools.count(RTMP_PORT) if p not in taken)
         self.port = _number(1, 65535, free)
         self.path = QLineEdit(f"live/{camera_id}")
+        self.lenses = {lens: QCheckBox(label) for lens, label in LENS_NAMES.items()}
+        self.lenses["main"].setChecked(True)
+        lens_row = QHBoxLayout()
+        for tick in self.lenses.values():
+            lens_row.addWidget(tick)
         self.address = QLabel()
         self.address.setTextInteractionFlags(
             Qt.TextInteractionFlag.TextSelectableByMouse
@@ -135,6 +148,7 @@ class CameraDialog(QDialog):
             "transport": self._row("Transport", self.transport),
             "port": self._row("Port", self.port),
             "path": self._row("Stream path", self.path),
+            "lenses": self._row("Lenses (PhotoFinish Camera)", lens_row),
             "address": self._row("Type in the streaming app", self.address),
             "qr": self._row("Or scan it with PhotoFinish Camera", self.qr),
             "scene": self._row("Scene", self.scene),
@@ -159,6 +173,8 @@ class CameraDialog(QDialog):
             line.textChanged.connect(self._check)
         for spin in (self.width_box, self.height_box, self.port, self.fps):
             spin.valueChanged.connect(self._check)
+        for lens in self.lenses.values():
+            lens.toggled.connect(self._check)
         self._check()
 
     def kind(self) -> str:
@@ -166,15 +182,44 @@ class CameraDialog(QDialog):
 
     def camera(self) -> dict[str, Any]:
         """The camera as the session keeps it."""
+        name = self.name.text().strip() or self.camera_id
+        return self._made(self.camera_id, name, self._settings())
+
+    def cameras(self) -> list[dict[str, Any]]:
+        """The cameras to add: this one, or a phone's camera for each lens ticked --
+        named after its lens, on the next free id, port and ``live/<id>`` path when
+        there are several (004, FR-001)."""
+        lenses = self._lenses()
+        first = self.camera()
+        if self.kind() != "rtmp" or len(lenses) < 2:
+            return [first]
+        ids = [self.camera_id, *self.spare_ids]
+        taken = cameras.ports_taken(self.others) | {first["settings"]["port"]}
+        free = (p for p in itertools.count(RTMP_PORT) if p not in taken)
+        made = []
+        for n, lens in enumerate(lenses[: len(ids)]):
+            settings = first["settings"]
+            if n:
+                settings = {"port": next(free), "path": f"live/{ids[n]}"}
+            name = f"{first['name']} {LENS_NAMES[lens].lower()}"
+            made.append(self._made(ids[n], name, settings))
+        return made
+
+    def _made(
+        self, camera_id: str, name: str, settings: dict[str, Any]
+    ) -> dict[str, Any]:
         return {
-            "id": self.camera_id,
-            "name": self.name.text().strip() or self.camera_id,
+            "id": camera_id,
+            "name": name,
             "connection": self.kind(),
-            "settings": self._settings(),
+            "settings": settings,
             "finish_line": [[0.5, 0.0], [0.5, 1.0]],
             "offset_ms": 0,
             "record": self.kind() != "file" or self.live.isChecked(),
         }
+
+    def _lenses(self) -> list[str]:
+        return [lens for lens, box in self.lenses.items() if box.isChecked()]
 
     def _settings(self) -> dict[str, Any]:
         kind = self.kind()
@@ -203,23 +248,34 @@ class CameraDialog(QDialog):
         found = cameras.problems(self.camera())
         if self.kind() == "rtmp" and clash:
             found.append(clash)
+        if self.kind() == "rtmp" and not self._lenses():
+            found.append("no lens ticked: tick the ones the phone is to stream")
         self.problems.setText("\n".join(found))
         ok = self.buttons.button(QDialogButtonBox.StandardButton.Ok)
         ok.setEnabled(not found)
 
     def _show_address(self, settings: dict[str, Any], clash: str | None) -> None:
-        """The address to stream to, as text and as a QR code for the phone: none
-        while the settings are wrong or the port is another phone's, which a phone
-        scanning it would stream to; a word instead while this computer has no
-        network address, which would send the phone to itself."""
+        """The address to stream to, as text and as a QR code for the phone -- a
+        line per lens when several are ticked: none while the settings are wrong,
+        no lens is ticked or the port is another phone's, which a phone scanning it
+        would stream to; a word instead while this computer has no network address,
+        which would send the phone to itself."""
         text, scannable = "", False
-        if not clash and not cameras.problems(
-            {"connection": "rtmp", "settings": settings}
+        lenses = self._lenses()
+        if (
+            lenses
+            and not clash
+            and not cameras.problems({"connection": "rtmp", "settings": settings})
         ):
             if self._here is None:
                 self._here = cameras.this_computer()
-            scannable = not ipaddress.ip_address(self._here).is_loopback
-            text = cameras.rtmp_url(settings, self._here) if scannable else NO_NETWORK
+            here = self._here
+            scannable = not ipaddress.ip_address(here).is_loopback
+            streams = [
+                (lens, cameras.rtmp_url(made["settings"], here))
+                for lens, made in zip(lenses, self.cameras(), strict=False)
+            ]
+            text = cameras.pairing_text(streams) if scannable else NO_NETWORK
             if not scannable and not self._network.isActive():
                 self._network.start()
         if text == self.address.text():  # every key typed comes here
