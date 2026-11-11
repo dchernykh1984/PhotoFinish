@@ -50,6 +50,13 @@ def scale_time(ms: int) -> str:
     return f"{days} {hours}:{minutes}:{seconds}.{millis:03d}"
 
 
+def clock_of(ms: int, whole_seconds: bool = False) -> str:
+    """The time of day of milliseconds on the line scale, as the window shows it:
+    ``H:M:S.mmm``, or to the second."""
+    clock = scale_time(ms).split(" ")[1]
+    return clock.split(".")[0] if whole_seconds else clock
+
+
 def parse_line(text: str) -> Crossing:
     """A crossing line; its time is None when it has none a chronometer would write."""
     fields = text.split("#")
