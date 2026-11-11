@@ -1,5 +1,6 @@
 package com.dchernykh.photofinish.camera.status
 
+import android.os.BatteryManager
 import java.util.Locale
 
 /**
@@ -32,4 +33,14 @@ data class PhoneStatus(
         ).joinToString(";")
 
     private fun flag(on: Boolean) = if (on) "1" else "0"
+
+    companion object {
+        /**
+         * Charging as the battery says it: filling, or full on its supply -- a phone plugged into
+         * a supply weaker than its use drains, and is not.
+         */
+        fun charging(batteryStatus: Int): Boolean =
+            batteryStatus == BatteryManager.BATTERY_STATUS_CHARGING ||
+                batteryStatus == BatteryManager.BATTERY_STATUS_FULL
+    }
 }
