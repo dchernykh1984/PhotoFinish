@@ -159,4 +159,13 @@ class LensesTest {
         val one = LensChoice.classify(LensInfo("0", null, 24.0), listOf(untold, told), null)
         assertEquals(mapOf(Lens.MAIN to told), one)
     }
+
+    @Test
+    fun `a back camera that tells no focal length has the lens nearest a main lens's as main`() {
+        val ultra = LensInfo("0", "2", 13.0)
+        val main = LensInfo("0", "3", 24.0)
+        val long = LensInfo("0", "4", 70.0)
+        val found = LensChoice.classify(LensInfo("0", null, 0.0), listOf(ultra, main, long), null)
+        assertEquals(mapOf(Lens.MAIN to main, Lens.ULTRAWIDE to ultra, Lens.TELEPHOTO to long), found)
+    }
 }
