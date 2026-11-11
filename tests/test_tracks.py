@@ -172,6 +172,23 @@ def test_a_crossing_carries_the_number_read_in_the_rider_s_box(
     assert height < 360 and width < 640  # the box, not the frame
 
 
+def test_riders_crossing_on_one_sample_are_read_on_one_picture_of_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pictures: list[Any] = []
+
+    class Kept(FakeReader):
+        def read(self, rgb: Any) -> tuple[str, float]:
+            pictures.append(rgb.base)  # the picture the rider's box was cut from
+            return super().read(rgb)
+
+    monkeypatch.setattr(analyzer, "_reader", Kept)
+    first, second = suggested_by(TwoAbreast, 150, tmp_path, monkeypatch)
+    assert first["ms"] == second["ms"]
+    assert len(pictures) == 2
+    assert pictures[0] is pictures[1]  # converted once for both
+
+
 def test_a_reader_that_fails_costs_the_number_not_the_crossing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
