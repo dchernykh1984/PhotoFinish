@@ -73,3 +73,9 @@ repos:
         language: python
         files: ^\.codex/
         pass_filenames: false
+      - id: claude-hook-tests
+        name: claude hook tests
+        entry: python .claude/hooks/test_release_merge.py
+        language: python
+        files: ^\.claude/hooks/
+        pass_filenames: false
