@@ -78,8 +78,9 @@ class ScreenState(
         settings.fps = rate
     }
 
-    /** Streaming on or off; what the lenses said of the last stream is forgotten. */
+    /** Streaming on or off; what the cameras and the lenses said before is forgotten. */
     fun toggleStreaming() {
+        status = null
         lensStatus.clear()
         streaming = !streaming
     }
