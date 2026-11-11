@@ -5,6 +5,7 @@ read from where the last read stopped."""
 
 from __future__ import annotations
 
+import bisect
 import json
 import statistics
 from collections.abc import Callable
@@ -90,16 +91,23 @@ class Gathered:
 def gathered(found: list[Seen], within_ms: int = GATHER_MS) -> list[Gathered]:
     """The suggestions as crossings: each joins, of the crossings begun within
     ``within_ms`` before it that no suggestion of its camera is in yet, nor a number
-    read apart from its own, the one nearest its moment -- one camera's never
-    gather, so riders abreast stay apart, and a rider one camera missed is not
-    paired with the rider before; numbers read apart are two riders."""
+    read apart from its own, nor one whose camera has another suggestion nearer to
+    it, the one nearest its moment -- one camera's never gather, so riders abreast
+    stay apart, and a rider one camera missed is not paired with the rider before,
+    whether it comes first or a moment before; numbers read apart are two riders."""
+    by_camera: dict[str, list[int]] = {}
+    for seen in found:
+        by_camera.setdefault(seen[1], []).append(seen[0])
+    for moments in by_camera.values():
+        moments.sort()
     crossings: list[list[Seen]] = []
     for one in sorted(found, key=lambda seen: seen[0]):
         open_ = []
         for c in reversed(crossings):  # begun in order: the latest are the open ones
             if one[0] - c[0][0] > within_ms:
                 break  # and every one before it began earlier still
-            if one[1] not in {s[1] for s in c} and _agrees(one, c):
+            mine = one[1] in {s[1] for s in c}
+            if not mine and _agrees(one, c) and _nearest(one, c, by_camera):
                 open_.append(c)
         open_.reverse()  # in the order begun: between equals, the earlier is taken
         nearest = min(
@@ -112,6 +120,18 @@ def gathered(found: list[Seen], within_ms: int = GATHER_MS) -> list[Gathered]:
         else:
             nearest.append(one)
     return [Gathered(c, _number(c)) for c in crossings]
+
+
+def _nearest(one: Seen, crossing: list[Seen], by_camera: dict[str, list[int]]) -> bool:
+    """Each of the crossing's suggestions is its camera's nearest to ``one``: a
+    camera with one nearer saw ``one``'s rider there."""
+    for moment, camera, _ in crossing:
+        moments = by_camera[camera]
+        at = bisect.bisect_left(moments, one[0])
+        best = min(abs(m - one[0]) for m in moments[max(at - 1, 0) : at + 1])
+        if abs(moment - one[0]) > best:
+            return False
+    return True
 
 
 def _agrees(one: Seen, crossing: list[Seen]) -> bool:

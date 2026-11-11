@@ -50,6 +50,16 @@ def test_suggestions_that_read_numbers_apart_are_two_riders() -> None:
     assert gathered([]) == []
 
 
+def test_a_camera_s_suggestion_waits_for_the_other_camera_s_nearer_one() -> None:
+    """Rider 2 seen by B 5 ms before A's own suggestion of it: not with A's rider 1."""
+    a0 = (0, "A", {"id": "a0"})
+    b205 = (205, "B", {"id": "b205", "number": "18", "number_sure": 0.9})
+    a210 = (210, "A", {"id": "a210"})
+    found = gathered([a0, a210, b205])
+    assert [[s[2]["id"] for s in g.seen] for g in found] == [["a0"], ["b205", "a210"]]
+    assert [g.number for g in found] == ["", "18"]
+
+
 def test_a_crossing_suggested_twice_is_offered_once(tmp_path: Path) -> None:
     """The analyser killed between a segment's suggestions and its activity line
     analyses the segment again on restart."""
