@@ -197,7 +197,7 @@ helps find the moments to look at.
   is turned on and checked like the detectors; the longest run of digits of the surest reading
   of at least 0.8 is the number, shown with the suggestion. Until both are there, or when one cannot be
   downloaded, crossings come without numbers, and each camera's line says so: "numbers: the
-  reader is downloading", or "is not here" -- Numbers and crossings turned on again tries again --
+  reader is downloading", or "is not here" -- the model chosen again in the list tries again --
   or, there but not loaded by the camera's analyser, why.
 
 ## Known limits

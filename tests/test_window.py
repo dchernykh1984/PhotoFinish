@@ -2218,6 +2218,7 @@ def test_the_number_reader_is_fetched_once_numbers_and_crossings_are_on(
 def test_the_camera_line_says_while_numbers_go_unread_for_want_of_the_reader(
     recording: Path,
     make_window: Callable[[], mw.MainWindow],
+    analyzers: list[Any],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     saved = session.load()
@@ -2240,8 +2241,16 @@ def test_the_camera_line_says_while_numbers_go_unread_for_want_of_the_reader(
     win._ensure_numbers()
     wait_until(lambda: win._numbers_job is None)
     win.poll()
-    said = "; numbers: the reader is not here, turn Numbers and crossings on again"
+    said = "; numbers: the reader is not here, choose the model again to download it"
     assert win.camera_list.item(0).text().endswith(said)
+    tried: list[str] = []
+    monkeypatch.setattr(
+        mw.models, "fetch", lambda model, *a, **k: tried.append(model.key)
+    )
+    started = len(analyzers)
+    win._model_chosen(win.model_box.findData("m.onnx"))  # as the line says
+    wait_until(lambda: tried == [reader.key])
+    assert len(analyzers) == started  # nothing started again for it
 
 
 def test_the_number_reader_s_download_is_said_once_for_both_its_models(
