@@ -22,6 +22,7 @@ import java.util.concurrent.Executor
 
 /** What the camera side says to the screen: of the cameras as a whole, or of one lens. */
 sealed interface StreamerStatus {
+    /** The camera gives frames, to the preview and to any lens streamed. */
     data object Previewing : StreamerStatus
 
     data class Failed(
@@ -279,7 +280,8 @@ class CameraStreamer(
                         )
                     }
                 configured.setRepeatingRequest(request.build(), null, handler)
-                if (!streaming) onStatus(null, StreamerStatus.Previewing)
+                // The camera gives frames: a failure said before, a camera lost and opened again, is over.
+                onStatus(null, StreamerStatus.Previewing)
             } catch (error: Exception) {
                 onStatus(null, failed(error))
             }
