@@ -104,6 +104,7 @@ class ModelWatch:
         self.detector, self.zone, self.line = detector, zone, line
         self.camera_id = camera_id
         self.numbers = numbers  # the riders' numbers read at their crossings (006)
+        self.unread = ""  # why numbers go unread with the reader there, said
         self.method = f"model:{detector.name}"
         self.tracker = Tracker(line)
         self.frames: list[tuple[av.VideoFrame, Ref]] = []  # since the last sample
@@ -184,6 +185,7 @@ def run(
     except ModelError as error:
         _progress(folder, "failed", detail=str(error))
         return 2
+    _progress(folder, "waiting", numbers=getattr(watch, "unread", ""))
     sample, listed, done = 0, Appended(folder / SEGMENTS), analysed(folder)
     fresh = watch.kept()  # as it starts: again for a segment earlier than the last
     todo: deque[str] = deque()
@@ -219,20 +221,22 @@ def _watch(camera: dict[str, Any], model: str, common: object = None) -> Watch:
     zone, line = analysis.zone(camera, common), camera_line(camera, common)
     if model:
         detector = Detector(app_path(model))
-        return ModelWatch(detector, zone, line, str(camera["id"]), _reader())
+        watch = ModelWatch(detector, zone, line, str(camera["id"]))
+        try:
+            watch.numbers = _reader()
+        except Exception as error:  # onnxruntime raises its own kinds
+            watch.unread = f"the number reader cannot be loaded: {error}"
+        return watch
     return MotionWatch(Motion(zone, line))
 
 
 def _reader() -> NumberReader | None:
     """The number reader, once both its models are there (006): until then the
-    crossings come without numbers."""
+    crossings come without numbers. One there that cannot be loaded raises."""
     if not all(models.ready(model) for model in models.NUMBER_MODELS):
         return None
     finder, reader = models.NUMBER_MODELS
-    try:
-        return NumberReader(app_path(finder.file), app_path(reader.file))
-    except Exception:  # onnxruntime raises its own kinds: no numbers read
-        return None
+    return NumberReader(app_path(finder.file), app_path(reader.file))
 
 
 def analysed(folder: Path) -> set[str]:
@@ -309,8 +313,14 @@ def _suggest(folder: Path, suggestions: list[dict[str, Any]]) -> None:
 
 
 def _progress(
-    folder: Path, state: str, done_ms: int | None = None, detail: str = ""
+    folder: Path,
+    state: str,
+    done_ms: int | None = None,
+    detail: str = "",
+    numbers: str | None = None,
 ) -> None:
+    """The analyser's state for the window; ``numbers``, why numbers go unread, is
+    kept from the last time it was said."""
     path = folder / "analyzer.json"
     before = read_json(path) or {}
     info = {
@@ -319,6 +329,7 @@ def _progress(
         "state": state,
         "detail": detail,
         "done_ms": done_ms if done_ms is not None else before.get("done_ms"),
+        "numbers": numbers if numbers is not None else before.get("numbers", ""),
     }
     _write(path, info)
 
