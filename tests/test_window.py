@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
     QPushButton,
 )
 
-from app import analysis, output_list, session
+from app import analysis, output_list, phone_status, session
 from app import main_window as mw
 from app.analysis import models
 from app.lines import parse_time, scale_time, to_line_scale
@@ -572,6 +572,31 @@ def test_the_corner_says_whether_every_camera_records(
     win.poll()
     assert banner.text() == "RECORDING"
     assert mw.GREEN in banner.styleSheet()
+
+
+def test_under_the_banner_each_phone_says_what_may_stop_its_stream(
+    recording: Path, make_window: Callable[[], mw.MainWindow]
+) -> None:
+    now = time.time_ns() // 1_000_000
+    beating(
+        recording,
+        phone={"battery": "9", "charging": "0", "wifi": "-61"} | {"at_ms": now},
+    )
+    win = make_window()
+    text = win.phones.text()
+    assert not win.phones.isHidden()
+    assert text.startswith("Side: ")
+    assert f"<span style='color: {mw.RED}'>{phone_status.BATTERY} 9%</span>" in text
+    assert f"{phone_status.WIFI} -61 dBm" in text  # fine: no colour of its own
+    assert "gray" not in text
+    beating(recording, phone={"battery": "57", "charging": "1", "at_ms": START})
+    win.poll()  # a status heard long ago: the phone's last word, greyed, with its time
+    last = scale_time(to_line_scale(START, False)).split(" ")[1].split(".")[0]
+    assert "color: gray" in win.phones.text()
+    assert f"at {last}" in win.phones.text()
+    beating(recording)  # a camera that is no phone has no line
+    win.poll()
+    assert win.phones.isHidden()
 
 
 def test_the_corner_counts_only_cameras_that_record_and_names_them_as_text(
