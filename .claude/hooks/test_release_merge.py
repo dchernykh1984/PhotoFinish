@@ -158,6 +158,18 @@ class MergesTests(unittest.TestCase):
         ):
             self.assertEqual(HOOK.merges(command), [[*merged, "--admin"]], command)
 
+    def test_a_cd_s_options_are_no_folder_and_cd_dash_is_the_shell_s(self) -> None:
+        for command, folder in (
+            ("cd -P /srv && gh pr merge 21", "/srv"),
+            ("cd -L -- /srv && gh pr merge 21", "/srv"),
+            ("cd -- && gh pr merge 21", str(Path.home())),
+        ):
+            self.assertEqual(HOOK.where(HOOK.merges(command)[0], "/repo")[0], folder)
+        back = HOOK.where(HOOK.merges("cd - && gh pr merge 21 --admin")[0], "/repo")
+        self.assertIn(
+            "through the shell", HOOK.refusal(back[1], lambda v: None, back[0])
+        )
+
     def test_a_merge_after_a_cd_runs_in_its_folder(self) -> None:
         merged = HOOK.merges("cd ../Other; git pull && cd sub && gh pr merge 12")
         self.assertEqual(merged, [[HOOK.CD, "../Other", HOOK.CD, "sub", "12"]])
