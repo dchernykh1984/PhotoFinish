@@ -47,6 +47,7 @@ from app.analysis.suggestions import Suggestions
 from app.input_follow import InputFollow
 from app.interpolation import Point, between, crossing, finish_line, points
 from app.lines import (
+    clock_of,
     parse_line,
     parse_time,
     scale_time,
@@ -1205,7 +1206,7 @@ class MainWindow(QMainWindow):
             for s in c.suggestions.pending()
         ]
         for moment, camera, suggestion in sorted(found, key=lambda f: f[0]):
-            clock = scale_time(self._line_ms(moment)).split(" ")[1]
+            clock = clock_of(self._line_ms(moment))
             name = camera.settings.get("name", camera.id)
             item = QListWidgetItem(f"{clock}  {name}")
             item.setToolTip(f"Suggested by {suggestion.get('model')}")
@@ -1357,7 +1358,7 @@ class MainWindow(QMainWindow):
         if not len(camera.index):
             return f"{name}: no video yet"
         last = int(camera.index.ms[-1]) + int(camera.settings.get("offset_ms", 0))
-        clock = scale_time(self._line_ms(last)).split(" ")[1].split(".")[0]
+        clock = clock_of(self._line_ms(last), whole_seconds=True)
         return f"{name}: no video since {clock}"
 
     def _show_recording(self) -> None:
@@ -1413,7 +1414,7 @@ class MainWindow(QMainWindow):
             at = int(status["at_ms"]) + int(camera.settings.get("offset_ms", 0))
         except KeyError, TypeError, ValueError:
             return "last heard"
-        return "at " + scale_time(self._line_ms(at)).split(" ")[1].split(".")[0]
+        return "at " + clock_of(self._line_ms(at), whole_seconds=True)
 
     def _riders_progress(self, camera: Camera) -> str:
         """How far the camera's analyser has got (FR-009)."""
@@ -1582,7 +1583,7 @@ class MainWindow(QMainWindow):
         frame = camera.index.frame(place)
         moment = self.moment = frame.ms + self._offset()
         self.timeline.set_position(moment)
-        clock = scale_time(self._line_ms(moment)).split(" ")[1]
+        clock = clock_of(self._line_ms(moment))
         self.time_label.setText(f"{clock} LIVE" if self.live else clock)
         source = int(self.session.get("source_offset_ms", 0))
         self.source_label.setText(f"source {source:+d} ms")

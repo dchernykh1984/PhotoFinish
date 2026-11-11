@@ -87,3 +87,9 @@ def test_the_source_offset_is_the_line_moment_less_the_video_moment() -> None:
     moment = 1_761_716_129_587
     line_ms = lines.to_line_scale(moment + 2500, False)
     assert lines.source_offset(line_ms, moment, False) == 2500
+
+
+def test_the_time_of_day_as_the_window_shows_it() -> None:
+    ms = 20_400 * 86_400_000 + 9 * 3_600_000 + 5 * 60_000 + 7_123
+    assert lines.clock_of(ms) == "9:5:7.123"
+    assert lines.clock_of(ms, whole_seconds=True) == "9:5:7"
