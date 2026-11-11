@@ -59,6 +59,10 @@ agree within one frame, and the recording has no gap.
    gap is shown on the timeline, and nothing recorded before is lost.
 5. **Given** less than 2 GB free on the disk, **Then** the referee is warned; when the disk is
    full, recording stops cleanly, says so and keeps what it recorded.
+6. **Given** the referee checking crossings minutes back in the video, **When** a camera stops
+   recording -- its stream lost, its recorder down -- **Then** the window's corner turns from a
+   large green RECORDING to a large red NOT RECORDING within seconds, naming the camera and the
+   time of its last frame; no dialog interrupts the referee.
 
 ---
 
@@ -356,6 +360,11 @@ an RTMP stream pushed from the same computer is received and recorded.
 - **FR-018**: PhotoFinish needs no internet at the race; it talks to cameras over USB or the local
   network only. The one site it talks to is a detection model's pinned source, when the referee
   chooses that model or it is missing at start (002, FR-003).
+- **FR-019**: The window's top right corner says in large letters whether the cameras are
+  recording now, whatever moment the referee is looking at: green RECORDING while every camera
+  that records is, red NOT RECORDING while one is not -- naming each such camera and the time of
+  its last frame, on the timing source's scale -- and nothing with no camera that records. Not
+  "Live", which is where the referee is in the video; no dialog and no sound.
 
 ### Key Entities
 
