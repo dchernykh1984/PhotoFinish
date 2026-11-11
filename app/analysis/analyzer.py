@@ -55,6 +55,7 @@ class Watch(Protocol):
     method: str
     every_ms: int
     suggestions: list[dict[str, Any]]
+    unread: str  # why numbers go unread with the reader there, said; "" when none
 
     def see(self, frame: av.VideoFrame, ref: Ref) -> None: ...
 
@@ -66,7 +67,7 @@ class Watch(Protocol):
 
 
 class MotionWatch:
-    method, every_ms = "motion", SAMPLE_MS
+    method, every_ms, unread = "motion", SAMPLE_MS, ""
 
     def __init__(self, motion: Motion) -> None:
         self.motion = motion
@@ -100,11 +101,12 @@ class ModelWatch:
         line: Line,
         camera_id: str,
         numbers: NumberReader | None = None,
+        unread: str = "",
     ) -> None:
         self.detector, self.zone, self.line = detector, zone, line
         self.camera_id = camera_id
         self.numbers = numbers  # the riders' numbers read at their crossings (006)
-        self.unread = ""  # why numbers go unread with the reader there, said
+        self.unread = unread
         self.method = f"model:{detector.name}"
         self.tracker = Tracker(line)
         self.frames: list[tuple[av.VideoFrame, Ref]] = []  # since the last sample
@@ -185,7 +187,7 @@ def run(
     except ModelError as error:  # no reader loaded either: nothing said of it
         _progress(folder, "failed", detail=str(error), numbers="")
         return 2
-    _progress(folder, "waiting", numbers=getattr(watch, "unread", ""))
+    _progress(folder, "waiting", numbers=watch.unread)
     sample, listed, done = 0, Appended(folder / SEGMENTS), analysed(folder)
     fresh = watch.kept()  # as it starts: again for a segment earlier than the last
     todo: deque[str] = deque()
@@ -221,12 +223,12 @@ def _watch(camera: dict[str, Any], model: str, common: object = None) -> Watch:
     zone, line = analysis.zone(camera, common), camera_line(camera, common)
     if model:
         detector = Detector(app_path(model))
-        watch = ModelWatch(detector, zone, line, str(camera["id"]))
+        numbers, unread = None, ""
         try:
-            watch.numbers = _reader()
+            numbers = _reader()
         except Exception as error:  # onnxruntime raises its own kinds
-            watch.unread = f"the number reader cannot be loaded: {error}"
-        return watch
+            unread = f"the number reader cannot be loaded: {error}"
+        return ModelWatch(detector, zone, line, str(camera["id"]), numbers, unread)
     return MotionWatch(Motion(zone, line))
 
 
