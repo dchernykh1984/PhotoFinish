@@ -29,13 +29,16 @@ a first session with the test camera:
 2. Put the phone and the computer on one network: the phone's own hotspot will do.
 3. In PhotoFinish: Cameras -> Add... The dialog shows the address to stream to,
    such as `rtmp://10.0.0.5:1935/live/cam1`, and the same address as a QR code.
-   OK.
+   Tick more lenses -- Ultra-wide, Telephoto, Front -- to record them too: each
+   is a camera of its own, and the code holds them all. OK.
 4. In PhotoFinish Camera: "Scan PhotoFinish's code", pick the picture size and
    the frame rate (60 fps first, when the phone gives it), "Start". The app says
    how many frames a second it sends and how closely its clock is in step with
    PhotoFinish's; the camera list says "recording", and the window's top right
    corner turns to a green RECORDING. Red NOT RECORDING there, wherever in the
    video you are, means a camera's stream is lost.
+5. One camera shows the chosen camera alone, large: Ctrl+1 to Ctrl+9 pick it,
+   Ctrl+Up and Ctrl+Down switch, Ctrl+0 shows them all side by side again.
 
 The app keeps the phone's camera clock in step with the recorder's and writes
 each frame's moment into the frame, so Wi-Fi delays do not move frames on the

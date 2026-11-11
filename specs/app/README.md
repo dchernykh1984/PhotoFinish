@@ -74,6 +74,17 @@ test camera, video file. Action cameras were tried and dropped: the SJCAM SJ10 P
 phone preview over its own Wi-Fi -- 1280x720, about 0.9 Mbit/s, seconds without frames -- and no
 video over its cable.
 
+PhotoFinish Camera streams several of the phone's lenses at once (`specs/004-phone-lenses`):
+the dialog's lens boxes -- Main, ticked, Ultra-wide, Telephoto, Front -- make a camera of each,
+named after its lens, on a port of its own, and the QR code holds a line per lens (an address
+alone for Main alone). The phone finds its lenses by their focal lengths among its back camera's
+physical cameras, lists them on its screen, streams those of one camera in one capture session
+and the other camera beside it where the phone runs both; a lens it lacks, or cannot stream with
+the others, is said on the phone. Each lens has its own encoder, connection and clock exchange, so
+each is in step on its own. Tried on the emulator: two lenses of one camera and the other camera,
+30 fps each, every frame with its moment. Each lens adds its bitrate to the Wi-Fi and heat to the
+phone.
+
 A video file is either played as if filmed now (and recorded, for trying things out) or, the
 usual case, opened as it is: a camera's own recording from its card, placed by the file's creation
 time and aligned like any camera. The file is never written.
@@ -86,7 +97,9 @@ or a swaying patch.
 
 - **Video.** Every camera's view side by side, each at its frame nearest the moment shown; the
   chosen camera, framed in blue, is the one the keys step through. The timeline shows its
-  recording and gaps; the wheel zooms around the pointer, a click moves there.
+  recording and gaps; the wheel zooms around the pointer, a click moves there. One camera shows
+  the chosen camera alone over the whole area -- the others are not decoded meanwhile -- and the
+  camera list or the keys switch it, at the same moment.
 - **Recording.** The top right corner says in large letters whether the cameras are recording
   now, wherever in the video the referee is: green RECORDING while every camera that records is
   (a file opened as it is does not count), red NOT RECORDING while one is not -- its stream
@@ -95,7 +108,8 @@ or a swaying patch.
   sending is noticed after the recorder's 5 s read timeout. No dialog and no sound.
 - **Keys** (they work while a number is typed): Left/Right one frame, Shift ten, Ctrl one second,
   End back to Live (L too, when no number is being typed: a number may hold an L). Live follows
-  the newest frame.
+  the newest frame. Ctrl+1 to Ctrl+9 show camera 1 to 9 alone, Ctrl+0 all of them, Ctrl+Up and
+  Ctrl+Down the previous and the next camera.
 - **Play, Pause, Stop.** Play runs the recording from the moment shown at its own speed, every
   camera following. Each frame shown is one asked for, the next asked once it is on screen, so
   a slow computer shows fewer frames, never late ones; a gap of more than a second in the
