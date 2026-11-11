@@ -43,12 +43,17 @@ class PhoneLenses(
             manager.getCameraCharacteristics(it).get(CameraCharacteristics.LENS_FACING) == wanted
         }
 
+    /**
+     * The physical cameras of a logical one, from Android 10: Android 9 streams them but tells a
+     * hidden one's characteristics only from 10, and would throw. A lens the phone will not tell of
+     * is left out.
+     */
     private fun physical(cameraId: String): List<LensInfo> {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return emptyList()
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return emptyList()
         val characteristics = manager.getCameraCharacteristics(cameraId)
         val capabilities = characteristics.get(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES) ?: IntArray(0)
         if (CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_LOGICAL_MULTI_CAMERA !in capabilities) return emptyList()
-        return characteristics.physicalCameraIds.map { info(cameraId, it) }
+        return characteristics.physicalCameraIds.mapNotNull { runCatching { info(cameraId, it) }.getOrNull() }
     }
 
     /** The lens with its 35 mm-equivalent focal length: by the diagonal, as phone makers give it. */
