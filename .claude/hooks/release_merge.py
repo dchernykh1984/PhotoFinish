@@ -386,7 +386,12 @@ def refusal(
             f"action_required, then wait for them to pass; {SKILL}."
         )
     repo = view[view.index("--repo") :] if "--repo" in view else []
-    found = (runs(str(pr.get("headRefOid", "")), repo) if runs else None) or []
+    found = runs(str(pr.get("headRefOid", "")), repo) if runs else []
+    if found is None:  # a release PR's: those it cannot list may wait for approval
+        return (
+            f"Release PR #{number}: the runs of its head cannot be listed now, to "
+            f"tell none waits for approval -- try the merge again; {SKILL}."
+        )
     held = [  # a run approved in part: those still waiting have no check yet
         name
         for name, run in latest(found).items()

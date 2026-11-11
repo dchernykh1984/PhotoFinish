@@ -256,7 +256,8 @@ class RefusalTests(unittest.TestCase):
         both = [approved, approved | {"name": "pr-build"}]
         self.assertIsNone(HOOK.refusal(["19"], lambda view: green, "", lambda *a: both))
         unknown = HOOK.refusal(["19"], lambda view: green, "", lambda *a: None)
-        self.assertIsNone(unknown)  # gh cannot say: the checks decide
+        self.assertIn("cannot be listed", unknown)  # gh cannot say: held, to try again
+        self.assertIsNone(HOOK.refusal(["19"], lambda view: green, "", lambda *a: []))
 
     def test_a_run_cancelled_and_run_again_since_holds_nothing(self) -> None:
         green = pr([check("tests")]) | {"headRefOid": "abc"}
@@ -314,7 +315,7 @@ class MainTests(unittest.TestCase):
         out = io.StringIO()
         with (
             patch.object(HOOK, "look_up", return_value=found) as look_up,
-            patch.object(HOOK, "look_up_runs", return_value=None),
+            patch.object(HOOK, "look_up_runs", return_value=[]),
             patch("sys.stdin", io.StringIO(json.dumps(payload))),
             patch("sys.stdout", out),
         ):
