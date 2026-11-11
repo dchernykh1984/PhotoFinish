@@ -115,7 +115,7 @@ def test_a_cameras_own_stream_is_indexed_in_display_order(tmp_path: Path) -> Non
         unit = float(stream.time_base or 0) * 1000
         for packet in container.demux(stream):
             if packet.pts is not None:
-                writer.write_packet(packet, START + round(packet.pts * unit))
+                writer.write_packet(packet, START + round((packet.pts or 0) * unit))
         writer.close()
     index = VideoIndex(folder)
     index.refresh()
@@ -125,6 +125,51 @@ def test_a_cameras_own_stream_is_indexed_in_display_order(tmp_path: Path) -> Non
     decoded = decoder.decode(frame.path, frame.pts)
     assert decoded is not None
     assert read_time(decoded.to_ndarray(format="rgb24")) == START + 5 * 33
+    decoder.close()
+
+
+def test_frames_a_phone_sends_again_are_listed_once_and_the_rest_decode(
+    tmp_path: Path,
+) -> None:
+    # specs/007: a connection after a break begins at a keyframe seconds back; what
+    # the recorder has from it is written for the frames after it, not listed again.
+    with av.open(str(tmp_path / "phone.mp4"), "w") as container:
+        options = {"g": "30", "bf": "0"}  # the phone's: no B-frames
+        stream = container.add_stream("libx264", rate=30, options=options)
+        stream.width, stream.height, stream.pix_fmt = 640, 360, "yuv420p"
+        for k in range(90):
+            frame = av.VideoFrame.from_ndarray(render(START + k * 33, 640, 360))
+            frame.pts = k
+            for packet in stream.encode(frame):
+                container.mux(packet)
+        for packet in stream.encode(None):
+            container.mux(packet)
+    folder = tmp_path / "cam1"
+    writer = SegmentWriter(folder, fps=30)
+
+    def connection(frames: slice) -> None:
+        """One connection's packets, as a new connection gives new ones."""
+        with av.open(str(tmp_path / "phone.mp4")) as container:
+            stream = container.streams.video[0]
+            unit = float(stream.time_base or 0) * 1000
+            sent = [p for p in container.demux(stream) if p.pts is not None]
+            for packet in sent[frames]:
+                writer.write_packet(packet, START + round((packet.pts or 0) * unit))
+        writer.close()  # the phone hung up
+
+    connection(slice(0, 45))  # the connection the network broke
+    connection(slice(30, None))  # the next, from the keyframe a second back
+    assert writer.frames == 90
+    index = VideoIndex(folder)
+    index.refresh()
+    assert len(index) == 90
+    assert list(index.ms) == sorted(set(index.ms))
+    assert not (folder / "gaps.txt").exists()
+    decoder = Decoder()
+    first_new = index.frame(45)  # decoded from the keyframe sent again before it
+    decoded = decoder.decode(first_new.path, first_new.pts)
+    assert decoded is not None
+    assert read_time(decoded.to_ndarray(format="rgb24")) == START + 45 * 33
     decoder.close()
 
 
