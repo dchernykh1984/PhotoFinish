@@ -46,11 +46,13 @@ object LensChoice {
         if (back != null) {
             val main = physical.minByOrNull { abs(it.focalMm - back.focalMm) } ?: back
             found[Lens.MAIN] = main
-            physical
+            // A focal length the phone does not tell, 0, makes no lens wider or longer.
+            val others = physical.filter { it !== main && it.focalMm > 0 && main.focalMm > 0 }
+            others
                 .filter { it.focalMm <= main.focalMm * WIDE_AT_MOST }
                 .minByOrNull { it.focalMm }
                 ?.let { found[Lens.ULTRAWIDE] = it }
-            physical
+            others
                 .filter { it.focalMm >= main.focalMm * TELE_AT_LEAST }
                 .maxByOrNull { it.focalMm }
                 ?.let { found[Lens.TELEPHOTO] = it }
