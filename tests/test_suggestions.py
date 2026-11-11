@@ -73,3 +73,14 @@ def test_equal_readings_go_to_the_surer() -> None:
     two = (1_005, "cam2", {"number": "13", "number_sure": 0.91})
     assert gathered([one, two])[0].number == "13"
     assert gathered([]) == []
+
+
+def test_a_suggestion_joins_the_nearest_crossing_not_the_first() -> None:
+    """A rider one camera missed is not paired with the rider before."""
+    a1 = (0, "cam1", {"id": "a1"})
+    b1 = (100, "cam1", {"id": "b1"})
+    b2 = (110, "cam2", {"id": "b2", "number": "18", "number_sure": 0.99})
+    first, second = gathered([a1, b1, b2])
+    assert [s[2]["id"] for s in first.seen] == ["a1"]
+    assert [s[2]["id"] for s in second.seen] == ["b1", "b2"]
+    assert (first.number, second.number) == ("", "18")

@@ -81,23 +81,26 @@ class Gathered:
 
 
 def gathered(found: list[Seen], within_ms: int = GATHER_MS) -> list[Gathered]:
-    """The suggestions as crossings: each joins the first crossing begun within
-    ``within_ms`` before it that no suggestion of its camera is in yet -- one
-    camera's never gather, so riders abreast stay apart."""
+    """The suggestions as crossings: each joins, of the crossings begun within
+    ``within_ms`` before it that no suggestion of its camera is in yet, the one
+    nearest its moment -- one camera's never gather, so riders abreast stay apart,
+    and a rider one camera missed is not paired with the rider before."""
     crossings: list[list[Seen]] = []
     for one in sorted(found, key=lambda seen: seen[0]):
-        crossing = next(
-            (
-                c
-                for c in crossings
-                if one[0] - c[0][0] <= within_ms and one[1] not in {s[1] for s in c}
-            ),
-            None,
+        open_ = [
+            c
+            for c in crossings
+            if one[0] - c[0][0] <= within_ms and one[1] not in {s[1] for s in c}
+        ]
+        nearest = min(
+            open_,
+            key=lambda c: abs(one[0] - statistics.median(s[0] for s in c)),
+            default=None,
         )
-        if crossing is None:
+        if nearest is None:
             crossings.append([one])
         else:
-            crossing.append(one)
+            nearest.append(one)
     return [
         Gathered(round(statistics.median(s[0] for s in c)), c, _number(c))
         for c in crossings
