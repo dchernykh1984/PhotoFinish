@@ -1312,6 +1312,7 @@ class MainWindow(QMainWindow):
         """A crossing decided leaves the list, with every camera's suggestion of it;
         a decision the disk refuses is said: offered again after a restart, it
         would be accepted twice."""
+        refused, why = [], ""
         for _, camera_id, found in suggested.seen:
             camera = self.cameras.get(camera_id)
             if camera is None:
@@ -1319,7 +1320,13 @@ class MainWindow(QMainWindow):
             try:
                 camera.suggestions.decide(str(found["id"]), how)
             except OSError as error:
-                self._say(f"Done; the decision cannot be kept for a restart: {error}")
+                refused.append(self._name(camera_id))
+                why = str(error)
+        if refused:  # once, naming each camera whose decision it is
+            names = ", ".join(refused)
+            self._say(
+                f"Done; the decision cannot be kept for a restart ({names}): {why}"
+            )
         self._show_suggestions()
 
     def _suggestion(self) -> Gathered | None:
