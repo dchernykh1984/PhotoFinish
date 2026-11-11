@@ -81,6 +81,8 @@ class ScreenState(
     /**
      * What a camera said: of the cameras as a whole, or of one lens while streaming -- a lens's word
      * heard after Stop is the stopped stream's, said before its camera closed, and not the next one's.
+     * The cameras failing as a whole stop every lens's stream: their last words go with them (specs/007,
+     * FR-011), and the next streams say their own.
      */
     fun hear(
         lens: Lens?,
@@ -88,6 +90,7 @@ class ScreenState(
     ) {
         if (lens == null) {
             status = said
+            if (said is StreamerStatus.Failed) lensStatus.clear()
         } else if (streaming) {
             lensStatus[lens] = said
         }
