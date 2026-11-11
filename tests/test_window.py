@@ -1698,8 +1698,10 @@ def test_finding_riders_is_set_up_beside_the_video(
     wait_until(lambda: win.place is not None)
     assert not win.analysis_box.isChecked()
     assert view.zone is None
+    assert not win.crossings_box.isEnabled()  # with finding riders only
     win.analysis_box.setChecked(True)
-    assert session.load()["analysis"] == {"on": True, "model": ""}
+    assert win.crossings_box.isEnabled()
+    assert session.load()["analysis"] == {"on": True, "model": "", "crossings": False}
     assert view.zone == ((0.35, 0.0), (0.65, 1.0))
     assert win.model_box.currentText() == "Motion only"
     own_file = win.model_box.findData(mw._OWN_FILE)
@@ -2355,12 +2357,33 @@ def test_suggested_crossings_are_accepted_with_a_number_or_dismissed(
     assert again.suggestion_list.count() == 0  # decided: not offered again
 
 
+def test_numbers_and_crossings_start_every_analyser_again_on_what_it_runs(
+    recording: Path, make_window: Callable[[], mw.MainWindow], analyzers: list[Any]
+) -> None:
+    saved = session.load()
+    saved["analysis"] = {"on": True, "model": "", "crossings": False}
+    session.save(saved)
+    win = make_window()
+    win.poll()
+    started = len(analyzers)
+    win.crossings_box.setChecked(True)
+    win.poll()
+    assert analysis.settings(session.load())["crossings"] is True
+    assert len(analyzers) == started + 1  # started again on the model chosen
+    win.crossings_box.setChecked(False)
+    win.poll()
+    assert analysis.model_in_use(session.load()) == ""  # motion alone
+    assert len(analyzers) == started + 2
+
+
 def test_suggestions_need_a_model(
     recording: Path, make_window: Callable[[], mw.MainWindow]
 ) -> None:
     session.save({**session.load(), "analysis": {"on": True, "model": ""}})
     suggest(recording, START + 1000)
     win = make_window()
+    assert win.suggestion_list.count() == 0  # motion alone: nothing suggested
+    win.crossings_box.setChecked(True)
     assert (
         win.suggestion_list.item(0)
         .text()

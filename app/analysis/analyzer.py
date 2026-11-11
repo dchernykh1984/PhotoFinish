@@ -152,9 +152,7 @@ def run(
     stop = stop or _window_gone()
     folder = folder_of(camera_id)
     try:
-        watch = _watch(
-            camera, analysis.settings(saved)["model"], saved.get("finish_line")
-        )
+        watch = _watch(camera, analysis.model_in_use(saved), saved.get("finish_line"))
     except ModelError as error:
         _progress(folder, "failed", detail=str(error))
         return 2

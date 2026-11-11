@@ -10,10 +10,18 @@ from app import analysis, cameras
 
 
 def test_analysis_is_off_until_turned_on() -> None:
-    assert analysis.settings({}) == {"on": False, "model": ""}
-    assert analysis.settings({"analysis": "on"}) == {"on": False, "model": ""}
+    off = {"on": False, "model": "", "crossings": False}
+    assert analysis.settings({}) == off
+    assert analysis.settings({"analysis": "on"}) == off
     chosen = {"analysis": {"on": 1, "model": "yolox_s.onnx"}}
-    assert analysis.settings(chosen) == {"on": True, "model": "yolox_s.onnx"}
+    assert analysis.settings(chosen) == {  # a session from before: crossings on
+        "on": True,
+        "model": "yolox_s.onnx",
+        "crossings": True,
+    }
+    assert analysis.model_in_use(chosen) == "yolox_s.onnx"
+    motion = {"analysis": {"on": True, "model": "yolox_s.onnx", "crossings": False}}
+    assert analysis.model_in_use(motion) == ""  # the model kept, motion alone run
 
 
 def test_without_a_zone_drawn_it_is_a_band_around_the_line() -> None:
