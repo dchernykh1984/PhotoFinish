@@ -145,6 +145,19 @@ class MergesTests(unittest.TestCase):
         self.assertEqual(HOOK.merges("echo '$(gh pr merge 5 --admin)'"), [])  # text
         self.assertEqual(HOOK.merges("echo \\`gh pr merge 5\\`"), [])  # escaped: text
 
+    def test_a_script_or_an_output_s_merge_after_what_comes_before_it(self) -> None:
+        for command, merged in (
+            ("cd ../X && bash -c 'gh pr merge 21 --admin'", [HOOK.CD, "../X", "21"]),
+            ("cd ../X && eval 'gh pr merge 21 --admin'", [HOOK.CD, "../X", "21"]),
+            ('cd ../X && out="$(gh pr merge 21 --admin)"', [HOOK.CD, "../X", "21"]),
+            ("cd ../X && echo `gh pr merge 21 --admin`", [HOOK.CD, "../X", "21"]),
+            (
+                "export GH_REPO=o/x; bash -c 'gh pr merge 21 --admin'",
+                ["--repo", "o/x", "21"],
+            ),
+        ):
+            self.assertEqual(HOOK.merges(command), [[*merged, "--admin"]], command)
+
     def test_a_merge_after_a_cd_runs_in_its_folder(self) -> None:
         merged = HOOK.merges("cd ../Other; git pull && cd sub && gh pr merge 12")
         self.assertEqual(merged, [[HOOK.CD, "../Other", HOOK.CD, "sub", "12"]])
