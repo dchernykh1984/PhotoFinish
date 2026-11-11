@@ -1876,6 +1876,23 @@ def test_numbers_and_crossings_turned_while_a_chosen_detector_comes_stay_so(
     assert analysis.settings(session.load())["crossings"] is False
 
 
+def test_the_detector_in_use_chosen_again_turns_numbers_and_crossings_on(
+    recording: Path,
+    make_window: Callable[[], mw.MainWindow],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    nano = models.MODELS[0]
+    saved = session.load()
+    saved["analysis"] = {"on": True, "model": nano.file, "crossings": False}
+    session.save(saved)
+    monkeypatch.setattr(mw.models, "ready", lambda model: True)
+    win = make_window()
+    assert not win.crossings_box.isChecked()
+    win._model_chosen(win.model_box.findData(nano.file))  # as a detector chosen does
+    assert win.crossings_box.isChecked()
+    assert analysis.settings(session.load())["crossings"] is True
+
+
 def test_choosing_the_model_in_use_again_restarts_nothing(
     recording: Path,
     make_window: Callable[[], mw.MainWindow],
