@@ -46,7 +46,15 @@ from app.analysis import models
 from app.analysis.activity import Activity, how_far
 from app.analysis.suggestions import Suggestions
 from app.input_follow import InputFollow
-from app.interpolation import Point, between, crossing, finish_line, points
+from app.interpolation import (
+    Line,
+    Point,
+    between,
+    camera_line,
+    crossing,
+    own_line,
+    points,
+)
 from app.lines import (
     clock_of,
     parse_line,
@@ -253,10 +261,20 @@ class MainWindow(QMainWindow):
         transport.addStretch()
         transport.addWidget(self.source_label)
         transport.addWidget(self.time_label)
-        line_button = QPushButton("Finish line")
-        line_button.setToolTip("Click the line's two ends on the picture")
-        line_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        line_button.clicked.connect(self.draw_finish_line)
+        self.edit_line = QPushButton("Edit finish line")  # its edit mode (006)
+        self.edit_line.setCheckable(True)
+        self.edit_line.setToolTip(
+            "Click the line's two ends on a picture: the line of every camera that "
+            "follows the common one -- or, with 'This camera only', that camera's own"
+        )
+        self.edit_line.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.edit_line.toggled.connect(self._edit_line)
+        self.this_camera_only = QCheckBox("This camera only")
+        self.this_camera_only.setToolTip(
+            "The line drawn is this camera's own, kept when the common one moves"
+        )
+        self.this_camera_only.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.this_camera_only.setEnabled(False)  # in the edit mode only
         event_button = QPushButton("Mark event")
         event_button.setToolTip(
             "Mark one moment every camera shows -- a flash, a hand wave -- on each "
@@ -265,7 +283,8 @@ class MainWindow(QMainWindow):
         event_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         event_button.clicked.connect(self.mark_event)
         timing = QHBoxLayout()
-        timing.addWidget(line_button)
+        timing.addWidget(self.edit_line)
+        timing.addWidget(self.this_camera_only)
         timing.addWidget(event_button)
         timing.addWidget(QLabel("Number"))
         timing.addWidget(self.number, stretch=1)
@@ -524,7 +543,8 @@ class MainWindow(QMainWindow):
         """Another camera to step through; the moment shown stays. A line or zone
         half drawn is given up: its ends must come from one camera's picture."""
         if self.drawing is not None:
-            self.drawing = None
+            # A line's edit mode starts over on the camera chosen; a zone is given up.
+            self.drawing = [] if self.edit_line.isChecked() else None
             self._say("Drawing stopped: click both ends on one camera's picture")
         item = self.camera_list.item(row) if row >= 0 else None
         self.current = (
@@ -779,14 +799,35 @@ class MainWindow(QMainWindow):
     # -- the finish line and the caliper ----------------------------------------
 
     def draw_finish_line(self) -> None:
-        """The next two clicks on the picture are the finish line's ends."""
-        self._start_drawing(
-            "finish_line", "Click one end of the finish line, then the other"
-        )
+        """The finish line's edit mode: the next two clicks on a picture are its
+        ends."""
+        self.edit_line.setChecked(True)
+
+    def _edit_line(self, on: bool) -> None:
+        """The finish line's edit mode (006): two clicks on a picture set the common
+        line, or with "This camera only" that camera's own; the mode stays on for
+        the next until turned off. Out of it, clicks belong to the caliper."""
+        self.this_camera_only.setEnabled(on)
+        if on and self._camera() is None:
+            self._say("Add a camera first")
+            self.edit_line.setChecked(False)
+            return
+        if on:
+            self._start_drawing(
+                "finish_line", "Click one end of the finish line, then the other"
+            )
+        elif self.drawn == "finish_line" and self.drawing is not None:
+            self.drawing = None
+            self._show_marks()
+
+    def _line(self, camera: Camera) -> Line:
+        """The finish line the camera times on: its own, or the common one."""
+        return camera_line(camera.settings, self.session.get("finish_line"))
 
     def draw_zone(self) -> None:
         """The next two clicks on the picture are corners of the zone where riders
         pass the line: motion elsewhere is not looked at."""
+        self.edit_line.setChecked(False)  # one thing drawn at a time
         self._start_drawing(
             "zone", "Click one corner of the zone, then the opposite one"
         )
@@ -831,15 +872,32 @@ class MainWindow(QMainWindow):
                 else "Click the other end of the line, apart from the first"
             )
             return
-        camera.settings[self.drawn] = [list(end) for end in drawing]
+        ends = [list(end) for end in drawing]
+        if zone:
+            camera.settings["zone"] = ends
+            changed, said = [camera], "The zone is drawn"
+        else:
+            changed, said = self._set_line(camera, ends)
         self._save_session()
         if self.analysis_box.isChecked():  # the new line or zone from here on
-            self._stop_analyzer(camera)
-            self._analyze(camera)
-        self.drawing = None
-        self._say(
-            "The zone is drawn" if self.drawn == "zone" else "The finish line is drawn"
-        )
+            for each in changed:
+                self._stop_analyzer(each)
+                self._analyze(each)
+        self.drawing = None if zone else []  # the line's edit mode stays on
+        self._say(said)
+
+    def _set_line(
+        self, camera: Camera, ends: list[list[float]]
+    ) -> tuple[list[Camera], str]:
+        """The line drawn on ``camera``: its own with "This camera only", else the
+        common line, which the camera follows again; the cameras it moves, said."""
+        if self.this_camera_only.isChecked():
+            camera.settings |= {"finish_line": ends, "own_line": True}
+            return [camera], "This camera's own finish line is drawn"
+        self.session["finish_line"] = ends
+        camera.settings["own_line"] = False
+        moved = [c for c in self.cameras.values() if not own_line(c.settings)]
+        return moved, "The finish line is drawn for every camera that follows it"
 
     def _caliper(self, camera: Camera, frame: Frame, point: Point) -> None:
         """A point of the rider on this frame; with one on another frame, the time
@@ -851,7 +909,7 @@ class MainWindow(QMainWindow):
             self._say("Now the same point on a frame on the other side of the line")
             return
         (_, first, a), (_, second, b) = sorted(self.caliper, key=lambda c: c[1].ms)
-        fraction = crossing(finish_line(camera.settings.get("finish_line")), a, b)
+        fraction = crossing(self._line(camera), a, b)
         if fraction is None:
             self._say(
                 "Both points are on one side of the finish line: "
@@ -950,10 +1008,12 @@ class MainWindow(QMainWindow):
             ]
             if camera.id == self.current:
                 marks += self.drawing or []
-            line = finish_line(camera.settings.get("finish_line"))
+            common = self.session.get("finish_line")
             on = self.analysis_box.isChecked()
             camera.view.show_marks(
-                line, marks, analysis.zone(camera.settings) if on else None
+                self._line(camera),
+                marks,
+                analysis.zone(camera.settings, common) if on else None,
             )
 
     # -- finding riders (experimental) -------------------------------------------

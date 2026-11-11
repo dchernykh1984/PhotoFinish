@@ -1349,14 +1349,21 @@ def test_the_finish_line_is_drawn_with_two_clicks(
 ) -> None:
     win = make_window()
     wait_until(lambda: win.place == 5)
+    assert not win.this_camera_only.isEnabled()  # out of the edit mode
     win.draw_finish_line()
+    assert win.edit_line.isChecked() and win.this_camera_only.isEnabled()
     win.picture_clicked((0.4, 0.1))
     assert win.view.marks == [(0.4, 0.1)]
     win.picture_clicked((0.6, 0.9))
-    assert session.load()["cameras"][0]["finish_line"] == [[0.4, 0.1], [0.6, 0.9]]
+    saved = session.load()
+    assert saved["finish_line"] == [[0.4, 0.1], [0.6, 0.9]]  # the common line
+    assert saved["cameras"][0]["own_line"] is False
     assert win.view.line == ((0.4, 0.1), (0.6, 0.9))
-    assert win.statusBar().currentMessage() == "The finish line is drawn"
-    assert win.drawing is None
+    said = "The finish line is drawn for every camera that follows it"
+    assert win.statusBar().currentMessage() == said
+    assert win.drawing == []  # the edit mode stays on for the next
+    win.edit_line.setChecked(False)
+    assert win.drawing is None and not win.this_camera_only.isEnabled()
 
 
 def test_a_line_or_zone_without_extent_is_not_kept(
@@ -1368,9 +1375,9 @@ def test_a_line_or_zone_without_extent_is_not_kept(
     win.picture_clicked((0.4, 0.1))
     win.picture_clicked((0.4, 0.1))  # a double click
     assert "apart from the first" in win.statusBar().currentMessage()
-    assert "finish_line" not in session.load()["cameras"][0]
+    assert "finish_line" not in session.load()
     win.picture_clicked((0.6, 0.9))
-    assert session.load()["cameras"][0]["finish_line"] == [[0.4, 0.1], [0.6, 0.9]]
+    assert session.load()["finish_line"] == [[0.4, 0.1], [0.6, 0.9]]
     win.draw_zone()
     win.picture_clicked((0.3, 0.2))
     win.picture_clicked((0.3, 0.8))  # no width
@@ -1382,6 +1389,7 @@ def test_a_line_or_zone_without_extent_is_not_kept(
 def test_a_finish_line_needs_a_camera(win: mw.MainWindow) -> None:
     win.draw_finish_line()
     assert win.statusBar().currentMessage() == "Add a camera first"
+    assert not win.edit_line.isChecked()
     win.picture_clicked((0.5, 0.5))
     assert win.caliper == []
     win._show_marks()
@@ -2594,7 +2602,7 @@ def test_a_crossing_written_whose_journal_failed_is_not_written_twice(
     assert "Written; the journal" in win.statusBar().currentMessage()
 
 
-def test_a_line_half_drawn_is_given_up_when_another_camera_is_chosen(
+def test_a_line_half_drawn_starts_over_when_another_camera_is_chosen(
     two: None, make_window: Callable[[], mw.MainWindow], base: Path
 ) -> None:
     win = make_window()
@@ -2602,11 +2610,46 @@ def test_a_line_half_drawn_is_given_up_when_another_camera_is_chosen(
     win.draw_finish_line()
     win.picture_clicked((0.4, 0.1))  # one end on Side
     win.picture_clicked((0.6, 0.9), "cam2")  # then Front's picture
-    assert win.drawing is None
+    assert win.drawing == []  # both ends from Front's picture now
     assert win.current == "cam2"
     assert "Drawing stopped" in win.statusBar().currentMessage()
     assert win.caliper == []  # that click chose the camera, no more
-    assert all("finish_line" not in c for c in session.load()["cameras"])
+    assert "finish_line" not in session.load()
+    win.draw_zone()  # a zone given up the same way
+    win.picture_clicked((0.3, 0.2), "cam1")
+    assert win.drawing is None
+    assert not win.edit_line.isChecked()
+
+
+def test_one_finish_line_for_all_cameras_and_a_camera_s_own_kept(
+    two: None, make_window: Callable[[], mw.MainWindow], base: Path
+) -> None:
+    win = make_window()
+    wait_until(lambda: win.place is not None)
+    side, front = win.cameras["cam1"], win.cameras["cam2"]
+    win.draw_finish_line()
+    win.picture_clicked((0.4, 0.0))
+    win.picture_clicked((0.4, 1.0))  # the common line, on Side's picture
+    assert win._line(side) == win._line(front) == ((0.4, 0.0), (0.4, 1.0))
+    win.camera_list.setCurrentRow(1)
+    win.this_camera_only.setChecked(True)
+    win.picture_clicked((0.7, 0.0))
+    win.picture_clicked((0.7, 1.0))  # Front's own
+    assert session.load()["cameras"][1]["own_line"] is True
+    win.camera_list.setCurrentRow(0)
+    win.this_camera_only.setChecked(False)
+    win.picture_clicked((0.3, 0.0))
+    win.picture_clicked((0.3, 1.0))  # the common line moved: Front keeps its own
+    assert win._line(side) == ((0.3, 0.0), (0.3, 1.0))
+    assert win._line(front) == ((0.7, 0.0), (0.7, 1.0))
+    win.camera_list.setCurrentRow(1)
+    win.picture_clicked((0.5, 0.0))
+    win.picture_clicked((0.5, 1.0))  # drawn on Front for all: it follows again
+    assert win._line(front) == win._line(side) == ((0.5, 0.0), (0.5, 1.0))
+    win.edit_line.setChecked(False)
+    wait_until(win._frame_on_screen)
+    win.picture_clicked((0.2, 0.5))  # out of the mode: the caliper's point
+    assert win.caliper and session.load()["finish_line"] == [[0.5, 0.0], [0.5, 1.0]]
 
 
 def test_choosing_a_camera_that_did_not_film_the_moment_keeps_the_moment(

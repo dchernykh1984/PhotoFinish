@@ -31,7 +31,7 @@ from app.analysis.detector import Detector, ModelError
 from app.analysis.motion import WIDTH, Motion, Stretches
 from app.analysis.tracks import Ref, Tracker, refine
 from app.files import Appended, append, read_json, write_in_one_step
-from app.interpolation import Line, finish_line
+from app.interpolation import Line, camera_line
 from app.paths import app_path
 from app.recorder import CAMERA_ID, folder_of
 from app.recorder.segments import SEGMENTS
@@ -152,7 +152,9 @@ def run(
     stop = stop or _window_gone()
     folder = folder_of(camera_id)
     try:
-        watch = _watch(camera, analysis.settings(saved)["model"])
+        watch = _watch(
+            camera, analysis.settings(saved)["model"], saved.get("finish_line")
+        )
     except ModelError as error:
         _progress(folder, "failed", detail=str(error))
         return 2
@@ -185,9 +187,10 @@ def run(
     return 0
 
 
-def _watch(camera: dict[str, Any], model: str) -> Watch:
-    """By the model chosen, or by motion without one."""
-    zone, line = analysis.zone(camera), finish_line(camera.get("finish_line"))
+def _watch(camera: dict[str, Any], model: str, common: object = None) -> Watch:
+    """By the model chosen, or by motion without one; on the camera's own finish
+    line, or the ``common`` one (006)."""
+    zone, line = analysis.zone(camera, common), camera_line(camera, common)
     if model:
         return ModelWatch(Detector(app_path(model)), zone, line, str(camera["id"]))
     return MotionWatch(Motion(zone, line))

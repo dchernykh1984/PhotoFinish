@@ -11,6 +11,8 @@ whatever the picture's proportions, so no size is needed.
 
 from __future__ import annotations
 
+from typing import Any
+
 type Point = tuple[float, float]
 type Line = tuple[Point, Point]
 
@@ -34,6 +36,19 @@ def points(drawn: object) -> Line | None:
 def finish_line(drawn: object) -> Line:
     """A camera's finish line as the session keeps it, or the centre line."""
     return points(drawn) or CENTRE
+
+
+def own_line(camera: dict[str, Any]) -> bool:
+    """The camera keeps a finish line of its own (006): one drawn for it alone; or,
+    in a session from before the common line, any line drawn but the centre."""
+    if "own_line" in camera:
+        return bool(camera["own_line"])
+    return finish_line(camera.get("finish_line")) != CENTRE
+
+
+def camera_line(camera: dict[str, Any], common: object) -> Line:
+    """The finish line a camera times on: its own, else the common one (006)."""
+    return finish_line(camera.get("finish_line") if own_line(camera) else common)
 
 
 def crossing(line: Line, first: Point, second: Point) -> float | None:

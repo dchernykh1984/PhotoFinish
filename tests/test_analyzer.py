@@ -278,3 +278,14 @@ def test_a_segment_that_stays_unreadable_is_noted_after_its_tries(base: Path) ->
     assert len(slept) == analyzer.TRIES - 1
     (noted,) = activity(folder)
     assert "cannot be read" in noted["error"]
+
+
+def test_a_camera_that_follows_the_common_line_is_timed_on_it() -> None:
+    common = [[0.3, 0.0], [0.3, 1.0]]
+    follows = analyzer._watch({"id": "cam1", "own_line": False}, "", common)
+    own = {"id": "cam1", "own_line": True, "finish_line": [[0.6, 0], [0.6, 1]]}
+    keeps = analyzer._watch(own, "", common)
+    assert isinstance(follows, analyzer.MotionWatch)
+    assert isinstance(keeps, analyzer.MotionWatch)
+    assert follows.motion.line == ((0.3, 0.0), (0.3, 1.0))
+    assert keeps.motion.line == ((0.6, 0.0), (0.6, 1.0))

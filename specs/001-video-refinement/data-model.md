@@ -35,7 +35,8 @@ video/<camera id>/
 | `name` | shown to the referee |
 | `connection` | `usb`, `rtsp`, `rtmp`, `test`, `file` |
 | `settings` | per connection: `device`, `width`, `height`, `fps` (`usb`); `url`, `transport` `tcp` or `udp` (`rtsp`); `port`, `path` (`rtmp`); `fps`, `width`, `height`, `scene` (`test`); `path` (`file`) |
-| `finish_line` | `[[x1, y1], [x2, y2]]`, 0-1 image coordinates; default the vertical centre line |
+| `finish_line` | `[[x1, y1], [x2, y2]]`, 0-1 image coordinates: the camera's own line, used when `own_line` (specification 006) |
+| `own_line` | true: the camera keeps `finish_line`; false: it follows the session's common line. Missing (a session from before): any line drawn but the centre is its own |
 | `offset_ms` | added to this camera's frame times to put it on the first camera's timeline |
 | `record` | false for a file opened after the race |
 | `zone` | `[[x1, y1], [x2, y2]]`, two corners in 0-1 coordinates where riders are looked for (specification 002); default a band around the finish line |
@@ -75,11 +76,16 @@ leaves nothing in the journal.
   "summer_time": false,
   "finish_mode": false,
   "source_offset_ms": 0,
+  "finish_line": [[0.5, 0.0], [0.5, 1.0]],
   "cameras": [{"id": "cam1", "name": "Side", "connection": "test", "settings": {},
-               "finish_line": [[0.5, 0.0], [0.5, 1.0]], "offset_ms": 0, "record": true}],
-  "analysis": {"on": false, "model": ""}
+               "finish_line": [[0.4, 0.0], [0.4, 1.0]], "own_line": false,
+               "offset_ms": 0, "record": true}],
+  "analysis": {"on": false, "model": "", "crossings": true}
 }
 ```
+
+`finish_line` at the top is the common line every camera without `own_line` times on
+(specification 006); missing, the vertical centre line.
 
 ## Output state (`<output file>.state.json`)
 
