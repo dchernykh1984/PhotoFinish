@@ -1364,7 +1364,7 @@ def test_the_finish_line_is_drawn_with_two_clicks(
     win = make_window()
     wait_until(lambda: win.place == 5)
     assert not win.this_camera_only.isEnabled()  # out of the edit mode
-    win.draw_finish_line()
+    win.edit_line.setChecked(True)
     assert win.edit_line.isChecked() and win.this_camera_only.isEnabled()
     win.picture_clicked((0.4, 0.1))
     assert win.view.marks == [(0.4, 0.1)]
@@ -1385,7 +1385,7 @@ def test_a_line_or_zone_without_extent_is_not_kept(
 ) -> None:
     win = make_window()
     wait_until(lambda: win.place == 5)
-    win.draw_finish_line()
+    win.edit_line.setChecked(True)
     win.picture_clicked((0.4, 0.1))
     win.picture_clicked((0.4, 0.1))  # a double click
     assert "apart from the first" in win.statusBar().currentMessage()
@@ -1401,7 +1401,7 @@ def test_a_line_or_zone_without_extent_is_not_kept(
 
 
 def test_a_finish_line_needs_a_camera(win: mw.MainWindow) -> None:
-    win.draw_finish_line()
+    win.edit_line.setChecked(True)
     assert win.statusBar().currentMessage() == "Add a camera first"
     assert not win.edit_line.isChecked()
     win.picture_clicked((0.5, 0.5))
@@ -2321,7 +2321,7 @@ def test_an_analyser_that_dies_is_started_again_and_a_new_zone_restarts_it(
     win.picture_clicked((0.7, 0.9))
     assert not analyzers[1].running
     assert len(analyzers) == 3
-    win.draw_finish_line()  # the line too: the analyser times crossings of it
+    win.edit_line.setChecked(True)  # the line too: the analyser times crossings of it
     win.picture_clicked((0.4, 0.0))
     win.picture_clicked((0.6, 1.0))
     assert not analyzers[2].running
@@ -2828,7 +2828,7 @@ def test_a_line_half_drawn_starts_over_when_another_camera_is_chosen(
 ) -> None:
     win = make_window()
     wait_until(lambda: win.place is not None)
-    win.draw_finish_line()
+    win.edit_line.setChecked(True)
     win.picture_clicked((0.4, 0.1))  # one end on Side
     win.picture_clicked((0.6, 0.9), "cam2")  # then Front's picture
     assert win.drawing == []  # both ends from Front's picture now
@@ -2848,7 +2848,7 @@ def test_one_finish_line_for_all_cameras_and_a_camera_s_own_kept(
     win = make_window()
     wait_until(lambda: win.place is not None)
     side, front = win.cameras["cam1"], win.cameras["cam2"]
-    win.draw_finish_line()
+    win.edit_line.setChecked(True)
     win.picture_clicked((0.4, 0.0))
     win.picture_clicked((0.4, 1.0))  # the common line, on Side's picture
     assert win._line(side) == win._line(front) == ((0.4, 0.0), (0.4, 1.0))
