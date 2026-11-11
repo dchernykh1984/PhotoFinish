@@ -156,11 +156,23 @@ def _folder(before: list[str]) -> list[str]:
             begins = True
             continue
         if begins and word == "cd":
-            after = before[at + 1 : at + 2]
-            given = after and not set(after[0]) <= SHELL_PUNCTUATION
-            levels[-1] += [CD, after[0] if given else "~"]
+            levels[-1] += [CD, _cd_to(before[at + 1 :])]
         begins = False
     return levels[-1]
+
+
+def _cd_to(after: list[str]) -> str:
+    """The folder a cd's words give: its options passed over, home with none, and
+    `cd -` the folder before -- $OLDPWD, the shell's to know."""
+    for word in after:
+        if word and set(word) <= SHELL_PUNCTUATION:
+            break
+        if word == "-":
+            return "$OLDPWD"
+        if word == "--" or (word.startswith("-") and len(word) > 1):
+            continue  # -P, -L, -e, -@ and the end of options
+        return word
+    return "~"
 
 
 def where(args: list[str], cwd: str | None) -> tuple[str | None, list[str]]:
