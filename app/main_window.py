@@ -534,10 +534,11 @@ class MainWindow(QMainWindow):
         for view in views:
             if view not in shown:
                 self.grid.removeWidget(view)
-            view.setVisible(view in shown)
+                view.setVisible(False)
         columns = math.ceil(math.sqrt(len(shown)))
         for n, view in enumerate(shown):
             self.grid.addWidget(view, n // columns, n % columns)
+            view.setVisible(True)  # in the grid first: shown alone, it is a window
 
     def _hidden_others(self) -> bool:
         """One-camera mode, with a camera chosen: the others are hidden."""

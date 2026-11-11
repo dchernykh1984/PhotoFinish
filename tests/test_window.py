@@ -2905,6 +2905,26 @@ def test_a_removed_camera_s_analyser_stops_too(
     assert not analyzers[0].running
 
 
+def test_a_camera_s_view_is_shown_inside_the_window_never_as_its_own(
+    recording: Path,
+    make_window: Callable[[], mw.MainWindow],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    windows: list[bool] = []
+
+    class Watched(mw.CameraView):
+        def showEvent(self, event: Any) -> None:  # noqa: N802 - Qt's name
+            windows.append(self.isWindow())
+            super().showEvent(event)
+
+    monkeypatch.setattr(mw, "CameraView", Watched)
+    win = make_window()
+    win.show()
+    QApplication.processEvents()
+    assert windows
+    assert not any(windows)
+
+
 def test_a_decoded_frame_is_shown_in_the_window_s_own_thread(
     recording: Path,
     make_window: Callable[[], mw.MainWindow],
