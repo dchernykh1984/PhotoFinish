@@ -194,6 +194,19 @@ def test_the_heartbeat_keeps_the_phone_s_last_status(
     assert heartbeat(folder)["phone"] == {"battery": "57", "at_ms": START}
 
 
+def test_a_recorder_started_again_keeps_the_phone_s_last_status(folder: Path) -> None:
+    folder.mkdir(parents=True, exist_ok=True)
+    last = {"battery": "9", "at_ms": START, "heard_ms": START}
+    (folder / "recorder.json").write_text(
+        json.dumps({"state": "stopped", "phone": last})
+    )
+    assert Heartbeat(folder, "rtmp").info["phone"] == last  # greyed, with its time
+    (folder / "recorder.json").write_text("[1]")
+    assert Heartbeat(folder, "rtmp").info["phone"] == {}
+    (folder / "recorder.json").unlink()
+    assert Heartbeat(folder, "rtmp").info["phone"] == {}
+
+
 def test_a_stop_request_closes_the_segment_and_ends_the_recorder(
     folder: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
