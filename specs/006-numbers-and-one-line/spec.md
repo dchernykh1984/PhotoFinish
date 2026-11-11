@@ -83,9 +83,9 @@ finish-line edit mode.
   and recogniser (Apache-2.0), downloaded from RapidOCR's mirror pinned by commit, size and
   SHA-256 -- about 11 MB -- when "Numbers and crossings" is on with a detector chosen, and kept next to the
   program. At a suggested crossing, the text in the rider's box is found and its six largest
-  pieces read, a bib being a rider's largest; the longest run
-  of digits of the most confident reading of at least 0.8 is the rider's number -- a year or a
-  team's number on the line beside it is not run into it.
+  pieces read, a bib being a rider's largest; the digits of the most confident reading of at
+  least 0.8 are the rider's number, read from a line holding one run of them -- a line with a
+  year or a team's number beside the bib names none, and the number is typed.
 - **FR-003**: Suggestions of different cameras within 0.3 s of each other, offsets applied, are one
   crossing -- each joining the nearest, unless they read different numbers, or one of its cameras
   has a suggestion nearer to it: two riders -- listed once at the median camera's moment (for an even
