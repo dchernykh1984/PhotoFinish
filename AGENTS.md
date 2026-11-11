@@ -173,7 +173,8 @@ runs these tests too. Post-edit hooks report completed edits; they do not undo
 them. Shell writes still require the pre-commit gate.
 
 Claude's PreToolUse hook `.claude/hooks/pre-bash.sh` denies `gh pr merge` of a
-release PR with `--admin` or before every check on its head has passed;
+release PR with `--admin` or before every check on its head has passed, and one
+that names its PR through the shell (`$PR`), which it cannot look up;
 `python3 .claude/hooks/test_release_merge.py` tests it. Codex has no such hook
 and follows the Release section above.
 
