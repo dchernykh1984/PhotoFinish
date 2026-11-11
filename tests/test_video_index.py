@@ -128,11 +128,13 @@ def test_a_cameras_own_stream_is_indexed_in_display_order(tmp_path: Path) -> Non
     decoder.close()
 
 
+@pytest.mark.parametrize("restarted", [False, True])
 def test_frames_a_phone_sends_again_are_listed_once_and_the_rest_decode(
-    tmp_path: Path,
+    tmp_path: Path, restarted: bool
 ) -> None:
     # specs/007: a connection after a break begins at a keyframe seconds back; what
-    # the recorder has from it is written for the frames after it, not listed again.
+    # the recorder has from it is written for the frames after it, not listed again,
+    # whether the recorder went on or started again.
     with av.open(str(tmp_path / "phone.mp4"), "w") as container:
         options = {"g": "30", "bf": "0"}  # the phone's: no B-frames
         stream = container.add_stream("libx264", rate=30, options=options)
@@ -147,19 +149,22 @@ def test_frames_a_phone_sends_again_are_listed_once_and_the_rest_decode(
     folder = tmp_path / "cam1"
     writer = SegmentWriter(folder, fps=30)
 
-    def connection(frames: slice) -> None:
+    def connection(frames: slice, shift_ms: int = 0) -> None:
         """One connection's packets, as a new connection gives new ones."""
         with av.open(str(tmp_path / "phone.mp4")) as container:
             stream = container.streams.video[0]
             unit = float(stream.time_base or 0) * 1000
             sent = [p for p in container.demux(stream) if p.pts is not None]
             for packet in sent[frames]:
-                writer.write_packet(packet, START + round((packet.pts or 0) * unit))
+                ms = START + shift_ms + round((packet.pts or 0) * unit)
+                writer.write_packet(packet, ms)
         writer.close()  # the phone hung up
 
     connection(slice(0, 45))  # the connection the network broke
+    if restarted:  # the recorder itself started again meanwhile
+        writer = SegmentWriter(folder, fps=30)
     connection(slice(30, None))  # the next, from the keyframe a second back
-    assert writer.frames == 90
+    assert writer.frames == (45 if restarted else 90)
     index = VideoIndex(folder)
     index.refresh()
     assert len(index) == 90
@@ -171,6 +176,27 @@ def test_frames_a_phone_sends_again_are_listed_once_and_the_rest_decode(
     assert decoded is not None
     assert read_time(decoded.to_ndarray(format="rgb24")) == START + 45 * 33
     decoder.close()
+
+
+def test_frames_at_moments_set_back_are_other_frames_and_listed(tmp_path: Path) -> None:
+    # A computer's clock set back between two recorders: earlier moments, not the
+    # same ones -- nothing of the second is hidden as a frame sent again.
+    make_h264(tmp_path / "camera.mp4", 60)
+    folder = tmp_path / "cam1"
+    for shift in (0, -3_000):
+        writer = SegmentWriter(folder, fps=30)
+        with av.open(str(tmp_path / "camera.mp4")) as container:
+            stream = container.streams.video[0]
+            unit = float(stream.time_base or 0) * 1000
+            for packet in container.demux(stream):
+                if packet.pts is not None:
+                    ms = START + shift + round(packet.pts * unit)
+                    writer.write_packet(packet, ms)
+        writer.close()
+        assert writer.frames == 60
+    index = VideoIndex(folder)
+    index.refresh()
+    assert len(index) == 120
 
 
 def test_gaps_are_read_as_the_recorder_writes_them(tmp_path: Path) -> None:

@@ -15,6 +15,7 @@ longer than three frame intervals is appended to ``gaps.txt`` as
 
 from __future__ import annotations
 
+import collections
 import contextlib
 import errno
 import re
@@ -30,6 +31,9 @@ import numpy as np
 from app.files import append, write_in_one_step
 
 SEGMENT_MS = 1000  # a segment's first frame is shown once it closes: SC-006's 2 s
+# A phone sends again up to 7 s it may have lost (specs/007): the moments listed this
+# far back are looked up, the last run's too, so the same frame is listed once.
+RESENT_MS = 10_000
 CLOSED = "[0-9]*-[0-9]*-[0-9]*"  # a closed segment's name, without its suffix
 NAMED = re.compile(r"\d{8}-\d{6}-\d{4,}")  # the same, exactly
 SEGMENTS = "segments.txt"  # the closed segments' names, in the order they closed
@@ -64,10 +68,9 @@ class SegmentWriter:
         self._before_ms = _last_recorded(folder, closed)
         self.gap_reason = "restart" if self._before_ms is not None else "no frames"
         self._open: _Encoded | _Remuxed | None = None
-        # The connection the last packet came from (its stream, kept: an id could be
-        # a new one's), and the newest frame this run had before it.
-        self._source: av.stream.Stream | None = None
-        self._before_source_ms: int | None = None
+        # The moments listed lately, oldest first, and as a set to look them up in.
+        self._recent = collections.deque(_recent_recorded(folder, closed, RESENT_MS))
+        self._listed = set(self._recent)
         self._unlisted: list[str] = []  # closed, the list refused their names so far
 
     def write(self, image: np.ndarray | av.VideoFrame, ms: int) -> None:
@@ -83,27 +86,29 @@ class SegmentWriter:
 
     def write_packet(self, packet: av.Packet, ms: int) -> None:
         """A packet of a network camera, its frame taken at ``ms``. A segment starts
-        at a keyframe; packets before the first are of no use and are dropped. One of
-        a new connection at or before the newest frame this run had before it -- a
-        phone sending again what a dead connection may have lost (specs/007) -- is
-        written for the frames after it to decode, and not listed: the recording
-        lists each frame once."""
+        at a keyframe; packets before the first are of no use and are dropped. One
+        whose moment was listed lately -- the same frame a phone sends again after a
+        break, with the moment it was sent with (specs/007) -- is written for the
+        frames after it to decode, and not listed: the recording lists each frame
+        once. A moment set back is another frame's, and listed."""
         if packet.pts is None or packet.dts is None or packet.stream is None:
             return  # nothing to place it by
         if not isinstance(self._open, _Remuxed) and not packet.is_keyframe:
             return
         stream = packet.stream
-        if stream is not self._source:  # a new connection: what came before it
-            self._source, self._before_source_ms = stream, self._last_ms
-        # Within a connection a camera's B-frames come after the frame they precede.
-        again = self._before_source_ms is not None and ms <= self._before_source_ms
+        again = ms in self._listed
         # A camera's keyframes a second apart cut each one, a moment early or late.
         self._next(ms, cut=packet.is_keyframe, slack=KEYFRAME_SLACK_MS)
         opened = self._segment(
             _Remuxed, lambda: _Remuxed(self.folder, packet, stream, ms)
         )
         opened.add(packet, packet.pts, packet.dts, None if again else ms)
-        self.frames += not again
+        if not again:
+            self.frames += 1
+            self._recent.append(ms)
+            self._listed.add(ms)
+            while self._recent and self._recent[0] < ms - RESENT_MS:
+                self._listed.discard(self._recent.popleft())
 
     def _segment[T: (_Encoded, _Remuxed)](
         self, kind: type[T], begun: Callable[[], T]
@@ -546,6 +551,23 @@ def _keep_aside(folder: Path) -> None:
             left.replace(folder / f"crashed-{stamp}{left.suffix}")
     _forget(meant)
     (folder / READING).unlink(missing_ok=True)  # the crash it was there for is aside
+
+
+def _recent_recorded(folder: Path, closed: list[str], span_ms: int) -> list[int]:
+    """The moments of the run before's frames within ``span_ms`` of its newest, oldest
+    first: the last segments' times, a few at a recorder's start."""
+    found: list[int] = []
+    for name in reversed(closed):
+        try:
+            text = (folder / f"{name}.times").read_text(encoding="ascii").split()
+        except OSError:
+            continue
+        moments = [int(ms) for ms in text[1::2] if ms.isdigit()]
+        found = moments + found
+        if found and moments and min(moments) < max(found) - span_ms:
+            break
+    newest = max(found, default=0)
+    return sorted(ms for ms in found if ms >= newest - span_ms)
 
 
 def _last_recorded(folder: Path, closed: list[str]) -> int | None:
