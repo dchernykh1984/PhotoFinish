@@ -508,9 +508,6 @@ class MainWindow(QMainWindow):
         camera = self._camera()
         return self.placeholder if camera is None else camera.view
 
-    def _free_id(self) -> str:
-        return self._free_ids(1)[0]
-
     def _free_ids(self, count: int) -> list[str]:
         """Ids no camera has, nor a recording on disk."""
         found: list[str] = []
