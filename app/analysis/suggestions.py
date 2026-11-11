@@ -67,17 +67,23 @@ def _entries(lines: list[str]) -> list[dict[str, Any]]:
 
 @dataclass
 class Gathered:
-    """One crossing as the cameras saw it (006, FR-003): each camera's suggestion,
-    the median of their moments, the number most read."""
+    """One crossing as the cameras saw it (006, FR-003): each camera's suggestion
+    and the number most read."""
 
-    moment: int
     seen: list[Seen]
     number: str
 
     @property
     def kept(self) -> Seen:
-        """The suggestion whose moment is nearest the median: the journal names it."""
-        return min(self.seen, key=lambda one: abs(one[0] - self.moment))
+        """The suggestion at the median -- for an even count, the earlier of the
+        two in the middle: its moment is the one written, and its camera's frames,
+        which the journal names, give that very moment."""
+        ordered = sorted(self.seen, key=lambda one: one[0])
+        return ordered[(len(ordered) - 1) // 2]
+
+    @property
+    def moment(self) -> int:
+        return self.kept[0]
 
 
 def gathered(found: list[Seen], within_ms: int = GATHER_MS) -> list[Gathered]:
@@ -101,10 +107,7 @@ def gathered(found: list[Seen], within_ms: int = GATHER_MS) -> list[Gathered]:
             crossings.append([one])
         else:
             nearest.append(one)
-    return [
-        Gathered(round(statistics.median(s[0] for s in c)), c, _number(c))
-        for c in crossings
-    ]
+    return [Gathered(c, _number(c)) for c in crossings]
 
 
 def _number(crossing: list[Seen]) -> str:

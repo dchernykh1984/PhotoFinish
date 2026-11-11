@@ -2423,7 +2423,8 @@ def test_numbers_and_crossings_start_every_analyser_again_on_what_it_runs(
 def test_a_crossing_two_cameras_saw_is_one_suggestion_with_the_number_read(
     two: None, make_window: Callable[[], mw.MainWindow], base: Path
 ) -> None:
-    """006 FR-003: once, at the median of the cameras' moments, decided together."""
+    """006 FR-003: once, at the median camera's moment, decided together; the
+    journal names that camera's frames, which give the time written."""
     analysis = {"on": True, "model": "m.onnx", "crossings": True}
     session.save({**session.load(), "analysis": analysis})
     for camera_id, ms in (("cam1", FLASH), ("cam2", FLASH + 20)):
@@ -2435,17 +2436,19 @@ def test_a_crossing_two_cameras_saw_is_one_suggestion_with_the_number_read(
         (folder / "suggestions.jsonl").write_text(json.dumps(entry) + "\n")
     win = make_window()
     assert win.suggestion_list.count() == 1
-    clock = scale_time(to_line_scale(FLASH + 10, False)).split(" ")[1]
+    clock = scale_time(to_line_scale(FLASH, False)).split(" ")[1]  # Side's, the earlier
     assert win.suggestion_list.item(0).text() == f"{clock}  Side, Front  no. 27"
     win.suggestion_list.setCurrentRow(0)
     win.accept_suggestion()  # nothing typed: the number read
     out = base / "out.txt"
-    expected = f"27#{scale_time(to_line_scale(FLASH + 10, False))}#nextLap#\n"
+    expected = f"27#{scale_time(to_line_scale(FLASH, False))}#nextLap#\n"
     assert out.read_text() == expected
     assert win.suggestion_list.count() == 0
     for camera_id in ("cam1", "cam2"):
         done = base / "video" / camera_id / "suggestions.done.jsonl"
         assert "accepted" in done.read_text()
+    written = journal(out)[-1]
+    assert (written["camera"], written["frames"][0][2]) == ("cam1", FLASH - 10)
 
 
 def test_suggestions_need_a_model(
