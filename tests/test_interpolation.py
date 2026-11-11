@@ -4,7 +4,14 @@ from __future__ import annotations
 
 import pytest
 
-from app.interpolation import CENTRE, between, crossing, finish_line
+from app.interpolation import (
+    CENTRE,
+    between,
+    camera_line,
+    crossing,
+    finish_line,
+    own_line,
+)
 
 
 def test_three_units_before_and_one_past_is_three_quarters() -> None:
@@ -47,3 +54,23 @@ def test_a_slanted_line_reads_the_same_in_any_proportions() -> None:
 )
 def test_a_camera_line_as_the_session_keeps_it(drawn: object, line: object) -> None:
     assert finish_line(drawn) == line
+
+
+def test_a_camera_follows_the_common_line_unless_it_has_its_own() -> None:
+    common = [[0.3, 0.0], [0.3, 1.0]]
+    drawn = [[0.7, 0.1], [0.6, 0.9]]
+    assert camera_line({"own_line": False, "finish_line": drawn}, common) == (
+        (0.3, 0.0),
+        (0.3, 1.0),
+    )
+    assert camera_line({"own_line": True, "finish_line": drawn}, common) == (
+        (0.7, 0.1),
+        (0.6, 0.9),
+    )
+    assert camera_line({}, None) == CENTRE  # no common line drawn: the centre
+
+
+def test_a_session_from_before_keeps_a_line_drawn_as_a_camera_s_own() -> None:
+    assert own_line({"finish_line": [[0.7, 0.1], [0.6, 0.9]]})
+    assert not own_line({"finish_line": [[0.5, 0.0], [0.5, 1.0]]})  # the centre
+    assert not own_line({})

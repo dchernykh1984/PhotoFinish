@@ -25,6 +25,16 @@ def test_without_a_zone_drawn_it_is_a_band_around_the_line() -> None:
     )
 
 
+def test_the_band_follows_the_common_line_unless_the_camera_has_its_own() -> None:
+    common = [[0.2, 0.0], [0.2, 1.0]]
+    assert analysis.zone({}, common) == (
+        (pytest.approx(0.05), 0.0),
+        (pytest.approx(0.35), 1.0),
+    )
+    own = {"own_line": True, "finish_line": [[0.8, 0.0], [0.8, 1.0]]}
+    assert analysis.zone(own, common)[0][0] == pytest.approx(0.65)
+
+
 def test_a_drawn_zone_is_its_two_corners_whichever_were_clicked_first() -> None:
     assert analysis.zone({"zone": [[0.7, 0.9], [0.3, 0.2]]}) == ((0.3, 0.2), (0.7, 0.9))
 

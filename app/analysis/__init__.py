@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.interpolation import Point, finish_line, points
+from app.interpolation import Point, camera_line, points
 
 type Zone = tuple[Point, Point]  # two opposite corners in 0-1 picture coordinates
 
@@ -24,13 +24,13 @@ def settings(session: dict[str, Any]) -> dict[str, Any]:
     return {"on": bool(saved.get("on", False)), "model": str(saved.get("model") or "")}
 
 
-def zone(camera: dict[str, Any]) -> Zone:
+def zone(camera: dict[str, Any], common: object = None) -> Zone:
     """Where motion is looked for: as the referee drew it, or a band around the
-    camera's finish line."""
+    camera's finish line -- its own, or the ``common`` one (006)."""
     drawn = _corners(camera.get("zone"))
     if drawn is not None:
         return drawn
-    (x1, y1), (x2, y2) = finish_line(camera.get("finish_line"))
+    (x1, y1), (x2, y2) = camera_line(camera, common)
     return (
         (max(min(x1, x2) - ZONE_MARGIN, 0.0), max(min(y1, y2) - ZONE_MARGIN, 0.0)),
         (min(max(x1, x2) + ZONE_MARGIN, 1.0), min(max(y1, y2) + ZONE_MARGIN, 1.0)),
