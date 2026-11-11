@@ -194,8 +194,8 @@ helps find the moments to look at.
 - **Numbers** (with Numbers and crossings): at each suggested crossing the text in the rider's
   box is found and read by PaddleOCR's PP-OCRv3 English text finder and reader (ONNX,
   Apache-2.0, about 11 MB), downloaded from RapidOCR's mirror at a pinned commit when the switch
-  is turned on and checked like the detectors; the digits of the surest reading of at least 0.8
-  are the number, shown with the suggestion. Until both are there, or when one cannot be
+  is turned on and checked like the detectors; the longest run of digits of the surest reading
+  of at least 0.8 is the number, shown with the suggestion. Until both are there, or when one cannot be
   downloaded, crossings come without numbers, and each camera's line says so: "numbers: the
   reader is downloading", or "is not here" -- Numbers and crossings turned on again tries again --
   or, there but not loaded by the camera's analyser, why.
