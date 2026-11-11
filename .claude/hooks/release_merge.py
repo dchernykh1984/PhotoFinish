@@ -281,17 +281,30 @@ def target(args: list[str]) -> list[str]:
     repo: list[str] = []
     words = iter(args)
     for word in words:
-        if word in VALUE_FLAGS:
-            value = next(words, "")
-            if word in {"-R", "--repo"}:
+        flag = _value_flag(word)
+        if flag is not None:
+            name, value = flag
+            value = next(words, "") if value is None else value
+            if name in {"-R", "--repo"}:
                 repo = ["--repo", value]
-        elif word.startswith("--repo="):
-            repo = ["--repo", word.removeprefix("--repo=")]
-        elif word.startswith("-R") and len(word) > 2:  # -Rowner/repo
-            repo = ["--repo", word.removeprefix("-R")]
         elif not word.startswith("-") and not pr:
             pr = [word]
     return pr + repo
+
+
+def _value_flag(word: str) -> tuple[str, str | None] | None:
+    """The flag taking a value that a word sets, and the value when the word holds
+    it -- `--repo=x`, `-Rx`, `-R=x`, `-db x`: -d, then -b with the next word --
+    as gh's pflag reads them; None for any other word."""
+    if word.startswith("--"):
+        name, equals, value = word.partition("=")
+        return (name, value if equals else None) if name in VALUE_FLAGS else None
+    if not word.startswith("-"):
+        return None
+    for at, char in enumerate(word[1:], start=1):
+        if f"-{char}" in VALUE_FLAGS:  # the shorthands before it take no value
+            return f"-{char}", word[at + 1 :].removeprefix("=") or None
+    return None
 
 
 def _gh(args: list[str], cwd: str | None, timeout: float) -> Any:
