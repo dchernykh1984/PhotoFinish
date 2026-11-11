@@ -1065,8 +1065,9 @@ class MainWindow(QMainWindow):
             self._set_model(chosen)
         elif chosen and not analysis.settings(self.session)["crossings"]:
             self.crossings_box.setChecked(True)  # chosen again: for its crossings
-        else:
-            self._show_model()  # the one in use again: nothing restarted, list redone
+        else:  # the one in use again: nothing restarted, list redone
+            self._ensure_numbers()  # and a reader that did not come, tried again
+            self._show_model()
 
     def _ensure_model(self) -> None:
         """The preset in use downloaded when it is missing -- an event folder copied
@@ -1572,7 +1573,9 @@ class MainWindow(QMainWindow):
             return f"; numbers: {unread}" if unread else ""
         if self._numbers_job is not None:
             return "; numbers: the reader is downloading"
-        return "; numbers: the reader is not here, turn Numbers and crossings on again"
+        return (
+            "; numbers: the reader is not here, choose the model again to download it"
+        )
 
     def _missing(self, camera: Camera) -> str:
         """A camera that does not record, as the corner names it: with the time of
