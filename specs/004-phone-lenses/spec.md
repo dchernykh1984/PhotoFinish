@@ -135,8 +135,10 @@ switch to the other at the same moment and back to both.
 
 ## Assumptions
 
-- Physical cameras of a logical one are streamed through Android 9's API; Android 10 and later
-  say beforehand whether a set of streams is supported, and the app asks.
+- Physical cameras of a logical one are streamed from Android 10, which tells each one's focal
+  length and sizes -- Android 9 streams them but throws when asked of a hidden one -- and says
+  beforehand whether a set of streams is supported, and the app asks. On Android 9 the back
+  camera's own picture is the main lens, the other lenses not on this phone.
 - Two cameras open at once only where Android 11 or later lists the pair as concurrent; elsewhere
   the second is left out and said.
 - The lenses' clocks are the phone's: every lens is in step with the others without Mark event.

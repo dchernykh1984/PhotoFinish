@@ -23,9 +23,11 @@ class CameraFormats(
 
     private val characteristics = cameraId?.let { manager.getCameraCharacteristics(it) }
 
+    // A physical camera the phone will not tell of gives the logical camera's sizes.
     private val map =
         physicalId
-            ?.let { manager.getCameraCharacteristics(it).get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP) }
+            ?.let { runCatching { manager.getCameraCharacteristics(it) }.getOrNull() }
+            ?.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
             ?: characteristics?.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
 
     val sizes: List<Resolution> =
