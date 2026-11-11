@@ -122,4 +122,29 @@ class LensesTest {
         assertEquals(24.0, LensChoice.equivalentFocal(listOf(24.0), 0.0), 0.0) // no sensor size
         assertEquals(0.0, LensChoice.equivalentFocal(emptyList(), 9.8), 0.0)
     }
+
+    @Test
+    fun `a session drops the preview first, then lenses from the last, until one is supported`() {
+        val options = { lenses: List<String> -> listOf(lenses + "preview", lenses) }
+        val lenses = listOf("main", "wide", "tele")
+        val asked = mutableListOf<List<String>>()
+        val twoAlone =
+            firstSupported(lenses, options) {
+                asked += it
+                it == listOf("main", "wide")
+            }
+        assertEquals(listOf("main", "wide") to listOf("tele"), twoAlone)
+        assertEquals(
+            listOf(
+                listOf("main", "wide", "tele", "preview"),
+                listOf("main", "wide", "tele"),
+                listOf("main", "wide", "preview"),
+                listOf("main", "wide"),
+            ),
+            asked,
+        )
+        assertEquals(lenses + "preview" to emptyList<String>(), firstSupported(lenses, options) { false })
+        val previewAlone = { _: List<String> -> listOf(listOf("preview")) }
+        assertEquals(listOf("preview") to emptyList<String>(), firstSupported(emptyList(), previewAlone) { false })
+    }
 }

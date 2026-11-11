@@ -85,6 +85,23 @@ fun <T> startInTurn(
     cameras.forEach { if (start(it, preview)) preview = false }
 }
 
+/**
+ * The first of the [options] for [streams] that [supports] takes -- for all of them, then for one
+ * fewer, the last dropped -- and the streams dropped to get there; where none is taken, the first
+ * option for all of them, to be tried, none dropped.
+ */
+fun <S, O> firstSupported(
+    streams: List<S>,
+    options: (List<S>) -> List<O>,
+    supports: (O) -> Boolean,
+): Pair<O?, List<S>> {
+    for (count in streams.size downTo 1) {
+        val supported = options(streams.take(count)).firstOrNull(supports)
+        if (supported != null) return supported to streams.drop(count)
+    }
+    return options(streams).firstOrNull() to emptyList()
+}
+
 /** Said when a camera's lenses stream in a session that has no room for the preview. */
 internal const val NO_PREVIEW = "no preview beside these lenses; they stream"
 
