@@ -179,7 +179,8 @@ class CameraDialog(QDialog):
     def cameras(self) -> list[dict[str, Any]]:
         """The cameras to add: this one, or a phone's camera for each lens ticked --
         named after its lens, on the next free id, port and ``live/<id>`` path when
-        there are several (004, FR-001)."""
+        there are several (004, FR-001), each noting its lens and its phone, the
+        first lens's id (007, FR-012)."""
         lenses = self._lenses()
         first = self.camera()
         if self.kind() != "rtmp" or len(lenses) < 2:
@@ -190,6 +191,7 @@ class CameraDialog(QDialog):
             self._made(
                 camera_id, f"{first['name']} {cameras.LENSES[lens].lower()}", made
             )
+            | {"lens": lens, "phone": self.camera_id}
             for lens, camera_id, made in cameras.lens_cameras(
                 lenses, ids, first["settings"], taken
             )

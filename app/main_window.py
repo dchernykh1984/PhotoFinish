@@ -22,7 +22,14 @@ from PySide6.QtCore import (
     QTimer,
     Signal,
 )
-from PySide6.QtGui import QCloseEvent, QImage, QKeySequence, QShortcut, QWheelEvent
+from PySide6.QtGui import (
+    QCloseEvent,
+    QColor,
+    QImage,
+    QKeySequence,
+    QShortcut,
+    QWheelEvent,
+)
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -1551,6 +1558,11 @@ class MainWindow(QMainWindow):
         clash = cameras.port_clash(camera.settings, self.session["cameras"])
         if clash:
             state = f"{clash}; {state}"
+        left = self._left_out(camera) and not recording(info)
+        if left:  # the phone said so: not a recording lost (007, FR-012)
+            state = "the phone leaves this lens out"
+        warn = QColor(LEVELS[phone_status.WARN]) if left else None
+        camera.item.setData(Qt.ItemDataRole.ForegroundRole, warn)
         if self.analysis_box.isChecked() and camera.settings.get("record", True):
             if self._model_missing():
                 in_use = analysis.model_in_use(self.session)
@@ -1579,6 +1591,16 @@ class MainWindow(QMainWindow):
             "; numbers: the reader is not here, choose the model again to download it"
         )
 
+    def _left_out(self, camera: Camera) -> bool:
+        """A phone's lens camera whose phone says, in any of its lenses' status,
+        that it does not stream that lens (007, FR-012)."""
+        lens, phone = camera.settings.get("lens"), camera.settings.get("phone")
+        return bool(lens and phone) and any(
+            lens in phone_status.lenses_left((other.info or {}).get("phone") or {})
+            for other in self.cameras.values()
+            if other.settings.get("phone") == phone
+        )
+
     def _missing(self, camera: Camera) -> str:
         """A camera that does not record, as the corner names it: with the time of
         its last frame, on the timing source's scale as the time shown is."""
@@ -1593,7 +1615,8 @@ class MainWindow(QMainWindow):
         """The corner's word (FR-019): nothing with no camera that records, green
         while every one records, red naming those that do not."""
         records = [c for c in self.cameras.values() if c.settings.get("record", True)]
-        missing = [self._missing(c) for c in records if not recording(c.info)]
+        lost = [c for c in records if not recording(c.info) and not self._left_out(c)]
+        missing = [self._missing(c) for c in lost]
         banner = self.recording_banner
         banner.setVisible(bool(records))
         if missing:

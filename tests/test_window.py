@@ -495,6 +495,38 @@ def test_a_phone_with_several_lenses_adds_a_camera_for_each(
     assert win.camera_list.currentRow() == 0  # the first of them chosen
 
 
+def test_a_lens_the_phone_leaves_out_is_said_amber_and_the_banner_stays_green(
+    base: Path, make_window: Callable[[], mw.MainWindow], spawned: list[str]
+) -> None:
+    # 007, FR-012: four lenses asked for, the phone cannot run the front beside them.
+    phone: dict[str, Any] = {"connection": "rtmp", "phone": "cam2"}
+    main = {**phone, "id": "cam2", "name": "Mi main", "lens": "main"}
+    main["settings"] = {"port": 1999, "path": "live/cam2"}
+    front = {**phone, "id": "cam3", "name": "Mi front", "lens": "front"}
+    front["settings"] = {"port": 2000, "path": "live/cam3"}
+    session.save({**session.DEFAULTS, "cameras": [main, front]})
+    record(base, START, 70, "cam2")
+    now = time.time_ns() // 1_000_000
+    status = {"battery": "80", "left": "front", "at_ms": now, "heard_ms": now}
+    beating(base, "cam2", phone=status)
+    beating(base, "cam3", state="connecting", detail="waiting for the phone")
+    win = make_window()
+    win.poll()
+    banner = win.recording_banner
+    assert banner.text() == "RECORDING"
+    assert mw.GREEN in banner.styleSheet()
+    item = win.cameras["cam3"].item
+    assert item.text() == "Mi front: the phone leaves this lens out"
+    amber = item.data(Qt.ItemDataRole.ForegroundRole)
+    assert amber is not None
+    assert amber.name() == mw.LEVELS[phone_status.WARN]
+    beating(base, "cam2", phone={**status, "left": ""})  # it streams the front now
+    win.poll()
+    assert banner.text().startswith("NOT RECORDING")
+    assert item.text().startswith("Mi front: connecting")
+    assert item.data(Qt.ItemDataRole.ForegroundRole) is None
+
+
 def test_one_camera_alone_and_the_keys_that_switch_between_cameras(
     recording: Path, make_window: Callable[[], mw.MainWindow]
 ) -> None:
