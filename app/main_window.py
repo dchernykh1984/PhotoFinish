@@ -1146,13 +1146,14 @@ class MainWindow(QMainWindow):
 
     def _crossings_on(self, on: bool) -> None:
         """Numbers and crossings looked for with the model chosen, or not: every
-        analyser started again on what it now runs."""
+        analyser started again on what it now runs -- none with no model chosen,
+        motion alone either way."""
         self.session["analysis"] = {**analysis.settings(self.session), "crossings": on}
         self._save_session()
         self._show_switches()
         self._ensure_model()
         self._ensure_numbers()
-        if self.analysis_box.isChecked():
+        if self.analysis_box.isChecked() and analysis.settings(self.session)["model"]:
             for camera in self.cameras.values():
                 self._stop_analyzer(camera)
                 self._analyze(camera)
@@ -1183,7 +1184,8 @@ class MainWindow(QMainWindow):
             self._ensure_numbers()  # the next of them
             return
         self._say("The number reader is ready")
-        if self.analysis_box.isChecked():  # numbers read from here on
+        if self.analysis_box.isChecked() and analysis.model_in_use(self.session):
+            # numbers read from here on, where crossings still are looked for
             for camera in self.cameras.values():
                 self._stop_analyzer(camera)
                 self._analyze(camera)
