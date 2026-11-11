@@ -47,6 +47,7 @@ class CameraSettingsError(ValueError):
 class Source(Protocol):
     fps: float
     clock_note: str  # why a phone's frames are placed by their arrival, or ""
+    phone: dict[str, Any]  # a phone's last status and when it came (005), or {}
 
     @property
     def waiting(self) -> str: ...  # what the recorder says while it yields None
@@ -172,6 +173,7 @@ class UsbCamera:
         if "width" in settings and "height" in settings:
             self.options["video_size"] = f"{settings['width']}x{settings['height']}"
         self.anchor = Anchor(clock)
+        self.phone: dict[str, Any] = {}
 
     def frames(self) -> Iterator[Item]:
         with av.open(
@@ -212,6 +214,7 @@ class Stream:
         self.url, self.options, self.listen = url, options, listen
         self._waiting = waiting
         self.clock_note = ""
+        self.phone: dict[str, Any] = {}
         self.fps = 30.0
         self.anchor = Anchor(clock)
 
@@ -257,6 +260,8 @@ class Stream:
         last: list[int] = []  # the pts and moment of the last frame given
 
         def place(packet: av.Packet, pts: int) -> int:
+            if stamped and getattr(packet, "is_keyframe", True):
+                self._hear(packet)
             if trusted and not trusted[0]:  # by arrival: nothing more to look for
                 return self.anchor(float(pts * unit))
             own = frame_time.moment_ms(memoryview(packet)) if stamped else None
@@ -278,6 +283,13 @@ class Stream:
 
         return place
 
+    def _hear(self, packet: av.Packet) -> None:
+        """The phone's status a keyframe carries, kept with when it came: through a
+        reconnect too, so its last readings stay once it stops (specs/005)."""
+        status = frame_time.phone_status(memoryview(packet))
+        if status is not None:
+            self.phone = {**status, "at_ms": self.anchor.clock()}
+
     def _believed(self, own: int) -> bool:
         """A phone's own moment as its frame is read: not after it, beyond what a
         camera stamping late gives, and not older than OWN_PAST_MS -- else the
@@ -297,6 +309,7 @@ class LiveFile:
     ) -> None:
         self.path, self.clock, self.sleep = path, clock, sleep
         self.fps = 30.0
+        self.phone: dict[str, Any] = {}
 
     def frames(self) -> Iterator[Item]:
         with av.open(self.path) as container:

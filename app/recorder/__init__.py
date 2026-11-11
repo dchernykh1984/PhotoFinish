@@ -128,6 +128,7 @@ class Heartbeat:
             "state": "starting",
             "detail": "",
             "clock": "",  # why a phone's clock exchange is left out; "" when it is not
+            "phone": {},  # a phone's last status and when it came (specs/005)
             "frames": 0,
             "segments": 0,
             "free_bytes": 0,
@@ -325,7 +326,7 @@ class _Recording:
         if self.beat.info["state"] != "recording":
             counts["detail"] = ""  # what was said while connecting is over
         clock = self.port_taken or source.clock_note
-        self.beat.beat(state="recording", clock=clock, **counts)
+        self.beat.beat(state="recording", clock=clock, phone=source.phone, **counts)
         self._answer_the_clock()  # returns at its first check once open
 
     def _hung_up(self) -> None:
