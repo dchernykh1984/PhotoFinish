@@ -182,8 +182,8 @@ def run(
     folder = folder_of(camera_id)
     try:
         watch = _watch(camera, analysis.model_in_use(saved), saved.get("finish_line"))
-    except ModelError as error:
-        _progress(folder, "failed", detail=str(error))
+    except ModelError as error:  # no reader loaded either: nothing said of it
+        _progress(folder, "failed", detail=str(error), numbers="")
         return 2
     _progress(folder, "waiting", numbers=getattr(watch, "unread", ""))
     sample, listed, done = 0, Appended(folder / SEGMENTS), analysed(folder)
