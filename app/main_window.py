@@ -1159,7 +1159,8 @@ class MainWindow(QMainWindow):
         feature nobody turned on."""
         chosen = analysis.settings(self.session)
         missing = [m for m in models.NUMBER_MODELS if not models.ready(m)]
-        if not (chosen["on"] and chosen["crossings"] and missing):
+        wanted = chosen["on"] and chosen["crossings"] and chosen["model"]
+        if not (wanted and missing):  # numbers are read only on a detector's crossings
             return
         if self._numbers_job is None:
             megabytes = sum(model.megabytes for model in missing)
