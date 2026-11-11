@@ -3195,6 +3195,21 @@ def test_a_line_half_drawn_starts_over_when_another_camera_is_chosen(
     assert not win.edit_line.isChecked()
 
 
+def test_a_line_s_end_clicked_on_a_camera_with_no_frame_here_is_said(
+    two: None, make_window: Callable[[], mw.MainWindow], base: Path
+) -> None:
+    empty = {"id": "cam3", "name": "Top", "connection": "test", "settings": {"fps": 25}}
+    saved = session.load()
+    session.save({**saved, "cameras": [*saved["cameras"], empty]})
+    win = make_window()
+    wait_until(lambda: win.place is not None)
+    win.edit_line.setChecked(True)
+    win.picture_clicked((0.4, 0.1), "cam3")  # Top, which filmed nothing
+    assert win.current == "cam3"
+    assert win.statusBar().currentMessage() == "Top has no frame here to draw on"
+    assert win.drawing == []
+
+
 def test_this_camera_only_is_given_up_with_the_edit_mode(
     two: None, make_window: Callable[[], mw.MainWindow], base: Path
 ) -> None:
