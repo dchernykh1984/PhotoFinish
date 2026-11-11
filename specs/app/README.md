@@ -139,7 +139,8 @@ or a swaying patch.
   **Edit finish line** is the line's edit mode (`specs/006-numbers-and-one-line`): two clicks on
   one picture -- a click on another camera's starts the line over there -- draw the common line
   every camera follows -- the camera clicked follows it again --
-  or, with **This camera only**, that camera's own, which the common line's moves leave alone.
+  or, with **This camera only**, that camera's own, which the common line's moves leave alone
+  (unticked as the mode ends).
   Out of the mode, clicks are the caliper's; the lines are always shown. The common line starts
   as the picture's vertical centre; in a session from before, a line drawn is its camera's own.
   Zoomed in until a frame interval is 100 pixels wide, a click on the timeline between two

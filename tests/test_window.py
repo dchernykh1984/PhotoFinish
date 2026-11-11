@@ -2851,6 +2851,21 @@ def test_a_line_half_drawn_starts_over_when_another_camera_is_chosen(
     assert not win.edit_line.isChecked()
 
 
+def test_this_camera_only_is_given_up_with_the_edit_mode(
+    two: None, make_window: Callable[[], mw.MainWindow], base: Path
+) -> None:
+    win = make_window()
+    wait_until(lambda: win.place is not None)
+    win.edit_line.setChecked(True)
+    win.this_camera_only.setChecked(True)
+    win.edit_line.setChecked(False)
+    assert not win.this_camera_only.isChecked()
+    win.edit_line.setChecked(True)  # later, to move the common line
+    win.picture_clicked((0.3, 0.0))
+    win.picture_clicked((0.3, 1.0))
+    assert session.load()["finish_line"] == [[0.3, 0.0], [0.3, 1.0]]
+
+
 def test_one_finish_line_for_all_cameras_and_a_camera_s_own_kept(
     two: None, make_window: Callable[[], mw.MainWindow], base: Path
 ) -> None:
