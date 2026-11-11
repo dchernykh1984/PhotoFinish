@@ -110,7 +110,7 @@ class CameraStreamer(
                     if (started) {
                         manager.openCamera(camera.cameraId, open, handler)
                     } else {
-                        leftOut = leftOut + camera.lenses.map { it.target.lens.code }
+                        leaveOut(camera.lenses.map { it.target.lens })
                     }
                 }
             }
@@ -159,6 +159,11 @@ class CameraStreamer(
                 else -> stream.startClock(clock)
             }
         }
+    }
+
+    /** Lenses that do not stream after all, told to the laptop with the next status. */
+    private fun leaveOut(lenses: List<Lens>) {
+        leftOut = (leftOut + lenses.map { it.code }).distinct()
     }
 
     private fun close() {
@@ -256,6 +261,7 @@ class CameraStreamer(
                         it.stop()
                         onStatus(it.lens, StreamerStatus.Left(LeftOut.NOT_WITH_THE_OTHERS))
                     }
+                    leaveOut(dropped.map { it.lens })
                     targets = outputs.flatMap { it.surfaces }
                     camera.createCaptureSession(
                         SessionConfiguration(SessionConfiguration.SESSION_REGULAR, outputs, executor, callback),
@@ -304,6 +310,7 @@ class CameraStreamer(
          */
         private fun say(status: StreamerStatus) {
             if (streams.isEmpty()) onStatus(null, status) else streams.forEach { onStatus(it.lens, status) }
+            if (status is StreamerStatus.Failed) leaveOut(streams.map { it.lens }) // they give no frames
         }
 
         fun close() {
