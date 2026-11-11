@@ -30,6 +30,14 @@ def test_suggestions_are_read_as_appended_and_decisions_kept(tmp_path: Path) -> 
     assert not again.refresh()
 
 
+def test_a_decision_without_its_word_still_decides(tmp_path: Path) -> None:
+    lines = '{"id": "cam1-1000"}\n{"id": "cam1-2000", "done": ""}\n'
+    (tmp_path / "suggestions.done.jsonl").write_text(lines)
+    found = Suggestions(tmp_path)
+    found.refresh()
+    assert found.done == {"cam1-1000": "decided", "cam1-2000": "decided"}
+
+
 def test_a_crossing_suggested_twice_is_offered_once(tmp_path: Path) -> None:
     """The analyser killed between a segment's suggestions and its activity line
     analyses the segment again on restart."""
