@@ -65,29 +65,38 @@ CD = "\0cd"  # a merge's arguments start with it and a folder after a cd before 
 
 def merges(command: str) -> list[list[str]]:
     """The arguments of each `gh pr merge` in a shell command line, whatever the
-    spaces between its words, a line continuation among them."""
+    spaces between its words, a line continuation among them; each after what the
+    words before it give it -- a cd, a GH_REPO -- in a script or `$(...)` too."""
     uncommented = _uncommented(command)
-    # Run for their output: `...` and $(...), in double quotes too.
-    found = [merge for inner in _substituted(uncommented) for merge in merges(inner)]
-    # A descriptor touching its redirection -- 2>&1 -- is no word of the command:
-    # the lexer would part it from the > as a word, a PR number to the merge.
-    line = DESCRIPTOR.sub("", uncommented.replace("\\\n", " "))
-    lexer = shlex.shlex(line, posix=True, punctuation_chars="".join(SHELL_PUNCTUATION))
-    lexer.whitespace = " \t\r"  # a new line is punctuation
-    lexer.commenters = ""  # gone already, as the shell reads them
-    lexer.whitespace_split = True
-    try:
-        words = list(lexer)
-    except ValueError:  # an unclosed quote: the shell refuses the line too
-        return found
+    found: list[list[str]] = []
+    for start, quote, inner in _substituted(uncommented):  # run for their output
+        before = _words(uncommented[:start] + quote) or []
+        found += [_given(before) + merge for merge in merges(inner)]
+    words = _words(uncommented) or []  # an unclosed quote: the shell refuses it too
     for at, word in enumerate(words):
         if _script(words, at):  # bash -c '...', eval '...': a command line in one word
-            found += merges(word)
+            found += [_given(words[:at]) + merge for merge in merges(word)]
         if _name(word) == "gh" and words[at + 1 : at + 2] == ["pr"]:
             args = _merge_args(words[at + 2 :])
             if args is not None:
                 found.append(_given(words[:at]) + args)
     return [list(merge) for merge in dict.fromkeys(map(tuple, found))]  # each once
+
+
+def _words(line: str) -> list[str] | None:
+    """The shell's words of a command line, its punctuation apart; None for one
+    the shell refuses: an unclosed quote."""
+    # A descriptor touching its redirection -- 2>&1 -- is no word of the command:
+    # the lexer would part it from the > as a word, a PR number to the merge.
+    line = DESCRIPTOR.sub("", line.replace("\\\n", " "))
+    lexer = shlex.shlex(line, posix=True, punctuation_chars="".join(SHELL_PUNCTUATION))
+    lexer.whitespace = " \t\r"  # a new line is punctuation
+    lexer.commenters = ""  # gone already, as the shell reads them
+    lexer.whitespace_split = True
+    try:
+        return list(lexer)
+    except ValueError:
+        return None
 
 
 def _merge_args(rest: list[str]) -> list[str] | None:
@@ -168,10 +177,11 @@ def where(args: list[str], cwd: str | None) -> tuple[str | None, list[str]]:
     return folder, rest
 
 
-def _substituted(command: str) -> list[str]:
-    """The command lines the shell runs for their output: `...` and $(...), bare or
-    in double quotes -- not in single ones, where they are text."""
-    found: list[str] = []
+def _substituted(command: str) -> list[tuple[int, str, str]]:
+    """The command lines the shell runs for their output -- `...` and $(...), bare
+    or in double quotes, not in single ones, where they are text -- each with where
+    it starts and the quote it stands in."""
+    found: list[tuple[int, str, str]] = []
     quote = ""
     at = 0
     while at < len(command):
@@ -187,11 +197,11 @@ def _substituted(command: str) -> list[str]:
         elif char == "`":
             end = command.find("`", at + 1)
             end = len(command) if end < 0 else end
-            found.append(command[at + 1 : end])
+            found.append((at, quote, command[at + 1 : end]))
             at = end
         elif command.startswith("$(", at):
             end = _closing(command, at + 1)
-            found.append(command[at + 2 : end])
+            found.append((at, quote, command[at + 2 : end]))
             at = end
         at += 1
     return found
