@@ -6,6 +6,19 @@ PhotoFinish shows `rtmp://<this computer>:<port>/<path>` as text and as a QR cod
 that text. The app streams to it and makes the clock exchange with `<this computer>` on `<port>`
 over UDP.
 
+With several lenses chosen (`specs/004-phone-lenses`), the code holds one line per lens instead,
+`<lens> <address>`, lines separated by `\n`, the lens one of `main`, `ultrawide`, `telephoto` and
+`front`; each lens is a camera of its own, on its own port:
+
+```
+main rtmp://192.168.31.106:1935/live/cam1
+telephoto rtmp://192.168.31.106:1936/live/cam2
+```
+
+An address alone is the main lens, so a code of either kind pairs. The app streams each lens it
+has to its address and makes the clock exchange with each address's port; a line it cannot read,
+or a lens named twice after the first, is left out and said.
+
 ## The clock exchange (UDP, the RTMP port number)
 
 All integers are big-endian. Times are microseconds.
