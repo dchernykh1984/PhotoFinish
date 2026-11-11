@@ -2465,6 +2465,25 @@ def test_a_crossing_two_cameras_saw_is_one_suggestion_with_the_number_read(
     assert (written["camera"], written["frames"][0][2]) == ("cam1", FLASH - 10)
 
 
+def test_a_suggestion_accepted_after_its_camera_was_aligned_is_written_so(
+    two: None, make_window: Callable[[], mw.MainWindow], base: Path
+) -> None:
+    """The time written follows the camera's offset as it is when accepted."""
+    analysis = {"on": True, "model": "m.onnx", "crossings": True}
+    session.save({**session.load(), "analysis": analysis})
+    frames = [["a.mkv", 1, FLASH - 10], ["a.mkv", 2, FLASH + 23]]
+    entry = {"id": f"cam1-{FLASH}", "camera": "cam1", "ms": FLASH}
+    entry |= {"model": "m", "frames": frames, "fraction": 0.3}
+    (base / "video" / "cam1" / "suggestions.jsonl").write_text(json.dumps(entry) + "\n")
+    win = make_window()
+    win.suggestion_list.setCurrentRow(0)
+    win.cameras["cam1"].settings["offset_ms"] = 400  # aligned since the list was made
+    win.number.setText("27")
+    win.accept_suggestion()
+    written = (base / "out.txt").read_text()
+    assert written == f"27#{scale_time(to_line_scale(FLASH + 400, False))}#nextLap#\n"
+
+
 def test_a_late_camera_s_suggestion_of_a_crossing_decided_is_decided_with_it(
     two: None, make_window: Callable[[], mw.MainWindow], base: Path
 ) -> None:
