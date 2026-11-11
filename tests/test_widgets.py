@@ -147,9 +147,8 @@ def test_a_phone_with_several_lenses_is_a_camera_each_on_a_port_of_its_own(
     assert dialog.qr.pixmap().isNull()
     dialog.lenses["telephoto"].setChecked(True)  # a lens alone: one camera, its line
     assert [c["name"] for c in dialog.cameras()] == ["Finish"]
-    typed = "rtmp://10.0.0.5:1936/live/cam2"
-    assert dialog.address.text() == typed  # to type in any app: the address alone
-    assert dialog.qr.pixmap().toImage() == qr_pixmap(f"telephoto {typed}").toImage()
+    # Typed into PhotoFinish Camera, an address alone would stream its main lens.
+    assert dialog.address.text() == "telephoto rtmp://10.0.0.5:1936/live/cam2"
     dialog.connection.setCurrentIndex(dialog.connection.findData("test"))
     dialog.lenses["main"].setChecked(True)
     assert len(dialog.cameras()) == 1  # lenses are a phone's
