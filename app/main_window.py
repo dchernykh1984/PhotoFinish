@@ -1119,6 +1119,7 @@ class MainWindow(QMainWindow):
         self.crossings_box.blockSignals(True)  # its analysers restarted below
         self.crossings_box.setChecked(chosen["crossings"])
         self.crossings_box.blockSignals(False)
+        self._ensure_numbers()  # the detector's crossings read with numbers
         self._show_model()
         self._show_suggestions()
         if self.analysis_box.isChecked():  # the model chosen from here on
