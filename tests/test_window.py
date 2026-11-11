@@ -529,6 +529,27 @@ def test_one_camera_alone_and_the_keys_that_switch_between_cameras(
     assert (win.current, win.one_camera.isChecked()) == ("cam2", False)  # no camera 9
 
 
+def test_choosing_a_camera_lays_the_views_out_again_only_in_one_camera_mode(
+    recording: Path, make_window: Callable[[], mw.MainWindow]
+) -> None:
+    second = {**CAMERA, "id": "cam2", "name": "Wide"}
+    session.save({**session.DEFAULTS, "cameras": [CAMERA, second]})
+    win = make_window()
+    laid: list[int] = []
+    real = win._arrange
+
+    def arrange() -> None:
+        laid.append(1)
+        real()
+
+    win._arrange = arrange  # type: ignore[method-assign]
+    win.camera_list.setCurrentRow(1)
+    assert laid == []  # side by side: nothing moves
+    win.one_camera.setChecked(True)
+    win.camera_list.setCurrentRow(0)
+    assert len(laid) == 2  # the mode turned on, then the camera chosen
+
+
 def test_a_removed_camera_stops_recording_and_keeps_its_video(
     recording: Path,
     make_window: Callable[[], mw.MainWindow],

@@ -534,7 +534,8 @@ class MainWindow(QMainWindow):
         for other in self.cameras.values():
             other.view.chosen = other is camera
             other.view.update()
-        self._arrange()  # in one-camera mode, the camera chosen is the one shown
+        if self.one_camera.isChecked():
+            self._arrange()  # the camera chosen is the one shown
         self.place = None if camera is None else camera.shown
         self.timeline.zoomed = False
         if camera is None:
