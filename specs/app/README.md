@@ -109,7 +109,7 @@ or a swaying patch.
 - **Phones.** Under it, a line per phone running PhotoFinish Camera with what may stop its
   stream, read from the status its keyframes carry once a second (`specs/005-phone-status`):
   battery with a charging mark, the battery's heat and the phone's thermal state, Wi-Fi signal,
-  power saver, frames dropped for the network. Amber when worth a look -- 25 % or less and not
+  power saver, frames dropped for the network in the last minute. Amber when worth a look -- 25 % or less and not
   charging, 40 degrees C, thermal moderate, -70 dBm, saver on, frames dropped -- red when the
   stream is at risk: 10 % or less and not charging, 45 degrees C, thermal severe, -80 dBm. A
   status not heard for 5 s, by the recorder's clock, stays greyed with its time.
