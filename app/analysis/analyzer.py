@@ -14,6 +14,7 @@ standard input closes.
 from __future__ import annotations
 
 import copy
+import functools
 import json
 import os
 import sys
@@ -116,10 +117,12 @@ class ModelWatch:
     def feed(self, frame: av.VideoFrame, ref: Ref) -> int | None:
         """A rider in the zone: a person or a bicycle overlapping it."""
         boxes = self.detector.riders(frame)
+        # The sample as a picture once, for every rider crossing on it, if read at all.
+        picture = functools.cache(lambda: frame.to_ndarray(format="rgb24"))
         for found in self.tracker.feed(boxes, ref):
             timed = refine(found, self.frames, self.detector.riders, self.line)
             if timed is not None:
-                timed |= self._number(frame, found.box_after)
+                timed |= self._number(picture, found.box_after)
                 # Riders abreast may cross at one millisecond: their ids still differ.
                 name = f"{self.camera_id}-{timed['ms']}"
                 same = sum(s["ms"] == timed["ms"] for s in self.suggestions)
@@ -135,14 +138,14 @@ class ModelWatch:
                 return ref[2]
         return None
 
-    def _number(self, frame: av.VideoFrame, box: Box) -> dict[str, Any]:
+    def _number(self, picture: Callable[[], Any], box: Box) -> dict[str, Any]:
         """The rider's number read in its box on the sample past the line (006):
         the number and how sure, or nothing -- a reader that fails costs the
         number, never the crossing."""
         if self.numbers is None:
             return {}
         try:
-            read = self.numbers.read(crop(frame.to_ndarray(format="rgb24"), box))
+            read = self.numbers.read(crop(picture(), box))
         except Exception:  # onnxruntime raises its own kinds
             return {}
         return (
