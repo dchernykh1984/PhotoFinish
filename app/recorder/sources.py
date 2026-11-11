@@ -14,7 +14,7 @@ from __future__ import annotations
 import sys
 import threading
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping
 from fractions import Fraction
 from typing import Any, Protocol
 
@@ -114,8 +114,9 @@ def open_source(
 
 
 # A phone's own moment is believed up to this long before its frame is read: the
-# look-over, the phone's queue of up to 2 s and the network. Further back, the
-# phone's clock is not in step with this one: its frame is placed by its arrival.
+# look-over, the phone's wait for its clock and the network -- and longer by what it
+# says it held the connection's first frame (specs/007). Further back, the phone's
+# clock is not in step with this one: its frame is placed by its arrival.
 OWN_PAST_MS = 5_000
 OWN_FUTURE_MS = 250  # a camera stamping a frame as it ends it: the emulator's, by one
 SLEW = 0.001  # the share of the time passed by which a clock may be brought nearer
@@ -196,12 +197,21 @@ def usb_input(device: str) -> tuple[str, str]:
     return device, "video4linux2"
 
 
+def held_ms(metadata: Mapping[str, str]) -> int:
+    """How long PhotoFinish Camera kept a connection's first frame before sending it,
+    as its ``onMetaData`` says (specs/007): 0 when it says nothing readable."""
+    try:
+        return max(round(float(metadata.get("held_ms", 0))), 0)
+    except ValueError, OverflowError:
+        return 0
+
+
 class Stream:
     """A network stream, read (RTSP) or received (RTMP, ``listen``); its packets are
     kept as the camera encoded them. A packet that carries its own moment -- PhotoFinish
     Camera's, on the recorder's clock -- is placed by it, others by their arrival, and
-    so is one whose moment is in the future or older than OWN_PAST_MS as it is read: a
-    phone whose clock went wrong."""
+    so is one whose moment is in the future or older than OWN_PAST_MS, and what the
+    phone says it held the frame, as it is read: a phone whose clock went wrong."""
 
     def __init__(
         self,
@@ -238,14 +248,17 @@ class Stream:
             stream = container.streams.video[0]
             self.fps = float(stream.average_rate or stream.guessed_rate or 30)
             phone = container.metadata.get("encoder") == PHONE_APP
-            place = self._placing(stream, phone)
+            place = self._placing(stream, phone, held_ms(container.metadata))
             for packet in container.demux(stream):
                 if packet.pts is None or packet.dts is None:
                     continue
                 yield packet, place(packet, packet.pts)
 
     def _placing(
-        self, stream: av.video.stream.VideoStream, phone: bool = False
+        self,
+        stream: av.video.stream.VideoStream,
+        phone: bool = False,
+        held: int = 0,
     ) -> Callable[[av.Packet, int], int]:
         """Each packet's moment: its own, when the stream's first packet carries one
         the clock can believe as it is read, else its arrival -- for the whole stream.
@@ -266,7 +279,7 @@ class Stream:
                 return self.anchor(float(pts * unit))
             own = frame_time.moment_ms(memoryview(packet)) if stamped else None
             if not trusted:
-                trusted.append(own is not None and self._believed(own))
+                trusted.append(own is not None and self._believed(own, held))
                 # Said in the camera list: a phone's frames without moments, or with
                 # moments out of step; another camera's never carry them.
                 missing = UNSTAMPED if own is None else NOT_IN_STEP
@@ -294,12 +307,13 @@ class Stream:
             heard = time.time_ns() // 1_000_000
             self.phone = {**status, "at_ms": self.anchor.clock(), "heard_ms": heard}
 
-    def _believed(self, own: int) -> bool:
+    def _believed(self, own: int, held: int = 0) -> bool:
         """A phone's own moment as its frame is read: not after it, beyond what a
-        camera stamping late gives, and not older than OWN_PAST_MS -- else the
-        phone's clock is not in step with this one."""
+        camera stamping late gives, and not older than OWN_PAST_MS and the ``held``
+        ms the phone says it kept the frame -- else the phone's clock is not in step
+        with this one."""
         now = self.anchor.clock()
-        return now - OWN_PAST_MS <= own <= now + OWN_FUTURE_MS
+        return now - OWN_PAST_MS - held <= own <= now + OWN_FUTURE_MS
 
 
 class LiveFile:

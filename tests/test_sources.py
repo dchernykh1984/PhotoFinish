@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import io
 import itertools
 import socket
+import struct
 import sys
 import threading
 import time
@@ -547,6 +549,67 @@ def test_a_phone_s_moment_from_the_future_is_not_believed() -> None:
     # A frame is read after it was taken: 1.5 s ahead is a clock out of step.
     assert place(avcc(sei((START + 1_500) * 1000), b"\x65\x88"), 0) == START  # type: ignore[arg-type]
     assert sources.NOT_IN_STEP == source.clock_note  # stamped, but out of step
+
+
+def test_a_phone_s_frame_it_kept_through_a_break_keeps_its_own_moment() -> None:
+    # specs/007: a connection that begins with frames the phone kept during a break
+    # says how long it held the first; their moments are believed that much older.
+    source = sources.Stream(
+        "rtmp://0.0.0.0:1935/live/x", {}, lambda: START, listen=True
+    )
+    stream = SimpleNamespace(
+        time_base=Fraction(1, 1000), codec_context=SimpleNamespace(name="h264")
+    )
+    kept = source._placing(stream, phone=True, held=60_000)  # type: ignore[arg-type]
+    assert kept(avcc(sei((START - 61_000) * 1000), b"\x65\x88"), 0) == START - 61_000  # type: ignore[arg-type]
+    assert not source.clock_note
+    beyond = source._placing(stream, phone=True, held=60_000)  # type: ignore[arg-type]
+    assert beyond(avcc(sei((START - 70_000) * 1000), b"\x65\x88"), 0) == START  # type: ignore[arg-type]
+    assert sources.NOT_IN_STEP == source.clock_note  # older than it says: out of step
+    unsaid = source._placing(stream, phone=True)  # type: ignore[arg-type]
+    assert unsaid(avcc(sei((START - 61_000) * 1000), b"\x65\x88"), 0) == START  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    ("said", "held"),
+    [("8123", 8123), ("8123.6", 8124), ("-5", 0), ("x", 0), ("inf", 0), ("nan", 0)],
+)
+def test_how_long_a_phone_held_its_first_frame_is_read_from_its_metadata(
+    said: str, held: int
+) -> None:
+    assert sources.held_ms({"held_ms": said}) == held
+
+
+def test_a_phone_says_nothing_of_holding_its_frames_none_is_read() -> None:
+    assert sources.held_ms({"encoder": sources.PHONE_APP}) == 0
+
+
+def test_ffmpeg_gives_the_number_a_phone_s_metadata_holds() -> None:
+    # The phone writes held_ms as an AMF number; FFmpeg's FLV reader, which the RTMP
+    # listener feeds, keeps it among the stream's metadata as text.
+    def text(value: str) -> bytes:
+        data = value.encode()
+        return len(data).to_bytes(2) + data
+
+    def tag(kind: int, data: bytes) -> bytes:
+        head = bytes([kind]) + len(data).to_bytes(3) + bytes(7)
+        return head + data + (len(head) + len(data)).to_bytes(4)
+
+    meta = {"encoder": sources.PHONE_APP, "held_ms": 8123.0}
+    body = b"\x02" + text("onMetaData") + b"\x08" + len(meta).to_bytes(4)
+    for key, value in meta.items():
+        body += text(key)
+        if isinstance(value, str):
+            body += b"\x02" + text(value)
+        else:
+            body += b"\x00" + struct.pack(">d", value)
+    body += b"\x00\x00\x09"
+    sps, pps = b"\x67\x42\x00\x1e", b"\x68\xce\x3c\x80"
+    record = b"\x01\x42\x00\x1e\xff\xe1\x00\x04" + sps + b"\x01\x00\x04" + pps
+    flv = b"FLV\x01\x01" + (9).to_bytes(4) + bytes(4)
+    flv += tag(18, body) + tag(9, b"\x17\x00\x00\x00\x00" + record)
+    with av.open(io.BytesIO(flv), format="flv") as container:
+        assert sources.held_ms(container.metadata) == 8123
 
 
 def test_a_stream_placed_by_arrival_is_looked_into_once(
