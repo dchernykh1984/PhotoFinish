@@ -143,7 +143,8 @@ class LensesTest {
             ),
             asked,
         )
-        assertEquals(lenses + "preview" to emptyList<String>(), firstSupported(lenses, options) { false })
+        val noneTaken = firstSupported(lenses, options) { false } // the smallest, then
+        assertEquals(listOf("main") to listOf("wide", "tele"), noneTaken)
         val previewAlone = { _: List<String> -> listOf(listOf("preview")) }
         assertEquals(listOf("preview") to emptyList<String>(), firstSupported(emptyList(), previewAlone) { false })
     }
