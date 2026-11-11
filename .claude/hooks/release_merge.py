@@ -60,9 +60,12 @@ SKILL = "see the shipping-a-change skill, Releasing"
 def merges(command: str) -> list[list[str]]:
     """The arguments of each `gh pr merge` in a shell command line, whatever the
     spaces between its words, a line continuation among them."""
+    uncommented = _uncommented(command)
+    # Run for their output: `...` and $(...), in double quotes too.
+    found = [merge for inner in _substituted(uncommented) for merge in merges(inner)]
     # A descriptor touching its redirection -- 2>&1 -- is no word of the command:
     # the lexer would part it from the > as a word, a PR number to the merge.
-    line = DESCRIPTOR.sub("", _uncommented(command).replace("\\\n", " "))
+    line = DESCRIPTOR.sub("", uncommented.replace("\\\n", " "))
     lexer = shlex.shlex(line, posix=True, punctuation_chars="".join(SHELL_PUNCTUATION))
     lexer.whitespace = " \t\r"  # a new line is punctuation
     lexer.commenters = ""  # gone already, as the shell reads them
@@ -70,8 +73,7 @@ def merges(command: str) -> list[list[str]]:
     try:
         words = list(lexer)
     except ValueError:  # an unclosed quote: the shell refuses the line too
-        return []
-    found: list[list[str]] = []
+        return found
     for at, word in enumerate(words):
         if _script(words, at):  # bash -c '...', eval '...': a command line in one word
             found += merges(word)
@@ -79,7 +81,7 @@ def merges(command: str) -> list[list[str]]:
             args = _merge_args(words[at + 2 :])
             if args is not None:
                 found.append(_given(words[:at]) + args)
-    return found
+    return [list(merge) for merge in dict.fromkeys(map(tuple, found))]  # each once
 
 
 def _merge_args(rest: list[str]) -> list[str] | None:
@@ -122,6 +124,48 @@ def _given(before: list[str]) -> list[str]:
             if own or before[at - 1 : at] == ["export"]:
                 repo = ["--repo", word.removeprefix("GH_REPO=")]
     return stdin + repo
+
+
+def _substituted(command: str) -> list[str]:
+    """The command lines the shell runs for their output: `...` and $(...), bare or
+    in double quotes -- not in single ones, where they are text."""
+    found: list[str] = []
+    quote = ""
+    at = 0
+    while at < len(command):
+        char = command[at]
+        if quote == "'":
+            quote = "" if char == "'" else quote
+        elif char == "\\":
+            at += 1  # the next is escaped
+        elif char == "'" and not quote:
+            quote = "'"
+        elif char == '"':
+            quote = "" if quote else '"'
+        elif char == "`":
+            end = command.find("`", at + 1)
+            end = len(command) if end < 0 else end
+            found.append(command[at + 1 : end])
+            at = end
+        elif command.startswith("$(", at):
+            end = _closing(command, at + 1)
+            found.append(command[at + 2 : end])
+            at = end
+        at += 1
+    return found
+
+
+def _closing(command: str, start: int) -> int:
+    """Where the parenthesis opened at ``start`` closes; the end, if never."""
+    depth = 0
+    for at in range(start, len(command)):
+        if command[at] == "(":
+            depth += 1
+        elif command[at] == ")":
+            depth -= 1
+            if depth == 0:
+                return at
+    return len(command)
 
 
 def _uncommented(command: str) -> str:

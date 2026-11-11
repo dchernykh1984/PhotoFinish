@@ -134,6 +134,17 @@ class MergesTests(unittest.TestCase):
         given = HOOK.merges("GH_REPO=o/r gh pr merge 19 -R x/y")[0]
         self.assertEqual(HOOK.target(given), ["19", "--repo", "x/y"])  # its flag first
 
+    def test_a_merge_run_for_its_output(self) -> None:
+        for command in (
+            "echo `gh pr merge 5 --admin`",
+            'out="$(gh pr merge 5 --admin)"',
+            "x=$(gh pr merge 5 --admin)",
+            'echo "$(echo $(gh pr merge 5 --admin))"',
+        ):
+            self.assertEqual(HOOK.merges(command), [["5", "--admin"]], command)
+        self.assertEqual(HOOK.merges("echo '$(gh pr merge 5 --admin)'"), [])  # text
+        self.assertEqual(HOOK.merges("echo \\`gh pr merge 5\\`"), [])  # escaped: text
+
     def test_no_merge(self) -> None:
         self.assertEqual(HOOK.merges("gh pr view 19 && gh run list"), [])
         self.assertEqual(HOOK.merges("echo 'unclosed"), [])
