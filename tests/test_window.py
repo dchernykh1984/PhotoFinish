@@ -2595,6 +2595,27 @@ def test_the_suggestions_are_listed_in_the_order_of_their_moments_shown(
     assert shown[1].endswith("(one dismissed with it)")  # Front's 280, after
 
 
+def test_a_removed_camera_s_suggestions_leave_the_list_with_it(
+    two: None,
+    make_window: Callable[[], mw.MainWindow],
+    base: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    analysis = {"on": True, "model": "m.onnx", "crossings": True}
+    session.save({**session.load(), "analysis": analysis})
+    suggestions_at(base, "cam1", [FLASH])
+    suggestions_at(base, "cam2", [FLASH + 20])
+    win = make_window()
+    assert win.suggestion_list.item(0).text().endswith("Side, Front")
+    monkeypatch.setattr(
+        QMessageBox, "question", lambda *a: QMessageBox.StandardButton.Yes
+    )
+    win.camera_list.setCurrentRow(1)
+    win.remove_camera()  # Front
+    assert win.suggestion_list.count() == 1
+    assert win.suggestion_list.item(0).text().endswith("Side")
+
+
 def test_a_crossing_two_cameras_saw_is_one_suggestion_with_the_number_read(
     two: None, make_window: Callable[[], mw.MainWindow], base: Path
 ) -> None:

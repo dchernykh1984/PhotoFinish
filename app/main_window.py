@@ -487,6 +487,7 @@ class MainWindow(QMainWindow):
         self.camera_list.takeItem(self.camera_list.row(camera.item))
         if not self.cameras:
             self._choose_camera(-1)
+        self._show_suggestions()  # its suggestions gone with it
 
     def _add(self, settings: dict[str, Any]) -> None:
         camera_id = str(settings["id"])
