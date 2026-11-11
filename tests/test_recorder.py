@@ -135,6 +135,7 @@ class Camera:
     ) -> None:
         self.folder, self.start, self.count = folder, start, count
         self.then, self.stop_after = then, stop_after
+        self.phone: dict[str, Any] = {}
 
     def frames(self) -> Iterator[tuple[np.ndarray, int]]:
         for k in range(self.count):
@@ -166,6 +167,31 @@ def cameras(monkeypatch: pytest.MonkeyPatch, *opened: Any) -> list[str]:
 
 def heartbeat(folder: Path) -> dict[str, Any]:
     return json.loads((folder / "recorder.json").read_text())
+
+
+def test_the_heartbeat_keeps_the_phone_s_last_status(
+    folder: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    phone = Camera(folder, START, 3, then=OSError("the phone went away"))
+    phone.phone = {"battery": "9", "charging": "0", "at_ms": START + 33}
+    cameras(monkeypatch, phone, Camera(folder, START + 5_000, 1, stop_after=0))
+    assert run("cam1") == 0
+    assert heartbeat(folder)["phone"] == {}  # the next source is no phone
+    written: list[dict[str, Any]] = []
+    real = Heartbeat.beat
+
+    def beat(self: Heartbeat, **changes: Any) -> None:
+        real(self, **changes)
+        written.append(dict(self.info["phone"]))
+
+    monkeypatch.setattr(Heartbeat, "beat", beat)
+    phone = Camera(folder, START, 3, stop_after=2)
+    phone.phone = {"battery": "57", "at_ms": START}
+    cameras(monkeypatch, phone)
+    monkeypatch.setattr(Heartbeat, "beat", beat)
+    assert run("cam1") == 0
+    assert {"battery": "57", "at_ms": START} in written
+    assert heartbeat(folder)["phone"] == {"battery": "57", "at_ms": START}
 
 
 def test_a_stop_request_closes_the_segment_and_ends_the_recorder(
@@ -491,6 +517,7 @@ class Network:
 
     def __init__(self, folder: Path, path: Path) -> None:
         self.folder, self.path = folder, path
+        self.phone: dict[str, Any] = {}
 
     def frames(self) -> Iterator[Any]:
         yield None
@@ -649,6 +676,7 @@ class Waiting:
 
     def __init__(self, folder: Path, made: list[int]) -> None:
         self.folder, self.made = folder, made
+        self.phone: dict[str, Any] = {}
 
     def frames(self) -> Iterator[Any]:
         for _ in range(3):

@@ -28,6 +28,42 @@ def sei(moment_us: int, uuid: bytes = frame_time.UUID) -> bytes:
     return b"\x06" + escape(bytes([5, len(payload)]) + payload + b"\x80")
 
 
+def status_sei(line: bytes) -> bytes:
+    """The SEI NAL unit the app writes on a keyframe with the phone's status."""
+    payload = frame_time.UUID + b"PFS1" + line
+    size = len(payload)
+    sizes = bytes([255] * (size // 255) + [size % 255])
+    return b"\x06" + escape(bytes([5]) + sizes + payload + b"\x80")
+
+
+def test_the_phones_status_is_read_from_a_keyframe_after_its_moment() -> None:
+    line = b"battery=57;charging=1;temp=34.5;thermal=0;saver=0;wifi=-61;dropped=0"
+    packet = avcc(sei(MOMENT_US), status_sei(line), IDR)
+    assert frame_time.phone_status(packet) == {
+        "battery": "57",
+        "charging": "1",
+        "temp": "34.5",
+        "thermal": "0",
+        "saver": "0",
+        "wifi": "-61",
+        "dropped": "0",
+    }
+    assert frame_time.moment_ms(packet) == (MOMENT_US + 500) // 1000  # still read
+
+
+def test_a_long_status_and_odd_pairs_are_read_as_they_come() -> None:
+    line = b"battery=9;" + b"x" * 300 + b";k=v=w"
+    assert frame_time.phone_status(memoryview(avcc(status_sei(line), IDR))) == {
+        "battery": "9",
+        "k": "v=w",
+    }
+
+
+def test_a_frame_without_a_status_has_none() -> None:
+    assert frame_time.phone_status(avcc(sei(MOMENT_US), IDR)) is None
+    assert frame_time.phone_status(avcc(SLICE, status_sei(b"battery=1"))) is None
+
+
 def avcc(*units: bytes) -> bytes:
     """The units as RTMP carries them: each after its length in four bytes."""
     return b"".join(len(unit).to_bytes(4) + unit for unit in units)

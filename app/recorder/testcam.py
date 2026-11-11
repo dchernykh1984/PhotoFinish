@@ -13,6 +13,7 @@ from __future__ import annotations
 import math
 import time
 from collections.abc import Callable, Iterator
+from typing import Any
 
 import numpy as np
 
@@ -133,6 +134,7 @@ class TestCamera:
         if scene not in SCENES:
             raise ValueError(f"unknown scene {scene!r}")
         self.fps, self.width, self.height, self.scene = fps, width, height, scene
+        self.phone: dict[str, Any] = {}  # a camera, not a phone: no status
         self.clock, self.sleep = clock, sleep
 
     def frames(self) -> Iterator[tuple[np.ndarray, int]]:

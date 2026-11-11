@@ -29,7 +29,7 @@ from app.recorder.sources import (
     usb_input,
 )
 from app.recorder.testcam import render
-from tests.test_frame_time import avcc, sei
+from tests.test_frame_time import avcc, sei, status_sei
 
 START = 1_761_716_129_587
 
@@ -495,6 +495,28 @@ def test_a_phone_s_stream_says_when_its_frames_come_without_moments() -> None:
     streaming_app = source._placing(stream, phone=False)  # type: ignore[arg-type]
     streaming_app(avcc(b"\x65\x88"), 66)  # type: ignore[arg-type]
     assert not source.clock_note  # Larix and the like never carry them
+
+
+def test_a_phone_s_keyframes_tell_its_status_kept_through_a_new_connection() -> None:
+    now = {"ms": START}
+    source = sources.Stream(
+        "rtmp://0.0.0.0:1935/live/x", {}, lambda: now["ms"], listen=True
+    )
+    stream = SimpleNamespace(
+        time_base=Fraction(1, 1000), codec_context=SimpleNamespace(name="h264")
+    )
+    place = source._placing(stream, phone=True)  # type: ignore[arg-type]
+    assert source.phone == {}
+    status = status_sei(b"battery=57;charging=1")
+    place(avcc(sei(START * 1000), status, b"\x65\x88"), 0)  # type: ignore[arg-type]
+    assert source.phone == {"battery": "57", "charging": "1", "at_ms": START}
+    now["ms"] = START + 5_000
+    again = source._placing(stream, phone=True)  # type: ignore[arg-type]
+    again(avcc(sei((START + 4_990) * 1000), b"\x41\x9a"), 33)  # type: ignore[arg-type]
+    assert source.phone["at_ms"] == START  # the last status kept, with its time
+    rtsp = sources.Stream("rtsp://10.0.0.2/live", {}, lambda: START)
+    rtsp._placing(stream)(avcc(status, b"\x65\x88"), 0)  # type: ignore[arg-type]
+    assert rtsp.phone == {}  # a camera this computer reads is not looked into
 
 
 def test_a_phone_s_frame_held_up_on_the_way_keeps_its_own_moment() -> None:
