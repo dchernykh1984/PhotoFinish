@@ -9,6 +9,7 @@ pixels, and pictures are scaled by FFmpeg.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
@@ -51,7 +52,7 @@ class NumberReader:
         best: tuple[str, float] | None = None
         for top, left, bottom, right in self.texts(bgr):
             text, sure = self.line(bgr[top:bottom, left:right])
-            digits = "".join(c for c in text if c.isdigit())
+            digits = longest_digits(text)
             if digits and sure >= LEAST_CONFIDENCE and (best is None or sure > best[1]):
                 best = digits, sure
         return best
@@ -79,6 +80,12 @@ class NumberReader:
         scaled = scale(bgr, wide, HEIGHT) / 255.0
         x = ((scaled - 0.5) / 0.5).transpose(2, 0, 1)[None].astype(np.float32)
         return ctc(self.reader.run(None, {"x": x})[0][0], self.chars)
+
+
+def longest_digits(text: str) -> str:
+    """A line's longest run of digits, the first of equals: a bib beside a year or
+    a team's number on one line is its own, never the digits run together."""
+    return max(re.findall(r"[0-9]+", text), key=len, default="")
 
 
 def scale(rgb: np.ndarray, width: int, height: int) -> np.ndarray:

@@ -82,8 +82,9 @@ finish-line edit mode.
 - **FR-002**: The numbers are read with two ONNX models, PaddleOCR's PP-OCRv3 English text detector
   and recogniser (Apache-2.0), downloaded from RapidOCR's mirror pinned by commit, size and
   SHA-256 -- about 11 MB -- when "Numbers and crossings" is on with a detector chosen, and kept next to the
-  program. At a suggested crossing, the text in the rider's box is found and read; the digits of
-  the most confident reading of at least 0.8 are the rider's number.
+  program. At a suggested crossing, the text in the rider's box is found and read; the longest run
+  of digits of the most confident reading of at least 0.8 is the rider's number -- a year or a
+  team's number on the line beside it is not run into it.
 - **FR-003**: Suggestions of different cameras within 0.3 s of each other, offsets applied, are one
   crossing -- each joining the nearest, unless they read different numbers, or one of its cameras
   has a suggestion nearer to it: two riders -- listed once at the median camera's moment (for an even
