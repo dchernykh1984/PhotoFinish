@@ -109,6 +109,9 @@ kover {
                     "com.dchernykh.photofinish.camera.ui.*",
                     "com.dchernykh.photofinish.camera.capture.CameraStreamer*",
                     "com.dchernykh.photofinish.camera.capture.CameraFormats*",
+                    "com.dchernykh.photofinish.camera.capture.PhoneLenses*",
+                    "com.dchernykh.photofinish.camera.capture.LensStream*",
+                    "com.dchernykh.photofinish.camera.capture.SessionOutputs*",
                     "com.dchernykh.photofinish.camera.Settings*",
                 )
             }

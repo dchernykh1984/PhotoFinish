@@ -55,8 +55,6 @@ import com.dchernykh.photofinish.camera.R
 import com.dchernykh.photofinish.camera.capture.CameraStreamer
 import com.dchernykh.photofinish.camera.capture.Resolution
 import com.dchernykh.photofinish.camera.capture.StreamFormat
-import com.dchernykh.photofinish.camera.capture.StreamerStatus
-import com.dchernykh.photofinish.camera.stream.UplinkStatus
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 
@@ -75,17 +73,17 @@ fun CameraScreen(
     val started = rememberStarted()
     var preview by remember { mutableStateOf<PreviewSurface?>(null) }
     val format = state.format
-    val target = if (state.streaming) state.parsedAddress else null
+    val targets = if (state.streaming) state.pairing.targets else emptyList()
     // The camera starts once the preview has the stream's size, and again on every change.
     val surface = preview?.takeIf { started && granted && it.size == format?.resolution }?.surface
-    LaunchedEffect(surface, format, target) {
+    LaunchedEffect(surface, format, targets) {
         streamer.stop()
-        if (surface != null && format != null) streamer.start(surface, format, target)
+        if (surface != null && format != null) streamer.start(surface, format, targets)
     }
     LaunchedEffect(granted) {
-        if (state.autostart && granted && state.parsedAddress != null) {
+        if (state.autostart && granted && state.pairing.targets.isNotEmpty()) {
             state.autostart = false
-            state.streaming = true
+            state.toggleStreaming()
         }
     }
     DimScreen(state.dimmed)
@@ -203,13 +201,18 @@ private fun ControlPanel(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(statusText(state, granted, format), color = Color.White)
+        val pairing = state.pairing
         OutlinedTextField(
             value = state.address,
             onValueChange = { state.enterAddress(it) },
             label = { Text(stringResource(R.string.address)) },
-            singleLine = true,
+            maxLines = ADDRESS_LINES,
             enabled = !state.streaming,
-            isError = state.address.isNotEmpty() && state.parsedAddress == null,
+            isError = state.address.isNotEmpty() && (pairing.targets.isEmpty() || pairing.unread.isNotEmpty()),
+            supportingText =
+                pairing.unread.takeIf { it.isNotEmpty() }?.let { unread ->
+                    { Text(stringResource(R.string.unread, unread.joinToString("; "))) }
+                },
             modifier = Modifier.fillMaxWidth(),
         )
         ScanButton(enabled = !state.streaming) { state.enterAddress(it) }
@@ -222,12 +225,13 @@ private fun ControlPanel(
             { stringResource(R.string.fps, it) },
         ) { state.chooseFps(it) }
         Button(
-            onClick = { state.streaming = !state.streaming },
-            enabled = state.streaming || (granted && format != null && state.parsedAddress != null),
+            onClick = { state.toggleStreaming() },
+            enabled = state.streaming || (granted && format != null && pairing.targets.isNotEmpty()),
         ) { Text(stringResource(if (state.streaming) R.string.stop else R.string.start)) }
         OutlinedButton(onClick = { state.dimmed = true }, enabled = state.streaming) {
             Text(stringResource(R.string.dim))
         }
+        Text(lensesText(state.lenses), color = Color.Gray)
     }
 }
 
@@ -277,34 +281,6 @@ private fun <T> Choices(
     }
 }
 
-@Composable
-private fun statusText(
-    state: ScreenState,
-    granted: Boolean,
-    format: StreamFormat?,
-): String {
-    if (!granted) return stringResource(R.string.need_camera)
-    if (format == null) return stringResource(R.string.no_format)
-    return when (val status = state.status) {
-        is StreamerStatus.Failed -> stringResource(R.string.camera_failed, status.reason)
-        is StreamerStatus.NoClock -> stringResource(R.string.no_clock)
-        is StreamerStatus.Link -> linkText(status.status)
-        StreamerStatus.Previewing, null -> stringResource(R.string.ready, format.resolution.toString(), format.fps)
-    }
-}
-
-@Composable
-private fun linkText(status: UplinkStatus): String =
-    when (status) {
-        is UplinkStatus.Connecting -> stringResource(R.string.connecting, status.address)
-        is UplinkStatus.Reconnecting -> stringResource(R.string.reconnecting, status.reason)
-        is UplinkStatus.Streaming ->
-            if (status.clockMs != null) {
-                stringResource(R.string.streaming_clock, status.fps, status.mbps, status.clockMs)
-            } else {
-                stringResource(R.string.streaming_no_clock, status.fps, status.mbps)
-            }
-    }
-
 private const val PANEL_WIDTH = 320
+private const val ADDRESS_LINES = 8 // four lenses, a line each, wrapped in two
 private const val DIM_BRIGHTNESS = 0.01f

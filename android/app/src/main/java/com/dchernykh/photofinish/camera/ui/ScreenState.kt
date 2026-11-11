@@ -1,20 +1,25 @@
 package com.dchernykh.photofinish.camera.ui
 
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.dchernykh.photofinish.camera.Settings
 import com.dchernykh.photofinish.camera.capture.CameraFormats
 import com.dchernykh.photofinish.camera.capture.FormatChoice
+import com.dchernykh.photofinish.camera.capture.LensInfo
 import com.dchernykh.photofinish.camera.capture.Resolution
 import com.dchernykh.photofinish.camera.capture.StreamFormat
 import com.dchernykh.photofinish.camera.capture.StreamerStatus
-import com.dchernykh.photofinish.camera.pairing.RtmpAddress
+import com.dchernykh.photofinish.camera.pairing.Lens
+import com.dchernykh.photofinish.camera.pairing.Pairing
 
-/** The screen's state: what is chosen and kept, and what the camera last said. */
+/** The screen's state: what is chosen and kept, and what the cameras last said. */
 class ScreenState(
     private val settings: Settings,
     private val formats: CameraFormats,
+    /** The lenses the phone gives the app, for the screen to list. */
+    val lenses: Map<Lens, LensInfo>,
 ) {
     /** The sizes the phone gives the app, 1080p first. */
     val resolutions: List<Resolution> = FormatChoice.resolutions(formats.sizes, formats::takes)
@@ -32,7 +37,11 @@ class ScreenState(
 
     var dimmed by mutableStateOf(false)
 
+    /** What the cameras as a whole last said. */
     var status by mutableStateOf<StreamerStatus?>(null)
+
+    /** What each lens streamed last said. */
+    val lensStatus = mutableStateMapOf<Lens, StreamerStatus>()
 
     /** A debug build's request to start once the camera is allowed. */
     var autostart = false
@@ -48,7 +57,8 @@ class ScreenState(
                 )
             }.orEmpty()
 
-    val parsedAddress: RtmpAddress? get() = RtmpAddress.parse(address)
+    /** The lenses and addresses the code asks for (specs/004-phone-lenses). */
+    val pairing: Pairing get() = Pairing.parse(address)
 
     /** What to stream: the chosen size and rate, the fastest rate when the chosen one is gone. */
     val format: StreamFormat? get() = formats.choose(resolution, fps)
@@ -66,5 +76,11 @@ class ScreenState(
     fun chooseFps(rate: Int) {
         fps = rate
         settings.fps = rate
+    }
+
+    /** Streaming on or off; what the lenses said of the last stream is forgotten. */
+    fun toggleStreaming() {
+        lensStatus.clear()
+        streaming = !streaming
     }
 }

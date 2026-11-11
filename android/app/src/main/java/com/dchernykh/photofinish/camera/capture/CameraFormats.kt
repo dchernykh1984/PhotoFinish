@@ -3,29 +3,30 @@ package com.dchernykh.photofinish.camera.capture
 import android.content.Context
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
-import android.hardware.camera2.CameraMetadata
 import android.media.MediaCodec
 import android.media.MediaCodecList
 import android.media.MediaFormat
 import android.util.Size
 import kotlin.math.roundToInt
 
-/** What the phone's back camera and its H.264 encoder offer. */
+/**
+ * What a camera of the phone -- [cameraId], or one of its physical cameras -- and its H.264 encoder
+ * offer: the sizes from the lens's own stream map when it has one, the rates from the camera, whose
+ * one request sets them for all its lenses.
+ */
 class CameraFormats(
     context: Context,
+    val cameraId: String?,
+    physicalId: String? = null,
 ) {
     private val manager = context.getSystemService(CameraManager::class.java)
 
-    /** The back camera, or null on a phone without one. */
-    val cameraId: String? =
-        manager.cameraIdList.firstOrNull {
-            manager.getCameraCharacteristics(it).get(CameraCharacteristics.LENS_FACING) ==
-                CameraMetadata.LENS_FACING_BACK
-        }
-
     private val characteristics = cameraId?.let { manager.getCameraCharacteristics(it) }
 
-    private val map = characteristics?.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+    private val map =
+        physicalId
+            ?.let { manager.getCameraCharacteristics(it).get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP) }
+            ?: characteristics?.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
 
     val sizes: List<Resolution> =
         map
@@ -71,4 +72,20 @@ class CameraFormats(
         wanted: Resolution? = null,
         wantedFps: Int? = null,
     ): StreamFormat? = FormatChoice.choose(sizes, ranges, ::takes, wanted, wantedFps)
+
+    companion object {
+        /**
+         * The format several lenses of one camera all give: [wanted] when they do, else the nearest
+         * offered -- a size every lens gives, at a rate every lens takes.
+         */
+        fun common(
+            lenses: List<CameraFormats>,
+            wanted: StreamFormat,
+        ): StreamFormat? {
+            val first = lenses.firstOrNull() ?: return null
+            val sizes = lenses.map { it.sizes.toSet() }.reduce { all, these -> all intersect these }
+            val takes = { size: Resolution, fps: Int -> lenses.all { it.takes(size, fps) } }
+            return FormatChoice.choose(sizes, first.ranges, takes, wanted.resolution, wanted.fps)
+        }
+    }
 }
