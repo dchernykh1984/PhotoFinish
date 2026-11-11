@@ -92,6 +92,9 @@ gh pr view <N> --json statusCheckRollup \
   --jq '[.statusCheckRollup[].status] | all(. == "COMPLETED")'
 ```
 
+An empty rollup prints `true` as well: no check has started. On a release PR
+that means its runs wait for approval (see Releasing).
+
 Then read each conclusion, and check that the run belongs to the current head
 SHA - a fresh push starts a new run while the old one still shows as passed:
 
@@ -108,18 +111,47 @@ force-push over a reviewed history.
 Only when explicitly asked. release-please opens a `chore(main): release X.Y.Z`
 PR after `feat:` or `fix:` commits land on `main`, and the same workflow run
 pushes a `chore: match uv.lock to the released version` commit onto that PR's
-branch. Merge only once that commit is there, and check it yourself: CI does
-not run on the release PR, whose commits are pushed with `GITHUB_TOKEN`. A
-lock that lags `pyproject.toml` fails the tests job on `main` after the merge
-(`uv sync --locked`); the release builds still install the locked packages
-(`--frozen`). Merging cuts the tag, builds the portable apps for every platform
-and attaches them to the GitHub release. Never bump `pyproject.toml` by hand.
+branch. Never bump `pyproject.toml` by hand. A release PR goes out in four
+steps, in this order, and never with `--admin`:
 
-Confirm the assets landed:
+1. **Approve its pipeline.** release-please pushes with `GITHUB_TOKEN`, so the
+   `CI` and `pr-build` runs of its commits wait for a maintainer: they report
+   `action_required`, run no job and leave the PR's rollup empty. Once the
+   uv.lock commit is there, start the runs of the head commit -- the PR page's
+   "Approve workflows to run" does the same:
 
-```
-gh release view vX.Y.Z --json assets --jq '.assets[].name'
-```
+   ```
+   sha=$(gh pr view <N> --json headRefOid --jq .headRefOid)
+   for id in $(gh run list --branch release-please--branches--main \
+       --json databaseId,headSha,conclusion \
+       --jq ".[] | select(.headSha == \"$sha\" and .conclusion == \"action_required\") | .databaseId"); do
+     gh run rerun "$id"
+   done
+   ```
+
+2. **Wait for the pipeline to go green** on that SHA, read as above. A red
+   check is fixed, never merged past: a flaky one is run again; anything else
+   is fixed on `main` by a PR of its own, since release-please rewrites its
+   branch, and the new head's runs are approved again. A lock that lags
+   `pyproject.toml` fails the tests job (`uv sync --locked`).
+3. **Approve the release PR, then merge it.** Its author is the bot, so the
+   approval `main`'s ruleset asks for can be given; merge the SHA that went
+   green:
+
+   ```
+   gh pr review <N> --approve
+   gh pr merge <N> --rebase --match-head-commit "$sha"
+   ```
+
+4. **Wait for the release build.** The merge's own release-please run cuts the
+   tag, builds the portable apps for every platform and PhotoFinish Camera's
+   signed APK, and attaches them to the GitHub release. Follow that run to its
+   end -- a red job is fixed like a red check -- then confirm the assets landed:
+
+   ```
+   gh run list --workflow release-please.yml --branch main --limit 1
+   gh release view vX.Y.Z --json assets --jq '.assets[].name'
+   ```
 
 ## Reporting back
 
