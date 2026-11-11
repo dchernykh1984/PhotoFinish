@@ -8,7 +8,7 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
 import av
 import numpy as np
@@ -2460,8 +2460,12 @@ def test_suggested_crossings_are_accepted_with_a_number_or_dismissed(
 
 
 def test_numbers_and_crossings_start_every_analyser_again_on_what_it_runs(
-    recording: Path, make_window: Callable[[], mw.MainWindow], analyzers: list[Any]
+    recording: Path,
+    make_window: Callable[[], mw.MainWindow],
+    analyzers: list[Any],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setattr(mw.models, "ready", lambda model: True)  # nothing to download
     saved = session.load()
     saved["analysis"] = {"on": True, "model": "", "crossings": False}
     session.save(saved)
@@ -2471,11 +2475,37 @@ def test_numbers_and_crossings_start_every_analyser_again_on_what_it_runs(
     win.crossings_box.setChecked(True)
     win.poll()
     assert analysis.settings(session.load())["crossings"] is True
-    assert len(analyzers) == started + 1  # started again on the model chosen
+    assert len(analyzers) == started  # no model: motion alone either way, left running
+    win._set_model("m.onnx")
+    win.poll()
+    started = len(analyzers)
     win.crossings_box.setChecked(False)
     win.poll()
     assert analysis.model_in_use(session.load()) == ""  # motion alone
-    assert len(analyzers) == started + 2
+    assert len(analyzers) == started + 1  # started again on it
+    win.crossings_box.setChecked(True)
+    win.poll()
+    assert len(analyzers) == started + 2  # and on the model chosen
+
+
+def test_a_number_reader_come_after_crossings_were_turned_off_restarts_nothing(
+    recording: Path,
+    make_window: Callable[[], mw.MainWindow],
+    analyzers: list[Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    saved = session.load()
+    saved["analysis"] = {"on": True, "model": "m.onnx", "crossings": True}
+    session.save(saved)
+    monkeypatch.setattr(mw.models, "ready", lambda model: True)
+    win = make_window()
+    win.poll()
+    win.session["analysis"]["crossings"] = False  # turned off while it came
+    started = len(analyzers)
+    job = win._numbers_job = cast(models.Download, object())
+    win._numbers_fetched(job, "")
+    assert win.statusBar().currentMessage() == "The number reader is ready"
+    assert len(analyzers) == started
 
 
 def test_a_crossing_two_cameras_saw_is_one_suggestion_with_the_number_read(
