@@ -70,6 +70,23 @@ fun <T> startInTurn(
     cameras.forEach { if (start(it, preview)) preview = false }
 }
 
+/** Said when a camera's lenses stream in a session that has no room for the preview. */
+internal const val NO_PREVIEW = "no preview beside these lenses; they stream"
+
+/**
+ * What a camera's first frames say of the [preview] it was given: shown -- a failure said before
+ * is over -- or left out of the session its lenses needed, [targets]; nothing without one.
+ */
+fun <T> previewStatus(
+    preview: T?,
+    targets: List<T>,
+): StreamerStatus? =
+    when {
+        preview == null -> null
+        preview in targets -> StreamerStatus.Previewing
+        else -> StreamerStatus.Failed(NO_PREVIEW)
+    }
+
 /** Why a lens asked for is not streamed. */
 enum class LeftOut { NOT_ON_THIS_PHONE, NOT_WITH_THE_OTHERS }
 
