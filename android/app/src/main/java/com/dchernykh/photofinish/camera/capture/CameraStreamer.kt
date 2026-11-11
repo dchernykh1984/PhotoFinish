@@ -235,7 +235,7 @@ class CameraStreamer(
                     override fun onConfigureFailed(failed: CameraCaptureSession) {
                         if (mine != generation) return
                         val asked = format?.let { "${it.resolution} at ${it.fps} fps" }.orEmpty()
-                        onStatus(null, StreamerStatus.Failed("the camera cannot give these lenses $asked together"))
+                        say(StreamerStatus.Failed("the camera cannot give these lenses $asked together"))
                     }
                 }
             try {
@@ -255,7 +255,7 @@ class CameraStreamer(
                     camera.createCaptureSession(targets, callback, handler)
                 }
             } catch (error: Exception) {
-                onStatus(null, failed(error))
+                say(failed(error))
             }
         }
 
@@ -280,11 +280,20 @@ class CameraStreamer(
                         )
                     }
                 configured.setRepeatingRequest(request.build(), null, handler)
-                // The camera gives frames: a failure said before, a camera lost and opened again, is over.
-                onStatus(null, StreamerStatus.Previewing)
+                // The camera gives frames: a failure said before, a camera lost and opened again, is over;
+                // the camera with the preview says so for the cameras as a whole, the others' lenses by their links.
+                if (preview != null) onStatus(null, StreamerStatus.Previewing)
             } catch (error: Exception) {
-                onStatus(null, failed(error))
+                say(failed(error))
             }
+        }
+
+        /**
+         * What this camera says: of its lenses when it streams some, else of the cameras as a whole --
+         * with two cameras open, one's news does not overwrite the other's.
+         */
+        private fun say(status: StreamerStatus) {
+            if (streams.isEmpty()) onStatus(null, status) else streams.forEach { onStatus(it.lens, status) }
         }
 
         fun close() {
