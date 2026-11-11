@@ -307,8 +307,14 @@ def _value_flag(word: str) -> tuple[str, str | None] | None:
     return None
 
 
+class SlowError(Exception):
+    """gh did not answer in the time the hook has: GitHub slow, not a merge gh
+    cannot run."""
+
+
 def _gh(args: list[str], cwd: str | None, timeout: float) -> Any:
-    """What gh prints as JSON for ``args``, or None when it cannot say."""
+    """What gh prints as JSON for ``args``, or None when it cannot say; SlowError
+    when it does not answer in ``timeout``."""
     gh = shutil.which("gh")
     if gh is None:
         return None
@@ -321,7 +327,9 @@ def _gh(args: list[str], cwd: str | None, timeout: float) -> Any:
             timeout=timeout,
             check=False,
         )
-    except (OSError, subprocess.TimeoutExpired):  # fmt: skip
+    except subprocess.TimeoutExpired as error:
+        raise SlowError from error
+    except OSError:
         return None
     if done.returncode != 0:
         return None
@@ -446,11 +454,17 @@ def main() -> int:
         each = min(LOOKUP_S, left / 2)  # the PR, then its head's runs
         look = partial(look_up, cwd=here, timeout=each)
         runs = partial(look_up_runs, cwd=here, timeout=each)
-        reason = (
-            refusal(args, look, here or "", runs)
-            if left >= 1
-            else f"These merges take too long to check: one at a time; {SKILL}."
+        reason: str | None = (
+            f"These merges take too long to check: one at a time; {SKILL}."
         )
+        if left >= 1:
+            try:
+                reason = refusal(args, look, here or "", runs)
+            except SlowError:
+                reason = (
+                    "GitHub did not answer in time to check this merge's PR: try "
+                    f"again; {SKILL}."
+                )
         if reason:
             decision = {
                 "hookEventName": "PreToolUse",
