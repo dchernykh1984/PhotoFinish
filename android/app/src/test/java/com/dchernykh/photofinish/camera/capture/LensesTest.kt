@@ -148,4 +148,15 @@ class LensesTest {
         val previewAlone = { _: List<String> -> listOf(listOf("preview")) }
         assertEquals(listOf("preview") to emptyList<String>(), firstSupported(emptyList(), previewAlone) { false })
     }
+
+    @Test
+    fun `a lens whose focal length the phone does not tell is no ultra-wide nor telephoto`() {
+        val untold = LensInfo("0", "2", 0.0)
+        val alsoUntold = LensInfo("0", "3", 0.0)
+        val none = LensChoice.classify(LensInfo("0", null, 0.0), listOf(untold, alsoUntold), null)
+        assertEquals(mapOf(Lens.MAIN to untold), none)
+        val told = LensInfo("0", "3", 24.0)
+        val one = LensChoice.classify(LensInfo("0", null, 24.0), listOf(untold, told), null)
+        assertEquals(mapOf(Lens.MAIN to told), one)
+    }
 }
