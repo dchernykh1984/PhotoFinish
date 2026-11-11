@@ -602,6 +602,7 @@ def test_the_list_says_how_each_recorder_is(
 def test_the_corner_says_whether_every_camera_records(
     recording: Path, make_window: Callable[[], mw.MainWindow]
 ) -> None:
+    session.save({**session.load(), "cameras": [{**CAMERA, "offset_ms": 2_000}]})
     win = make_window()
     banner = win.recording_banner
     assert not banner.isHidden()
@@ -609,8 +610,8 @@ def test_the_corner_says_whether_every_camera_records(
     assert mw.GREEN in banner.styleSheet()
     beating(recording, state="reconnecting", detail="the stream ended")
     win.poll()
-    last = scale_time(to_line_scale(START + 69 * 33, False)).split(" ")[1]
-    assert banner.text().startswith("NOT RECORDING<br>")
+    last = scale_time(to_line_scale(START + 69 * 33 + 2_000, False)).split(" ")[1]
+    assert banner.text().startswith("NOT RECORDING<br>")  # its time on the line's scale
     assert f"Side: no video since {last.split('.')[0]}</span>" in banner.text()
     assert mw.RED in banner.styleSheet()
     beating(recording)  # the camera is back
@@ -622,6 +623,7 @@ def test_the_corner_says_whether_every_camera_records(
 def test_under_the_banner_each_phone_says_what_may_stop_its_stream(
     recording: Path, make_window: Callable[[], mw.MainWindow]
 ) -> None:
+    session.save({**session.load(), "cameras": [{**CAMERA, "offset_ms": 2_000}]})
     now = time.time_ns() // 1_000_000
     beating(
         recording,
@@ -638,7 +640,7 @@ def test_under_the_banner_each_phone_says_what_may_stop_its_stream(
     old = {"battery": "57", "charging": "1", "at_ms": START, "heard_ms": START}
     beating(recording, phone=old)
     win.poll()  # a status heard long ago: the phone's last word, greyed, with its time
-    last = scale_time(to_line_scale(START, False)).split(" ")[1].split(".")[0]
+    last = scale_time(to_line_scale(START + 2_000, False)).split(" ")[1].split(".")[0]
     assert "color: gray" in win.phones.text()
     assert f"at {last}" in win.phones.text()
     beating(recording, phone={"at_ms": now, "heard_ms": now})  # nothing it could tell
