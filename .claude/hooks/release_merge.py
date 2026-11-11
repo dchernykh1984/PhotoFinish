@@ -41,7 +41,7 @@ VALUE_FLAGS = {
     "-t",
     "--subject",
 }
-SHELL_PUNCTUATION = set("();<>|&")
+SHELL_PUNCTUATION = set("();<>|&\n")  # a new line ends a command, as ; does
 SHELLS = {"sh", "bash", "zsh", "dash"}
 DESCRIPTOR = re.compile(r"(?<![\w./-])\d+(?=[<>])")
 FIELDS = "number,state,headRefName,statusCheckRollup"
@@ -54,7 +54,9 @@ def merges(command: str) -> list[list[str]]:
     # A descriptor touching its redirection -- 2>&1 -- is no word of the command:
     # the lexer would part it from the > as a word, a PR number to the merge.
     line = DESCRIPTOR.sub("", command.replace("\\\n", " "))
-    lexer = shlex.shlex(line, posix=True, punctuation_chars=True)
+    lexer = shlex.shlex(line, posix=True, punctuation_chars="".join(SHELL_PUNCTUATION))
+    lexer.whitespace = " \t\r"  # a new line is punctuation
+    lexer.commenters = ""  # a comment would take its new line along: see _merge_args
     lexer.whitespace_split = True
     try:
         words = list(lexer)
@@ -88,7 +90,8 @@ def _merge_args(rest: list[str]) -> list[str] | None:
         return None
     args = []
     for arg in words:
-        if arg and set(arg) <= SHELL_PUNCTUATION:  # &&, ;, |, a redirection
+        # &&, ;, a new line, |, a redirection; or a comment, a word that begins with #
+        if arg and (set(arg) <= SHELL_PUNCTUATION or arg.startswith("#")):
             break
         args.append(arg)
     return before + args
