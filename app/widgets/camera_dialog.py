@@ -243,6 +243,8 @@ class CameraDialog(QDialog):
             found.append(clash)
         if self.kind() == "rtmp" and not self._lenses():
             found.append("no lens ticked: tick the ones the phone is to stream")
+        if self.kind() == "rtmp" and len(self._lenses()) > 1 + len(self.spare_ids):
+            found.append("not as many free camera ids as lenses ticked")
         self.problems.setText("\n".join(found))
         ok = self.buttons.button(QDialogButtonBox.StandardButton.Ok)
         ok.setEnabled(not found)
