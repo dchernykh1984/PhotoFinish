@@ -7,6 +7,7 @@ saver, frames dropped for the network. A reading the phone did not give is left 
 
 from __future__ import annotations
 
+import math
 from typing import Any
 
 OK, WARN, BAD = "ok", "warn", "bad"
@@ -58,8 +59,10 @@ def _level(value: float, warn: float, bad: float) -> str:
 
 
 def _number(value: object) -> float | None:
-    """A reading as written, as a number; None when it is not one."""
+    """A reading as written, as a number; None when it is not one -- nor a finite
+    one: what comes over the network is not to stop the window."""
     try:
-        return float(str(value)) if value is not None else None
+        number = float(str(value)) if value is not None else None
     except ValueError:
         return None
+    return number if number is not None and math.isfinite(number) else None
