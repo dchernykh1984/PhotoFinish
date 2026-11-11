@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 
 from app.analysis.suggestions import Suggestions, gathered, remaining
@@ -106,3 +107,17 @@ def test_what_is_left_of_a_crossing_decided_in_part_is_offered_with_the_decision
         "accepted",
     )
     assert remaining(crossing, lambda camera, found: None)[1] == ""
+
+
+def test_a_day_of_suggestions_is_gathered_in_a_moment() -> None:
+    """Every suggestion is gathered each time one comes: a race day's thousands
+    look only at the crossings begun within the window, not all before them."""
+    day = [
+        (n * 1_000 + k, f"cam{k}", {"id": f"{n}-{k}"})
+        for n in range(20_000)
+        for k in (1, 2)
+    ]
+    started = time.perf_counter()
+    crossings = gathered(day)
+    assert time.perf_counter() - started < 3.0
+    assert len(crossings) == 20_000
