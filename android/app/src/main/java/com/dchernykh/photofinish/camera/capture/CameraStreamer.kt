@@ -232,7 +232,7 @@ class CameraStreamer(
 
         override fun onDisconnected(camera: CameraDevice) {
             camera.close()
-            if (mine == generation) again("the camera was taken by another app")
+            if (mine == generation) lost("the camera was taken by another app")
         }
 
         override fun onError(
@@ -240,7 +240,18 @@ class CameraStreamer(
             error: Int,
         ) {
             camera.close()
-            if (mine == generation) again("camera error $error")
+            if (mine == generation) lost("camera error $error")
+        }
+
+        /**
+         * A camera lost: the one with the preview opens everything again in a moment; another --
+         * the front beside the back -- is closed alone, its lenses said left out, so the first
+         * streams on rather than stopping with it each time it fails.
+         */
+        private fun lost(reason: String) {
+            if (preview != null) return again(reason)
+            say(StreamerStatus.Failed("$reason; left out")) // and told to the laptop
+            close()
         }
 
         // The list form serves Android 8, where a camera streams one lens; a camera gone meanwhile

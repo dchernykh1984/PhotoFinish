@@ -107,7 +107,8 @@ switch to the other at the same moment and back to both.
   lengths, on its screen.
 - **FR-005**: The app streams each lens asked for that it has: its own encoder, connection and
   clock exchange; the lenses of one camera in one capture session; the camera on the other side
-  opened beside it only when the phone says it can run both at once. Each camera streams at the
+  opened beside it only when the phone says it can run both at once, and closed alone when it is
+  lost, the first streaming on. Each camera streams at the
   size and rate chosen, or the nearest its lenses give.
 - **FR-006**: The preview shows the first lens streamed.
 - **FR-007**: The window's One camera mode shows the chosen camera alone, over the whole video
