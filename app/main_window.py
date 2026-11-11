@@ -826,6 +826,8 @@ class MainWindow(QMainWindow):
         line, or with "This camera only" that camera's own; the mode stays on for
         the next until turned off. Out of it, clicks belong to the caliper."""
         self.this_camera_only.setEnabled(on)
+        if not on:  # the next edit moves the common line, unless ticked again
+            self.this_camera_only.setChecked(False)
         if on and self._camera() is None:
             self._say("Add a camera first")
             self.edit_line.setChecked(False)
