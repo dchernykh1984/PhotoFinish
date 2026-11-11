@@ -86,7 +86,7 @@ Each keyframe -- one a second -- carries, after the frame's moment, a second SEI
 | `thermal` | Android's thermal status, 0 (none) to 6 (shutdown) |
 | `saver` | power saver on, `1` or `0` |
 | `wifi` | the Wi-Fi signal, dBm |
-| `dropped` | the frames the uplink dropped for the network since it connected |
+| `dropped` | the frames the uplink dropped for the network in the last minute |
 
 A reading the phone cannot tell is left out; a key the recorder does not know is kept and not
 shown. The message's size is written as SEI sizes are (a 255 for each full 255).

@@ -53,7 +53,7 @@ the readings; the window shows them with the levels the thresholds give.
 - **FR-001**: PhotoFinish Camera writes, once a second with each keyframe, a status into the frame:
   an SEI after the frame's moment (contract), holding battery percent, charging, battery
   temperature, thermal status (Android 10), power saver, Wi-Fi signal and the frames its uplink
-  dropped for the network since it connected; a reading it cannot tell is left out.
+  dropped for the network in the last minute; a reading it cannot tell is left out.
 - **FR-002**: The recorder reads the status from a phone's keyframes and keeps the last one in its
   heartbeat with the moment it came, through reconnects.
 - **FR-003**: The window shows, under the recording banner, a line per camera with a status: the

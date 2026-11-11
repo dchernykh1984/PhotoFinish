@@ -68,6 +68,11 @@ class Uplink(
      */
     var status: (Long) -> String? = { null }
 
+    /** The clock drops are timed on, for the last minute's count. */
+    internal var nanos: () -> Long = System::nanoTime
+
+    private val drops = RecentDrops { nanos() }
+
     private val queue = LinkedBlockingQueue<EncodedFrame>(maxOf(format.fps * QUEUE_SECONDS, 1))
     private val slew = OffsetSlew()
 
@@ -104,7 +109,9 @@ class Uplink(
     fun offer(frame: EncodedFrame) {
         frame.run = run
         if (!queue.offer(frame)) {
-            dropped += queue.size + 1L
+            val lost = queue.size + 1L
+            dropped += lost
+            drops.add(lost)
             run++
             queue.clear()
             requestKeyframe()
@@ -188,7 +195,13 @@ class Uplink(
         if (sample != null) units.add(head++, Sei.frameMoment(frame.ptsUs + slew.at(frame.ptsUs, sample.offset)))
         // The status after the moment: a reader looking for the moment finds it first. A status
         // the phone fails to read costs this keyframe its status, never the connection.
-        if (frame.keyframe) runCatching { status(dropped) }.getOrNull()?.let { units.add(head, Sei.phoneStatus(it)) }
+        if (frame.keyframe) {
+            runCatching {
+                status(
+                    drops.lately(),
+                )
+            }.getOrNull()?.let { units.add(head, Sei.phoneStatus(it)) }
+        }
         sendingSince = System.nanoTime()
         try {
             connected.sendFrame(sinceStartUs / 1000, frame.keyframe, units)

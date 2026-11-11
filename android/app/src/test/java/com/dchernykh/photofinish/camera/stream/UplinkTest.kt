@@ -311,6 +311,29 @@ class UplinkTest {
     }
 
     @Test
+    fun `a keyframe tells the frames dropped in the last minute, not since the start`() {
+        val sink = FakeSink(gateOn = 2)
+        val link = uplink(listOf(sink), fps = 1) // room for two frames
+        var now = 0L
+        link.nanos = { now }
+        val told = CopyOnWriteArrayList<Long>()
+        link.status = { dropped -> null.also { told += dropped } }
+        start(link)
+        awaitConnected()
+        link.offer(frame(0, keyframe = true))
+        link.offer(frame(1_000_000, keyframe = false))
+        assertTrue(sink.atGate.await(5, TimeUnit.SECONDS)) // its send is under way
+        repeat(3) { link.offer(frame((it + 2) * 1_000_000L, keyframe = false)) } // 3 dropped
+        link.offer(frame(6_000_000, keyframe = true))
+        sink.gate.countDown()
+        repeat(3) { sink.next() }
+        now = 61_000_000_000L // a minute on
+        link.offer(frame(7_000_000, keyframe = true))
+        sink.next()
+        assertEquals(listOf(0L, 3L, 0L), told.toList())
+    }
+
+    @Test
     fun `frames dropped while a send waits are followed by a keyframe, not by what came after`() {
         val sink = FakeSink(gateOn = 2)
         val link = uplink(listOf(sink), fps = 1) // room for two frames
