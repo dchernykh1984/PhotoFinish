@@ -94,11 +94,13 @@ def gathered(found: list[Seen], within_ms: int = GATHER_MS) -> list[Gathered]:
     and a rider one camera missed is not paired with the rider before."""
     crossings: list[list[Seen]] = []
     for one in sorted(found, key=lambda seen: seen[0]):
-        open_ = [
-            c
-            for c in crossings
-            if one[0] - c[0][0] <= within_ms and one[1] not in {s[1] for s in c}
-        ]
+        open_ = []
+        for c in reversed(crossings):  # begun in order: the latest are the open ones
+            if one[0] - c[0][0] > within_ms:
+                break  # and every one before it began earlier still
+            if one[1] not in {s[1] for s in c}:
+                open_.append(c)
+        open_.reverse()  # in the order begun: between equals, the earlier is taken
         nearest = min(
             open_,
             key=lambda c: abs(one[0] - statistics.median(s[0] for s in c)),
