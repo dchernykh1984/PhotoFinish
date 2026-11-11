@@ -296,6 +296,15 @@ class RefusalTests(unittest.TestCase):
         last = HOOK.refusal(["19"], lambda view: green, "", lambda *a: runs[::-1][1:])
         self.assertIn("its runs CI", last)  # cancelled, and the newest
 
+    def test_a_release_merge_matching_an_empty_head_is_denied(self) -> None:
+        green = pr([check("tests")])
+        for args in (["19", "--match-head-commit", ""], ["19", "--match-head-commit="]):
+            self.assertIn("no head to match", self.refusal(args, green), args)
+        named = ["19", "--match-head-commit", "abc", "--rebase"]
+        self.assertIsNone(self.refusal(named, green))
+        merged = HOOK.merges('gh pr merge 19 --rebase --match-head-commit "$sha"')[0]
+        self.assertIn("no head to match", self.refusal(merged, green))  # empty here
+
     def test_a_release_pr_with_no_checks_waits_for_their_approval(self) -> None:
         reason = self.refusal(["19", "--rebase"], pr([]))
         self.assertIn("action_required", reason)

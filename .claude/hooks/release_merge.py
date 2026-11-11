@@ -371,6 +371,19 @@ def look_up_runs(
     return found if isinstance(found, list) else None
 
 
+def _matched_heads(args: list[str]) -> list[str]:
+    """The heads a merge's --match-head-commit flags name, as gh reads them."""
+    heads = []
+    words = iter(args)
+    for word in words:
+        flag = _value_flag(word)
+        if flag is not None:
+            value = next(words, "") if flag[1] is None else flag[1]
+            if flag[0] == "--match-head-commit":
+                heads.append(value)
+    return heads
+
+
 def latest(found: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     """Each workflow's newest run: one cancelled and run again since is over."""
     newest: dict[str, dict[str, Any]] = {}
@@ -412,6 +425,12 @@ def refusal(
             f"Release PR #{number} is not merged with --admin: approve its pipeline, "
             f"wait for it to go green, approve the PR (gh pr review {number} "
             f"--approve), then merge it -- {SKILL}."
+        )
+    if any(not head or "$" in head or "`" in head for head in _matched_heads(args)):
+        return (
+            f"Release PR #{number}'s merge names no head to match that can be told: "
+            f"write the SHA that went green after --match-head-commit -- a variable "
+            f"of an earlier command is empty in this one; {SKILL}."
         )
     checks = pr.get("statusCheckRollup") or []
     if not checks:
