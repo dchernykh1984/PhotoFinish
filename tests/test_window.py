@@ -2451,6 +2451,34 @@ def test_a_crossing_two_cameras_saw_is_one_suggestion_with_the_number_read(
     assert (written["camera"], written["frames"][0][2]) == ("cam1", FLASH - 10)
 
 
+def test_a_late_camera_s_suggestion_of_a_crossing_decided_is_decided_with_it(
+    two: None, make_window: Callable[[], mw.MainWindow], base: Path
+) -> None:
+    """006 FR-003: another camera's analyser running behind offers no second one."""
+    analysis = {"on": True, "model": "m.onnx", "crossings": True}
+    session.save({**session.load(), "analysis": analysis})
+
+    def suggests(camera_id: str, ms: int) -> None:
+        frames = [["a.mkv", 1, ms - 10], ["a.mkv", 2, ms + 23]]
+        entry = {"id": f"{camera_id}-{ms}", "camera": camera_id, "ms": ms}
+        entry |= {"model": "m", "frames": frames, "fraction": 0.3}
+        with (base / "video" / camera_id / "suggestions.jsonl").open("a") as f:
+            f.write(json.dumps(entry) + "\n")
+
+    suggests("cam1", FLASH)
+    win = make_window()
+    win.suggestion_list.setCurrentRow(0)
+    win.number.setText("27")
+    win.accept_suggestion()
+    assert win.suggestion_list.count() == 0
+    suggests("cam2", FLASH + 30)  # Front's analyser, minutes behind
+    win.poll()
+    assert win.suggestion_list.count() == 0
+    done = (base / "video" / "cam2" / "suggestions.done.jsonl").read_text()
+    assert '"done": "accepted"' in done
+    assert len((base / "out.txt").read_text().splitlines()) == 1
+
+
 def test_suggestions_need_a_model(
     recording: Path, make_window: Callable[[], mw.MainWindow]
 ) -> None:

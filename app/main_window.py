@@ -3,6 +3,7 @@ Qt-free modules (session, video_index, recorder) and the widgets."""
 
 from __future__ import annotations
 
+import contextlib
 import html
 import math
 import time
@@ -1338,12 +1339,14 @@ class MainWindow(QMainWindow):
             hint.setFlags(Qt.ItemFlag.NoItemFlags)
             self.suggestion_list.addItem(hint)
             return
-        found = [
+        found = [  # the decided too: a late camera's suggestion may join one
             (int(s["ms"]) + int(c.settings.get("offset_ms", 0)), c.id, s)
             for c in self.cameras.values()
-            for s in c.suggestions.pending()
+            for s in c.suggestions.found
         ]
         for suggested in gathered(found):  # every camera's suggestion of one, once
+            if self._settled(suggested):
+                continue
             item = QListWidgetItem(self._suggestion_text(suggested))
             item.setToolTip(
                 "\n".join(
@@ -1356,6 +1359,26 @@ class MainWindow(QMainWindow):
             self.suggestion_list.addItem(item)
             if chosen & {str(s[2].get("id")) for s in suggested.seen}:
                 self.suggestion_list.setCurrentItem(item)
+
+    def _settled(self, suggested: Gathered) -> bool:
+        """A crossing already decided, by any camera's suggestion of it: one that
+        arrived since -- another camera's analyser running behind -- is decided
+        with it, never offered as a crossing of its own to accept twice."""
+        decisions = [
+            self.cameras[camera_id].suggestions.done.get(str(found.get("id")))
+            for _, camera_id, found in suggested.seen
+            if camera_id in self.cameras
+        ]
+        how = next((d for d in decisions if d), None)
+        if how is None:
+            return False
+        for (_, camera_id, found), decided in zip(
+            suggested.seen, decisions, strict=True
+        ):
+            if not decided and camera_id in self.cameras:
+                with contextlib.suppress(OSError):  # asked again at the next look
+                    self.cameras[camera_id].suggestions.decide(str(found["id"]), how)
+        return True
 
     def _suggestion_text(self, suggested: Gathered) -> str:
         """A crossing in the list: its moment, the cameras that saw it, the number

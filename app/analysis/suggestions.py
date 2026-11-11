@@ -25,7 +25,7 @@ class Suggestions:
     def __init__(self, folder: Path) -> None:
         self.folder = folder
         self.found: list[dict[str, Any]] = []
-        self.done: set[str] = set()
+        self.done: dict[str, str] = {}  # each decided: accepted or dismissed
         self._ids: set[str] = set()  # those found: a segment analysed twice adds none
         self._found = Appended(folder / SUGGESTIONS)
         self._decided = Appended(folder / DONE)
@@ -39,7 +39,7 @@ class Suggestions:
                 found.append(entry)
         decided = _entries(self._decided.new_lines())
         self.found += found
-        self.done |= {str(entry.get("id")) for entry in decided}
+        self.done |= {str(e.get("id")): str(e.get("done", "")) for e in decided}
         return bool(found or decided)
 
     def pending(self) -> list[dict[str, Any]]:
@@ -48,7 +48,7 @@ class Suggestions:
     def decide(self, name: str, how: str) -> None:
         """``accepted`` or ``dismissed``: the suggestion is not offered again -- in
         this session even when the decision cannot be kept on disk, which raises."""
-        self.done.add(name)
+        self.done[name] = how
         line = json.dumps({"id": name, "done": how}) + "\n"
         append(self.folder / DONE, line.encode("ascii"))
 
