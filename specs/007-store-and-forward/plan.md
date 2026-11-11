@@ -8,9 +8,10 @@
 android/.../stream/FrameStore.kt     a lens's frames on the phone's storage: kept, read, sent again
 android/.../stream/Uplink.kt         frames from the store; a loss sends the last 6 s again; held_ms
 android/.../capture/LensStream.kt    the store's folder and share; the frames' clock for held_ms
-android/.../capture/CameraStreamer.kt  an open that throws is tried again (glue)
+android/.../capture/CameraStreamer.kt  each lens's store; what a killed app kept removed at a Start;
+                                     an open that throws is tried again (glue)
 android/.../ui/ScreenState.kt        a camera-wide failure clears the lenses' lines (glue)
-android/.../MainActivity.kt          what a killed app kept is removed at the start (glue)
+android/.../stream/RtmpPublisher.kt  the bytes it sends counted, the acknowledgements asked for and read
 app/recorder/sources.py              held_ms read; a kept frame's moment believed
 app/recorder/segments.py             a frame sent again written, not listed
 app/recorder/__init__.py             the heartbeat's behind_ms and version
@@ -26,14 +27,22 @@ app/main_window.py                   the replacing line; a lens left out: amber,
   network's pace. A break, a slow network and a recorder restarting are then one case. The store
   is one file per keyframe run (a second at the stream's keyframe interval), the frames' bytes in
   it and their index -- capture time, keyframe, moment, place -- in memory: the store is not kept
-  across an app restart (FR-004), so the index needs no file. Files behind the uplink go once
-  they are 6 s old; files are only appended, read and deleted.
+  across an app restart (FR-004), so the index needs no file. Files the recorder has acknowledged
+  reading go, 2 s on; files are only appended, read and deleted.
+- **The recorder says what it has read.** FFmpeg's listener acknowledges every half window it
+  reads, a megabyte by default -- a slow stream would hear none for long, and the emulator's did
+  not: asked for a window of 128 KiB, it acknowledges every 64 KiB. The publisher counts the bytes
+  it writes, the handshake and commands too, so never fewer than FFmpeg's count, and unwraps the
+  acknowledgement's 32 bits; the uplink matches it to the frames sent and tells the store the
+  newest read.
 - **The moment is fixed when a frame is kept**, with the offset of that time, slewed in capture
   order as before. A frame sent again carries the moment it carried the first time: the
   recorder's test "at or before the newest frame" is exact, and a lost clock exchange during a
   break changes nothing.
-- **A connection after a loss starts 6 s back**, at a keyframe: the recorder writes what it has
-  already, unlisted, as the frames after it need it to decode (FR-007). A connection is stamped
+- **A connection after a loss starts 2 s before the newest frame acknowledged**, at a keyframe --
+  6 s before the newest sent without acknowledgements: the recorder writes what it has already,
+  unlisted, as the frames after it need it to decode, found by its moment among those it listed
+  in the last 10 s, the run before's too (FR-007). A connection is stamped
   when its first frame has a moment; a clock in step during the first 10 s of an unstamped one
   still makes a new connection, which starts at the first keyframe with a moment.
 - **held_ms** is in `onMetaData`: the capture clock now minus the first frame's capture time.

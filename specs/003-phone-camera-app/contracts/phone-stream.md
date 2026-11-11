@@ -86,7 +86,7 @@ Each keyframe -- one a second -- carries, after the frame's moment, a second SEI
 | `thermal` | Android's thermal status, 0 (none) to 6 (shutdown) |
 | `saver` | power saver on, `1` or `0` |
 | `wifi` | the Wi-Fi signal, dBm |
-| `dropped` | the frames the uplink dropped for the network in the last minute |
+| `dropped` | the frames the phone could not keep for sending -- its store full, its storage failing (`specs/007-store-and-forward`) -- in the last minute |
 | `left` | the lenses asked for and not streamed -- the phone lacks them, cannot run them beside the others or at a size they give -- by their codes, `,` between; left out when none is |
 
 A reading the phone cannot tell is left out; a key the recorder does not know is kept and not
@@ -99,3 +99,12 @@ part as the application, `releaseStream`, `FCPublish`, `createStream`, `publish`
 the stream name, then `@setDataFrame`/`onMetaData` (width, height, frame rate, video codec 7, no
 audio), the AVC sequence header and the frames. Chunk size 65536. Timestamps are milliseconds from
 the connection's first frame; from 0xFFFFFF on they are sent as extended timestamps.
+
+`onMetaData` also holds `held_ms`: how long the connection's first frame was kept on the phone
+(`specs/007-store-and-forward`); the recorder believes that frame's moment as much older. Once
+publishing, the phone sends a Window Acknowledgement Size of 131072: FFmpeg acknowledges every
+64 KiB it reads, and the phone keeps each frame until it is acknowledged. A connection after a
+loss begins at the keyframe 2 s before the newest frame acknowledged -- 6 s before the newest sent
+when none was -- and goes on through the frames kept to the live ones, so its first frames may be
+ones the recorder has: it writes a frame whose moment it listed in the last 10 s for the frames
+after it to decode, and does not list it again.

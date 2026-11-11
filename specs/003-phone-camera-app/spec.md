@@ -37,7 +37,8 @@ recorder records it, and the frames decode.
 2. **Given** the app has scanned the code, **When** the referee taps Start, **Then** PhotoFinish
    records the stream.
 3. **Given** the Wi-Fi drops for a while, **Then** the app connects again by itself and the
-   recording goes on, a gap between.
+   recording goes on, a gap between -- since `specs/007-store-and-forward`, no gap: the phone
+   sends what it kept.
 
 ### User Story 2 - Each frame at the moment it was taken (Priority: P1)
 
@@ -83,8 +84,10 @@ on the Xiaomi 17 Ultra the app streams 1920x1080 at 60 fps.
   as extended timestamps.
 - A phone whose camera timestamps are on an unknown clock: the app finds which of its clocks they
   follow, or sends no frame moments.
-- The network cannot keep up: frames are dropped up to the next keyframe, never sent late in a
-  pile; the recording shows a gap.
+- The network cannot keep up: frames were dropped up to the next keyframe, never sent late in a
+  pile, and the recording showed a gap; since `specs/007-store-and-forward` the phone keeps them
+  and sends them as the network takes them, each with its own moment, the laptop behind live
+  meanwhile.
 - Two phones: each gets a port of its own (the dialog's rule since 0.4.0); the clock exchange uses
   the same port number over UDP.
 

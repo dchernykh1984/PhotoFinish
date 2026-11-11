@@ -29,8 +29,11 @@ Formats: [output and journal](../001-video-refinement/contracts/output-and-journ
 ## Recording
 
 Each camera is recorded by a process of its own, the program run as
-`PhotoFinish --recorder <camera>`. The window starts it, or finds it running and attaches to it;
-killing the window does not stop it, and a recorder that dies is started again after 1 s, the
+`PhotoFinish --recorder <camera>`. The window starts it, or finds it running and attaches to it
+-- one of another version, as an update leaves, it asks to stop and replaces with its own, the
+camera list saying so (`specs/007-store-and-forward`); the heartbeat names its version, read from
+the `pyproject.toml` the program carries. Killing the window does not stop a recorder, and one
+that dies is started again after 1 s, the
 pause doubling to 30 s while it keeps failing. A lock keeps a second recorder off a camera.
 The segment being written reaches the disk as it is written, its video every 0.1 s: the frames a
 dead recorder wrote whole are shown once the next one starts, so a crash costs the time the
@@ -46,12 +49,23 @@ recorder is down and at most the 0.1 s before it.
   camera answers the phone's clock exchange over UDP on the camera's port, and the phone keeps
   its camera clock in step from it (`specs/003-phone-camera-app/contracts/phone-stream.md`):
   Wi-Fi delays do not move the frame. A connection's first frame decides for all of it: a moment
-  not after the frame was read and at most 5 s before it is believed; else -- no moments, or a
+  not after the frame was read and at most 5 s before it -- longer by what the phone says it
+  kept the frame, `held_ms` -- is believed; else -- no moments, or a
   phone clock out of step -- its frames are placed by their arrival, and the camera list says
   why. A port another program holds is tried again every 5 s, and said meanwhile. A phone that
   hangs up is listened for again at once. A pushed stream is looked over for half a second
   before its first frame (FFmpeg's default is five), so frames placed by their arrival are not
   seconds late.
+- PhotoFinish Camera keeps every frame on the phone until the recorder has acknowledged reading
+  it (`specs/007-store-and-forward`): a network break, a network slower than the stream or the
+  recorder starting again costs no frame while the phone has room -- 2 GB for all its lenses,
+  1 GB left free. After a loss it sends again from 2 s before the newest frame acknowledged, then
+  what it kept, then live, as fast as the network takes them; the recorder writes a frame whose
+  moment it listed in the last 10 s, this run's or the last's, for the frames after it to decode,
+  without listing it twice or noting a gap for it. While a phone catches up the camera list says
+  how many seconds behind live it is, from 2 s on. Tried on the emulator: the recorder killed for
+  10 s and started again, or frozen for 10 s: no frame missing, none listed twice. Stop on the
+  phone drops what it kept.
 - A segment is shown once it is closed, about a second after its first frame: the newest frame
   is on screen within 2 s of its capture for cameras with a keyframe at least every second.
 - Below 2 GB free the camera list says so; a full disk stops the recorder, which keeps what it
@@ -105,12 +119,13 @@ or a swaying patch.
   (a file opened as it is does not count), red NOT RECORDING while one is not -- its stream
   lost, its recorder down or not started, still waiting for its camera -- naming each such
   camera and the time of its last frame on the timing source's scale. A stream that stops
-  sending is noticed after the recorder's 5 s read timeout. No dialog and no sound.
+  sending is noticed after the recorder's 5 s read timeout. A lens the phone says it leaves out
+  does not count: its line says so in amber. No dialog and no sound.
 - **Phones.** Under it, a line per phone running PhotoFinish Camera with what may stop its
   stream, read from the status its keyframes carry once a second (`specs/005-phone-status`):
   battery with a charging mark, the battery's heat and the phone's thermal state, Wi-Fi signal,
-  power saver, frames dropped for the network in the last minute, the lenses asked for that the
-  phone does not stream. Amber when worth a look -- 25 % or less and not
+  power saver, frames the phone could not keep for sending in the last minute, the lenses asked
+  for that the phone does not stream. Amber when worth a look -- 25 % or less and not
   charging, 40 degrees C, thermal moderate, -70 dBm, saver on, frames dropped, a lens left out -- red when the
   stream is at risk: 10 % or less and not charging, 45 degrees C, thermal severe, -80 dBm. A
   status not heard for 5 s, by this computer's clock, stays greyed with its time on the
