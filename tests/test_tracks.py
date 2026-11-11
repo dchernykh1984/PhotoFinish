@@ -189,6 +189,20 @@ def test_riders_crossing_on_one_sample_are_read_on_one_picture_of_it(
     assert pictures[0] is pictures[1]  # converted once for both
 
 
+def test_a_reader_that_cannot_be_loaded_is_said_and_costs_the_numbers_alone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def unloadable() -> Any:
+        raise RuntimeError("onnxruntime: bad model")
+
+    monkeypatch.setattr(analyzer, "_reader", unloadable)
+    suggested = suggested_by(FakeDetector, 300, tmp_path, monkeypatch)
+    assert suggested and all("number" not in s for s in suggested)
+    progress = json.loads((tmp_path / "video" / "cam1" / "analyzer.json").read_text())
+    said = "the number reader cannot be loaded: onnxruntime: bad model"
+    assert progress["numbers"] == said
+
+
 def test_a_reader_that_fails_costs_the_number_not_the_crossing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

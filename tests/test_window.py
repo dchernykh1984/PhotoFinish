@@ -2269,6 +2269,23 @@ def test_the_number_reader_s_download_is_said_once_for_both_its_models(
     assert said[-1] == "The number reader is ready"
 
 
+def test_the_camera_line_says_why_the_reader_there_reads_no_numbers(
+    recording: Path,
+    make_window: Callable[[], mw.MainWindow],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    saved = session.load()
+    saved["analysis"] = {"on": True, "model": "m.onnx", "crossings": True}
+    session.save(saved)
+    monkeypatch.setattr(mw.models, "ready", lambda model: True)
+    said = "the number reader cannot be loaded: bad"
+    progress = {"state": "waiting", "numbers": said}
+    (recording / "video" / "cam1" / "analyzer.json").write_text(json.dumps(progress))
+    win = make_window()
+    win.poll()
+    assert win.camera_list.item(0).text().endswith(f"; numbers: {said}")
+
+
 def test_no_number_reader_is_fetched_without_a_detector_to_read_for(
     recording: Path,
     make_window: Callable[[], mw.MainWindow],
