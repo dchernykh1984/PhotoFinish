@@ -17,7 +17,9 @@ import android.view.Surface
 import com.dchernykh.photofinish.camera.pairing.Lens
 import com.dchernykh.photofinish.camera.pairing.LensTarget
 import com.dchernykh.photofinish.camera.status.PhoneStatusReader
+import com.dchernykh.photofinish.camera.stream.FrameStore
 import com.dchernykh.photofinish.camera.stream.UplinkStatus
+import java.io.File
 import java.util.concurrent.Executor
 
 /** What the camera side says to the screen: of the cameras as a whole, or of one lens. */
@@ -67,6 +69,10 @@ class CameraStreamer(
     /** Counts the opens: a callback of an earlier one says nothing. Read from the uplinks' threads too. */
     @Volatile private var generation = 0
 
+    /** Where the lenses keep their frames until sent (specs/007), and each one's share of the room. */
+    private val kept = File(context.filesDir, KEPT)
+    private var share = FrameStore.SHARE_BYTES
+
     /** The cameras into [preview]; with [targets], each lens into its encoder and up to PhotoFinish too. */
     fun start(
         preview: Surface,
@@ -98,6 +104,10 @@ class CameraStreamer(
     ) {
         close()
         val mine = ++generation
+        // shortcut: a camera opened again drops what its lenses kept, as their streams start anew; keep the
+        // stores across an open if a camera lost in the middle of a network break is seen to cost frames.
+        kept.deleteRecursively() // what a killed app kept, too: never sent
+        share = FrameStore.SHARE_BYTES / targets.size.coerceAtLeast(1)
         val plan = plan(lenses, targets) ?: return onStatus(null, StreamerStatus.Failed("no back camera"))
         plan.left.forEach { (lens, why) -> onStatus(lens, StreamerStatus.Left(why)) }
         leftOut = plan.left.keys.map { it.code }
@@ -229,6 +239,7 @@ class CameraStreamer(
                             },
                             onFirstFrame = { stream, ptsUs -> clockOfFrames(stream, ptsUs, mine) },
                             status = { dropped -> phone.read().copy(dropped = dropped, left = leftOut).line() },
+                            store = FrameStore(File(kept, lens.code), share),
                         )
                 } catch (error: Exception) {
                     onStatus(lens, failed(error))
@@ -365,6 +376,7 @@ class CameraStreamer(
 
     companion object {
         private const val OPEN_AGAIN_MS = 2_000L
+        private const val KEPT = "kept"
 
         private fun failed(error: Exception) = StreamerStatus.Failed(error.message ?: error.javaClass.simpleName)
 
