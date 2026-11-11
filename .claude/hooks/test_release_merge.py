@@ -70,6 +70,15 @@ class MergesTests(unittest.TestCase):
             HOOK.merges("/bin/zsh -c 'gh pr merge 19 --admin'"), [["19", "--admin"]]
         )
 
+    def test_gh_by_its_path_and_a_shell_s_combined_flags(self) -> None:
+        self.assertEqual(
+            HOOK.merges("/opt/homebrew/bin/gh pr merge 21 --admin"), [["21", "--admin"]]
+        )
+        self.assertEqual(
+            HOOK.merges('bash -lc "gh pr merge 21 --admin"'), [["21", "--admin"]]
+        )
+        self.assertEqual(HOOK.merges("ls -c 'gh pr merge 21'"), [])  # no shell
+
     def test_no_merge(self) -> None:
         self.assertEqual(HOOK.merges("gh pr view 19 && gh run list"), [])
         self.assertEqual(HOOK.merges("echo 'unclosed"), [])
