@@ -138,3 +138,10 @@ opens a release PR, and merging that cuts the tag, builds the portable apps for
 every platform and PhotoFinish Camera's signed APK, and attaches them to the
 GitHub release. Do not bump the version
 in `pyproject.toml` by hand.
+
+A release PR goes out only this way, never with `--admin`: approve its
+pipeline (its runs wait for a maintainer, as release-please pushed its
+commits), wait for the pipeline to go green and fix whatever is red, approve
+the release PR and merge it, then wait for the release build to finish and
+check its assets. The commands are in the `shipping-a-change` skill; a
+PreToolUse hook (`.claude/hooks/pre-bash.sh`) denies the merge otherwise.
