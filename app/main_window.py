@@ -466,7 +466,7 @@ class MainWindow(QMainWindow):
         camera = self._camera()
         if camera is None:
             return
-        name = camera.settings.get("name", camera.id)
+        name = self._name(camera.id)
         answer = QMessageBox.question(
             self,
             "Remove the camera",
@@ -1259,13 +1259,12 @@ class MainWindow(QMainWindow):
         camera.stopping = process  # none before: _analyze cleared it to start this one
 
     def accept_suggestion(self) -> None:
-        """The crossing suggested -- by one camera or several, at their median
-        moment -- with the number typed, else the one read, through the output's
-        usual path; the journal names the camera at the median and its model."""
-        chosen = self._suggestion()
-        if chosen is None:
+        """The crossing suggested -- by one camera or several, at the median
+        camera's moment -- with the number typed, else the one read, through the
+        output's usual path; the journal names that camera and its model."""
+        suggested = self._suggestion()
+        if suggested is None:
             return
-        suggested = chosen
         number = self.number.text().strip() or suggested.number
         if self.output is None or not number:
             self._say("Type the rider's number first; the output file must be chosen")
@@ -1547,13 +1546,13 @@ class MainWindow(QMainWindow):
                 )
             else:
                 state += f"; riders {self._riders_progress(camera)}"
-        camera.item.setText(f"{camera.settings.get('name', camera.id)}: {state}")
+        camera.item.setText(f"{self._name(camera.id)}: {state}")
         return info
 
     def _missing(self, camera: Camera) -> str:
         """A camera that does not record, as the corner names it: with the time of
         its last frame, on the timing source's scale as the time shown is."""
-        name = camera.settings.get("name", camera.id)
+        name = self._name(camera.id)
         if not len(camera.index):
             return f"{name}: no video yet"
         last = int(camera.index.ms[-1]) + int(camera.settings.get("offset_ms", 0))
@@ -1598,7 +1597,7 @@ class MainWindow(QMainWindow):
                 else f"<span style='color: {LEVELS[level]}'>{html.escape(text)}</span>"
                 for text, level in phone_status.readings(status)
             ]
-            name = html.escape(str(camera.settings.get("name", camera.id)))
+            name = html.escape(self._name(camera.id))
             line = f"{name}: " + " &nbsp; ".join(parts)
             if old:
                 heard = self._heard(camera, status)
@@ -1845,7 +1844,7 @@ class MainWindow(QMainWindow):
             return
         if not self._frame_on_screen():
             return
-        name = camera.settings.get("name", camera.id)
+        name = self._name(camera.id)
         frame = camera.index.frame(self.place)
         self.shared_event, offset = shared_event.mark(
             self.shared_event,
