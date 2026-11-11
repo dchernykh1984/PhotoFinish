@@ -85,8 +85,14 @@ def rtmp_url(settings: dict[str, Any], host: str) -> str:
     return f"rtmp://{host}:{settings.get('port', RTMP_PORT)}/{settings['path']}"
 
 
-# PhotoFinish Camera's lenses, as its pairing code names them (004, FR-002).
-LENSES = ("main", "ultrawide", "telephoto", "front")
+# PhotoFinish Camera's lenses, as its pairing code names them (004, FR-002), with
+# their names on screen: the one list of them.
+LENSES = {
+    "main": "Main",
+    "ultrawide": "Ultra-wide",
+    "telephoto": "Telephoto",
+    "front": "Front",
+}
 
 
 def pairing_text(streams: list[tuple[str, str]]) -> str:
