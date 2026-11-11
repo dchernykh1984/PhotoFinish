@@ -79,13 +79,15 @@ data class PlannedCamera(
 /**
  * Starts each camera in turn, [start] told whether it takes the preview: the first one started
  * does, so a camera that streams nothing -- no size its lenses give -- leaves it to the next.
+ * Whether one took it.
  */
 fun <T> startInTurn(
     cameras: List<T>,
     start: (T, Boolean) -> Boolean,
-) {
+): Boolean {
     var preview = true
     cameras.forEach { if (start(it, preview)) preview = false }
+    return !preview
 }
 
 /**
