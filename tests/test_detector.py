@@ -141,7 +141,10 @@ def test_a_model_that_cannot_be_used_stops_the_analysis_and_says_why(
     analysis = {"on": True, "model": "junk.onnx"}
     session.save({**session.DEFAULTS, "cameras": [camera], "analysis": analysis})
     (base / "video" / "cam1").mkdir(parents=True)
+    before = {"state": "waiting", "numbers": "the number reader cannot be loaded: x"}
+    (base / "video" / "cam1" / "analyzer.json").write_text(json.dumps(before))
     assert analyzer.run("cam1", stop=lambda: False, once=True) == 2
     progress = json.loads((base / "video" / "cam1" / "analyzer.json").read_text())
     assert progress["state"] == "failed"
     assert progress["detail"].startswith("the model cannot be loaded")
+    assert progress["numbers"] == ""  # an earlier run's word on the reader, gone
