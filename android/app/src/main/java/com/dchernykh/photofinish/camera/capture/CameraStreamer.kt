@@ -16,6 +16,7 @@ import android.util.Range
 import android.view.Surface
 import com.dchernykh.photofinish.camera.pairing.Lens
 import com.dchernykh.photofinish.camera.pairing.LensTarget
+import com.dchernykh.photofinish.camera.status.PhoneStatusReader
 import com.dchernykh.photofinish.camera.stream.UplinkStatus
 import java.util.concurrent.Executor
 
@@ -50,6 +51,7 @@ sealed interface StreamerStatus {
 class CameraStreamer(
     private val context: Context,
     private val lenses: PhoneLenses,
+    private val phone: PhoneStatusReader,
     private val onStatus: (Lens?, StreamerStatus) -> Unit,
 ) {
     private val manager = context.getSystemService(CameraManager::class.java)
@@ -192,6 +194,7 @@ class CameraStreamer(
                         common,
                         report = { status -> if (mine == generation) onStatus(lens, StreamerStatus.Link(status)) },
                         onFirstFrame = { stream, ptsUs -> clockOfFrames(stream, ptsUs, mine) },
+                        status = { dropped -> phone.read().copy(dropped = dropped).line() },
                     )
             }
             return true

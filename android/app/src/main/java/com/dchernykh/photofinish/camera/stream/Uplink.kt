@@ -62,6 +62,12 @@ class Uplink(
     /** How long into a connection a clock that comes makes a new one: its start, not the race. */
     internal var stampWindowMs = STAMP_WINDOW_MS
 
+    /**
+     * The phone's status line a keyframe carries, given the frames dropped so far; null for none
+     * (specs/005-phone-status). Set before [run].
+     */
+    var status: (Long) -> String? = { null }
+
     private val queue = LinkedBlockingQueue<EncodedFrame>(maxOf(format.fps * QUEUE_SECONDS, 1))
     private val slew = OffsetSlew()
 
@@ -178,7 +184,11 @@ class Uplink(
         sample: Sample?,
     ) {
         val units = Avc.splitAnnexB(frame.data).toMutableList()
-        if (sample != null) units.add(0, Sei.frameMoment(frame.ptsUs + slew.at(frame.ptsUs, sample.offset)))
+        var head = 0
+        if (sample != null) units.add(head++, Sei.frameMoment(frame.ptsUs + slew.at(frame.ptsUs, sample.offset)))
+        // The status after the moment: a reader looking for the moment finds it first. A status
+        // the phone fails to read costs this keyframe its status, never the connection.
+        if (frame.keyframe) runCatching { status(dropped) }.getOrNull()?.let { units.add(head, Sei.phoneStatus(it)) }
         sendingSince = System.nanoTime()
         try {
             connected.sendFrame(sinceStartUs / 1000, frame.keyframe, units)

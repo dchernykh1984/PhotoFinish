@@ -143,6 +143,37 @@ class UplinkTest {
     }
 
     @Test
+    fun `keyframes carry the phone's status after their moment, with the frames dropped so far`() {
+        val sink = FakeSink()
+        val link = uplink(listOf(sink))
+        val asked = CopyOnWriteArrayList<Long>()
+        link.status = { dropped -> "battery=57;dropped=$dropped".also { asked += dropped } }
+        start(link)
+        awaitConnected()
+        link.offer(frame(0, keyframe = true))
+        link.offer(frame(33_333, keyframe = false))
+        val key = sink.next()
+        assertEquals(listOf(Avc.NAL_SEI, Avc.NAL_SEI, Avc.NAL_IDR), key.units.map { Avc.type(it) })
+        assertEquals(1_000_000L, momentOf(key.units[0])) // the moment first, for its reader
+        val status = unescape(key.units[1].copyOfRange(1, key.units[1].size))
+        assertEquals("PFS1battery=57;dropped=0", String(status.copyOfRange(18, 18 + 24)))
+        assertEquals(listOf(Avc.NAL_SEI, 1), sink.next().units.map { Avc.type(it) }) // a slice: no status
+        assertEquals(listOf(0L), asked)
+    }
+
+    @Test
+    fun `a status the phone fails to read costs the keyframe its status, not the connection`() {
+        val sink = FakeSink()
+        val link = uplink(listOf(sink), offset = null, waitForClockMs = 50)
+        link.status = { error("no battery") }
+        start(link)
+        awaitConnected()
+        link.offer(frame(0, keyframe = true))
+        assertEquals(listOf(Avc.NAL_IDR), sink.next().units.map { Avc.type(it) })
+        assertFalse(statuses.any { it is UplinkStatus.Reconnecting })
+    }
+
+    @Test
     fun `without the clock frames go without moments, and it is said`() {
         val sink = FakeSink()
         val link = uplink(listOf(sink), offset = null, waitForClockMs = 50)

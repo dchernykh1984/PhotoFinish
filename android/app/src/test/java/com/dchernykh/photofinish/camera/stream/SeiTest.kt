@@ -23,6 +23,20 @@ class SeiTest {
     }
 
     @Test
+    fun `the phone's status is a line under its own mark, its size past 254 as SEI writes it`() {
+        val short = unescape(Sei.phoneStatus("battery=57").let { it.copyOfRange(1, it.size) })
+        assertEquals(5, short[0].toInt())
+        assertEquals(16 + 4 + 10, short[1].toInt())
+        assertArrayEquals("PFS1battery=57".toByteArray(), short.copyOfRange(18, 18 + 14))
+        val line = "x".repeat(300)
+        val long = unescape(Sei.phoneStatus(line).let { it.copyOfRange(1, it.size) })
+        assertEquals(0xFF, long[1].toInt() and 0xFF) // 320 = 255 + 65
+        assertEquals(320 - 255, long[2].toInt())
+        assertArrayEquals(("PFS1" + line).toByteArray(), long.copyOfRange(19, 19 + 304))
+        assertEquals(0x80.toByte(), long.last())
+    }
+
+    @Test
     fun `two zeros before a byte up to 3 get an emulation-prevention byte`() {
         assertArrayEquals(
             byteArrayOf(0, 0, 3, 1, 0, 0, 3, 0, 0, 3, 3, 4),

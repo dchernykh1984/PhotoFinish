@@ -65,13 +65,14 @@ internal class LensStream private constructor(
 
         /**
          * [planned]'s stream at [format], started: [report] hears its uplink, [onFirstFrame] the
-         * first frame's presentation time.
+         * first frame's presentation time; [status] gives the phone's status line for each keyframe.
          */
         fun start(
             planned: PlannedLens,
             format: StreamFormat,
             report: (UplinkStatus) -> Unit,
             onFirstFrame: (LensStream, Long) -> Unit,
+            status: (Long) -> String?,
         ): LensStream {
             val media = mediaFormat(format)
             val codec = encoderFor(media)
@@ -95,6 +96,7 @@ internal class LensStream private constructor(
                     requestKeyframe = { requestKeyframe(codec) },
                     report = report,
                 )
+            uplink.status = status
             val stream = LensStream(planned, codec, surface, uplink, sync)
             val name = planned.target.lens.code
             Thread({ uplink.run() }, "uplink-$name").start()
