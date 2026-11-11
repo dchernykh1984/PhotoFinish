@@ -630,6 +630,16 @@ def test_a_recorder_is_described_as_the_referee_needs() -> None:
     assert describe({"state": "stopped", "heartbeat_ms": 0}) == "stopped"
 
 
+def test_a_phone_catching_up_says_how_far_behind_live_it_is() -> None:
+    from app.recorder.launcher import describe
+
+    recording = {"state": "recording", "heartbeat_ms": now_ms(), "frames": 5}
+    assert describe({**recording, "behind_ms": 12_345}) == (
+        "recording, 5 frames, 12 s behind"
+    )
+    assert describe({**recording, "behind_ms": 1_999}) == "recording, 5 frames"
+
+
 def test_record_again_before_a_stop_is_heard_withdraws_it(folder: Path) -> None:
     beat(folder, "recording")
     spawns = Spawns()
