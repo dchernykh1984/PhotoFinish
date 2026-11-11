@@ -33,6 +33,7 @@ from app.main_window import start_analyzer
 from app.recorder import free_ids, launcher
 from app.recorder.segments import SegmentWriter
 from app.recorder.testcam import read_time, render
+from app.version import version
 from app.widgets.camera_dialog import CameraDialog
 from tests.conftest import Zone, settled, wait_until
 
@@ -57,7 +58,8 @@ def beating(base: Path, camera_id: str = "cam1", **info: Any) -> None:
     """A recorder that is running, as its heartbeat says."""
     folder = base / "video" / camera_id
     folder.mkdir(parents=True, exist_ok=True)
-    beat = {"state": "recording", "frames": 70, "detail": ""} | info
+    beat = {"state": "recording", "frames": 70, "detail": "", "version": version()}
+    beat |= info
     beat["heartbeat_ms"] = time.time_ns() // 1_000_000
     (folder / "recorder.json").write_text(json.dumps(beat))
 
@@ -597,6 +599,25 @@ def test_the_list_says_how_each_recorder_is(
     beating(recording, state="disk_full")
     win.poll()
     assert win.camera_list.item(0).text() == "Side: disk full, recording stopped"
+
+
+def test_the_list_says_a_recorder_of_another_version_is_being_replaced(
+    base: Path, make_window: Callable[[], mw.MainWindow], spawned: list[str]
+) -> None:
+    # specs/007: the window found 0.5.0's recorder at work after an update.
+    session.save({**session.DEFAULTS, "cameras": [CAMERA]})
+    beating(base, version="0.5.0")
+    win = make_window()
+    assert spawned == []  # asked to stop first
+    assert (base / "video" / "cam1" / "stop.request").exists()
+    win.poll()
+    assert win.camera_list.item(0).text() == (
+        "Side: replacing the recorder of PhotoFinish 0.5.0 with this one's"
+    )
+    beating(base, state="stopped", version="0.5.0")
+    win.poll()
+    assert spawned == ["cam1"]  # this version's, once the old one has stopped
+    assert "replacing" not in win.camera_list.item(0).text()
 
 
 def test_the_corner_says_whether_every_camera_records(

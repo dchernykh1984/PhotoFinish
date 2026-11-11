@@ -16,8 +16,10 @@ import pytest
 from app import paths, session
 from app.recorder import launcher
 from app.recorder.launcher import Watchdog, alive, command, heartbeat
+from app.version import version as program_version
 
 ROOT = Path(__file__).resolve().parents[1]
+THIS = program_version()  # a recorder of this program's, as most tests have it
 
 
 def now_ms() -> int:
@@ -37,9 +39,18 @@ def clock(monkeypatch: pytest.MonkeyPatch) -> dict[str, float]:
     return moment
 
 
-def beat(folder: Path, state: str, age_ms: int = 0, pid: int = 4242) -> None:
+def beat(
+    folder: Path,
+    state: str,
+    age_ms: int = 0,
+    pid: int = 4242,
+    version: str | None = THIS,  # None: a recorder of 0.6.0 and before, naming none
+) -> None:
     folder.mkdir(parents=True, exist_ok=True)
-    info = {"state": state, "heartbeat_ms": now_ms() - age_ms, "pid": pid}
+    info: dict[str, Any] = {"state": state, "heartbeat_ms": now_ms() - age_ms}
+    info["pid"] = pid
+    if version is not None:
+        info["version"] = version
     (folder / "recorder.json").write_text(json.dumps(info))
 
 
@@ -638,6 +649,76 @@ def test_a_phone_catching_up_says_how_far_behind_live_it_is() -> None:
         "recording, 5 frames, 12 s behind"
     )
     assert describe({**recording, "behind_ms": 1_999}) == "recording, 5 frames"
+
+
+def test_a_recorder_of_another_version_is_replaced_once_it_has_stopped(
+    folder: Path, clock: dict[str, float]
+) -> None:
+    # specs/007: an update left the recorder 0.5.0 started at work under 0.6.0.
+    beat(folder, "recording", version="0.5.0")
+    spawns = Spawns()
+    watchdog = Watchdog("cam1", spawns)
+    watchdog.start()
+    assert (folder / "stop.request").exists()  # asked to stop
+    assert watchdog.replacing == "PhotoFinish 0.5.0"
+    watchdog.poll()
+    assert not spawns.processes  # it records on until it has stopped
+    beat(folder, "stopped", version="0.5.0")
+    watchdog.poll()
+    assert len(spawns.processes) == 1  # this program's, at once
+    assert not watchdog.replacing
+    assert not (folder / "stop.request").exists()
+
+
+def test_a_recorder_that_names_no_version_is_an_older_one_replaced(
+    folder: Path, clock: dict[str, float]
+) -> None:
+    beat(folder, "recording", version=None)
+    spawns = Spawns()
+    watchdog = Watchdog("cam1", spawns)
+    watchdog.start()
+    assert watchdog.replacing == "an older PhotoFinish"
+    beat(folder, "recording", age_ms=60_000, version=None)  # it hung: gone stale
+    watchdog.poll()
+    assert len(spawns.processes) == 1
+
+
+def test_a_recorder_of_this_version_is_attached_to(
+    folder: Path, clock: dict[str, float]
+) -> None:
+    beat(folder, "recording")
+    spawns = Spawns()
+    watchdog = Watchdog("cam1", spawns)
+    watchdog.start()
+    watchdog.poll()
+    assert not watchdog.replacing
+    assert not (folder / "stop.request").exists()
+    assert not spawns.processes
+
+
+def test_a_window_that_cannot_tell_its_version_replaces_no_recorder(
+    folder: Path, clock: dict[str, float], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(launcher, "version", lambda: "")
+    beat(folder, "recording", version="0.5.0")
+    watchdog = Watchdog("cam1", Spawns())
+    watchdog.start()
+    assert not watchdog.replacing
+    assert not (folder / "stop.request").exists()
+
+
+def test_a_replacement_the_window_stops_meanwhile_starts_none(
+    folder: Path, clock: dict[str, float]
+) -> None:
+    beat(folder, "recording", version="0.5.0")
+    spawns = Spawns()
+    watchdog = Watchdog("cam1", spawns)
+    watchdog.start()
+    watchdog.stop()  # the camera removed while the old one stops
+    beat(folder, "stopped", version="0.5.0")
+    watchdog.poll()
+    assert not spawns.processes
+    assert not watchdog.replacing
 
 
 def test_record_again_before_a_stop_is_heard_withdraws_it(folder: Path) -> None:

@@ -22,6 +22,7 @@ from typing import Any
 import app
 from app import files, paths
 from app.recorder import STALE_MS, Backoff, folder_of
+from app.version import version
 
 ENDED = ("stopped", "failed", "disk_full")
 START_GRACE_S = 30  # a frozen onefile build unpacks itself before its first heartbeat
@@ -123,14 +124,24 @@ class Watchdog:
         self._dead: subprocess.Popen[bytes] | None = None
         self._died_beat: int | None = None
         self.error = ""  # why the recorder could not be started, until one is
+        # The program of a running recorder being replaced by this one's (specs/007):
+        # "" when none is.
+        self.replacing = ""
 
     def start(self) -> None:
         """Record: attach to a running recorder, or start one. A stop asked before,
-        and not yet heard, is withdrawn either way."""
+        and not yet heard, is withdrawn either way. A running recorder of another
+        version is asked to stop, and replaced once it has (``poll``)."""
         self.wanted = True
         self._retry_at = None
         (folder_of(self.camera_id) / "stop.request").unlink(missing_ok=True)
-        if self._running(heartbeat(self.camera_id)):
+        info = heartbeat(self.camera_id)
+        if self._running(info):
+            self.replacing = ""  # one this window started is of its own program
+            if info is not None and self._process is None:
+                self.replacing = _another_program(info)
+            if self.replacing:
+                (folder_of(self.camera_id) / "stop.request").touch()
             return
         self._started_ms = time.time_ns() // 1_000_000  # an end before: not its own
         try:
@@ -150,9 +161,16 @@ class Watchdog:
 
     def poll(self) -> dict[str, Any] | None:
         """The heartbeat, for the window; a dead recorder is started again after
-        the pause."""
+        the pause, one being replaced at once once it has ended."""
         info = heartbeat(self.camera_id)
         now = time.monotonic()
+        if self.replacing:
+            if alive(info):
+                return info
+            self.replacing = ""
+            if self.wanted:
+                self.start()
+            return info
         if self._running(info):
             self.backoff.running(now)
             self._retry_at = None
@@ -209,6 +227,16 @@ class Watchdog:
             and process.poll() is None
             and now - self._started < START_GRACE_S
         )
+
+
+def _another_program(info: dict[str, Any]) -> str:
+    """The program a recorder runs, as the camera's line names it, when it is not
+    this one: of another version, or of none (0.6.0 and before); "" when it is this
+    one, or this one cannot tell its own."""
+    mine, theirs = version(), str(info.get("version") or "")
+    if not mine or theirs == mine:
+        return ""
+    return f"PhotoFinish {theirs}" if theirs else "an older PhotoFinish"
 
 
 _STATES = {"disk_full": "disk full, recording stopped"}

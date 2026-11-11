@@ -1540,6 +1540,8 @@ class MainWindow(QMainWindow):
         info = (watchdog.poll() if watchdog.wanted else None) or heartbeat(camera.id)
         if watchdog.wanted and watchdog.error:
             state = f"the recorder cannot be started: {watchdog.error}"
+        elif watchdog.replacing:  # an update came between: this version's records
+            state = f"replacing the recorder of {watchdog.replacing} with this one's"
         elif info is not None:
             state = describe(info)
         else:
