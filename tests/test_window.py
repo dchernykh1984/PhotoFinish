@@ -2678,11 +2678,19 @@ def test_a_number_reader_come_after_crossings_were_turned_off_restarts_nothing(
     assert len(analyzers) == started
 
 
-def suggestions_at(base: Path, camera_id: str, moments: list[int]) -> None:
+def suggestions_at(
+    base: Path, camera_id: str, moments: list[int], number: str = ""
+) -> None:
     """The camera's analyser suggested crossings at these moments."""
     lines = []
     for ms in moments:
-        entry = {"id": f"{camera_id}-{ms}", "camera": camera_id, "ms": ms}
+        entry: dict[str, Any] = {
+            "id": f"{camera_id}-{ms}",
+            "camera": camera_id,
+            "ms": ms,
+        }
+        if number:
+            entry |= {"number": number, "number_sure": 0.9}
         entry |= {
             "model": "m",
             "frames": [["a.mkv", 1, ms - 10], ["a.mkv", 2, ms + 23]],
@@ -2694,17 +2702,25 @@ def suggestions_at(base: Path, camera_id: str, moments: list[int]) -> None:
 def test_the_suggestions_are_listed_in_the_order_of_their_moments_shown(
     two: None, make_window: Callable[[], mw.MainWindow], base: Path
 ) -> None:
-    analysis = {"on": True, "model": "m.onnx", "crossings": True}
-    session.save({**session.load(), "analysis": analysis})
-    suggestions_at(base, "cam1", [FLASH, FLASH + 100])
-    suggestions_at(base, "cam2", [FLASH + 120, FLASH + 280])  # 280: with Side's 0
-    done = json.dumps({"id": f"cam1-{FLASH}", "done": "dismissed"}) + "\n"
-    (base / "video" / "cam1" / "suggestions.done.jsonl").write_text(done)
+    """A crossing begun first may show a later moment: its median camera's."""
+    top = {"id": "cam3", "name": "Top", "connection": "test", "settings": {"fps": 25}}
+    saved = session.load()
+    saved["cameras"] = [*saved["cameras"], top]
+    saved["analysis"] = {"on": True, "model": "m.onnx", "crossings": True}
+    session.save(saved)
+    (base / "video" / "cam3").mkdir(parents=True, exist_ok=True)
+    suggestions_at(base, "cam1", [FLASH], number="12")
+    suggestions_at(base, "cam2", [FLASH + 200])
+    suggestions_at(base, "cam3", [FLASH + 50], number="34")  # another rider
+    with (base / "video" / "cam3" / "suggestions.jsonl").open("a") as more:
+        more.write(json.dumps({"id": "cam3-late", "camera": "cam3", "ms": FLASH + 210}))
+        more.write("\n")
     win = make_window()
     shown = [win.suggestion_list.item(n).text() for n in range(2)]
-    side = scale_time(to_line_scale(FLASH + 100, False)).split(" ")[1]
-    assert shown[0].startswith(side)  # Side's 100, Front's 120 with it
-    assert shown[1].endswith("(one dismissed with it)")  # Front's 280, after
+    clock = scale_time(to_line_scale(FLASH + 50, False)).split(" ")[1]
+    assert shown[0] == f"{clock}  Top  no. 34"
+    later = scale_time(to_line_scale(FLASH + 200, False)).split(" ")[1]
+    assert shown[1] == f"{later}  Side, Front, Top  no. 12"  # begun first, at Front's
 
 
 def test_a_removed_camera_s_suggestions_leave_the_list_with_it(

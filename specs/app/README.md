@@ -187,7 +187,7 @@ helps find the moments to look at.
   each joining the nearest, listed once at the median camera's moment -- for an even count the
   earlier of the two in the middle -- with the cameras that saw it; one camera's are never
   gathered, so riders abreast stay apart, nor are those whose numbers were read apart: two riders,
-  each seen by one camera. Pick one to see it; **Accept with the number**
+  each seen by one camera; nor does one join a crossing whose camera has a suggestion nearer to it. Pick one to see it; **Accept with the number**
   adds the crossing through the output's usual path -- with the number typed, else the one
   read -- journaled with the model and the camera at the median; **Dismiss** drops it, every
   camera's suggestion of it. Neither comes back.

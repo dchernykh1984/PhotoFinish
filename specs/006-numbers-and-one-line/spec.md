@@ -85,7 +85,8 @@ finish-line edit mode.
   program. At a suggested crossing, the text in the rider's box is found and read; the digits of
   the most confident reading of at least 0.8 are the rider's number.
 - **FR-003**: Suggestions of different cameras within 0.3 s of each other, offsets applied, are one
-  crossing -- each joining the nearest, unless they read different numbers: two riders -- listed once at the median camera's moment (for an even
+  crossing -- each joining the nearest, unless they read different numbers, or one of its cameras
+  has a suggestion nearer to it: two riders -- listed once at the median camera's moment (for an even
   count, the earlier of the two in the middle) with each camera's, the number read, and
   accepted or dismissed together; the journal names that camera and its frames, which give the
   time written. A camera's suggestion arriving after its crossing was decided is offered still,
