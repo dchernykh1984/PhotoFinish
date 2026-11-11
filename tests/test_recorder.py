@@ -21,7 +21,7 @@ import pytest
 
 import app.recorder as recorder
 from app import paths, session
-from app.recorder import Backoff, Heartbeat, SteadyClock, run, sources
+from app.recorder import Backoff, Heartbeat, SteadyClock, free_ids, run, sources
 from app.recorder import segments as segments_module
 from app.recorder.segments import SegmentWriter
 from app.recorder.testcam import read_time, render
@@ -885,3 +885,9 @@ def test_a_segment_that_cannot_be_closed_does_not_end_the_recording(
     assert run("cam1") == 0
     assert states[-1] == "stopped"
     assert "reconnecting" in states
+
+
+def test_new_camera_ids_skip_those_taken_and_those_with_video(base: Path) -> None:
+    (base / "video" / "cam2").mkdir(parents=True)  # a camera removed: its video stays
+    assert free_ids({"cam1"}, 3) == ["cam3", "cam4", "cam5"]
+    assert free_ids(set(), 0) == []

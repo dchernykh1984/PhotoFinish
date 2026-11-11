@@ -19,7 +19,7 @@ import shutil
 import sys
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 from pathlib import Path
 from typing import IO, Any
 
@@ -49,6 +49,18 @@ CAMERA_ID = re.compile(r"[A-Za-z0-9_-]+")
 
 def folder_of(camera_id: str) -> Path:
     return app_path("video", camera_id)
+
+
+def free_ids(taken: Collection[str], count: int) -> list[str]:
+    """``count`` ids for new cameras: none ``taken``, none with a recording on disk
+    -- a camera removed keeps its video, which a new one must not take for its own."""
+    found: list[str] = []
+    n = 0
+    while len(found) < count:
+        n += 1
+        if f"cam{n}" not in taken and not folder_of(f"cam{n}").exists():
+            found.append(f"cam{n}")
+    return found
 
 
 class SteadyClock:
