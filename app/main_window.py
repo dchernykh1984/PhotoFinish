@@ -40,7 +40,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app import analysis, cameras, paths, playback, session, shared_event
+from app import analysis, cameras, paths, phone_status, playback, session, shared_event
 from app.analysis import models
 from app.analysis.activity import Activity, how_far
 from app.analysis.suggestions import Suggestions
@@ -85,6 +85,7 @@ BANNER = (
     " padding: 6px; border-radius: 4px; }}"
 )
 GREEN, RED = "#2e7d32", "#c62828"
+LEVELS = {phone_status.WARN: "#b26a00", phone_status.BAD: RED}  # a phone's readings
 
 
 @dataclass
@@ -106,6 +107,7 @@ class Camera:
     analyzer: Any = None  # its analyser process, while finding riders is on
     analyzer_started: float = -math.inf  # monotonic
     stopping: Any = None  # the analyser stopped, while it ends its segment
+    info: dict[str, Any] | None = None  # its recorder's last heartbeat
 
     @property
     def id(self) -> str:
@@ -153,6 +155,11 @@ class MainWindow(QMainWindow):
         self.recording_banner.setTextFormat(Qt.TextFormat.RichText)
         self.recording_banner.setWordWrap(True)
         self.recording_banner.hide()  # until a camera records
+        self.phones = QLabel()  # what may stop each phone's stream (specs/005)
+        self.phones.setTextFormat(Qt.TextFormat.RichText)
+        self.phones.setWordWrap(True)
+        self.phones.setStyleSheet("QLabel { font-size: 13px; }")
+        self.phones.hide()  # until a phone says how it is
         self.camera_list = QListWidget()
         self.camera_list.setWordWrap(True)
         self.camera_list.currentRowChanged.connect(self._choose_camera)
@@ -297,6 +304,7 @@ class MainWindow(QMainWindow):
         buttons.addWidget(self.one_camera)
         cameras = QVBoxLayout()
         cameras.addWidget(self.recording_banner)
+        cameras.addWidget(self.phones)
         cameras.addWidget(QLabel("Cameras"))
         cameras.addWidget(self.camera_list)
         cameras.addLayout(buttons)
@@ -1295,18 +1303,14 @@ class MainWindow(QMainWindow):
     def poll(self) -> None:
         finding = self.analysis_box.isChecked()
         suggested = False
-        recorders, missing = 0, []
         for camera in self.cameras.values():
             if finding:
                 camera.activity.refresh()  # its progress first: a failed one waits
                 suggested = camera.suggestions.refresh() or suggested
                 self._analyze(camera)
-            info = self._label(camera)
-            if camera.settings.get("record", True):
-                recorders += 1
-                if not recording(info):
-                    missing.append(self._missing(camera))
-        self._show_recording(recorders, missing)
+            camera.info = self._label(camera)
+        self._show_recording()
+        self._show_phones()
         if suggested:
             self._show_suggestions()
         if self.output is None and self.session.get("output"):
@@ -1356,11 +1360,13 @@ class MainWindow(QMainWindow):
         clock = scale_time(self._line_ms(last)).split(" ")[1].split(".")[0]
         return f"{name}: no video since {clock}"
 
-    def _show_recording(self, recorders: int, missing: list[str]) -> None:
+    def _show_recording(self) -> None:
         """The corner's word (FR-019): nothing with no camera that records, green
         while every one records, red naming those that do not."""
+        records = [c for c in self.cameras.values() if c.settings.get("record", True)]
+        missing = [self._missing(c) for c in records if not recording(c.info)]
         banner = self.recording_banner
-        banner.setVisible(recorders > 0)
+        banner.setVisible(bool(records))
         if missing:
             names = "<br>".join(html.escape(line) for line in missing)
             text = (
@@ -1373,6 +1379,41 @@ class MainWindow(QMainWindow):
         banner.setText(text)
         if banner.styleSheet() != style:  # set again, it would be polished again
             banner.setStyleSheet(style)
+
+    def _show_phones(self) -> None:
+        """Under the banner, a line per phone with what may stop its stream, each
+        reading amber or red as it worries (specs/005); a status no longer the
+        phone's now greyed, with when it came -- old by the recorder's clock, which
+        wrote both the status's time and its heartbeat's."""
+        lines = []
+        for camera in self.cameras.values():
+            info = camera.info or {}
+            status = info.get("phone")
+            if not isinstance(status, dict) or not status:
+                continue
+            old = phone_status.stale(status, int(info.get("heartbeat_ms", 0)))
+            parts = [
+                html.escape(text)
+                if old or level not in LEVELS
+                else f"<span style='color: {LEVELS[level]}'>{html.escape(text)}</span>"
+                for text, level in phone_status.readings(status)
+            ]
+            name = html.escape(str(camera.settings.get("name", camera.id)))
+            line = f"{name}: " + " &nbsp; ".join(parts)
+            if old:
+                heard = self._heard(camera, status)
+                line = f"<span style='color: gray'>{line} &nbsp; {heard}</span>"
+            lines.append(line)
+        self.phones.setVisible(bool(lines))
+        self.phones.setText("<br>".join(lines))
+
+    def _heard(self, camera: Camera, status: dict[str, Any]) -> str:
+        """When a phone's last status came, on the timing source's scale."""
+        try:
+            at = int(status["at_ms"]) + int(camera.settings.get("offset_ms", 0))
+        except KeyError, TypeError, ValueError:
+            return "last heard"
+        return "at " + scale_time(self._line_ms(at)).split(" ")[1].split(".")[0]
 
     def _riders_progress(self, camera: Camera) -> str:
         """How far the camera's analyser has got (FR-009)."""
