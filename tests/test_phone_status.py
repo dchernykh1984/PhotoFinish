@@ -56,6 +56,8 @@ def test_heat_wifi_saver_and_dropped_frames() -> None:
 def test_a_reading_not_given_or_not_a_number_is_left_out() -> None:
     assert phone_status.readings({}) == []
     assert phone_status.readings({"battery": "full", "wifi": "", "x": "1"}) == []
+    infinite = {"battery": "inf", "thermal": "inf", "temp": "nan", "wifi": "-1e999"}
+    assert phone_status.readings(infinite) == []
 
 
 def test_a_status_not_heard_for_five_seconds_is_stale() -> None:
