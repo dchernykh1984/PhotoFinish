@@ -62,6 +62,14 @@ class MergesTests(unittest.TestCase):
             HOOK.merges("gh pr \\\n merge 19 --admin"), [["19", "--admin"]]
         )
 
+    def test_a_merge_named_in_a_message_or_a_pattern_is_no_merge(self) -> None:
+        self.assertEqual(HOOK.merges('git commit -m "never gh pr merge --admin"'), [])
+        self.assertEqual(HOOK.merges("grep 'gh pr merge' -r ."), [])
+        self.assertEqual(HOOK.merges("eval 'gh pr merge 19'"), [["19"]])
+        self.assertEqual(
+            HOOK.merges("/bin/zsh -c 'gh pr merge 19 --admin'"), [["19", "--admin"]]
+        )
+
     def test_no_merge(self) -> None:
         self.assertEqual(HOOK.merges("gh pr view 19 && gh run list"), [])
         self.assertEqual(HOOK.merges("echo 'unclosed"), [])
