@@ -150,7 +150,6 @@ class CameraDialog(QDialog):
         self.form.addRow(self.buttons)
 
         self._here: str | None = None  # this computer's address, looked up at the open
-        self._shown = ("", "")  # the address shown and the code, as last set
         # A computer with no network address yet is looked for again every 2 s, not at
         # every key typed: a lookup with no network may take a while.
         self._network = QTimer(self)
@@ -252,9 +251,9 @@ class CameraDialog(QDialog):
         line per lens when several are ticked: none while the settings are wrong,
         no lens is ticked or the port is another phone's, which a phone scanning it
         would stream to; a word instead while this computer has no network address,
-        which would send the phone to itself. One lens alone is shown as its address
-        alone, which any streaming app takes; the code names its lens."""
-        text, code, scannable = "", "", False
+        which would send the phone to itself. A lens other than Main keeps its line
+        typed too: PhotoFinish Camera takes an address alone for Main's."""
+        text, scannable = "", False
         lenses = self._lenses()
         if (
             lenses
@@ -269,16 +268,14 @@ class CameraDialog(QDialog):
                 (lens, cameras.rtmp_url(made["settings"], here))
                 for lens, made in zip(lenses, self.cameras(), strict=False)
             ]
-            code = cameras.pairing_text(streams) if scannable else NO_NETWORK
-            text = streams[0][1] if scannable and len(streams) == 1 else code
+            text = cameras.pairing_text(streams) if scannable else NO_NETWORK
             if not scannable and not self._network.isActive():
                 self._network.start()
-        if (text, code) == self._shown:  # every key typed comes here
+        if text == self.address.text():  # every key typed comes here
             return
-        self._shown = (text, code)
         self.address.setText(text)
         if scannable:
-            self.qr.setPixmap(qr_pixmap(code))
+            self.qr.setPixmap(qr_pixmap(text))
         else:
             self.qr.clear()
 
