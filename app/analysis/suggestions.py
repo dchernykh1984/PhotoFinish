@@ -47,9 +47,6 @@ class Suggestions:
         }
         return bool(found or decided)
 
-    def pending(self) -> list[dict[str, Any]]:
-        return [s for s in self.found if s.get("id") not in self.done]
-
     def decide(self, name: str, how: str) -> None:
         """``accepted`` or ``dismissed``: the suggestion is not offered again -- in
         this session even when the decision cannot be kept on disk, which raises."""

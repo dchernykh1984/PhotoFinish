@@ -17,16 +17,17 @@ def test_suggestions_are_read_as_appended_and_decisions_kept(tmp_path: Path) -> 
         json.dumps({"id": "cam1-1000", "ms": 1000}) + "\n" + '{"id": "cam1-2'
     )
     assert found.refresh()
-    assert [s["id"] for s in found.pending()] == ["cam1-1000"]
+    assert [s["id"] for s in found.found] == ["cam1-1000"]
     with path.open("a") as f:
         f.write('000", "ms": 2000}\n[1]\nnot json\n')
     assert found.refresh()
-    assert [s["id"] for s in found.pending()] == ["cam1-1000", "cam1-2000"]
+    assert [s["id"] for s in found.found] == ["cam1-1000", "cam1-2000"]
     found.decide("cam1-1000", "dismissed")
-    assert [s["id"] for s in found.pending()] == ["cam1-2000"]
+    assert found.done == {"cam1-1000": "dismissed"}
     again = Suggestions(tmp_path)
     again.refresh()
-    assert [s["id"] for s in again.pending()] == ["cam1-2000"]
+    assert [s["id"] for s in again.found] == ["cam1-1000", "cam1-2000"]
+    assert again.done == {"cam1-1000": "dismissed"}
     assert not again.refresh()
 
 
@@ -45,7 +46,7 @@ def test_a_crossing_suggested_twice_is_offered_once(tmp_path: Path) -> None:
     (tmp_path / "suggestions.jsonl").write_text(line + line)
     found = Suggestions(tmp_path)
     found.refresh()
-    assert [s["id"] for s in found.pending()] == ["cam1-1000"]
+    assert [s["id"] for s in found.found] == ["cam1-1000"]
 
 
 def test_several_cameras_suggestions_of_one_crossing_are_one() -> None:
