@@ -7,25 +7,19 @@ import android.hardware.camera2.CameraDevice
 import android.hardware.camera2.CameraManager
 import android.hardware.camera2.CameraMetadata
 import android.hardware.camera2.CaptureRequest
-import android.media.MediaCodec
-import android.media.MediaCodecInfo
-import android.media.MediaCodecList
-import android.media.MediaFormat
+import android.hardware.camera2.params.SessionConfiguration
 import android.os.Build
-import android.os.Bundle
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.SystemClock
 import android.util.Range
 import android.view.Surface
-import com.dchernykh.photofinish.camera.pairing.RtmpAddress
-import com.dchernykh.photofinish.camera.stream.Avc
-import com.dchernykh.photofinish.camera.stream.EncodedFrame
-import com.dchernykh.photofinish.camera.stream.Uplink
+import com.dchernykh.photofinish.camera.pairing.Lens
+import com.dchernykh.photofinish.camera.pairing.LensTarget
 import com.dchernykh.photofinish.camera.stream.UplinkStatus
-import com.dchernykh.photofinish.camera.sync.ClockSync
+import java.util.concurrent.Executor
 
-/** What the camera side says to the screen. */
+/** What the camera side says to the screen: of the cameras as a whole, or of one lens. */
 sealed interface StreamerStatus {
     data object Previewing : StreamerStatus
 
@@ -38,43 +32,42 @@ sealed interface StreamerStatus {
     ) : StreamerStatus
 
     data object NoClock : StreamerStatus
+
+    /** A lens asked for and not streamed (specs/004-phone-lenses, FR-005). */
+    data class Left(
+        val why: LeftOut,
+    ) : StreamerStatus
 }
 
 /**
- * The back camera into the preview and, while streaming, straight into the H.264
- * encoder's input surface: the encoder's presentation times are then the camera's
- * sensor timestamps, which the clock exchange maps onto the recorder's clock.
- * Every call is posted to the camera's own thread.
+ * The phone's cameras into the preview and, while streaming, each lens asked for straight into its
+ * own H.264 encoder's input surface (specs/004-phone-lenses): an encoder's presentation times are
+ * then the camera's sensor timestamps, which the lens's clock exchange maps onto its recorder's
+ * clock. The lenses of one camera share its capture session; a second camera -- the front with the
+ * back -- is opened beside the first where the phone runs both. Every call is posted to the
+ * cameras' own thread.
  */
 class CameraStreamer(
-    context: Context,
-    private val formats: CameraFormats,
-    private val onStatus: (StreamerStatus) -> Unit,
+    private val context: Context,
+    private val lenses: PhoneLenses,
+    private val onStatus: (Lens?, StreamerStatus) -> Unit,
 ) {
     private val manager = context.getSystemService(CameraManager::class.java)
     private val thread = HandlerThread("camera").apply { start() }
     private val handler = Handler(thread.looper)
+    private val executor = Executor { handler.post(it) }
+    private val opened = mutableListOf<OpenCamera>()
 
-    private var device: CameraDevice? = null
-    private var session: CameraCaptureSession? = null
-    private var encoder: MediaCodec? = null
-    private var encoderSurface: Surface? = null
-    private var uplink: Uplink? = null
-    private var drainer: Thread? = null
-
-    @Volatile private var sync: ClockSync? = null
-    private var address: RtmpAddress? = null
-
-    /** Counts the opens: a callback of an earlier one says nothing. Read from the uplink's thread too. */
+    /** Counts the opens: a callback of an earlier one says nothing. Read from the uplinks' threads too. */
     @Volatile private var generation = 0
 
-    /** The camera into [preview]; with an [address], into the encoder and up to PhotoFinish too. */
+    /** The cameras into [preview]; with [targets], each lens into its encoder and up to PhotoFinish too. */
     fun start(
         preview: Surface,
         format: StreamFormat,
-        address: RtmpAddress?,
+        targets: List<LensTarget>,
     ) {
-        handler.post { open(preview, format, address) }
+        handler.post { open(preview, format, targets) }
     }
 
     fun stop() {
@@ -88,138 +81,55 @@ class CameraStreamer(
         }
     }
 
-    // Whatever opening throws -- the camera gone or refused, an encoder that will not take the
+    // Whatever opening throws -- a camera gone or refused, an encoder that will not take the
     // format -- is said on the screen: an exception left to escape would end the app.
     @Suppress("TooGenericExceptionCaught")
     @SuppressLint("MissingPermission") // the screen asks for the camera before starting
     private fun open(
         preview: Surface,
         format: StreamFormat,
-        address: RtmpAddress?,
+        targets: List<LensTarget>,
     ) {
         close()
-        val id = formats.cameraId ?: return onStatus(StreamerStatus.Failed("no back camera"))
         val mine = ++generation
-        this.address = address
+        val plan = plan(lenses, targets) ?: return onStatus(null, StreamerStatus.Failed("no back camera"))
+        plan.left.forEach { (lens, why) -> onStatus(lens, StreamerStatus.Left(why)) }
+        val again = { reason: String -> openAgain(preview, format, targets, reason) }
         try {
-            if (address != null) startEncoder(format, address, mine)
-            manager.openCamera(
-                id,
-                object : CameraDevice.StateCallback() {
-                    override fun onOpened(camera: CameraDevice) {
-                        if (mine != generation) return camera.close()
-                        device = camera
-                        configure(camera, preview, format, mine)
-                    }
-
-                    override fun onDisconnected(camera: CameraDevice) {
-                        camera.close()
-                        if (mine ==
-                            generation
-                        ) {
-                            openAgain(preview, format, address, "the camera was taken by another app")
-                        }
-                    }
-
-                    override fun onError(
-                        camera: CameraDevice,
-                        error: Int,
-                    ) {
-                        camera.close()
-                        if (mine == generation) openAgain(preview, format, address, "camera error $error")
-                    }
-                },
-                handler,
-            )
+            plan.cameras.forEachIndexed { n, camera ->
+                val open = OpenCamera(if (n == 0) preview else null, mine, again)
+                opened += open
+                if (open.startStreams(camera, format)) manager.openCamera(camera.cameraId, open, handler)
+            }
         } catch (error: Exception) {
             close()
-            onStatus(failed(error))
+            onStatus(null, failed(error))
         }
     }
 
     /**
-     * The camera lost mid-stream -- another app took it, its service started again: all closed,
+     * A camera lost mid-stream -- another app took it, its service started again: all closed,
      * said on the screen, and opened again in a moment, as long as nothing else was asked for.
      */
     private fun openAgain(
         preview: Surface,
         format: StreamFormat,
-        address: RtmpAddress?,
+        targets: List<LensTarget>,
         reason: String,
     ) {
         close()
         val mine = generation
-        onStatus(StreamerStatus.Failed("$reason; trying again"))
-        handler.postDelayed({ if (mine == generation) open(preview, format, address) }, OPEN_AGAIN_MS)
-    }
-
-    // The list form serves minSdk 26 as well as SessionConfiguration; a camera gone meanwhile
-    // throws, and is said on the screen.
-    @Suppress("DEPRECATION", "TooGenericExceptionCaught")
-    private fun configure(
-        camera: CameraDevice,
-        preview: Surface,
-        format: StreamFormat,
-        mine: Int,
-    ) {
-        val targets = listOfNotNull(preview, encoderSurface)
-        try {
-            camera.createCaptureSession(
-                targets,
-                object : CameraCaptureSession.StateCallback() {
-                    override fun onConfigured(configured: CameraCaptureSession) {
-                        if (mine != generation) return configured.close() // an earlier open's
-                        session = configured
-                        startFrames(configured, camera, targets, format)
-                    }
-
-                    override fun onConfigureFailed(failed: CameraCaptureSession) {
-                        if (mine != generation) return
-                        onStatus(
-                            StreamerStatus.Failed("the camera cannot give ${format.resolution} at ${format.fps} fps"),
-                        )
-                    }
-                },
-                handler,
-            )
-        } catch (error: Exception) {
-            onStatus(failed(error))
-        }
-    }
-
-    /** The frames, one request repeated: at the stream's rate, without stabilisation. */
-    @Suppress("TooGenericExceptionCaught") // a camera gone meanwhile, said on the screen
-    private fun startFrames(
-        configured: CameraCaptureSession,
-        camera: CameraDevice,
-        targets: List<Surface>,
-        format: StreamFormat,
-    ) {
-        try {
-            val template = if (encoderSurface == null) CameraDevice.TEMPLATE_PREVIEW else CameraDevice.TEMPLATE_RECORD
-            val request =
-                camera.createCaptureRequest(template).apply {
-                    targets.forEach { addTarget(it) }
-                    set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, Range(format.range.lower, format.range.upper))
-                    // Electronic stabilisation warps the picture: not for a finish line.
-                    set(
-                        CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE,
-                        CameraMetadata.CONTROL_VIDEO_STABILIZATION_MODE_OFF,
-                    )
-                }
-            configured.setRepeatingRequest(request.build(), null, handler)
-            if (encoderSurface == null) onStatus(StreamerStatus.Previewing)
-        } catch (error: Exception) {
-            onStatus(failed(error))
-        }
+        onStatus(null, StreamerStatus.Failed("$reason; trying again"))
+        handler.postDelayed({ if (mine == generation) open(preview, format, targets) }, OPEN_AGAIN_MS)
     }
 
     /**
      * The clock the frames are stamped on, read from the first one the encoder gives: Android
      * moves an encoder's frames from boot time to monotonic time, whatever the camera says of
-     * its own clock. Neither clock: the frames go without their moments, and the screen says so.
+     * its own clock. Neither clock: the lens's frames go without their moments, and the screen says so.
      */
     private fun clockOfFrames(
+        stream: LensStream,
         ptsUs: Long,
         mine: Int,
     ) {
@@ -230,175 +140,182 @@ class CameraStreamer(
                 null -> null
             }
         handler.post {
-            val target = address
             when {
-                mine != generation || target == null || sync != null -> Unit // closed meanwhile
-                clock == null -> onStatus(StreamerStatus.NoClock)
-                else -> sync = ClockSync(target.host, target.port, clock).also { it.start() }
+                mine != generation -> Unit // closed meanwhile
+                clock == null -> onStatus(stream.lens, StreamerStatus.NoClock)
+                else -> stream.startClock(clock)
             }
         }
-    }
-
-    private fun startEncoder(
-        format: StreamFormat,
-        address: RtmpAddress,
-        mine: Int,
-    ) {
-        val media =
-            MediaFormat
-                .createVideoFormat(
-                    MediaFormat.MIMETYPE_VIDEO_AVC,
-                    format.resolution.width,
-                    format.resolution.height,
-                ).apply {
-                    setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
-                    setInteger(MediaFormat.KEY_BIT_RATE, format.bitrate)
-                    setInteger(MediaFormat.KEY_FRAME_RATE, format.fps)
-                    setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1)
-                    setInteger(MediaFormat.KEY_BITRATE_MODE, MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_VBR)
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) setInteger(MediaFormat.KEY_MAX_B_FRAMES, 0)
-                }
-        val codec = encoderFor(media)
-        encoder = codec
-        codec.configure(media, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
-        encoderSurface = codec.createInputSurface()
-        codec.start()
-        val link =
-            Uplink(
-                address = address,
-                format = format,
-                clock = { sync?.offset?.best() },
-                requestKeyframe = { requestKeyframe(codec) },
-                report = { status -> if (mine == generation) onStatus(StreamerStatus.Link(status)) },
-            )
-        uplink = link
-        Thread({ link.run() }, "uplink").start()
-        drainer = Thread({ drain(codec, link) { clockOfFrames(it, mine) } }, "encoder").apply { start() }
     }
 
     private fun close() {
         generation++
-        try {
-            session?.close()
-        } catch (_: IllegalStateException) {
-            // already closed with its camera
-        }
-        session = null
-        device?.close()
-        device = null
-        drainer?.let {
-            it.interrupt() // seen within one dequeue's wait
-            it.join(DRAIN_JOIN_MS)
-        }
-        drainer = null
-        uplink?.stop()
-        uplink = null
-        sync?.close()
-        sync = null
-        encoder?.let { codec ->
-            try {
-                codec.stop()
-            } catch (_: IllegalStateException) {
-                // never started, or already stopped
+        opened.forEach { it.close() }
+        opened.clear()
+    }
+
+    /**
+     * One camera device opened: the lenses it streams at one format, in one capture session, and
+     * the [preview] it shows -- the first camera's. [again] opens everything again after a loss.
+     */
+    private inner class OpenCamera(
+        private val preview: Surface?,
+        private val mine: Int,
+        private val again: (String) -> Unit,
+    ) : CameraDevice.StateCallback() {
+        private val streams = mutableListOf<LensStream>()
+        private var format: StreamFormat? = null
+        private var targets: List<Surface> = emptyList()
+        private var device: CameraDevice? = null
+        private var session: CameraCaptureSession? = null
+
+        /**
+         * The lenses' streams, at the size and rate [chosen] or the nearest they all give; false,
+         * said for each lens, when they give none. A camera opened for its preview alone takes [chosen].
+         */
+        fun startStreams(
+            camera: PlannedCamera,
+            chosen: StreamFormat,
+        ): Boolean {
+            val lensesFormats = camera.lenses.map { CameraFormats(context, camera.cameraId, it.physicalId) }
+            val common = if (camera.lenses.isEmpty()) chosen else CameraFormats.common(lensesFormats, chosen)
+            if (common == null) {
+                camera.lenses.forEach { onStatus(it.target.lens, StreamerStatus.Failed("no size this lens streams")) }
+                return false
             }
-            codec.release()
+            format = common
+            camera.lenses.forEach { planned ->
+                val lens = planned.target.lens
+                streams +=
+                    LensStream.start(
+                        planned,
+                        common,
+                        report = { status -> if (mine == generation) onStatus(lens, StreamerStatus.Link(status)) },
+                        onFirstFrame = { stream, ptsUs -> clockOfFrames(stream, ptsUs, mine) },
+                    )
+            }
+            return true
         }
-        encoder = null
-        encoderSurface?.release()
-        encoderSurface = null
+
+        override fun onOpened(camera: CameraDevice) {
+            if (mine != generation) return camera.close()
+            device = camera
+            configure(camera)
+        }
+
+        override fun onDisconnected(camera: CameraDevice) {
+            camera.close()
+            if (mine == generation) again("the camera was taken by another app")
+        }
+
+        override fun onError(
+            camera: CameraDevice,
+            error: Int,
+        ) {
+            camera.close()
+            if (mine == generation) again("camera error $error")
+        }
+
+        // The list form serves Android 8, where a camera streams one lens; a camera gone meanwhile
+        // throws, and is said on the screen.
+        @Suppress("DEPRECATION", "TooGenericExceptionCaught")
+        private fun configure(camera: CameraDevice) {
+            val callback =
+                object : CameraCaptureSession.StateCallback() {
+                    override fun onConfigured(configured: CameraCaptureSession) {
+                        if (mine != generation) return configured.close() // an earlier open's
+                        session = configured
+                        startFrames(configured, camera)
+                    }
+
+                    override fun onConfigureFailed(failed: CameraCaptureSession) {
+                        if (mine != generation) return
+                        val asked = format?.let { "${it.resolution} at ${it.fps} fps" }.orEmpty()
+                        onStatus(null, StreamerStatus.Failed("the camera cannot give these lenses $asked together"))
+                    }
+                }
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    val (outputs, dropped) = SessionOutputs.choose(camera, preview, streams, executor)
+                    dropped.forEach {
+                        streams.remove(it)
+                        it.stop()
+                        onStatus(it.lens, StreamerStatus.Left(LeftOut.NOT_WITH_THE_OTHERS))
+                    }
+                    targets = outputs.flatMap { it.surfaces }
+                    camera.createCaptureSession(
+                        SessionConfiguration(SessionConfiguration.SESSION_REGULAR, outputs, executor, callback),
+                    )
+                } else {
+                    targets = listOfNotNull(preview) + streams.map { it.surface }
+                    camera.createCaptureSession(targets, callback, handler)
+                }
+            } catch (error: Exception) {
+                onStatus(null, failed(error))
+            }
+        }
+
+        /** The frames, one request repeated: at the stream's rate, without stabilisation. */
+        @Suppress("TooGenericExceptionCaught") // a camera gone meanwhile, said on the screen
+        private fun startFrames(
+            configured: CameraCaptureSession,
+            camera: CameraDevice,
+        ) {
+            val range = format?.range ?: return
+            try {
+                val streaming = streams.isNotEmpty()
+                val template = if (streaming) CameraDevice.TEMPLATE_RECORD else CameraDevice.TEMPLATE_PREVIEW
+                val request =
+                    camera.createCaptureRequest(template).apply {
+                        targets.forEach { addTarget(it) }
+                        set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, Range(range.lower, range.upper))
+                        // Electronic stabilisation warps the picture: not for a finish line.
+                        set(
+                            CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE,
+                            CameraMetadata.CONTROL_VIDEO_STABILIZATION_MODE_OFF,
+                        )
+                    }
+                configured.setRepeatingRequest(request.build(), null, handler)
+                if (!streaming) onStatus(null, StreamerStatus.Previewing)
+            } catch (error: Exception) {
+                onStatus(null, failed(error))
+            }
+        }
+
+        fun close() {
+            try {
+                session?.close()
+            } catch (_: IllegalStateException) {
+                // already closed with its camera
+            }
+            session = null
+            device?.close()
+            device = null
+            streams.forEach { it.stop() }
+            streams.clear()
+        }
     }
 
     companion object {
-        private const val DEQUEUE_TIMEOUT_US = 10_000L
-        private const val DRAIN_JOIN_MS = 500L
         private const val OPEN_AGAIN_MS = 2_000L
 
         private fun failed(error: Exception) = StreamerStatus.Failed(error.message ?: error.javaClass.simpleName)
 
-        /** An encoder that takes [format] -- the phone's default one may not -- else that default. */
-        private fun encoderFor(format: MediaFormat): MediaCodec =
-            MediaCodecList(MediaCodecList.REGULAR_CODECS)
-                .findEncoderForFormat(format)
-                ?.let { MediaCodec.createByCodecName(it) }
-                ?: MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
-
-        private fun requestKeyframe(codec: MediaCodec) {
-            try {
-                codec.setParameters(Bundle().apply { putInt(MediaCodec.PARAMETER_KEY_REQUEST_SYNC_FRAME, 0) })
-            } catch (_: IllegalStateException) {
-                // the encoder was stopped meanwhile
+        /** What to open: the lenses asked for, or else the main camera for its preview. */
+        private fun plan(
+            lenses: PhoneLenses,
+            targets: List<LensTarget>,
+        ): SessionPlan? {
+            val main = lenses.mainCameraId ?: return null
+            val physical = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
+            val planned = SessionPlan.plan(targets, lenses.found, lenses::together, physical)
+            return if (planned.cameras.isEmpty()) {
+                planned.copy(
+                    cameras = listOf(PlannedCamera(main, emptyList())),
+                )
+            } else {
+                planned
             }
-        }
-
-        /**
-         * The encoder's output, to the uplink: the stream's header, then the frames, until
-         * interrupted; [onFirstFrame] hears of the first frame's presentation time.
-         */
-        private fun drain(
-            codec: MediaCodec,
-            link: Uplink,
-            onFirstFrame: (Long) -> Unit,
-        ) {
-            val info = MediaCodec.BufferInfo()
-            var waiting = true
-            val offer: (EncodedFrame) -> Unit = { frame ->
-                if (waiting) onFirstFrame(frame.ptsUs)
-                waiting = false
-                link.offer(frame)
-            }
-            var more = true
-            try {
-                while (more && !Thread.currentThread().isInterrupted) more = deliver(codec, link, info, offer)
-            } catch (_: IllegalStateException) {
-                // the encoder was stopped: the stream is over
-            }
-        }
-
-        /** One output of the encoder to the uplink; false once the stream has ended. */
-        private fun deliver(
-            codec: MediaCodec,
-            link: Uplink,
-            info: MediaCodec.BufferInfo,
-            offer: (EncodedFrame) -> Unit,
-        ): Boolean {
-            val index = codec.dequeueOutputBuffer(info, DEQUEUE_TIMEOUT_US)
-            if (index == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) configureLink(link, codec.outputFormat)
-            if (index < 0) return true
-            val bytes = ByteArray(info.size)
-            codec.getOutputBuffer(index)?.apply {
-                position(info.offset)
-                get(bytes)
-            }
-            codec.releaseOutputBuffer(index, false)
-            val flags = info.flags
-            when {
-                flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0 -> configureFromUnits(link, Avc.splitAnnexB(bytes))
-                bytes.isNotEmpty() -> {
-                    val keyframe = flags and MediaCodec.BUFFER_FLAG_KEY_FRAME != 0
-                    offer(EncodedFrame(bytes, info.presentationTimeUs, keyframe))
-                }
-            }
-            return flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM == 0
-        }
-
-        private fun configureLink(
-            link: Uplink,
-            format: MediaFormat,
-        ) {
-            val units =
-                listOf("csd-0", "csd-1").mapNotNull { key ->
-                    format.getByteBuffer(key)?.let { buffer -> ByteArray(buffer.remaining()).also { buffer.get(it) } }
-                }
-            configureFromUnits(link, units.flatMap { Avc.splitAnnexB(it) })
-        }
-
-        private fun configureFromUnits(
-            link: Uplink,
-            units: List<ByteArray>,
-        ) {
-            val sps = units.firstOrNull { Avc.type(it) == Avc.NAL_SPS }
-            val pps = units.firstOrNull { Avc.type(it) == Avc.NAL_PPS }
-            if (sps != null && pps != null) link.configure(sps, pps)
         }
     }
 }

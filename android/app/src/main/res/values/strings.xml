@@ -18,4 +18,15 @@
     <string name="reconnecting">Connection lost (%1$s); connecting again</string>
     <string name="streaming_clock">Streaming: %1$.1f fps, %2$.1f Mbit/s, clock in step within %3$.1f ms</string>
     <string name="streaming_no_clock">Streaming: %1$.1f fps, %2$.1f Mbit/s; no clock exchange, frames placed when they arrive</string>
+    <string name="lens_main">Main</string>
+    <string name="lens_ultrawide">Ultra-wide</string>
+    <string name="lens_telephoto">Telephoto</string>
+    <string name="lens_front">Front</string>
+    <string name="lenses_found">Lenses: %1$s</string>
+    <string name="lens_focal">%1$s %2$d mm</string>
+    <string name="lens_status">%1$s: %2$s</string>
+    <string name="left_missing">not on this phone</string>
+    <string name="left_together">this phone cannot stream it with the others</string>
+    <string name="unread">Not read: %1$s</string>
+    <string name="starting">starting</string>
 </resources>

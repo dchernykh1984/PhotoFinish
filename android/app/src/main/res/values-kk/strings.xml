@@ -18,4 +18,15 @@
     <string name="reconnecting">Байланыс үзілді (%1$s), қайта қосылуда</string>
     <string name="streaming_clock">Трансляция: %1$.1f кадр/с, %2$.1f Мбит/с, сағат %3$.1f мс дәлдікпен салыстырылды</string>
     <string name="streaming_no_clock">Трансляция: %1$.1f кадр/с, %2$.1f Мбит/с; сағат салыстырылмаған, кадрлар келген уақыты бойынша орналастырылады</string>
+    <string name="lens_main">Негізгі</string>
+    <string name="lens_ultrawide">Аса кең</string>
+    <string name="lens_telephoto">Телеобъектив</string>
+    <string name="lens_front">Алдыңғы</string>
+    <string name="lenses_found">Объективтер: %1$s</string>
+    <string name="lens_focal">%1$s %2$d мм</string>
+    <string name="lens_status">%1$s: %2$s</string>
+    <string name="left_missing">бұл телефонда жоқ</string>
+    <string name="left_together">бұл телефон оны басқалармен бірге түсірмейді</string>
+    <string name="unread">Оқылмады: %1$s</string>
+    <string name="starting">іске қосылуда</string>
 </resources>

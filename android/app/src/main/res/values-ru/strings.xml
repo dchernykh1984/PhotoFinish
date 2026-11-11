@@ -18,4 +18,15 @@
     <string name="reconnecting">Связь потеряна (%1$s), подключаюсь снова</string>
     <string name="streaming_clock">Трансляция: %1$.1f к/с, %2$.1f Мбит/с, часы сверены с точностью %3$.1f мс</string>
     <string name="streaming_no_clock">Трансляция: %1$.1f к/с, %2$.1f Мбит/с; часы не сверены, кадры размещаются по времени прихода</string>
+    <string name="lens_main">Основной</string>
+    <string name="lens_ultrawide">Сверхширокий</string>
+    <string name="lens_telephoto">Телевик</string>
+    <string name="lens_front">Фронтальный</string>
+    <string name="lenses_found">Объективы: %1$s</string>
+    <string name="lens_focal">%1$s %2$d мм</string>
+    <string name="lens_status">%1$s: %2$s</string>
+    <string name="left_missing">нет на этом телефоне</string>
+    <string name="left_together">этот телефон не снимает им вместе с остальными</string>
+    <string name="unread">Не прочитано: %1$s</string>
+    <string name="starting">запуск</string>
 </resources>
