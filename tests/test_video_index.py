@@ -149,32 +149,36 @@ def test_frames_a_phone_sends_again_are_listed_once_and_the_rest_decode(
     folder = tmp_path / "cam1"
     writer = SegmentWriter(folder, fps=30)
 
-    def connection(frames: slice, shift_ms: int = 0) -> None:
-        """One connection's packets, as a new connection gives new ones."""
+    def connection(frames: slice) -> None:
+        """One connection's packets, as a new connection gives new ones -- but the
+        five the camera never gave, a hiccup a gap is noted for."""
         with av.open(str(tmp_path / "phone.mp4")) as container:
             stream = container.streams.video[0]
             unit = float(stream.time_base or 0) * 1000
             sent = [p for p in container.demux(stream) if p.pts is not None]
-            for packet in sent[frames]:
-                ms = START + shift_ms + round((packet.pts or 0) * unit)
-                writer.write_packet(packet, ms)
+            for k, packet in list(enumerate(sent))[frames]:
+                if not 50 <= k < 55:
+                    ms = START + round((packet.pts or 0) * unit)
+                    writer.write_packet(packet, ms)
         writer.close()  # the phone hung up
 
-    connection(slice(0, 45))  # the connection the network broke
+    connection(slice(0, 70))  # the connection the network broke
     if restarted:  # the recorder itself started again meanwhile
         writer = SegmentWriter(folder, fps=30)
     connection(slice(30, None))  # the next, from the keyframe a second back
-    assert writer.frames == (45 if restarted else 90)
+    assert writer.frames == (20 if restarted else 85)
     index = VideoIndex(folder)
     index.refresh()
-    assert len(index) == 90
+    assert len(index) == 85
     assert list(index.ms) == sorted(set(index.ms))
-    assert not (folder / "gaps.txt").exists()
+    gaps = (folder / "gaps.txt").read_text().splitlines()
+    assert len(gaps) == 1  # the hiccup's, once: the frames sent again note none
+    assert gaps[0].endswith(" no frames")
     decoder = Decoder()
-    first_new = index.frame(45)  # decoded from the keyframe sent again before it
-    decoded = decoder.decode(first_new.path, first_new.pts)
+    first_new = index.frame(70 - 5)  # the five the camera never gave come before it
+    decoded = decoder.decode(first_new.path, first_new.pts)  # its keyframe sent again
     assert decoded is not None
-    assert read_time(decoded.to_ndarray(format="rgb24")) == START + 45 * 33
+    assert read_time(decoded.to_ndarray(format="rgb24")) == START + 70 * 33
     decoder.close()
 
 
