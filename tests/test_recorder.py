@@ -216,6 +216,16 @@ def test_the_heartbeat_says_how_far_behind_its_clock_the_newest_frame_is(
     assert heartbeat(folder)["behind_ms"] == 10_000 - 66
 
 
+def test_the_heartbeat_names_the_program_the_recorder_runs(
+    folder: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.version import version
+
+    cameras(monkeypatch, Camera(folder, START, 1, stop_after=0))
+    assert run("cam1") == 0
+    assert heartbeat(folder)["version"] == version() != ""
+
+
 def test_a_recorder_started_again_keeps_the_phone_s_last_status(folder: Path) -> None:
     folder.mkdir(parents=True, exist_ok=True)
     last = {"battery": "9", "at_ms": START, "heard_ms": START}

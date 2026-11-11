@@ -38,6 +38,7 @@ from app.recorder.sources import (
     open_source,
     slewed,
 )
+from app.version import version
 
 LOW_DISK = 2 * 1024**3
 CLOCK_RETRY_S = 5.0  # a phone's clock-exchange port another program holds: tried again
@@ -150,6 +151,8 @@ class Heartbeat:
             # How far the newest frame is behind this recorder's clock: a phone
             # catching up after a break (specs/007).
             "behind_ms": 0,
+            # The program it runs: a window of another replaces it (specs/007).
+            "version": version(),
         }
         self._written = 0.0
 
