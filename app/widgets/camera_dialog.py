@@ -5,7 +5,6 @@ from __future__ import annotations
 import contextlib
 import io
 import ipaddress
-import itertools
 import threading
 from collections.abc import Sequence
 from typing import Any
@@ -30,7 +29,6 @@ from PySide6.QtWidgets import (
 )
 
 from app import cameras
-from app.cameras import RTMP_PORT
 from app.recorder.testcam import SCENES
 
 CONNECTION_NAMES = {  # the phone's streaming app first: the camera PhotoFinish expects
@@ -91,8 +89,7 @@ class CameraDialog(QDialog):
         self.transport.addItems(["tcp", "udp"])
         self.others = list(others)  # the session's cameras: their ports are taken
         taken = cameras.ports_taken(self.others)
-        free = next(p for p in itertools.count(RTMP_PORT) if p not in taken)
-        self.port = _number(1, 65535, free)
+        self.port = _number(1, 65535, next(cameras.free_ports(taken)))
         self.path = QLineEdit(f"live/{camera_id}")
         self.lenses = {lens: QCheckBox(name) for lens, name in cameras.LENSES.items()}
         self.lenses["main"].setChecked(True)

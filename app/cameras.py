@@ -13,7 +13,7 @@ import itertools
 import re
 import socket
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from typing import Any
 
 import av
@@ -96,6 +96,11 @@ LENSES = {
 }
 
 
+def free_ports(taken: set[int]) -> Iterator[int]:
+    """The RTMP ports a new phone may listen on, from the usual one up."""
+    return (port for port in itertools.count(RTMP_PORT) if port not in taken)
+
+
 def lens_cameras(
     lenses: list[str],
     ids: list[str],
@@ -107,7 +112,7 @@ def lens_cameras(
     next port not ``taken`` nor the first's, and ``live/<id>`` (004, FR-001). As many
     lenses as there are ids."""
     taken = taken | {first.get("port", RTMP_PORT)}
-    free = (port for port in itertools.count(RTMP_PORT) if port not in taken)
+    free = free_ports(taken)
     made = []
     for n, (lens, camera_id) in enumerate(zip(lenses, ids, strict=False)):
         settings = (
