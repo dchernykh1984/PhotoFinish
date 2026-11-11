@@ -30,7 +30,7 @@
         "hooks": [
           {
             "type": "command",
-            "timeout": 30,
+            "timeout": 90,
             "command": "\"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/pre-bash.sh\""
           }
         ]
