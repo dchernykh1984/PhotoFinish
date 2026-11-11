@@ -127,6 +127,7 @@ steps, in this order, and never with `--admin`:
        --jq ".[] | select(.headSha == \"$sha\" and .conclusion == \"action_required\") | .databaseId"); do
      gh run rerun "$id"
    done
+   echo "head: $sha"
    ```
 
 2. **Wait for the pipeline to go green** on that SHA, read as above. A red
@@ -136,11 +137,12 @@ steps, in this order, and never with `--admin`:
    `pyproject.toml` fails the tests job (`uv sync --locked`).
 3. **Approve the release PR, then merge it.** Its author is the bot, so the
    approval `main`'s ruleset asks for can be given; merge the SHA that went
-   green:
+   green, written out as step 1 printed it -- a shell variable does not outlive
+   its command, and an empty `--match-head-commit` checks nothing:
 
    ```
    gh pr review <N> --approve
-   gh pr merge <N> --rebase --match-head-commit "$sha"
+   gh pr merge <N> --rebase --match-head-commit <the head's SHA>
    ```
 
 4. **Wait for the release build.** The merge's own release-please run cuts the
