@@ -18,10 +18,24 @@ ZONE_MARGIN = 0.15  # the zone around a finish line no one drew it for
 
 
 def settings(session: dict[str, Any]) -> dict[str, Any]:
-    """The analysis settings: on, and the model file (empty: motion only)."""
+    """The analysis settings: on; the model file (empty: motion only); and whether
+    numbers and crossings are looked for with it (006) -- on, in a session from
+    before the switch, wherever a model was chosen."""
     saved = session.get("analysis")
     saved = saved if isinstance(saved, dict) else {}
-    return {"on": bool(saved.get("on", False)), "model": str(saved.get("model") or "")}
+    model = str(saved.get("model") or "")
+    return {
+        "on": bool(saved.get("on", False)),
+        "model": model,
+        "crossings": bool(saved.get("crossings", bool(model))),
+    }
+
+
+def model_in_use(session: dict[str, Any]) -> str:
+    """The model the analysers run: the one chosen while numbers and crossings are
+    looked for, else none -- motion alone (006, FR-001)."""
+    chosen = settings(session)
+    return chosen["model"] if chosen["crossings"] else ""
 
 
 def zone(camera: dict[str, Any], common: object = None) -> Zone:

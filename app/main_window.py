@@ -200,6 +200,13 @@ class MainWindow(QMainWindow):
         self.analysis_box = QCheckBox("Find riders (experimental)")
         self.analysis_box.setChecked(analysis.settings(self.session)["on"])
         self.analysis_box.toggled.connect(self._analysis_on)
+        self.crossings_box = QCheckBox("Numbers and crossings")  # with it on (006)
+        self.crossings_box.setToolTip(
+            "The model chosen finds the riders, suggests their crossings of the finish "
+            "line and reads their numbers; off, riders are found by motion alone"
+        )
+        self.crossings_box.setChecked(analysis.settings(self.session)["crossings"])
+        self.crossings_box.toggled.connect(self._crossings_on)
         self.model_box = _StillCombo()
         self.model_box.setFocusPolicy(Qt.FocusPolicy.NoFocus)  # the keys move video
         self.model_box.setToolTip(
@@ -212,6 +219,7 @@ class MainWindow(QMainWindow):
         self._fetch.progress.connect(self._fetch_progress)
         self._fetch.done.connect(self._fetched)
         self._show_model()
+        self._show_switches()
         self.suggestion_list = QListWidget()
         self.suggestion_list.itemClicked.connect(self._suggestion_picked)
 
@@ -304,6 +312,7 @@ class MainWindow(QMainWindow):
         finding.addWidget(previous_rider)
         finding.addWidget(next_rider)
         finding.addWidget(self.analysis_box)
+        finding.addWidget(self.crossings_box)
         finding.addWidget(zone_button)
         finding.addWidget(self.model_box)
         finding.addStretch()
@@ -1054,14 +1063,14 @@ class MainWindow(QMainWindow):
         without models/, a new copy of the program -- once finding riders is on:
         never for a feature nobody turned on, nor on every start of an offline race.
         """
-        model = models.preset(analysis.settings(self.session)["model"])
+        model = models.preset(analysis.model_in_use(self.session))
         on = self.analysis_box.isChecked()
         if on and model is not None and self._job is None and self._model_missing():
             self._download(model)
 
     def _model_missing(self) -> bool:
         """The preset in use is not on the disk: on its way, or failed to come."""
-        model = models.preset(analysis.settings(self.session)["model"])
+        model = models.preset(analysis.model_in_use(self.session))
         return model is not None and not models.ready(model)
 
     def _download(self, model: models.Model) -> None:
@@ -1115,9 +1124,28 @@ class MainWindow(QMainWindow):
         self.model_box.addItem("Model file...", _OWN_FILE)
         self.model_box.setCurrentIndex(self.model_box.findData(chosen))
 
+    def _crossings_on(self, on: bool) -> None:
+        """Numbers and crossings looked for with the model chosen, or not: every
+        analyser started again on what it now runs."""
+        self.session["analysis"] = {**analysis.settings(self.session), "crossings": on}
+        self._save_session()
+        self._show_switches()
+        self._ensure_model()
+        if self.analysis_box.isChecked():
+            for camera in self.cameras.values():
+                self._stop_analyzer(camera)
+                self._analyze(camera)
+        self._show_suggestions()
+
+    def _show_switches(self) -> None:
+        """Numbers and crossings with finding riders on. The model stays open to
+        choose, and to download before the race, whatever the switches say."""
+        self.crossings_box.setEnabled(self.analysis_box.isChecked())
+
     def _analysis_on(self, on: bool) -> None:
         self.session["analysis"] = {**analysis.settings(self.session), "on": on}
         self._save_session()
+        self._show_switches()
         self._ensure_model()
         for camera in self.cameras.values():
             if on:
@@ -1253,6 +1281,8 @@ class MainWindow(QMainWindow):
         settings = analysis.settings(self.session)
         if not settings["on"]:
             return
+        if not settings["crossings"]:
+            return  # motion alone suggests nothing
         if not settings["model"]:
             hint = QListWidgetItem(
                 "Suggestions need a detection model: choose one in the model list"
@@ -1401,7 +1431,7 @@ class MainWindow(QMainWindow):
             state = f"{clash}; {state}"
         if self.analysis_box.isChecked() and camera.settings.get("record", True):
             if self._model_missing():
-                in_use = analysis.settings(self.session)["model"]
+                in_use = analysis.model_in_use(self.session)
                 coming = self._job is not None and self._job.model.file == in_use
                 state += "; riders: the model is " + (
                     "downloading" if coming else "not here, choose it to download it"
