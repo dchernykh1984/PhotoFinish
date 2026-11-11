@@ -1615,6 +1615,8 @@ class MainWindow(QMainWindow):
         now = QDateTime.currentMSecsSinceEpoch()
         lines = []
         for camera in self.cameras.values():
+            if not camera.settings.get("record", True):
+                continue  # a phone it no longer records from, as the banner counts it
             status = (camera.info or {}).get("phone")
             if not isinstance(status, dict) or not status:
                 continue
