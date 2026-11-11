@@ -1605,6 +1605,8 @@ class MainWindow(QMainWindow):
                 else f"<span style='color: {LEVELS[level]}'>{html.escape(text)}</span>"
                 for text, level in phone_status.readings(status)
             ]
+            if not parts:
+                continue  # a status with no reading the phone could tell
             name = html.escape(self._name(camera.id))
             line = f"{name}: " + " &nbsp; ".join(parts)
             if old:
