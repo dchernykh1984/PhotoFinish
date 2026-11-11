@@ -18,6 +18,7 @@ not -- look at those too if an agent ever merges that way.
 from __future__ import annotations
 
 import json
+import os
 import re
 import shlex
 import shutil
@@ -132,27 +133,39 @@ def _given(before: list[str]) -> list[str]:
 
 
 def _folder(before: list[str]) -> list[str]:
-    """[CD, the folder] of the last cd among the commands before; [] with none."""
-    folder: list[str] = []
+    """[CD, folder] for each cd among the commands before, in turn -- one in a
+    subshell closed since left out, as the shell leaves it there; [] with none."""
+    levels: list[list[str]] = [[]]
     begins = True  # a command begins at this word
     for at, word in enumerate(before):
         if word and set(word) <= SHELL_PUNCTUATION:
+            for char in word:  # ");" and the like come as one word
+                if char == "(":
+                    levels.append(list(levels[-1]))
+                elif char == ")" and len(levels) > 1:
+                    levels.pop()
             begins = True
             continue
         if begins and word == "cd":
             after = before[at + 1 : at + 2]
             given = after and not set(after[0]) <= SHELL_PUNCTUATION
-            folder = [CD, after[0] if given else "~"]
+            levels[-1] += [CD, after[0] if given else "~"]
         begins = False
-    return folder
+    return levels[-1]
 
 
 def where(args: list[str], cwd: str | None) -> tuple[str | None, list[str]]:
-    """The folder a merge runs in -- a cd before it, from ``cwd`` -- and its
-    arguments."""
-    if args[:1] != [CD]:
-        return cwd, args
-    return str(Path(cwd or ".") / Path(args[1]).expanduser()), args[2:]
+    """The folder a merge runs in -- each cd before it in turn, from ``cwd`` -- and
+    its arguments."""
+    folder, rest = cwd, []
+    words = iter(args)
+    for word in words:
+        if word == CD:
+            went = Path(next(words, "~")).expanduser()
+            folder = os.path.normpath(Path(folder or ".") / went)
+        else:
+            rest.append(word)
+    return folder, rest
 
 
 def _substituted(command: str) -> list[str]:

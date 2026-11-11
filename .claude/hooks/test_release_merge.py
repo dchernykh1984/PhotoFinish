@@ -147,8 +147,21 @@ class MergesTests(unittest.TestCase):
 
     def test_a_merge_after_a_cd_runs_in_its_folder(self) -> None:
         merged = HOOK.merges("cd ../Other; git pull && cd sub && gh pr merge 12")
-        self.assertEqual(merged, [[HOOK.CD, "sub", "12"]])
-        self.assertEqual(HOOK.where(merged[0], "/repo"), ("/repo/sub", ["12"]))
+        self.assertEqual(merged, [[HOOK.CD, "../Other", HOOK.CD, "sub", "12"]])
+        self.assertEqual(HOOK.where(merged[0], "/x/repo"), ("/x/Other/sub", ["12"]))
+        back = HOOK.merges("cd .. && cd PhotoFinish && gh pr merge 21")[0]
+        self.assertEqual(HOOK.where(back, "/x/repo")[0], "/x/PhotoFinish")
+        for command, folder in (
+            (
+                "(cd /srv && ls); gh pr merge 21",
+                "/repo",
+            ),  # the subshell's cd stays there
+            ("(cd /srv && gh pr merge 21)", "/srv"),
+            ("x=$(cd /srv && gh pr merge 21)", "/srv"),
+        ):
+            merge = HOOK.merges(command)
+            self.assertEqual(len(merge), 1, command)
+            self.assertEqual(HOOK.where(merge[0], "/repo")[0], folder, command)
         self.assertEqual(HOOK.where(["12"], "/repo"), ("/repo", ["12"]))
         home = HOOK.where(HOOK.merges("cd && gh pr merge 12")[0], "/repo")[0]
         self.assertEqual(home, str(Path.home()))
