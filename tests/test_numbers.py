@@ -92,6 +92,21 @@ def test_no_number_from_an_unsure_reading_or_no_text() -> None:
     assert reader([([11], 0.99)], [slice(4, 12)]).read(rgb) is None  # no digit
 
 
+def test_a_long_line_is_read_in_its_own_proportions_not_squeezed() -> None:
+    made = reader([([2, 9], 0.9)] * 2, [])
+    widths: list[int] = []
+    look = made.reader.run
+
+    def seen(names: Any, feed: dict[str, np.ndarray]) -> list[np.ndarray]:
+        widths.append(feed["x"].shape[3])
+        return look(names, feed)
+
+    made.reader = SimpleNamespace(run=seen)  # type: ignore[assignment]
+    made.line(np.zeros((24, 240, 3), np.uint8))  # ten to one: 480 wide at 48 high
+    made.line(np.zeros((10, 900, 3), np.uint8))  # ninety to one: at the longest
+    assert widths == [480, 1280]
+
+
 def test_a_picture_with_no_extent_reads_nothing() -> None:
     made = reader([], [])
     assert made.line(np.zeros((0, 5, 3), np.uint8)) == ("", 0.0)
