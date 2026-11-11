@@ -865,6 +865,8 @@ class MainWindow(QMainWindow):
                 return  # the zone half drawn was given up: this click chose the camera
         camera = self._camera()
         if camera is None or self.place is None:
+            if camera is not None and self.drawing is not None:  # not dropped unsaid
+                self._say(f"{self._name(camera.id)} has no frame here to draw on")
             return
         if self.drawing is None:
             if not self._frame_on_screen():
