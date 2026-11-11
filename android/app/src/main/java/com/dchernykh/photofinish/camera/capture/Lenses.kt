@@ -58,6 +58,18 @@ data class PlannedCamera(
     val lenses: List<PlannedLens>,
 )
 
+/**
+ * Starts each camera in turn, [start] told whether it takes the preview: the first one started
+ * does, so a camera that streams nothing -- no size its lenses give -- leaves it to the next.
+ */
+fun <T> startInTurn(
+    cameras: List<T>,
+    start: (T, Boolean) -> Boolean,
+) {
+    var preview = true
+    cameras.forEach { if (start(it, preview)) preview = false }
+}
+
 /** Why a lens asked for is not streamed. */
 enum class LeftOut { NOT_ON_THIS_PHONE, NOT_WITH_THE_OTHERS }
 
