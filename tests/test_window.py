@@ -1785,6 +1785,10 @@ def test_a_preset_missing_on_disk_is_downloaded_before_the_analysers_start(
     assert [a.camera_id for a in analyzers] == ["cam1"]
 
 
+def conftest_offline(model: models.Model, *args: Any, **kwargs: Any) -> Path:
+    raise models.FetchError(f"{model.title} cannot be downloaded: no network")
+
+
 def gated_fetch(
     monkeypatch: pytest.MonkeyPatch,
 ) -> tuple[threading.Event, list[str]]:
@@ -2067,6 +2071,7 @@ def test_no_analyser_starts_while_the_model_in_use_is_missing(
     saved = session.load()
     saved["analysis"] = {"on": True, "model": models.MODELS[2].file}
     session.save(saved)
+    monkeypatch.setattr(mw.models, "NUMBER_MODELS", ())  # the detector alone
     may_end = threading.Event()
 
     def fetch(
@@ -2172,6 +2177,35 @@ def test_the_number_reader_is_fetched_once_numbers_and_crossings_are_on(
     wait_until(lambda: win.statusBar().currentMessage() == "The number reader is ready")
     win.poll()
     assert len(analyzers) > started  # started again, to read numbers
+
+
+def test_the_camera_line_says_while_numbers_go_unread_for_want_of_the_reader(
+    recording: Path,
+    make_window: Callable[[], mw.MainWindow],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    saved = session.load()
+    saved["analysis"] = {"on": True, "model": "m.onnx", "crossings": True}
+    session.save(saved)
+    reader = models.NUMBER_MODELS[0]
+    gate, fetched = gated_fetch(monkeypatch)
+    monkeypatch.setattr(mw.models, "NUMBER_MODELS", (reader,))
+    win = make_window()
+    win.poll()
+    assert (
+        win.camera_list.item(0).text().endswith("; numbers: the reader is downloading")
+    )
+    gate.set()
+    wait_until(lambda: win._numbers_job is None)
+    win.poll()
+    assert "numbers" not in win.camera_list.item(0).text()  # read from here on
+    fetched.clear()  # gone again, and it cannot come
+    monkeypatch.setattr(mw.models, "fetch", conftest_offline)
+    win._ensure_numbers()
+    wait_until(lambda: win._numbers_job is None)
+    win.poll()
+    said = "; numbers: the reader is not here, turn Numbers and crossings on again"
+    assert win.camera_list.item(0).text().endswith(said)
 
 
 def test_no_number_reader_is_fetched_without_a_detector_to_read_for(
@@ -2461,7 +2495,9 @@ def test_a_model_that_failed_is_said_and_left_until_another_is_chosen(
     recording: Path,
     make_window: Callable[[], mw.MainWindow],
     analyzers: list[Any],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setattr(mw.models, "NUMBER_MODELS", ())  # the detector alone
     session.save({**session.load(), "analysis": {"on": True, "model": "x.onnx"}})
     win = make_window()
     failed = {"state": "failed", "detail": "the model cannot be loaded: bad file"}

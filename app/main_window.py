@@ -1543,8 +1543,20 @@ class MainWindow(QMainWindow):
                 )
             else:
                 state += f"; riders {self._riders_progress(camera)}"
+            state += self._numbers_state()
         camera.item.setText(f"{self._name(camera.id)}: {state}")
         return info
+
+    def _numbers_state(self) -> str:
+        """What the camera line says while numbers go unread for want of the reader
+        (006, FR-002): on its way, or not here; nothing once it is, or unwanted."""
+        if not analysis.model_in_use(self.session):
+            return ""
+        if all(models.ready(m) for m in models.NUMBER_MODELS):
+            return ""
+        if self._numbers_job is not None:
+            return "; numbers: the reader is downloading"
+        return "; numbers: the reader is not here, turn Numbers and crossings on again"
 
     def _missing(self, camera: Camera) -> str:
         """A camera that does not record, as the corner names it: with the time of
