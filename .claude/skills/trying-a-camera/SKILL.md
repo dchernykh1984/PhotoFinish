@@ -38,6 +38,18 @@ The app lists, under its controls, the lenses the phone gives apps, with their
 lens costs its bitrate on the Wi-Fi -- about 10 Mbit/s at 1080p60 -- and heat:
 several lenses for hours want shade and a charger.
 
+## What the phone says of itself
+
+Under the recording banner, a line per phone running PhotoFinish Camera: battery
+(with a charging mark), the battery's temperature, a fire mark once Android's
+thermal state is moderate or worse, the Wi-Fi signal (none when the phone is the
+hotspot), power saver, frames dropped for the network. Amber: 25 % or less not
+charging, 40 degrees C, moderate, -70 dBm, saver on, any frame dropped. Red:
+10 % or less not charging, 45 degrees C, severe, -80 dBm. Greyed with a time:
+the phone has not been heard for 5 s -- its last word. The readings ride the
+keyframes (`PFS1` SEI), so they come only while the video does; try them on the
+emulator with `adb emu power capacity 9` and `adb emu power ac off`.
+
 ## Measuring a recording
 
 Numbers, not impressions. Run against the camera's folder next to the program:
