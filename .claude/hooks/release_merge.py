@@ -51,7 +51,9 @@ SHELL_PUNCTUATION = set("();<>|&\n")  # a new line ends a command, as ; does
 SHELLS = {"sh", "bash", "zsh", "dash"}
 WORD_START = set(" \t\n;&|()<>")  # what a word may begin after: a # there is a comment
 DESCRIPTOR = re.compile(r"(?<![\w./-])\d+(?=[<>])")
-FIELDS = "number,state,headRefName,statusCheckRollup"
+FIELDS = "number,state,headRefName,headRefOid,statusCheckRollup"
+RUN_FIELDS = "name,status,conclusion"
+RUN_PASSED = {"success", "skipped", "neutral"}
 LOOKUP_S = 20  # one PR looked up
 # All of a command's merges looked up within this, inside the hook's 90 s timeout in
 # .claude/settings.json: a hook cut short by it says nothing, and the merge runs.
@@ -257,16 +259,14 @@ def target(args: list[str]) -> list[str]:
     return pr + repo
 
 
-def look_up(
-    view: list[str], cwd: str | None, timeout: float = LOOKUP_S
-) -> dict[str, Any] | None:
-    """The PR's state, branch and checks, or None when gh cannot say."""
+def _gh(args: list[str], cwd: str | None, timeout: float) -> Any:
+    """What gh prints as JSON for ``args``, or None when it cannot say."""
     gh = shutil.which("gh")
     if gh is None:
         return None
     try:
         done = subprocess.run(  # noqa: S603
-            [gh, "pr", "view", *view, "--json", FIELDS],
+            [gh, *args],
             cwd=cwd,
             capture_output=True,
             text=True,
@@ -278,10 +278,27 @@ def look_up(
     if done.returncode != 0:
         return None
     try:
-        pr = json.loads(done.stdout)
+        return json.loads(done.stdout)
     except ValueError:
         return None
+
+
+def look_up(
+    view: list[str], cwd: str | None, timeout: float = LOOKUP_S
+) -> dict[str, Any] | None:
+    """The PR's state, branch, head and checks, or None when gh cannot say."""
+    pr = _gh(["pr", "view", *view, "--json", FIELDS], cwd, timeout)
     return pr if isinstance(pr, dict) else None
+
+
+def look_up_runs(
+    sha: str, repo: list[str], cwd: str | None, timeout: float = LOOKUP_S
+) -> list[dict[str, Any]] | None:
+    """The workflow runs of a commit, or None when gh cannot say: a run waiting
+    for approval has no check in the PR's rollup."""
+    command = ["run", "list", "--commit", sha, *repo, "--json", RUN_FIELDS]
+    found = _gh([*command, "--limit", "100"], cwd, timeout)
+    return found if isinstance(found, list) else None
 
 
 def passed(check: dict[str, Any]) -> bool:
@@ -295,8 +312,10 @@ def refusal(
     args: list[str],
     look: Callable[[list[str]], dict[str, Any] | None],
     folder: str = "",
+    runs: Callable[[str, list[str]], list[dict[str, Any]] | None] | None = None,
 ) -> str | None:
-    """Why this merge, run in ``folder``, must not run, or None when it may."""
+    """Why this merge, run in ``folder``, must not run, or None when it may;
+    ``runs`` gives the head's workflow runs by its commit and repo."""
     view = target(args)
     if any("$" in word or "`" in word for word in [*view, folder]):  # the shell's
         return (
@@ -321,6 +340,18 @@ def refusal(
         return (
             f"Release PR #{number} has no checks on its head: its runs wait for "
             f"approval -- gh run rerun each run of the head commit that reports "
+            f"action_required, then wait for them to pass; {SKILL}."
+        )
+    repo = view[view.index("--repo") :] if "--repo" in view else []
+    held = [  # a run approved in part: those still waiting have no check yet
+        str(run.get("name") or "?")
+        for run in (runs(str(pr.get("headRefOid", "")), repo) if runs else None) or []
+        if run.get("status") != "completed" or run.get("conclusion") not in RUN_PASSED
+    ]
+    if held:
+        return (
+            f"Release PR #{number} is not green yet: its runs {', '.join(held)} wait "
+            f"for approval or have not passed -- gh run rerun each one that reports "
             f"action_required, then wait for them to pass; {SKILL}."
         )
     waiting = [
@@ -350,9 +381,11 @@ def main() -> int:
     for merge in merges(command):
         here, args = where(merge, cwd)
         left = deadline - time.monotonic()
-        look = partial(look_up, cwd=here, timeout=min(LOOKUP_S, left))
+        each = min(LOOKUP_S, left / 2)  # the PR, then its head's runs
+        look = partial(look_up, cwd=here, timeout=each)
+        runs = partial(look_up_runs, cwd=here, timeout=each)
         reason = (
-            refusal(args, look, here or "")
+            refusal(args, look, here or "", runs)
             if left >= 1
             else f"These merges take too long to check: one at a time; {SKILL}."
         )
