@@ -64,14 +64,34 @@ def merges(command: str) -> list[list[str]]:
     for at, word in enumerate(words):
         if _script(words, at):  # bash -c '...', eval '...': a command line in one word
             found += merges(word)
-        if _name(word) == "gh" and words[at + 1 : at + 3] == ["pr", "merge"]:
-            args = []
-            for arg in words[at + 3 :]:
-                if arg and set(arg) <= SHELL_PUNCTUATION:  # &&, ;, |, a redirection
-                    break
-                args.append(arg)
-            found.append(args)
+        if _name(word) == "gh" and words[at + 1 : at + 2] == ["pr"]:
+            args = _merge_args(words[at + 2 :])
+            if args is not None:
+                found.append(args)
     return found
+
+
+def _merge_args(rest: list[str]) -> list[str] | None:
+    """The arguments of `gh pr ... merge` -- flags gh takes before `merge`, `-R`
+    among them, kept with the rest; None for another subcommand."""
+    before: list[str] = []
+    words = iter(rest)
+    for word in words:
+        if word == "merge":
+            break
+        if not word.startswith("-") or set(word) <= SHELL_PUNCTUATION:
+            return None  # another subcommand, or the command ended first
+        before.append(word)
+        if word in VALUE_FLAGS:
+            before.append(next(words, ""))
+    else:
+        return None
+    args = []
+    for arg in words:
+        if arg and set(arg) <= SHELL_PUNCTUATION:  # &&, ;, |, a redirection
+            break
+        args.append(arg)
+    return before + args
 
 
 def _script(words: list[str], at: int) -> bool:
@@ -103,6 +123,8 @@ def target(args: list[str]) -> list[str]:
                 repo = ["--repo", value]
         elif word.startswith("--repo="):
             repo = ["--repo", word.removeprefix("--repo=")]
+        elif word.startswith("-R") and len(word) > 2:  # -Rowner/repo
+            repo = ["--repo", word.removeprefix("-R")]
         elif not word.startswith("-") and not pr:
             pr = [word]
     return pr + repo

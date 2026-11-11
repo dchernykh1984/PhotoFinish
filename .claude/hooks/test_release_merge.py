@@ -84,6 +84,14 @@ class MergesTests(unittest.TestCase):
         self.assertEqual(HOOK.merges("gh pr merge 2>/dev/null"), [[]])
         self.assertEqual(HOOK.target(HOOK.merges("gh pr merge 2>/dev/null")[0]), [])
 
+    def test_flags_before_merge_and_a_repo_written_in_one(self) -> None:
+        merged = HOOK.merges("gh pr -R owner/PhotoFinish merge 21 --admin")
+        self.assertEqual(merged, [["-R", "owner/PhotoFinish", "21", "--admin"]])
+        self.assertEqual(HOOK.target(merged[0]), ["21", "--repo", "owner/PhotoFinish"])
+        attached = HOOK.merges("gh pr merge -Rowner/repo 21")[0]
+        self.assertEqual(HOOK.target(attached), ["21", "--repo", "owner/repo"])
+        self.assertEqual(HOOK.merges("gh pr -R x checkout 5 && gh pr view 21"), [])
+
     def test_no_merge(self) -> None:
         self.assertEqual(HOOK.merges("gh pr view 19 && gh run list"), [])
         self.assertEqual(HOOK.merges("echo 'unclosed"), [])
