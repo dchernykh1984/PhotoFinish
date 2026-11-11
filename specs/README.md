@@ -26,3 +26,5 @@ request.
 - [002-video-analysis](002-video-analysis/spec.md): finding riders in the video (experimental).
 - [003-phone-camera-app](003-phone-camera-app/spec.md): PhotoFinish Camera, the phone app that
   streams to PhotoFinish with each frame's moment.
+- [004-phone-lenses](004-phone-lenses/spec.md): several lenses of one phone, the front camera
+  among them, recorded at once; one camera large, and switching between cameras.
