@@ -1060,6 +1060,8 @@ class MainWindow(QMainWindow):
             self._job_turns_on = True  # chosen for its crossings, as one ready is
         elif chosen != analysis.settings(self.session)["model"]:
             self._set_model(chosen)
+        elif chosen and not analysis.settings(self.session)["crossings"]:
+            self.crossings_box.setChecked(True)  # chosen again: for its crossings
         else:
             self._show_model()  # the one in use again: nothing restarted, list redone
 
