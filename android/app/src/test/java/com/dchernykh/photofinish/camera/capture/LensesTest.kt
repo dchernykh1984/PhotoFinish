@@ -106,4 +106,11 @@ class LensesTest {
         }
         assertEquals(listOf("front" to true, "back" to true, "other" to false), given)
     }
+
+    @Test
+    fun `the preview is said shown only when its session has room for it`() {
+        assertEquals(StreamerStatus.Previewing, previewStatus("preview", listOf("lens", "preview")))
+        assertEquals(StreamerStatus.Failed(NO_PREVIEW), previewStatus("preview", listOf("lens")))
+        assertEquals(null, previewStatus(null, listOf("lens")))
+    }
 }

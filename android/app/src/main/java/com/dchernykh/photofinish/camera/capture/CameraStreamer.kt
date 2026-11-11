@@ -298,7 +298,7 @@ class CameraStreamer(
                 configured.setRepeatingRequest(request.build(), null, handler)
                 // The camera gives frames: a failure said before, a camera lost and opened again, is over;
                 // the camera with the preview says so for the cameras as a whole, the others' lenses by their links.
-                if (preview != null) onStatus(null, StreamerStatus.Previewing)
+                previewStatus(preview, targets)?.let { onStatus(null, it) }
             } catch (error: Exception) {
                 say(failed(error))
             }
