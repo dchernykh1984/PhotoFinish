@@ -16,6 +16,7 @@ not -- look at those too if an agent ever merges that way.
 from __future__ import annotations
 
 import json
+import re
 import shlex
 import shutil
 import subprocess
@@ -42,6 +43,7 @@ VALUE_FLAGS = {
 }
 SHELL_PUNCTUATION = set("();<>|&")
 SHELLS = {"sh", "bash", "zsh", "dash"}
+DESCRIPTOR = re.compile(r"(?<![\w./-])\d+(?=[<>])")
 FIELDS = "number,state,headRefName,statusCheckRollup"
 SKILL = "see the shipping-a-change skill, Releasing"
 
@@ -49,9 +51,10 @@ SKILL = "see the shipping-a-change skill, Releasing"
 def merges(command: str) -> list[list[str]]:
     """The arguments of each `gh pr merge` in a shell command line, whatever the
     spaces between its words, a line continuation among them."""
-    lexer = shlex.shlex(
-        command.replace("\\\n", " "), posix=True, punctuation_chars=True
-    )
+    # A descriptor touching its redirection -- 2>&1 -- is no word of the command:
+    # the lexer would part it from the > as a word, a PR number to the merge.
+    line = DESCRIPTOR.sub("", command.replace("\\\n", " "))
+    lexer = shlex.shlex(line, posix=True, punctuation_chars=True)
     lexer.whitespace_split = True
     try:
         words = list(lexer)
