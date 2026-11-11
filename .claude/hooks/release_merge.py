@@ -41,6 +41,7 @@ VALUE_FLAGS = {
     "--subject",
 }
 SHELL_PUNCTUATION = set("();<>|&")
+SHELLS = {"sh", "bash", "zsh", "dash"}
 FIELDS = "number,state,headRefName,statusCheckRollup"
 SKILL = "see the shipping-a-change skill, Releasing"
 
@@ -58,7 +59,7 @@ def merges(command: str) -> list[list[str]]:
         return []
     found: list[list[str]] = []
     for at, word in enumerate(words):
-        if word != "gh" and "gh pr merge" in word:  # bash -c '...': a script in one
+        if _script(words, at):  # bash -c '...', eval '...': a command line in one word
             found += merges(word)
         if words[at : at + 3] == ["gh", "pr", "merge"]:
             args = []
@@ -68,6 +69,15 @@ def merges(command: str) -> list[list[str]]:
                 args.append(arg)
             found.append(args)
     return found
+
+
+def _script(words: list[str], at: int) -> bool:
+    """The word at ``at`` is a command line run as such: a shell's ``-c`` script or
+    what ``eval`` runs -- not a message or a pattern that names a merge."""
+    if at >= 1 and words[at - 1] == "eval":
+        return True
+    shell = words[at - 2].rsplit("/", 1)[-1] if at >= 2 else ""
+    return words[at - 1] == "-c" and shell in SHELLS if at >= 1 else False
 
 
 def target(args: list[str]) -> list[str]:
