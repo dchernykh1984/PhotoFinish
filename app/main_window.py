@@ -66,7 +66,7 @@ from app.lines import (
 )
 from app.output_list import Change, JournalError, OutputLine, OutputList
 from app.paths import app_path
-from app.recorder import folder_of
+from app.recorder import folder_of, free_ids
 from app.recorder.launcher import (
     Watchdog,
     child_environment,
@@ -452,7 +452,7 @@ class MainWindow(QMainWindow):
     def add_camera(self) -> None:
         """A camera, or a phone's camera for each of its lenses ticked (004)."""
         cameras_now = self.session["cameras"]
-        first, *spare = self._free_ids(len(cameras.LENSES))
+        first, *spare = free_ids(self.cameras, len(cameras.LENSES))
         dialog = CameraDialog(self, first, usb_cameras(), cameras_now, spare)
         if dialog.exec() != CameraDialog.DialogCode.Accepted:
             return
@@ -549,16 +549,6 @@ class MainWindow(QMainWindow):
         """The view of the camera chosen, or the one that says to add a camera."""
         camera = self._camera()
         return self.placeholder if camera is None else camera.view
-
-    def _free_ids(self, count: int) -> list[str]:
-        """Ids no camera has, nor a recording on disk."""
-        found: list[str] = []
-        n = 0
-        while len(found) < count:
-            n += 1
-            if f"cam{n}" not in self.cameras and not folder_of(f"cam{n}").exists():
-                found.append(f"cam{n}")
-        return found
 
     def _choose_camera(self, row: int) -> None:
         """Another camera to step through; the moment shown stays. A line or zone

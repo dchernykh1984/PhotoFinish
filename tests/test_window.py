@@ -30,7 +30,7 @@ from app import main_window as mw
 from app.analysis import models
 from app.lines import parse_time, scale_time, to_line_scale
 from app.main_window import start_analyzer
-from app.recorder import launcher
+from app.recorder import free_ids, launcher
 from app.recorder.segments import SegmentWriter
 from app.recorder.testcam import read_time, render
 from app.widgets.camera_dialog import CameraDialog
@@ -582,7 +582,7 @@ def test_a_removed_camera_stops_recording_and_keeps_its_video(
     assert win.camera_list.count() == 0
     assert win.view.text == "Add a camera"
     win.remove_camera()  # nothing chosen: nothing happens
-    assert win._free_ids(1) == ["cam2"]  # cam1's recording is still on disk
+    assert free_ids(win.cameras, 1) == ["cam2"]  # cam1's recording is still on disk
 
 
 def test_the_list_says_how_each_recorder_is(
