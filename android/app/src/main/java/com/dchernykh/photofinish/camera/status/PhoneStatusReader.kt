@@ -40,7 +40,12 @@ class PhoneStatusReader(
         val temperature = battery?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, NONE) ?: NONE
         return PhoneStatus(
             battery = if (level >= 0 && scale > 0) level * PERCENT / scale else null,
-            charging = battery?.let { it.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) != 0 },
+            charging =
+                battery?.let {
+                    PhoneStatus.charging(
+                        it.getIntExtra(BatteryManager.EXTRA_STATUS, BatteryManager.BATTERY_STATUS_UNKNOWN),
+                    )
+                },
             temperatureC = if (temperature == NONE) null else temperature / TENTHS,
             thermal = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) power?.currentThermalStatus else null,
             saver = power?.isPowerSaveMode,
