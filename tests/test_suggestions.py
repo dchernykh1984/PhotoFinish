@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from app.analysis.suggestions import Suggestions, gathered
+from app.analysis.suggestions import Suggestions, gathered, remaining
 
 
 def test_suggestions_are_read_as_appended_and_decisions_kept(tmp_path: Path) -> None:
@@ -84,3 +84,25 @@ def test_a_suggestion_joins_the_nearest_crossing_not_the_first() -> None:
     assert [s[2]["id"] for s in first.seen] == ["a1"]
     assert [s[2]["id"] for s in second.seen] == ["b1", "b2"]
     assert (first.number, second.number) == ("", "18")
+
+
+def test_what_is_left_of_a_crossing_decided_in_part_is_offered_with_the_decision() -> (
+    None
+):
+    side = (1_000, "cam1", {"id": "a", "number": "27", "number_sure": 0.9})
+    front = (1_030, "cam2", {"id": "b", "number": "31", "number_sure": 0.9})
+    [crossing] = gathered([side, front])
+    decided = {"a": "accepted"}
+    left, how = remaining(crossing, lambda camera, found: decided.get(found["id"]))
+    assert left is not None
+    assert ([s[2]["id"] for s in left.seen], left.number, how) == (
+        ["b"],
+        "31",
+        "accepted",
+    )
+    decided["b"] = "dismissed"
+    assert remaining(crossing, lambda camera, found: decided.get(found["id"])) == (
+        None,
+        "accepted",
+    )
+    assert remaining(crossing, lambda camera, found: None)[1] == ""

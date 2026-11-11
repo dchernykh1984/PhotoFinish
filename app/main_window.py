@@ -3,7 +3,6 @@ Qt-free modules (session, video_index, recorder) and the widgets."""
 
 from __future__ import annotations
 
-import contextlib
 import html
 import math
 import time
@@ -45,7 +44,7 @@ from PySide6.QtWidgets import (
 from app import analysis, cameras, paths, phone_status, playback, session, shared_event
 from app.analysis import models
 from app.analysis.activity import Activity, how_far
-from app.analysis.suggestions import Gathered, Suggestions, gathered
+from app.analysis.suggestions import Gathered, Suggestions, gathered, remaining
 from app.input_follow import InputFollow
 from app.interpolation import (
     Line,
@@ -1361,10 +1360,12 @@ class MainWindow(QMainWindow):
             for c in self.cameras.values()
             for s in c.suggestions.found
         ]
-        for suggested in gathered(found):  # every camera's suggestion of one, once
-            if self._settled(suggested):
+        for whole in gathered(found):  # every camera's suggestion of one, once
+            suggested, how = remaining(whole, self._decision)
+            if suggested is None:
                 continue
-            item = QListWidgetItem(self._suggestion_text(suggested))
+            said = f"  (one {how} with it)" if how else ""
+            item = QListWidgetItem(self._suggestion_text(suggested) + said)
             item.setToolTip(
                 "\n".join(
                     f"{self._name(camera_id)}: {clock_of(self._line_ms(moment))} "
@@ -1383,25 +1384,14 @@ class MainWindow(QMainWindow):
         hint.setFlags(Qt.ItemFlag.NoItemFlags)
         self.suggestion_list.addItem(hint)
 
-    def _settled(self, suggested: Gathered) -> bool:
-        """A crossing already decided, by any camera's suggestion of it: one that
-        arrived since -- another camera's analyser running behind -- is decided
-        with it, never offered as a crossing of its own to accept twice."""
-        decisions = [
-            self.cameras[camera_id].suggestions.done.get(str(found.get("id")))
-            for _, camera_id, found in suggested.seen
-            if camera_id in self.cameras
-        ]
-        how = next((d for d in decisions if d), None)
-        if how is None:
-            return False
-        for (_, camera_id, found), decided in zip(
-            suggested.seen, decisions, strict=True
-        ):
-            if not decided and camera_id in self.cameras:
-                with contextlib.suppress(OSError):  # asked again at the next look
-                    self.cameras[camera_id].suggestions.decide(str(found["id"]), how)
-        return True
+    def _decision(self, camera_id: str, found: dict[str, Any]) -> str | None:
+        """How a camera's suggestion was decided, None while it is not."""
+        camera = self.cameras.get(camera_id)
+        return (
+            None
+            if camera is None
+            else camera.suggestions.done.get(str(found.get("id")))
+        )
 
     def _suggestion_text(self, suggested: Gathered) -> str:
         """A crossing in the list: its moment, the cameras that saw it, the number

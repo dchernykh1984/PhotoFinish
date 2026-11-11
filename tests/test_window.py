@@ -2484,10 +2484,11 @@ def test_a_suggestion_accepted_after_its_camera_was_aligned_is_written_so(
     assert written == f"27#{scale_time(to_line_scale(FLASH + 400, False))}#nextLap#\n"
 
 
-def test_a_late_camera_s_suggestion_of_a_crossing_decided_is_decided_with_it(
+def test_a_late_camera_s_suggestion_of_a_crossing_decided_is_offered_with_a_word(
     two: None, make_window: Callable[[], mw.MainWindow], base: Path
 ) -> None:
-    """006 FR-003: another camera's analyser running behind offers no second one."""
+    """006 FR-003: another camera's analyser running behind: its suggestion may be
+    the same rider or another, so it is offered, with the decision said."""
     analysis = {"on": True, "model": "m.onnx", "crossings": True}
     session.save({**session.load(), "analysis": analysis})
 
@@ -2506,9 +2507,12 @@ def test_a_late_camera_s_suggestion_of_a_crossing_decided_is_decided_with_it(
     assert win.suggestion_list.count() == 0
     suggests("cam2", FLASH + 30)  # Front's analyser, minutes behind
     win.poll()
+    assert win.suggestion_list.count() == 1
+    assert win.suggestion_list.item(0).text().endswith("Front  (one accepted with it)")
+    assert not (base / "video" / "cam2" / "suggestions.done.jsonl").exists()
+    win.suggestion_list.setCurrentRow(0)
+    win.dismiss_suggestion()  # the same rider: the referee says so
     assert win.suggestion_list.count() == 0
-    done = (base / "video" / "cam2" / "suggestions.done.jsonl").read_text()
-    assert '"done": "accepted"' in done
     assert len((base / "out.txt").read_text().splitlines()) == 1
 
 
