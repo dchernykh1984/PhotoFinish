@@ -53,7 +53,7 @@ SHELLS = {"sh", "bash", "zsh", "dash"}
 WORD_START = set(" \t\n;&|()<>")  # what a word may begin after: a # there is a comment
 DESCRIPTOR = re.compile(r"(?<![\w./-])\d+(?=[<>])")
 FIELDS = "number,state,headRefName,headRefOid,statusCheckRollup"
-RUN_FIELDS = "name,status,conclusion"
+RUN_FIELDS = "name,status,conclusion,createdAt"
 RUN_PASSED = {"success", "skipped", "neutral"}
 LOOKUP_S = 20  # one PR looked up
 # All of a command's merges looked up within this, inside the hook's 90 s timeout in
@@ -336,6 +336,14 @@ def look_up_runs(
     return found if isinstance(found, list) else None
 
 
+def latest(found: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Each workflow's newest run: one cancelled and run again since is over."""
+    newest: dict[str, dict[str, Any]] = {}
+    for run in sorted(found, key=lambda run: str(run.get("createdAt", ""))):
+        newest[str(run.get("name") or "?")] = run
+    return newest
+
+
 def passed(check: dict[str, Any]) -> bool:
     """A check run that finished and did not fail, or a commit status that passed."""
     if check.get("__typename") == "StatusContext":
@@ -378,9 +386,10 @@ def refusal(
             f"action_required, then wait for them to pass; {SKILL}."
         )
     repo = view[view.index("--repo") :] if "--repo" in view else []
+    found = (runs(str(pr.get("headRefOid", "")), repo) if runs else None) or []
     held = [  # a run approved in part: those still waiting have no check yet
-        str(run.get("name") or "?")
-        for run in (runs(str(pr.get("headRefOid", "")), repo) if runs else None) or []
+        name
+        for name, run in latest(found).items()
         if run.get("status") != "completed" or run.get("conclusion") not in RUN_PASSED
     ]
     if held:

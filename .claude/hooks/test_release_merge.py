@@ -258,6 +258,16 @@ class RefusalTests(unittest.TestCase):
         unknown = HOOK.refusal(["19"], lambda view: green, "", lambda *a: None)
         self.assertIsNone(unknown)  # gh cannot say: the checks decide
 
+    def test_a_run_cancelled_and_run_again_since_holds_nothing(self) -> None:
+        green = pr([check("tests")]) | {"headRefOid": "abc"}
+        old = {"name": "CI", "status": "completed", "conclusion": "cancelled"}
+        again = {"name": "CI", "status": "completed", "conclusion": "success"}
+        runs = [old | {"createdAt": "2026-11-11T06:00:00Z"}]
+        runs += [again | {"createdAt": "2026-11-11T06:05:00Z"}]
+        self.assertIsNone(HOOK.refusal(["19"], lambda view: green, "", lambda *a: runs))
+        last = HOOK.refusal(["19"], lambda view: green, "", lambda *a: runs[::-1][1:])
+        self.assertIn("its runs CI", last)  # cancelled, and the newest
+
     def test_a_release_pr_with_no_checks_waits_for_their_approval(self) -> None:
         reason = self.refusal(["19", "--rebase"], pr([]))
         self.assertIn("action_required", reason)
