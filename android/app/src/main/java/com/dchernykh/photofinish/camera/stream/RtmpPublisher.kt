@@ -4,11 +4,13 @@ import com.dchernykh.photofinish.camera.pairing.RtmpAddress
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
 import java.io.Closeable
+import java.io.FilterOutputStream
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 import java.net.InetSocketAddress
 import java.net.Socket
+import java.nio.ByteBuffer
 import java.security.SecureRandom
 
 /** Where the frames go: an RTMP server, or a test's stand-in. */
@@ -25,6 +27,12 @@ interface VideoSink : Closeable {
         keyframe: Boolean,
         nalUnits: List<ByteArray>,
     )
+
+    /** The bytes written to the server so far; 0 from a sink that does not count them. */
+    val sentBytes: Long get() = 0
+
+    /** The bytes the server says it has read so far, by its acknowledgements: 0 until it says. */
+    val acknowledgedBytes: Long get() = 0
 }
 
 /** A connection to the server: its streams, so a test can stand in for a socket. */
@@ -53,6 +61,13 @@ class RtmpPublisher(
 
     @Volatile private var closed = false
 
+    /** Counted as they reach the socket: the handshake and the commands too, so never fewer than the server's. */
+    @Volatile override var sentBytes = 0L
+        private set
+
+    @Volatile override var acknowledgedBytes = 0L
+        private set
+
     override fun publish(metadata: Map<String, Any?>) {
         val opened = connect(address)
         connection = opened
@@ -60,7 +75,23 @@ class RtmpPublisher(
             opened.close()
             throw IOException("the stream was closed")
         }
-        val output = BufferedOutputStream(opened.output, BUFFER_SIZE)
+        val counted =
+            object : FilterOutputStream(opened.output) {
+                override fun write(b: Int) {
+                    out.write(b)
+                    sentBytes++
+                }
+
+                override fun write(
+                    b: ByteArray,
+                    off: Int,
+                    len: Int,
+                ) {
+                    out.write(b, off, len)
+                    sentBytes += len
+                }
+            }
+        val output = BufferedOutputStream(counted, BUFFER_SIZE)
         val input = BufferedInputStream(opened.input)
         handshake(input, output)
         writer = RtmpChunkWriter(output)
@@ -83,6 +114,9 @@ class RtmpPublisher(
             streamId,
             Amf0.encode("@setDataFrame", "onMetaData", Amf0.EcmaArray(metadata)),
         )
+        // FFmpeg acknowledges what it reads every half window, a megabyte by default: a slow stream would
+        // hear none for long. Asked for one every 64 KiB, it says how far it read every moment (specs/007).
+        send(CONTROL_STREAM, 0, RtmpType.WINDOW_ACK_SIZE, 0, int32(ACK_WINDOW.toLong()))
         // Publishing, the server may stay quiet for long: a read timed out then could cut a
         // message in two and leave the reader out of step.
         opened.clearReadTimeout()
@@ -151,14 +185,17 @@ class RtmpPublisher(
     }
 
     /**
-     * Reads what the server sends while the frames go out, so its acknowledgements
-     * never fill the socket over a long race, and answers its pings.
+     * Reads what the server sends while the frames go out, so its acknowledgements never fill the socket over
+     * a long race -- each telling how far it has read (specs/007) -- and answers its pings.
      */
     @Suppress("TooGenericExceptionCaught") // an exception left to escape would end the app
     private fun drain() {
         try {
             while (!closed) {
                 val message = reader.read()
+                if (message.typeId == RtmpType.ACKNOWLEDGEMENT && message.payload.size >= 4) {
+                    acknowledgedBytes = unwrapped(ByteBuffer.wrap(message.payload).int.toLong(), sentBytes)
+                }
                 val pingRequest =
                     message.typeId == RtmpType.USER_CONTROL &&
                         message.payload.size >= 6 &&
@@ -177,6 +214,7 @@ class RtmpPublisher(
 
     companion object {
         const val CHUNK_SIZE = 65536
+        private const val ACK_WINDOW = 128 * 1024
         private const val BUFFER_SIZE = 1 shl 16
         private const val HANDSHAKE_SIZE = 1536
         private const val RTMP_VERSION = 3
@@ -206,6 +244,15 @@ class RtmpPublisher(
             output.write(s1) // C2: the echo of S1
             output.flush()
         }
+
+        /**
+         * The bytes the server has read, from its acknowledgement's 32 bits, which go round every 4 GiB -- half an
+         * hour at 20 Mbit/s: the count at most [sent] whose low 32 bits they are.
+         */
+        fun unwrapped(
+            acknowledged: Long,
+            sent: Long,
+        ): Long = sent - ((sent - acknowledged) and 0xFFFFFFFFL)
 
         private fun describe(values: List<Any?>): String =
             (values.getOrNull(3) as? Map<*, *>)?.get("description")?.toString() ?: values.toString()

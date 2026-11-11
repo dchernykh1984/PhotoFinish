@@ -15,6 +15,7 @@ import java.io.OutputStream
 import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.Socket
+import java.nio.ByteBuffer
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
@@ -89,6 +90,10 @@ private class FakeServer(
     }
 
     fun ping() = writer.write(RtmpMessage(2, 0, RtmpType.USER_CONTROL, 0, byteArrayOf(0, 6, 0, 0, 1, 2)))
+
+    /** An acknowledgement of [read] bytes, as FFmpeg sends one for every window it reads. */
+    fun acknowledge(read: Int) =
+        writer.write(RtmpMessage(2, 0, RtmpType.ACKNOWLEDGEMENT, 0, ByteBuffer.allocate(4).putInt(read).array()))
 
     /** A ping whose header comes, then the rest after [pauseMs]: a slow network, a busy server. */
     fun pingInTwo(pauseMs: Long) {
@@ -234,5 +239,25 @@ class RtmpPublisherTest {
         server.pingInTwo(pauseMs = 600)
         assertArrayEquals(byteArrayOf(0, 7, 0, 0, 1, 2), server.nextOfType(RtmpType.USER_CONTROL).payload)
         publisher.close()
+    }
+
+    @Test
+    fun `the server's acknowledgements tell how far it has read, past 4 GiB too`() {
+        val server = server()
+        server.serve()
+        val publisher = RtmpPublisher(server.address)
+        publisher.publish(emptyMap())
+        server.nextOfType(RtmpType.DATA_AMF0)
+        // Asked to acknowledge every 64 KiB: FFmpeg's megabyte is long on a slow stream.
+        assertArrayEquals(byteArrayOf(0, 2, 0, 0), server.nextOfType(RtmpType.WINDOW_ACK_SIZE).payload)
+        val sent = publisher.sentBytes
+        assertTrue(sent > 3_000) // the handshake and the commands counted
+        server.acknowledge(1_000)
+        val deadline = System.currentTimeMillis() + 5_000
+        while (publisher.acknowledgedBytes == 0L && System.currentTimeMillis() < deadline) Thread.sleep(10)
+        assertEquals(1_000L, publisher.acknowledgedBytes)
+        publisher.close()
+        assertEquals((1L shl 32) + 100, RtmpPublisher.unwrapped(100, (1L shl 32) + 200))
+        assertEquals(100L, RtmpPublisher.unwrapped(100, 200))
     }
 }
