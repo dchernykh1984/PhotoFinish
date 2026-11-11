@@ -122,6 +122,22 @@ def test_a_line_s_longest_run_of_digits_is_the_number() -> None:
     assert longest_digits("TEAM") == ""
 
 
+def test_of_a_box_full_of_text_the_largest_pieces_alone_are_read() -> None:
+    rgb = np.full((480, 128, 3), 200, np.uint8)
+    marks = [slice(4 + 44 * n, 12 + 44 * n + n) for n in range(10)]  # taller and taller
+    made = reader([([2, 9], 0.9)] * 10, marks)
+    reads: list[int] = []
+    look = made.reader.run
+
+    def counted(names: Any, feed: dict[str, np.ndarray]) -> list[np.ndarray]:
+        reads.append(feed["x"].shape[3])
+        return look(names, feed)
+
+    made.reader = SimpleNamespace(run=counted)  # type: ignore[assignment]
+    assert made.read(rgb) is not None
+    assert len(reads) == numbers.MOST_PIECES
+
+
 def test_a_picture_with_no_extent_reads_nothing() -> None:
     made = reader([], [])
     assert made.line(np.zeros((0, 5, 3), np.uint8)) == ("", 0.0)
