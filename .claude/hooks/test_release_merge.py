@@ -92,6 +92,17 @@ class MergesTests(unittest.TestCase):
         self.assertEqual(HOOK.target(attached), ["21", "--repo", "owner/repo"])
         self.assertEqual(HOOK.merges("gh pr -R x checkout 5 && gh pr view 21"), [])
 
+    def test_a_new_line_ends_the_merge_and_a_comment_does_not_hide_it(self) -> None:
+        for command in (
+            "gh pr merge --admin\ngit status",
+            "gh pr merge --admin # the release\ngit status",
+            "bash -c 'gh pr merge --admin\ngit status'",
+        ):
+            self.assertEqual(HOOK.merges(command), [["--admin"]], command)
+        self.assertEqual(
+            HOOK.merges('gh pr merge 21 -t "a\nb"'), [["21", "-t", "a\nb"]]
+        )
+
     def test_no_merge(self) -> None:
         self.assertEqual(HOOK.merges("gh pr view 19 && gh run list"), [])
         self.assertEqual(HOOK.merges("echo 'unclosed"), [])
