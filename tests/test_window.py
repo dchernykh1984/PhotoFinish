@@ -2099,6 +2099,27 @@ def test_no_number_reader_is_fetched_without_a_detector_to_read_for(
     assert fetched == []  # motion only: no crossing to read a number at
 
 
+def test_a_detector_chosen_brings_the_number_reader_too(
+    recording: Path,
+    make_window: Callable[[], mw.MainWindow],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    saved = session.load()
+    saved["analysis"] = {"on": True, "model": "", "crossings": False}
+    session.save(saved)
+    fetched: list[str] = []
+
+    def fetch(model: models.Model, *args: Any, **kwargs: Any) -> Path:
+        fetched.append(model.key)
+        return Path(model.file)
+
+    monkeypatch.setattr(mw.models, "fetch", fetch)
+    monkeypatch.setattr(mw.models, "ready", lambda model: model.key in fetched)
+    win = make_window()
+    win._set_model("m.onnx")  # Numbers and crossings turned on with it
+    wait_until(lambda: fetched == ["ppocr_det_en_v3", "ppocr_rec_en_v3"])
+
+
 def test_a_closed_window_hears_nothing_from_a_download_still_running(
     win: mw.MainWindow,
 ) -> None:
