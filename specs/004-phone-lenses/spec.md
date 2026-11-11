@@ -96,7 +96,8 @@ switch to the other at the same moment and back to both.
   phone's camera like any other.
 - **FR-002**: The QR code holds the address alone for Main alone, else one line per lens,
   `<lens> <address>`, the lens one of `main`, `ultrawide`, `telephoto`, `front`
-  ([contract](../003-phone-camera-app/contracts/phone-stream.md)). The text shown says the same.
+  ([contract](../003-phone-camera-app/contracts/phone-stream.md)). The text shown says the same,
+  but for one lens alone: its address alone, to type in any streaming app.
 - **FR-003**: PhotoFinish Camera reads both forms, scanned or typed; a line it cannot read is
   said.
 - **FR-004**: The app finds its lenses: the back camera's physical cameras when it is a logical
