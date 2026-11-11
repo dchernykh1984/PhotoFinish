@@ -24,11 +24,8 @@ internal object SessionOutputs {
         streams: List<LensStream>,
         executor: Executor,
     ): Pair<List<OutputConfiguration>, List<LensStream>> {
-        for (count in streams.size downTo 1) {
-            val supported = options(preview, streams.take(count)).firstOrNull { supports(camera, it, executor) }
-            if (supported != null) return supported to streams.drop(count)
-        }
-        return options(preview, streams).firstOrNull().orEmpty() to emptyList()
+        val (chosen, dropped) = firstSupported(streams, { options(preview, it) }) { supports(camera, it, executor) }
+        return chosen.orEmpty() to dropped
     }
 
     private fun options(
