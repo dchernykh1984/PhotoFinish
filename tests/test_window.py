@@ -1750,6 +1750,7 @@ def test_a_preset_missing_on_disk_is_downloaded_before_the_analysers_start(
         fetched.append(model.key)
         return Path(model.file)
 
+    monkeypatch.setattr(mw.models, "NUMBER_MODELS", ())  # the detector alone
     monkeypatch.setattr(mw.models, "fetch", fetch)
     monkeypatch.setattr(mw.models, "ready", lambda model: model.key in fetched)
     win = make_window()
@@ -1904,6 +1905,7 @@ def test_a_file_dialog_closed_without_a_file_leaves_the_download_going(
         stopped.append(cancelled())
         return Path(model.file)
 
+    monkeypatch.setattr(mw.models, "NUMBER_MODELS", ())  # the detector alone
     monkeypatch.setattr(mw.models, "fetch", fetch)
     monkeypatch.setattr(mw.models, "ready", lambda model: bool(stopped))
     monkeypatch.setattr(QFileDialog, "getOpenFileName", lambda *a: ("", ""))
@@ -2013,12 +2015,54 @@ def test_a_missing_model_is_fetched_only_once_finding_riders_is_on(
         fetched.append(model.key)
         return Path(model.file)
 
+    monkeypatch.setattr(mw.models, "NUMBER_MODELS", ())  # the detector alone
     monkeypatch.setattr(mw.models, "fetch", fetch)
     monkeypatch.setattr(mw.models, "ready", lambda model: model.key in fetched)
     win = make_window()
     assert fetched == []  # off: no network at an offline race's start
     win.analysis_box.setChecked(True)
     wait_until(lambda: fetched == ["yolox_s"])
+
+
+def test_the_number_reader_is_fetched_once_numbers_and_crossings_are_on(
+    recording: Path,
+    make_window: Callable[[], mw.MainWindow],
+    analyzers: list[Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """006 FR-002: its two models one after the other, then read with."""
+    saved = session.load()
+    saved["analysis"] = {"on": True, "model": "", "crossings": False}
+    session.save(saved)
+    fetched: list[str] = []
+    failing = [True]
+
+    def fetch(
+        model: models.Model,
+        progress: Callable[[int], None],
+        cancelled: Callable[[], bool] = lambda: False,
+    ) -> Path:
+        if failing[0]:
+            failing[0] = False
+            raise models.FetchError(f"{model.title} cannot be downloaded: offline")
+        fetched.append(model.key)
+        return Path(model.file)
+
+    monkeypatch.setattr(mw.models, "fetch", fetch)
+    monkeypatch.setattr(mw.models, "ready", lambda model: model.key in fetched)
+    win = make_window()
+    win.poll()
+    assert fetched == []  # numbers off: nothing fetched
+    win.crossings_box.setChecked(True)
+    said = "crossings are suggested without numbers"
+    wait_until(lambda: said in win.statusBar().currentMessage())
+    win.crossings_box.setChecked(False)
+    started = len(analyzers)
+    win.crossings_box.setChecked(True)  # tried again
+    wait_until(lambda: fetched == ["ppocr_det_en_v3", "ppocr_rec_en_v3"])
+    wait_until(lambda: win.statusBar().currentMessage() == "The number reader is ready")
+    win.poll()
+    assert len(analyzers) > started  # started again, to read numbers
 
 
 def test_a_closed_window_hears_nothing_from_a_download_still_running(

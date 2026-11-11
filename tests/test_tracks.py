@@ -145,3 +145,40 @@ def test_each_crossing_of_the_centre_line_is_suggested_once(
         assert found["frames"][1][2] - found["frames"][0][2] == 40
         assert 0 <= found["fraction"] <= 1
         assert found["id"] == f"cam1-{found['ms']}"
+
+
+class FakeReader:
+    """Reads 27 in any rider's box, and says what it was given."""
+
+    def __init__(self) -> None:
+        self.given: list[tuple[int, ...]] = []
+
+    def read(self, rgb: Any) -> tuple[str, float]:
+        self.given.append(rgb.shape)
+        return "27", 0.9876
+
+
+def test_a_crossing_carries_the_number_read_in_the_rider_s_box(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """006 FR-002: read once, at the crossing, in the rider's box."""
+    reader = FakeReader()
+    monkeypatch.setattr(analyzer, "_reader", lambda: reader)
+    suggested = suggested_by(FakeDetector, 300, tmp_path, monkeypatch)
+    assert suggested and all(s["number"] == "27" for s in suggested)
+    assert suggested[0]["number_sure"] == 0.988
+    assert len(reader.given) == len(suggested)
+    height, width, _ = reader.given[0]
+    assert height < 360 and width < 640  # the box, not the frame
+
+
+def test_a_reader_that_fails_costs_the_number_not_the_crossing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class Broken(FakeReader):
+        def read(self, rgb: Any) -> tuple[str, float]:
+            raise RuntimeError("onnxruntime: bad input")
+
+    monkeypatch.setattr(analyzer, "_reader", Broken)
+    suggested = suggested_by(FakeDetector, 300, tmp_path, monkeypatch)
+    assert suggested and all("number" not in s for s in suggested)
