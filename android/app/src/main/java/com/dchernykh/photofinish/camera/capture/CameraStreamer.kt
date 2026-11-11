@@ -103,15 +103,24 @@ class CameraStreamer(
         leftOut = plan.left.keys.map { it.code }
         val again = { reason: String -> openAgain(preview, format, targets, reason) }
         try {
-            startInTurn(plan.cameras) { camera, withPreview ->
-                val open = OpenCamera(if (withPreview) preview else null, mine, again)
-                opened += open
-                open.startStreams(camera, format).also { started ->
-                    if (started) {
-                        manager.openCamera(camera.cameraId, open, handler)
-                    } else {
-                        leaveOut(camera.lenses.map { it.target.lens })
+            val shown =
+                startInTurn(plan.cameras) { camera, withPreview ->
+                    val open = OpenCamera(if (withPreview) preview else null, mine, again)
+                    opened += open
+                    open.startStreams(camera, format).also { started ->
+                        if (started) {
+                            manager.openCamera(camera.cameraId, open, handler)
+                        } else {
+                            leaveOut(camera.lenses.map { it.target.lens })
+                        }
                     }
+                }
+            if (!shown) { // no camera streams: the first opened for its preview alone, to aim by
+                val first = plan.cameras.first().cameraId
+                val open = OpenCamera(preview, mine, again)
+                opened += open
+                if (open.startStreams(PlannedCamera(first, emptyList()), format)) {
+                    manager.openCamera(first, open, handler)
                 }
             }
         } catch (error: Exception) {
