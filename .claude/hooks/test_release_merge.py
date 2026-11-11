@@ -211,6 +211,15 @@ class TargetTests(unittest.TestCase):
         )
         self.assertEqual(HOOK.target(["19", "--repo=o/r"]), ["19", "--repo", "o/r"])
 
+    def test_flags_written_as_pflag_reads_them(self) -> None:
+        self.assertEqual(
+            HOOK.target(["21", "-R=o/r", "--admin"]), ["21", "--repo", "o/r"]
+        )
+        self.assertEqual(HOOK.target(["-db", "Release", "21", "--admin"]), ["21"])
+        self.assertEqual(HOOK.target(["-dbRelease", "21"]), ["21"])
+        self.assertEqual(HOOK.target(["--body=x y", "21", "-d"]), ["21"])
+        self.assertEqual(HOOK.target(["--repo=", "21"]), ["21", "--repo", ""])
+
     def test_no_pr_named_is_the_current_branch(self) -> None:
         self.assertEqual(HOOK.target(["--rebase"]), [])
 
