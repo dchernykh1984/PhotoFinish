@@ -57,14 +57,10 @@ class PhoneLenses(
         physicalId: String?,
     ): LensInfo {
         val characteristics = manager.getCameraCharacteristics(physicalId ?: cameraId)
-        val focal = characteristics.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)?.firstOrNull() ?: 0f
+        val focals = characteristics.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)
         val sensor = characteristics.get(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE)
         val diagonal = sensor?.let { hypot(it.width.toDouble(), it.height.toDouble()) } ?: 0.0
-        val equivalent = if (diagonal > 0) focal * FULL_FRAME_DIAGONAL_MM / diagonal else focal.toDouble()
+        val equivalent = LensChoice.equivalentFocal(focals?.map { it.toDouble() }.orEmpty(), diagonal)
         return LensInfo(cameraId, physicalId, equivalent)
-    }
-
-    private companion object {
-        const val FULL_FRAME_DIAGONAL_MM = 43.27
     }
 }

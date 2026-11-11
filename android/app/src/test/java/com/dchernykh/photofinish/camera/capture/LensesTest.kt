@@ -113,4 +113,13 @@ class LensesTest {
         assertEquals(StreamerStatus.Failed(NO_PREVIEW), previewStatus("preview", listOf("lens")))
         assertEquals(null, previewStatus(null, listOf("lens")))
     }
+
+    @Test
+    fun `a camera's focal length is the one nearest a main lens's, as 35 mm-equivalent`() {
+        // A logical camera listing its lenses', the ultra-wide's first, on a 9.8 mm sensor.
+        assertEquals(30.5, LensChoice.equivalentFocal(listOf(2.2, 6.9, 15.0), 9.8), 0.1)
+        assertEquals(66.2, LensChoice.equivalentFocal(listOf(15.0), 9.8), 0.1) // one: its own
+        assertEquals(24.0, LensChoice.equivalentFocal(listOf(24.0), 0.0), 0.0) // no sensor size
+        assertEquals(0.0, LensChoice.equivalentFocal(emptyList(), 9.8), 0.0)
+    }
 }

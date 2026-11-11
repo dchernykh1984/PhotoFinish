@@ -16,6 +16,21 @@ data class LensInfo(
 object LensChoice {
     private const val WIDE_AT_MOST = 0.8
     private const val TELE_AT_LEAST = 1.5
+    private const val FULL_FRAME_DIAGONAL_MM = 43.27
+    private const val MAIN_MM = 26.0 // a phone's main lens, 35 mm-equivalent: 23 to 28
+
+    /**
+     * A camera's 35 mm-equivalent focal length from its [focalsMm], by its sensor's diagonal
+     * ([diagonalMm], 0 when unknown), as phone makers give it. Of several -- a logical camera lists
+     * its lenses', the shortest first -- the one nearest a main lens's: the camera's own picture.
+     */
+    fun equivalentFocal(
+        focalsMm: List<Double>,
+        diagonalMm: Double,
+    ): Double =
+        focalsMm
+            .map { if (diagonalMm > 0) it * FULL_FRAME_DIAGONAL_MM / diagonalMm else it }
+            .minByOrNull { abs(it - MAIN_MM) } ?: 0.0
 
     /**
      * Of the [back] camera's [physical] cameras, the one nearest its own focal length is main, the
