@@ -7,6 +7,7 @@ import androidx.activity.compose.setContent
 import com.dchernykh.photofinish.camera.capture.CameraFormats
 import com.dchernykh.photofinish.camera.capture.CameraStreamer
 import com.dchernykh.photofinish.camera.capture.PhoneLenses
+import com.dchernykh.photofinish.camera.status.PhoneStatusReader
 import com.dchernykh.photofinish.camera.ui.CameraScreen
 import com.dchernykh.photofinish.camera.ui.ScreenState
 
@@ -31,7 +32,7 @@ class MainActivity : ComponentActivity() {
             state.autostart = intent.getBooleanExtra(EXTRA_AUTOSTART, false)
         }
         streamer =
-            CameraStreamer(this, lenses) { lens, status ->
+            CameraStreamer(this, lenses, PhoneStatusReader(this)) { lens, status ->
                 runOnUiThread { if (lens == null) state.status = status else state.lensStatus[lens] = status }
             }
         setContent { CameraScreen(state, streamer) }

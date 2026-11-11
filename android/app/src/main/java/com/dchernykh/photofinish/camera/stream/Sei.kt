@@ -5,27 +5,44 @@ import java.nio.ByteBuffer
 import java.util.UUID
 
 /**
- * The frame's moment, in an SEI NAL unit the recorder reads (specs/003,
- * contracts/phone-stream.md): user_data_unregistered under PhotoFinish's UUID,
- * then `PFT1` and the capture moment in Unix microseconds on the recorder's clock.
+ * What the frames carry for the recorder, in SEI NAL units (specs/003, contracts/phone-stream.md):
+ * user_data_unregistered under PhotoFinish's UUID, then `PFT1` and the capture moment in Unix
+ * microseconds on the recorder's clock; or `PFS1` and the phone's status line (specs/005).
  */
 object Sei {
     val uuid: UUID = UUID.fromString("e1a46cea-b5ff-4c7d-b445-4c7dbd7ea281")
-    private val tag = "PFT1".toByteArray(Charsets.US_ASCII)
+    private val momentTag = "PFT1".toByteArray(Charsets.US_ASCII)
+    private val statusTag = "PFS1".toByteArray(Charsets.US_ASCII)
     private const val USER_DATA_UNREGISTERED = 5
+    private const val UUID_BYTES = 16
+    private const val FULL_SIZE = 255
 
-    fun frameMoment(momentUs: Long): ByteArray {
+    fun frameMoment(momentUs: Long): ByteArray =
+        unit(ByteBuffer.allocate(Long.SIZE_BYTES).putLong(momentUs).array(), momentTag)
+
+    /** The phone's status, `key=value;...` in ASCII (specs/005-phone-status). */
+    fun phoneStatus(line: String): ByteArray = unit(line.toByteArray(Charsets.US_ASCII), statusTag)
+
+    private fun unit(
+        data: ByteArray,
+        tag: ByteArray,
+    ): ByteArray {
         val payload =
             ByteBuffer
-                .allocate(16 + tag.size + 8)
+                .allocate(UUID_BYTES + tag.size + data.size)
                 .putLong(uuid.mostSignificantBits)
                 .putLong(uuid.leastSignificantBits)
                 .put(tag)
-                .putLong(momentUs)
+                .put(data)
                 .array()
         val rbsp = ByteArrayOutputStream()
         rbsp.write(USER_DATA_UNREGISTERED)
-        rbsp.write(payload.size)
+        var size = payload.size
+        while (size >= FULL_SIZE) { // a size past 254 as SEI writes it: 255 for each full 255
+            rbsp.write(FULL_SIZE)
+            size -= FULL_SIZE
+        }
+        rbsp.write(size)
         rbsp.write(payload)
         rbsp.write(0x80) // rbsp trailing bits
         return byteArrayOf(Avc.NAL_SEI.toByte()) + escape(rbsp.toByteArray())
