@@ -12,7 +12,7 @@ import pytest
 from onnx import TensorProto, helper, numpy_helper
 
 from app.analysis import numbers
-from app.analysis.numbers import NumberReader, crop, ctc, grown, longest_digits, pieces
+from app.analysis.numbers import NumberReader, crop, ctc, digits_of, grown, pieces
 
 DIGITS = list("0123456789")
 
@@ -107,19 +107,18 @@ def test_a_long_line_is_read_in_its_own_proportions_not_squeezed() -> None:
     assert widths == [480, 1280]
 
 
-def test_a_year_beside_the_bib_on_one_line_is_not_run_into_it() -> None:
+def test_a_line_with_a_year_beside_the_bib_names_no_number() -> None:
     rgb = np.full((96, 128, 3), 200, np.uint8)
-    # Each digit's class is the digit and one, the space's 11: "2026 12345".
-    line = [3, 1, 3, 7, 11, 2, 3, 4, 5, 6]
-    found = reader([(line, 0.95)], [slice(4, 12)]).read(rgb)
-    assert found is not None
-    assert found[0] == "12345"
+    # Each digit's class is the digit and one, the space's 11: "2026 12".
+    line = [3, 1, 3, 7, 11, 2, 3]
+    assert reader([(line, 0.95)], [slice(4, 12)]).read(rgb) is None  # typed, then
 
 
-def test_a_line_s_longest_run_of_digits_is_the_number() -> None:
-    assert longest_digits("SPONSOR 2026 TEAM 12345 RACE") == "12345"
-    assert longest_digits("12 34") == "12"  # the first of equals
-    assert longest_digits("TEAM") == ""
+def test_a_line_s_one_run_of_digits_is_the_number() -> None:
+    assert digits_of("TEAM 12") == "12"
+    assert digits_of("SPONSOR 2026 TEAM 12") == ""  # the longest would be the year
+    assert digits_of("12 34") == ""
+    assert digits_of("TEAM") == ""
 
 
 def test_of_a_box_full_of_text_the_largest_pieces_alone_are_read() -> None:

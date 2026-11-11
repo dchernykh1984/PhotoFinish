@@ -55,7 +55,7 @@ class NumberReader:
         found.sort(key=lambda piece: (piece[2] - piece[0]) * (piece[3] - piece[1]))
         for top, left, bottom, right in found[::-1][:MOST_PIECES]:  # the largest
             text, sure = self.line(bgr[top:bottom, left:right])
-            digits = longest_digits(text)
+            digits = digits_of(text)
             if digits and sure >= LEAST_CONFIDENCE and (best is None or sure > best[1]):
                 best = digits, sure
         return best
@@ -85,10 +85,12 @@ class NumberReader:
         return ctc(self.reader.run(None, {"x": x})[0][0], self.chars)
 
 
-def longest_digits(text: str) -> str:
-    """A line's longest run of digits, the first of equals: a bib beside a year or
-    a team's number on one line is its own, never the digits run together."""
-    return max(re.findall(r"[0-9]+", text), key=len, default="")
+def digits_of(text: str) -> str:
+    """A line's one run of digits; "" when it holds none, or several: a bib beside
+    a year or a team's number on one line cannot be told from them -- the longest
+    is the year beside "12" -- and is typed."""
+    runs = re.findall(r"[0-9]+", text)
+    return runs[0] if len(runs) == 1 else ""
 
 
 def scale(rgb: np.ndarray, width: int, height: int) -> np.ndarray:
