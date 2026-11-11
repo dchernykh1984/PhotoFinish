@@ -134,6 +134,12 @@ class RefusalTests(unittest.TestCase):
         reason = self.refusal(["19", "--rebase", "--admin"], pr([check("tests")]))
         self.assertIn("--admin", reason)
 
+    def test_admin_written_with_any_value_gh_reads_as_true(self) -> None:
+        green = pr([check("tests")])
+        for admin in ("--admin=1", "--admin=t", "--admin=True", "--admin=TRUE"):
+            self.assertIn("--admin", self.refusal(["19", admin], green), admin)
+        self.assertIsNone(self.refusal(["19", "--admin=false"], green))
+
     def test_a_release_pr_with_no_checks_waits_for_their_approval(self) -> None:
         reason = self.refusal(["19", "--rebase"], pr([]))
         self.assertIn("action_required", reason)

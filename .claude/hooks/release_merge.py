@@ -41,6 +41,8 @@ VALUE_FLAGS = {
     "-t",
     "--subject",
 }
+# --admin, or with a value gh reads as true: Go's strconv.ParseBool.
+ADMIN = {"--admin"} | {f"--admin={v}" for v in ("1", "t", "T", "true", "True", "TRUE")}
 SHELL_PUNCTUATION = set("();<>|&\n")  # a new line ends a command, as ; does
 SHELLS = {"sh", "bash", "zsh", "dash"}
 DESCRIPTOR = re.compile(r"(?<![\w./-])\d+(?=[<>])")
@@ -175,7 +177,7 @@ def refusal(
     if not str(pr.get("headRefName", "")).startswith(RELEASE_BRANCH):
         return None
     number = pr.get("number")
-    if {"--admin", "--admin=true"} & set(args):
+    if ADMIN & set(args):
         return (
             f"Release PR #{number} is not merged with --admin: approve its pipeline, "
             f"wait for it to go green, approve the PR (gh pr review {number} "
