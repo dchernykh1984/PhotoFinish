@@ -1150,18 +1150,20 @@ class MainWindow(QMainWindow):
             self._restart_analyzers()
         self._show_suggestions()
 
-    def _ensure_numbers(self) -> None:
+    def _ensure_numbers(self, said: bool = False) -> None:
         """The number reader's two models downloaded, one after the other, once
         riders are found with numbers and crossings (006, FR-002): never for a
-        feature nobody turned on."""
+        feature nobody turned on. The download is said once, ``said`` already for
+        the second."""
         chosen = analysis.settings(self.session)
         missing = [m for m in models.NUMBER_MODELS if not models.ready(m)]
         wanted = chosen["on"] and chosen["crossings"] and chosen["model"]
         if not (wanted and missing):  # numbers are read only on a detector's crossings
             return
         if self._numbers_job is None:
-            megabytes = sum(model.megabytes for model in missing)
-            self._say(f"Downloading the number reader ({megabytes} MB)...")
+            if not said:
+                megabytes = sum(model.megabytes for model in missing)
+                self._say(f"Downloading the number reader ({megabytes} MB)...")
             self._numbers_job = self._numbers_fetch.start(missing[0])
 
     def _numbers_fetched(self, job: models.Download, error: str) -> None:
@@ -1172,7 +1174,7 @@ class MainWindow(QMainWindow):
             self._say(f"{error}: crossings are suggested without numbers")
             return
         if not all(models.ready(m) for m in models.NUMBER_MODELS):
-            self._ensure_numbers()  # the next of them
+            self._ensure_numbers(said=True)  # the next of them
             return
         self._say("The number reader is ready")
         if analysis.model_in_use(self.session):  # crossings still looked for

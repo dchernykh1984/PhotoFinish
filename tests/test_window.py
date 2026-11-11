@@ -2208,6 +2208,31 @@ def test_the_camera_line_says_while_numbers_go_unread_for_want_of_the_reader(
     assert win.camera_list.item(0).text().endswith(said)
 
 
+def test_the_number_reader_s_download_is_said_once_for_both_its_models(
+    recording: Path,
+    make_window: Callable[[], mw.MainWindow],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    saved = session.load()
+    saved["analysis"] = {"on": True, "model": "m.onnx", "crossings": True}
+    session.save(saved)
+    fetched: list[str] = []
+
+    def fetch(model: models.Model, *args: Any, **kwargs: Any) -> Path:
+        fetched.append(model.key)
+        return Path(model.file)
+
+    monkeypatch.setattr(mw.models, "fetch", fetch)
+    monkeypatch.setattr(mw.models, "ready", lambda model: model.key in fetched)
+    said: list[str] = []
+    monkeypatch.setattr(mw.MainWindow, "_say", lambda self, text: said.append(text))
+    win = make_window()
+    wait_until(lambda: len(fetched) == 2 and win._numbers_job is None)
+    started = [text for text in said if text.startswith("Downloading the number")]
+    assert len(started) == 1
+    assert said[-1] == "The number reader is ready"
+
+
 def test_no_number_reader_is_fetched_without_a_detector_to_read_for(
     recording: Path,
     make_window: Callable[[], mw.MainWindow],
