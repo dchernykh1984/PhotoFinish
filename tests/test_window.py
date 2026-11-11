@@ -651,6 +651,17 @@ def test_under_the_banner_each_phone_says_what_may_stop_its_stream(
     assert win.phones.isHidden()
 
 
+def test_a_camera_that_no_longer_records_has_no_phone_line(
+    recording: Path, make_window: Callable[[], mw.MainWindow]
+) -> None:
+    now = time.time_ns() // 1_000_000
+    beating(recording, phone={"battery": "57", "at_ms": now, "heard_ms": now})
+    session.save({**session.load(), "cameras": [{**CAMERA, "record": False}]})
+    win = make_window()
+    win.poll()
+    assert win.phones.isHidden()
+
+
 def test_a_phone_s_line_greys_once_its_recorder_stops_beating(
     recording: Path, make_window: Callable[[], mw.MainWindow]
 ) -> None:
