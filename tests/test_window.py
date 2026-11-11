@@ -2759,6 +2759,32 @@ def test_the_suggestions_are_listed_in_the_order_of_their_moments_shown(
     assert shown[1] == f"{later}  Side, Front, Top  no. 12"  # begun first, at Front's
 
 
+def test_a_decision_the_disk_refuses_is_said_once_for_its_cameras(
+    two: None,
+    make_window: Callable[[], mw.MainWindow],
+    base: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    analysis = {"on": True, "model": "m.onnx", "crossings": True}
+    session.save({**session.load(), "analysis": analysis})
+    suggestions_at(base, "cam1", [FLASH])
+    suggestions_at(base, "cam2", [FLASH + 20])
+    win = make_window()
+    said: list[str] = []
+    monkeypatch.setattr(mw.MainWindow, "_say", lambda self, text: said.append(text))
+
+    def refuse(self: Any, name: str, how: str) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(mw.Suggestions, "decide", refuse)
+    win.suggestion_list.setCurrentRow(0)
+    win.dismiss_suggestion()
+    kept = [text for text in said if "cannot be kept" in text]
+    assert kept == [
+        "Done; the decision cannot be kept for a restart (Side, Front): disk full"
+    ]
+
+
 def test_a_removed_camera_s_suggestions_leave_the_list_with_it(
     two: None,
     make_window: Callable[[], mw.MainWindow],
