@@ -218,6 +218,9 @@ class MainWindow(QMainWindow):
         self._fetch = _Fetch()
         self._fetch.progress.connect(self._fetch_progress)
         self._fetch.done.connect(self._fetched)
+        self._numbers_job: models.Download | None = None  # the number reader's (006)
+        self._numbers_fetch = _Fetch()
+        self._numbers_fetch.done.connect(self._numbers_fetched)
         self._show_model()
         self._show_switches()
         self.suggestion_list = QListWidget()
@@ -233,6 +236,7 @@ class MainWindow(QMainWindow):
             self._choose_camera(-1)
         models.clear_parts()  # no download of this window's is running yet
         self._ensure_model()  # before the first poll starts any analyser
+        self._ensure_numbers()
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.poll)
         self.timer.start(POLL_MS)
@@ -1131,11 +1135,41 @@ class MainWindow(QMainWindow):
         self._save_session()
         self._show_switches()
         self._ensure_model()
+        self._ensure_numbers()
         if self.analysis_box.isChecked():
             for camera in self.cameras.values():
                 self._stop_analyzer(camera)
                 self._analyze(camera)
         self._show_suggestions()
+
+    def _ensure_numbers(self) -> None:
+        """The number reader's two models downloaded, one after the other, once
+        riders are found with numbers and crossings (006, FR-002): never for a
+        feature nobody turned on."""
+        chosen = analysis.settings(self.session)
+        missing = [m for m in models.NUMBER_MODELS if not models.ready(m)]
+        if not (chosen["on"] and chosen["crossings"] and missing):
+            return
+        if self._numbers_job is None:
+            megabytes = sum(model.megabytes for model in missing)
+            self._say(f"Downloading the number reader ({megabytes} MB)...")
+            self._numbers_job = self._numbers_fetch.start(missing[0])
+
+    def _numbers_fetched(self, job: models.Download, error: str) -> None:
+        if job is not self._numbers_job:
+            return  # the window going: nothing to start
+        self._numbers_job = None
+        if error:
+            self._say(f"{error}: crossings are suggested without numbers")
+            return
+        if not all(models.ready(m) for m in models.NUMBER_MODELS):
+            self._ensure_numbers()  # the next of them
+            return
+        self._say("The number reader is ready")
+        if self.analysis_box.isChecked():  # numbers read from here on
+            for camera in self.cameras.values():
+                self._stop_analyzer(camera)
+                self._analyze(camera)
 
     def _show_switches(self) -> None:
         """Numbers and crossings with finding riders on. The model stays open to
@@ -1147,6 +1181,7 @@ class MainWindow(QMainWindow):
         self._save_session()
         self._show_switches()
         self._ensure_model()
+        self._ensure_numbers()
         for camera in self.cameras.values():
             if on:
                 self._analyze(camera)
@@ -1763,9 +1798,10 @@ class MainWindow(QMainWindow):
         """The window goes; the recorders keep recording."""
         self.timer.stop()
         self.play_timer.stop()
-        if self._job is not None:  # stopped, and any answer of its ignored
-            self._job.cancel()
-            self._job = None
+        for job in (self._job, self._numbers_job):  # stopped, any answer ignored
+            if job is not None:
+                job.cancel()
+        self._job = self._numbers_job = None
         for camera in self.cameras.values():
             camera.worker.stop()
             self._stop_analyzer(camera)

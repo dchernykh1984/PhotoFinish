@@ -262,3 +262,15 @@ def test_a_part_a_scanner_holds_is_left_for_the_next_start(
     monkeypatch.setattr(Path, "unlink", unlink)
     models.clear_parts()  # no error: the window still starts
     assert held.exists()
+
+
+def test_the_number_reader_is_pinned_to_its_mirror_s_commit() -> None:
+    """006 FR-002: fetched from one place, by commit, size and SHA-256."""
+    for model in models.NUMBER_MODELS:
+        assert model.url.startswith(
+            "https://huggingface.co/SWHL/RapidOCR/resolve/"
+            "1cfba2e90fc938db55889873735088de210cc173/"
+        )
+        assert model.url.endswith(".onnx") and len(model.sha256) == 64
+        assert model.file == f"models/{model.key}.onnx"
+    assert models.MODELS[0].url.startswith("https://github.com/Megvii-BaseDetection")

@@ -1,6 +1,8 @@
-"""The detection models PhotoFinish offers, fetched once and checked (002, FR-003).
+"""The models PhotoFinish offers, fetched once and checked (002, FR-003).
 
-Each is a YOLOX COCO detector from the YOLOX releases (Apache-2.0), pinned by size
+The detectors are YOLOX COCO detectors from the YOLOX releases (Apache-2.0); the
+number reader is PaddleOCR's PP-OCRv3 English text finder and reader (Apache-2.0)
+from RapidOCR's mirror at a pinned commit (006, FR-002). Each is pinned by size
 and SHA-256. The first time the referee chooses one it is downloaded next to the
 program and kept, so the race itself needs no internet; a download cut short or
 not the one pinned is never kept under the model's name.
@@ -30,6 +32,10 @@ from app.paths import app_path
 
 FOLDER = "models"  # next to the program, beside data/ and video/
 _RELEASE = "https://github.com/Megvii-BaseDetection/YOLOX/releases/download/0.1.1rc0/"
+_RAPIDOCR = (
+    "https://huggingface.co/SWHL/RapidOCR/resolve/"
+    "1cfba2e90fc938db55889873735088de210cc173/"
+)
 _CHUNK = 1 << 16
 TIMEOUT_S = 30
 STALE_S = 600  # a part not written to for this long belongs to no download
@@ -41,6 +47,7 @@ class Model:
     title: str
     size: int  # bytes
     sha256: str
+    source: str = ""  # where it comes from, when not a YOLOX release
 
     @property
     def file(self) -> str:
@@ -49,7 +56,7 @@ class Model:
 
     @property
     def url(self) -> str:
-        return f"{_RELEASE}{self.key}.onnx"
+        return self.source or f"{_RELEASE}{self.key}.onnx"
 
     @property
     def megabytes(self) -> int:
@@ -78,6 +85,24 @@ MODELS = (
         "YOLOX-S, finds the most",
         35_858_002,
         "c5c2d13e59ae883e6af3b45daea64af4833a4951c92d116ec270d9ddbe998063",
+    ),
+)
+
+# The number reader (006): text found in a rider's box, then read.
+NUMBER_MODELS = (
+    Model(
+        "ppocr_det_en_v3",
+        "The number finder",
+        2_423_224,
+        "f139598bc2af4e4b6fe98dec11574e30edfdd91fc94ac1425c18ace3bd5a866b",
+        f"{_RAPIDOCR}PP-OCRv4/en_PP-OCRv3_det_infer.onnx",
+    ),
+    Model(
+        "ppocr_rec_en_v3",
+        "The number reader",
+        8_967_018,
+        "ef7abd8bd3629ae57ea2c28b425c1bd258a871b93fd2fe7c433946ade9b5d9ea",
+        f"{_RAPIDOCR}PP-OCRv3/en_PP-OCRv3_rec_infer.onnx",
     ),
 )
 

@@ -27,8 +27,10 @@ from typing import Any, Protocol
 import av
 
 from app import analysis, session
-from app.analysis.detector import Detector, ModelError
+from app.analysis import models
+from app.analysis.detector import Box, Detector, ModelError
 from app.analysis.motion import WIDTH, Motion, Stretches
+from app.analysis.numbers import NumberReader, crop
 from app.analysis.tracks import Ref, Tracker, refine
 from app.files import Appended, append, read_json, write_in_one_step
 from app.interpolation import Line, camera_line
@@ -91,10 +93,16 @@ class ModelWatch:
     every_ms = MODEL_SAMPLE_MS
 
     def __init__(
-        self, detector: Detector, zone: analysis.Zone, line: Line, camera_id: str
+        self,
+        detector: Detector,
+        zone: analysis.Zone,
+        line: Line,
+        camera_id: str,
+        numbers: NumberReader | None = None,
     ) -> None:
         self.detector, self.zone, self.line = detector, zone, line
         self.camera_id = camera_id
+        self.numbers = numbers  # the riders' numbers read at their crossings (006)
         self.method = f"model:{detector.name}"
         self.tracker = Tracker(line)
         self.frames: list[tuple[av.VideoFrame, Ref]] = []  # since the last sample
@@ -111,6 +119,7 @@ class ModelWatch:
         for found in self.tracker.feed(boxes, ref):
             timed = refine(found, self.frames, self.detector.riders, self.line)
             if timed is not None:
+                timed |= self._number(frame, found.box_after)
                 # Riders abreast may cross at one millisecond: their ids still differ.
                 name = f"{self.camera_id}-{timed['ms']}"
                 same = sum(s["ms"] == timed["ms"] for s in self.suggestions)
@@ -125,6 +134,22 @@ class ModelWatch:
             if box.x1 < x1 and box.x2 > x0 and box.y1 < y1 and box.y2 > y0:
                 return ref[2]
         return None
+
+    def _number(self, frame: av.VideoFrame, box: Box) -> dict[str, Any]:
+        """The rider's number read in its box on the sample past the line (006):
+        the number and how sure, or nothing -- a reader that fails costs the
+        number, never the crossing."""
+        if self.numbers is None:
+            return {}
+        try:
+            read = self.numbers.read(crop(frame.to_ndarray(format="rgb24"), box))
+        except Exception:  # onnxruntime raises its own kinds
+            return {}
+        return (
+            {}
+            if read is None
+            else {"number": read[0], "number_sure": round(read[1], 3)}
+        )
 
     def kept(self) -> Any:
         return copy.deepcopy(self.tracker), list(self.frames), len(self.suggestions)
@@ -190,8 +215,21 @@ def _watch(camera: dict[str, Any], model: str, common: object = None) -> Watch:
     line, or the ``common`` one (006)."""
     zone, line = analysis.zone(camera, common), camera_line(camera, common)
     if model:
-        return ModelWatch(Detector(app_path(model)), zone, line, str(camera["id"]))
+        detector = Detector(app_path(model))
+        return ModelWatch(detector, zone, line, str(camera["id"]), _reader())
     return MotionWatch(Motion(zone, line))
+
+
+def _reader() -> NumberReader | None:
+    """The number reader, once both its models are there (006): until then the
+    crossings come without numbers."""
+    if not all(models.ready(model) for model in models.NUMBER_MODELS):
+        return None
+    finder, reader = models.NUMBER_MODELS
+    try:
+        return NumberReader(app_path(finder.file), app_path(reader.file))
+    except Exception:  # onnxruntime raises its own kinds: no numbers read
+        return None
 
 
 def analysed(folder: Path) -> set[str]:
