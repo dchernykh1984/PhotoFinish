@@ -98,7 +98,8 @@ class SegmentWriter:
         stream = packet.stream
         again = ms in self._listed
         # A camera's keyframes a second apart cut each one, a moment early or late.
-        self._next(ms, cut=packet.is_keyframe, slack=KEYFRAME_SLACK_MS)
+        cut = packet.is_keyframe
+        self._next(ms, cut=cut, slack=KEYFRAME_SLACK_MS, listed=not again)
         opened = self._segment(
             _Remuxed, lambda: _Remuxed(self.folder, packet, stream, ms)
         )
@@ -125,20 +126,23 @@ class SegmentWriter:
             self._open = opened
         return opened
 
-    def _next(self, ms: int, cut: bool, slack: int = 0) -> None:
+    def _next(self, ms: int, cut: bool, slack: int = 0, listed: bool = True) -> None:
         """A gap before ``ms`` noted; the open segment closed when it is long enough
-        and ``ms`` may start the next."""
-        last = self._last_ms if self._last_ms is not None else self._before_ms
-        self._before_ms = None
-        if last is not None and ms - last > 3 * 1000 / self.fps:
-            self._gap(last, ms)
+        and ``ms`` may start the next. A frame not listed -- sent again -- notes no
+        gap, nor moves the newest frame: the gaps it falls in are noted already."""
+        if listed:
+            last = self._last_ms if self._last_ms is not None else self._before_ms
+            self._before_ms = None
+            if last is not None and ms - last > 3 * 1000 / self.fps:
+                self._gap(last, ms)
         if (
             cut
             and self._open is not None
             and ms - self._open.first_ms >= self.segment_ms - slack
         ):
             self.close()
-        self._last_ms = max(ms, self._last_ms or ms)
+        if listed:
+            self._last_ms = max(ms, self._last_ms or ms)
 
     def close(self) -> None:
         """End the open segment: both files closed, then renamed, the times first."""
