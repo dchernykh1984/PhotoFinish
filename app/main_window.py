@@ -641,6 +641,7 @@ class MainWindow(QMainWindow):
         self._save_session()
         self._say(f"The video is aligned with the timing source: {offset:+d} ms")
         self._go(self.place)
+        self._show_suggestions()  # their times, on the new scale
 
     def seek_line(self, line_ms: int) -> None:
         """The video at a line's time, through the offsets."""
@@ -1272,7 +1273,9 @@ class MainWindow(QMainWindow):
         _, camera_id, found = suggested.kept
         camera = self.cameras[camera_id]
         offsets = self._offsets(camera)
-        line_ms = self._line_ms(suggested.moment)
+        # On the camera's offset as it is now: aligned since the list was made,
+        # the time written follows -- as the video picked does.
+        line_ms = self._line_ms(int(found["ms"]) + offsets["camera_ms"])
         change = Change(
             "interpolated",
             camera.id,
@@ -1862,6 +1865,7 @@ class MainWindow(QMainWindow):
         self._say(f"{name} is aligned on the event: {offset:+d} ms")
         self._refresh(force=True)
         self._go(self.place)
+        self._show_suggestions()  # gathered and timed on the new offset
 
     def _offset(self) -> int:
         camera = self._camera()
