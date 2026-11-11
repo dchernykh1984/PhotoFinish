@@ -273,7 +273,7 @@ def look_up(
             timeout=timeout,
             check=False,
         )
-    except OSError, subprocess.TimeoutExpired:
+    except (OSError, subprocess.TimeoutExpired):  # fmt: skip
         return None
     if done.returncode != 0:
         return None
