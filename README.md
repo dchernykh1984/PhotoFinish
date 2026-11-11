@@ -37,6 +37,8 @@ a first session with the test camera:
    PhotoFinish's; the camera list says "recording", and the window's top right
    corner turns to a green RECORDING. Red NOT RECORDING there, wherever in the
    video you are, means a camera's stream is lost.
+   Under it, each phone's battery, heat, Wi-Fi and dropped frames: amber is
+   worth a look, red means the stream is at risk -- charge or cool the phone.
 5. One camera shows the chosen camera alone, large: Ctrl+1 to Ctrl+9 pick it,
    Ctrl+Up and Ctrl+Down switch, Ctrl+0 shows them all side by side again.
 
