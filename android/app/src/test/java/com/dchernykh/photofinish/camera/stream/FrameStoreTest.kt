@@ -73,14 +73,35 @@ class FrameStoreTest {
     }
 
     @Test
-    fun `after a loss a connection begins at the last keyframe six seconds before the last frame read`() {
+    fun `after a loss a connection begins two seconds before the newest frame the server read`() {
+        val store = store()
+        repeat(11) { second(store, it) }
+        read(store, 105) // up to 10.4 s sent: the buffers on the way took the rest
+        store.confirm(3_500_000)
+        store.confirm(2_000_000) // an older word: the newest stands
+        store.rewind()
+        assertEquals(1_000_000L, store.next(0)!!.ptsUs) // 1.5 s, back to its second's keyframe
+    }
+
+    @Test
+    fun `from a server that confirms nothing it begins six seconds before the newest frame read`() {
         val store = store()
         repeat(11) { second(store, it) }
         read(store, 105) // up to 10.4 s
-        store.rewind(FrameStore.KEEP_SENT_US)
+        store.rewind()
         assertEquals(4_000_000L, store.next(0)!!.ptsUs) // 4.4 s back to its second's keyframe
-        store.rewind(FrameStore.KEEP_SENT_US * 10)
-        assertEquals(0L, store.next(0)!!.ptsUs) // none kept that old: the oldest kept
+        read(store, 3)
+        store.rewind() // a loss after a loss: from the newest read, not further and further back
+        assertEquals(4_000_000L, store.next(0)!!.ptsUs)
+    }
+
+    @Test
+    fun `before anything is read a connection begins at the oldest frame kept`() {
+        val store = store()
+        second(store, 0)
+        second(store, 1)
+        store.rewind()
+        assertEquals(0L, store.next(0)!!.ptsUs)
     }
 
     @Test
@@ -92,8 +113,21 @@ class FrameStoreTest {
         read(store, 80)
         second(store, 11) // its keyframe makes room
         assertEquals(8, folder.listFiles()!!.size) // 4 s to 10 s, kept to be sent again; then 11 s
-        store.rewind(FrameStore.KEEP_SENT_US)
+        store.rewind()
         assertEquals(4_000_000L, store.next(0)!!.ptsUs)
+    }
+
+    @Test
+    fun `runs after the newest the server confirmed stay, however long ago they were read`() {
+        val store = store()
+        repeat(11) { second(store, it) }
+        read(store, 110)
+        store.confirm(2_500_000) // the server stopped reading there: the rest may be lost
+        second(store, 11)
+        assertEquals(12, folder.listFiles()!!.size) // 0.5 s on: none goes
+        store.confirm(9_000_000)
+        second(store, 12)
+        assertEquals(6, folder.listFiles()!!.size) // the 7 runs ending before 7 s go
     }
 
     @Test

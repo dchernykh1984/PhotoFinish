@@ -35,7 +35,13 @@ private class FakeSink(
     private val hangOn: Int = 0,
     private val publishFailure: RuntimeException? = null,
     private val gateOn: Int = 0,
+    private val acknowledgeTo: Int = 0,
 ) : VideoSink {
+    @Volatile override var sentBytes = 0L
+
+    /** Acknowledged up to the frame [acknowledgeTo], once it is sent: the server read no further. */
+    @Volatile override var acknowledgedBytes = 0L
+
     val metadata = CopyOnWriteArrayList<Map<String, Any?>>()
     val headers = CopyOnWriteArrayList<ByteArray>()
     val frames = LinkedBlockingQueue<Sent>()
@@ -70,6 +76,8 @@ private class FakeSink(
             closed.await(5, TimeUnit.SECONDS) // a dead Wi-Fi: the send hangs until closed
             throw IOException("closed")
         }
+        sentBytes += nalUnits.sumOf { it.size }
+        if (count == acknowledgeTo) acknowledgedBytes = sentBytes
         frames.put(Sent(timestampMs, keyframe, nalUnits))
     }
 
@@ -294,6 +302,19 @@ class UplinkTest {
         assertTrue(resumed.keyframe)
         assertEquals(4_000_000L + 1_000_000, momentOf(resumed.units[0])) // 6 s before 10 s, its keyframe
         assertEquals(100L, second.next().timestampMs)
+    }
+
+    @Test
+    fun `after a loss frames go again from two seconds before the newest the server read`() {
+        val first = FakeSink(failOn = 101, acknowledgeTo = 31) // read to 3.0 s; the rest lost on the way
+        val second = FakeSink()
+        val link = uplink(listOf(first, second))
+        offerSeconds(link, 11)
+        start(link)
+        repeat(100) { first.next() }
+        val resumed = second.next()
+        assertTrue(resumed.keyframe)
+        assertEquals(1_000_000L + 1_000_000, momentOf(resumed.units[0])) // 1.0 s, not 4.0 s
     }
 
     @Test

@@ -33,9 +33,10 @@ sealed interface UplinkStatus {
 /**
  * Takes the encoder's frames to PhotoFinish through a [store] on the phone (specs/007): connects, sends the
  * stream's header and the frames kept, each with its moment on the recorder's clock once the clock is in step,
- * and connects again after a loss, from [FrameStore.KEEP_SENT_US] before the newest frame sent, as a dead
- * connection may have swallowed what came after it. Nothing is dropped while the store has room: a break or a
- * network slower than the stream makes the laptop fall behind and catch up, at the network's pace.
+ * and connects again after a loss, from a little before the newest frame the server acknowledged reading, as a
+ * dead connection, and the buffers on its way, may have swallowed whatever came after it. Nothing is dropped
+ * while the store has room: a break or a network slower than the stream makes the laptop fall behind and catch
+ * up, at the network's pace.
  *
  * [clock] gives the best clock exchange so far, null while there is none: its offset is the recorder's clock
  * minus the camera's. [requestKeyframe] asks the encoder for one: a connection waiting for its first frame
@@ -89,6 +90,9 @@ class Uplink(
 
     /** A keyframe asked for since a frame was lost; the encoder's thread alone keeps it. */
     private var askedKeyframe = false
+
+    /** The connection's frames sent and not yet acknowledged: the bytes sent once each was, and its capture time. */
+    private val unacknowledged = ArrayDeque<Pair<Long, Long>>()
 
     /** Frames dropped because the store had no room for them, or could not keep them. */
     @Volatile var dropped = 0L
@@ -145,7 +149,8 @@ class Uplink(
             } catch (error: Exception) {
                 publisher?.close()
                 if (!running) break
-                store.rewind(FrameStore.KEEP_SENT_US)
+                publisher?.let { confirm(it) } // what it acknowledged before it died
+                store.rewind()
                 if (streamed) pause = FIRST_PAUSE_MS // a connection that streamed: the pauses start over
                 report(UplinkStatus.Reconnecting(error.message ?: error.javaClass.simpleName))
                 sleep(pause)
@@ -157,16 +162,19 @@ class Uplink(
 
     private fun stream() {
         streamed = false
+        unacknowledged.clear()
         val connected = connect(address)
         publisher = connected
         connected.publish(metadata(format, store.heldMs(captureClock?.invoke())))
-        awaitClock()
+        // Waits a little for the clock, so that the connection's frames carry their moments.
+        await(System.nanoTime() + waitForClockMs * 1_000_000) { clock() != null }
         // A connection's frames all carry their moments, or none do: the recorder places frames without one by
         // their arrival, later than they were taken, and a mix of the two would not keep its order. Once the
         // clock is in step, a connection starts at a keyframe kept with a moment.
         if (clock() != null) store.skipToStamped()
         val until = System.nanoTime() + stampWindowMs * 1_000_000
-        connected.sendSequenceHeader(awaitRecord())
+        await(Long.MAX_VALUE) { record != null }
+        connected.sendSequenceHeader(record ?: throw IOException("stopped"))
         requestKeyframe()
         var first: Long? = null
         var stamped = false
@@ -182,6 +190,8 @@ class Uplink(
             val start = first ?: kept.ptsUs
             first = start
             send(connected, kept, kept.ptsUs - start, kept.momentUs?.takeIf { stamped })
+            unacknowledged.addLast(connected.sentBytes to kept.ptsUs)
+            confirm(connected)
             streamed = true
             val rates = throughput.count(kept.data.size)
             val delay = clock()?.takeIf { stamped }?.delay?.div(1000.0)
@@ -216,18 +226,22 @@ class Uplink(
         }
     }
 
-    /** Waits a little for the clock, so that the connection's frames carry their moments. */
-    private fun awaitClock() {
-        val until = System.nanoTime() + waitForClockMs * 1_000_000
-        while (clock() == null && System.nanoTime() < until && running) sleep(POLL_MS)
+    /** The frames the server has read, by its acknowledgements, told to the store: a loss sends from them. */
+    private fun confirm(connected: VideoSink) {
+        val read = connected.acknowledgedBytes
+        var newest: Long? = null
+        while (unacknowledged.isNotEmpty() && unacknowledged.first().first <= read) {
+            newest = unacknowledged.removeFirst().second
+        }
+        newest?.let { store.confirm(it) }
     }
 
-    private fun awaitRecord(): ByteArray {
-        while (running) {
-            record?.let { return it }
-            sleep(POLL_MS)
-        }
-        throw IOException("stopped")
+    /** Waits until [ready], the stop or [untilNs] on the nanosecond clock. */
+    private fun await(
+        untilNs: Long,
+        ready: () -> Boolean,
+    ) {
+        while (!ready() && System.nanoTime() < untilNs && running) sleep(POLL_MS)
     }
 
     /** Closes a connection whose send has hung -- a Wi-Fi gone -- so the loop connects again. */
