@@ -641,6 +641,9 @@ def test_under_the_banner_each_phone_says_what_may_stop_its_stream(
     last = scale_time(to_line_scale(START, False)).split(" ")[1].split(".")[0]
     assert "color: gray" in win.phones.text()
     assert f"at {last}" in win.phones.text()
+    beating(recording, phone={"at_ms": now, "heard_ms": now})  # nothing it could tell
+    win.poll()
+    assert win.phones.isHidden()
     beating(recording)  # a camera that is no phone has no line
     win.poll()
     assert win.phones.isHidden()
