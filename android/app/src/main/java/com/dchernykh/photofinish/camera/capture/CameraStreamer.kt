@@ -192,6 +192,9 @@ class CameraStreamer(
     ) : CameraDevice.StateCallback() {
         private val streams = mutableListOf<LensStream>()
         private var format: StreamFormat? = null
+
+        /** Closed: its uplinks' words after it are the stopped streams', and dropped. */
+        @Volatile private var closed = false
         private var targets: List<Surface> = emptyList()
         private var device: CameraDevice? = null
         private var session: CameraCaptureSession? = null
@@ -221,7 +224,9 @@ class CameraStreamer(
                         LensStream.start(
                             planned,
                             common,
-                            report = { status -> if (mine == generation) onStatus(lens, StreamerStatus.Link(status)) },
+                            report = { status ->
+                                if (mine == generation && !closed) onStatus(lens, StreamerStatus.Link(status))
+                            },
                             onFirstFrame = { stream, ptsUs -> clockOfFrames(stream, ptsUs, mine) },
                             status = { dropped -> phone.read().copy(dropped = dropped, left = leftOut).line() },
                         )
@@ -259,8 +264,10 @@ class CameraStreamer(
          */
         private fun lost(reason: String) {
             if (preview != null) return again(reason)
-            say(StreamerStatus.Failed("$reason; left out")) // and told to the laptop
-            close()
+            val lenses = streams.map { it.lens }
+            close() // first: no word of its uplinks comes after the one said here
+            lenses.forEach { onStatus(it, StreamerStatus.Failed("$reason; left out")) }
+            leaveOut(lenses) // told to the laptop
         }
 
         // The list form serves Android 8, where a camera streams one lens; a camera gone meanwhile
@@ -342,6 +349,7 @@ class CameraStreamer(
         }
 
         fun close() {
+            closed = true
             try {
                 session?.close()
             } catch (_: IllegalStateException) {
