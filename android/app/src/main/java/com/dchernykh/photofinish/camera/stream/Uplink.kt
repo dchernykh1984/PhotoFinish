@@ -5,18 +5,13 @@ import com.dchernykh.photofinish.camera.pairing.RtmpAddress
 import com.dchernykh.photofinish.camera.sync.OffsetSlew
 import com.dchernykh.photofinish.camera.sync.Sample
 import java.io.IOException
-import java.util.concurrent.LinkedBlockingQueue
-import java.util.concurrent.TimeUnit
 
 /** One encoded frame: Annex B units, its presentation time on the camera's clock, us. */
 class EncodedFrame(
     val data: ByteArray,
     val ptsUs: Long,
     val keyframe: Boolean,
-) {
-    /** The run of frames it belongs to: a run ends where frames were dropped. */
-    internal var run = 0
-}
+)
 
 /** What the uplink says to the screen. */
 sealed interface UplinkStatus {
@@ -36,14 +31,15 @@ sealed interface UplinkStatus {
 }
 
 /**
- * Takes the encoder's frames to PhotoFinish: connects, sends the stream's header
- * and the frames, each with its moment on the recorder's clock once the clock is
- * in step, and connects again after a loss. Frames the network cannot take are
- * dropped up to the next keyframe, never sent late in a pile.
+ * Takes the encoder's frames to PhotoFinish through a [store] on the phone (specs/007): connects, sends the
+ * stream's header and the frames kept, each with its moment on the recorder's clock once the clock is in step,
+ * and connects again after a loss, from [FrameStore.KEEP_SENT_US] before the newest frame sent, as a dead
+ * connection may have swallowed what came after it. Nothing is dropped while the store has room: a break or a
+ * network slower than the stream makes the laptop fall behind and catch up, at the network's pace.
  *
- * [clock] gives the best clock exchange so far, null while there is none: its
- * offset is the recorder's clock minus the camera's. [requestKeyframe] asks the
- * encoder for one, as every connection must start with it.
+ * [clock] gives the best clock exchange so far, null while there is none: its offset is the recorder's clock
+ * minus the camera's. [requestKeyframe] asks the encoder for one: a connection waiting for its first frame
+ * starts from it, and so do the frames after one the store could not keep.
  */
 class Uplink(
     private val address: RtmpAddress,
@@ -51,8 +47,11 @@ class Uplink(
     private val clock: () -> Sample?,
     private val requestKeyframe: () -> Unit,
     private val report: (UplinkStatus) -> Unit,
-    private val connect: (RtmpAddress) -> VideoSink = { RtmpPublisher(it) },
+    private val store: FrameStore,
 ) {
+    /** How a connection is made; a test's stands in for the server. */
+    internal var connect: (RtmpAddress) -> VideoSink = { RtmpPublisher(it) }
+
     /** How long a connection waits for the clock before frames go without moments. */
     internal var waitForClockMs = WAIT_FOR_CLOCK_MS
 
@@ -68,12 +67,13 @@ class Uplink(
      */
     var status: (Long) -> String? = { null }
 
+    /** The frames' own clock now, us, once the first frame told it: how long a connection's first was kept. */
+    @Volatile var captureClock: (() -> Long)? = null
+
     /** The clock drops are timed on, for the last minute's count. */
     internal var nanos: () -> Long = System::nanoTime
 
     private val drops = RecentDrops { nanos() }
-
-    private val queue = LinkedBlockingQueue<EncodedFrame>(maxOf(format.fps * QUEUE_SECONDS, 1))
     private val slew = OffsetSlew()
 
     @Volatile private var record: ByteArray? = null
@@ -87,10 +87,10 @@ class Uplink(
     /** The connection under way has sent a frame; the uplink's thread alone keeps it. */
     private var streamed = false
 
-    /** The run of frames being offered; the encoder's thread alone counts it. */
-    private var run = 0
+    /** A keyframe asked for since a frame was lost; the encoder's thread alone keeps it. */
+    private var askedKeyframe = false
 
-    /** Frames dropped because the network fell behind. */
+    /** Frames dropped because the store had no room for them, or could not keep them. */
     @Volatile var dropped = 0L
         private set
 
@@ -103,30 +103,35 @@ class Uplink(
     }
 
     /**
-     * A frame from the encoder; when the queue is full it is emptied and a keyframe asked for,
-     * and the frames that follow make a new run: none of them is sent before its keyframe.
+     * A frame from the encoder, kept with its moment on the recorder's clock once the clock is in step: a frame
+     * sent again after a loss carries the moment it was first sent with. Frames the store drops are counted, and
+     * a keyframe is asked for, as the frames after a lost one wait for it.
      */
     fun offer(frame: EncodedFrame) {
-        frame.run = run
-        if (!queue.offer(frame)) {
-            val lost = queue.size + 1L
+        val moment = clock()?.let { frame.ptsUs + slew.at(frame.ptsUs, it.offset) }
+        val lost = store.keep(frame, moment)
+        if (frame.keyframe) askedKeyframe = false
+        if (lost > 0) {
             dropped += lost
-            drops.add(lost)
-            run++
-            queue.clear()
-            requestKeyframe()
+            drops.add(lost.toLong())
+            if (!askedKeyframe) {
+                askedKeyframe = true
+                requestKeyframe()
+            }
         }
     }
 
+    /** Streaming over: the loop ends, and what the store keeps is dropped (FR-004). */
     fun stop() {
         running = false
         publisher?.close()
+        store.clear()
     }
 
     /**
-     * The uplink's loop, on a thread of its own, until [stop]. Whatever a connection throws -- a
-     * lost socket, an answer the publisher cannot read -- it connects again: an exception left to
-     * escape would end the app mid-race.
+     * The uplink's loop, on a thread of its own, until [stop]. Whatever a connection throws -- a lost socket, an
+     * answer the publisher cannot read -- it connects again, from what the dead one may have swallowed: an
+     * exception left to escape would end the app mid-race.
      */
     @Suppress("TooGenericExceptionCaught")
     fun run() {
@@ -140,6 +145,7 @@ class Uplink(
             } catch (error: Exception) {
                 publisher?.close()
                 if (!running) break
+                store.rewind(FrameStore.KEEP_SENT_US)
                 if (streamed) pause = FIRST_PAUSE_MS // a connection that streamed: the pauses start over
                 report(UplinkStatus.Reconnecting(error.message ?: error.javaClass.simpleName))
                 sleep(pause)
@@ -153,49 +159,49 @@ class Uplink(
         streamed = false
         val connected = connect(address)
         publisher = connected
-        connected.publish(metadata(format))
+        connected.publish(metadata(format, store.heldMs(captureClock?.invoke())))
         awaitClock()
-        // A connection's frames all carry their moments, or none do: the recorder places frames
-        // without one by their arrival, later than they were taken, and a mix of the two would
-        // not keep its order. A clock that comes at the start makes a new connection; one that
-        // comes once the race may be under way is left for the next, as a new one is a gap.
-        val stamped = clock() != null
+        // A connection's frames all carry their moments, or none do: the recorder places frames without one by
+        // their arrival, later than they were taken, and a mix of the two would not keep its order. Once the
+        // clock is in step, a connection starts at a keyframe kept with a moment.
+        if (clock() != null) store.skipToStamped()
         val until = System.nanoTime() + stampWindowMs * 1_000_000
         connected.sendSequenceHeader(awaitRecord())
-        queue.clear()
         requestKeyframe()
         var first: Long? = null
-        var sentRun: Int? = null
+        var stamped = false
         val throughput = Throughput()
         while (running) {
-            // A connection starts on a keyframe, and so does a run after frames were dropped.
-            val frame =
-                queue.poll(POLL_MS, TimeUnit.MILLISECONDS)?.takeIf { it.keyframe || it.run == sentRun } ?: continue
-            val sample = clock()?.takeIf { stamped }
-            if (!stamped && clock() != null && System.nanoTime() < until) throw IOException("the clock is in step now")
-            sentRun = frame.run
-            val start = first ?: frame.ptsUs
+            // A connection starts on a keyframe.
+            val kept = store.next(POLL_MS)?.takeIf { first != null || it.keyframe } ?: continue
+            if (first == null) stamped = kept.momentUs != null
+            // A clock that comes at the start makes a new connection; one that comes once the race may be under
+            // way is left for the next, as a new one is a moment of frames sent again.
+            val early = System.nanoTime() < until
+            if (!stamped && kept.momentUs != null && early) throw IOException("the clock is in step now")
+            val start = first ?: kept.ptsUs
             first = start
-            send(connected, frame, frame.ptsUs - start, sample)
+            send(connected, kept, kept.ptsUs - start, kept.momentUs?.takeIf { stamped })
             streamed = true
-            val rates = throughput.count(frame.data.size)
-            if (rates != null) report(UplinkStatus.Streaming(rates.first, rates.second, sample?.delay?.div(1000.0)))
+            val rates = throughput.count(kept.data.size)
+            val delay = clock()?.takeIf { stamped }?.delay?.div(1000.0)
+            if (rates != null) report(UplinkStatus.Streaming(rates.first, rates.second, delay))
         }
     }
 
-    /** One frame, [sinceStartUs] into the connection, with its moment when the clock is known. */
+    /** One frame, [sinceStartUs] into the connection, with its [momentUs] when it goes with one. */
     private fun send(
         connected: VideoSink,
-        frame: EncodedFrame,
+        kept: KeptFrame,
         sinceStartUs: Long,
-        sample: Sample?,
+        momentUs: Long?,
     ) {
-        val units = Avc.splitAnnexB(frame.data).toMutableList()
+        val units = Avc.splitAnnexB(kept.data).toMutableList()
         var head = 0
-        if (sample != null) units.add(head++, Sei.frameMoment(frame.ptsUs + slew.at(frame.ptsUs, sample.offset)))
+        if (momentUs != null) units.add(head++, Sei.frameMoment(momentUs))
         // The status after the moment: a reader looking for the moment finds it first. A status
         // the phone fails to read costs this keyframe its status, never the connection.
-        if (frame.keyframe) {
+        if (kept.keyframe) {
             runCatching {
                 status(
                     drops.lately(),
@@ -204,7 +210,7 @@ class Uplink(
         }
         sendingSince = System.nanoTime()
         try {
-            connected.sendFrame(sinceStartUs / 1000, frame.keyframe, units)
+            connected.sendFrame(sinceStartUs / 1000, kept.keyframe, units)
         } finally {
             sendingSince = 0 // a send that failed is no send hanging: the next connection is not cut
         }
@@ -263,7 +269,6 @@ class Uplink(
     }
 
     companion object {
-        private const val QUEUE_SECONDS = 2
         private const val POLL_MS = 100L
         private const val REPORT_NS = 1_000_000_000L
         private const val FIRST_PAUSE_MS = 500L
@@ -273,7 +278,11 @@ class Uplink(
         private const val STAMP_WINDOW_MS = 10_000L
         private const val VIDEO_CODEC_AVC = 7
 
-        private fun metadata(format: StreamFormat): Map<String, Any?> =
+        /** The stream's metadata; [heldMs]: how long its first frame was kept (specs/007, contract). */
+        private fun metadata(
+            format: StreamFormat,
+            heldMs: Long,
+        ): Map<String, Any?> =
             mapOf(
                 "width" to format.resolution.width,
                 "height" to format.resolution.height,
@@ -281,6 +290,7 @@ class Uplink(
                 "videocodecid" to VIDEO_CODEC_AVC,
                 "videodatarate" to format.bitrate / 1000,
                 "encoder" to "PhotoFinish Camera",
+                "held_ms" to heldMs,
             )
     }
 }

@@ -10,7 +10,10 @@ import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
+import java.io.File
 import java.io.IOException
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
@@ -33,6 +36,7 @@ private class FakeSink(
     private val publishFailure: RuntimeException? = null,
     private val gateOn: Int = 0,
 ) : VideoSink {
+    val metadata = CopyOnWriteArrayList<Map<String, Any?>>()
     val headers = CopyOnWriteArrayList<ByteArray>()
     val frames = LinkedBlockingQueue<Sent>()
     val closed = CountDownLatch(1)
@@ -44,6 +48,7 @@ private class FakeSink(
 
     override fun publish(metadata: Map<String, Any?>) {
         publishFailure?.let { throw it }
+        this.metadata += metadata
     }
 
     override fun sendSequenceHeader(record: ByteArray) {
@@ -74,6 +79,9 @@ private class FakeSink(
 }
 
 class UplinkTest {
+    @get:Rule
+    val temporary = TemporaryFolder()
+
     private val address = RtmpAddress("127.0.0.1", 1935, "live", "cam1")
     private val format = StreamFormat(Resolution(1920, 1080), 30, FpsRange(30, 30), 5_000_000)
     private val sps = byteArrayOf(0x67, 0x64, 0, 0x28)
@@ -81,25 +89,27 @@ class UplinkTest {
     private val statuses = CopyOnWriteArrayList<UplinkStatus>()
     private val keyframesAsked = Semaphore(0)
     private val running = mutableListOf<Uplink>()
+    private val kept: File get() = File(temporary.root, "kept")
 
     private fun uplink(
         sinks: List<VideoSink>,
         offset: Long? = 1_000_000,
         waitForClockMs: Long = 2_000,
         stallMs: Long = 5_000,
-        fps: Int = 30,
         clock: AtomicReference<Sample?> = AtomicReference(offset?.let { exchange(it) }),
+        capBytes: Long = Long.MAX_VALUE,
     ): Uplink {
         val queue = ArrayDeque(sinks)
         val link =
             Uplink(
                 address = address,
-                format = format.copy(fps = fps),
+                format = format,
                 clock = { clock.get() },
                 requestKeyframe = { keyframesAsked.release() },
                 report = { statuses += it },
-                connect = { synchronized(queue) { queue.removeFirst() } },
+                store = FrameStore(kept, capBytes, reserveBytes = 0, freeBytes = { Long.MAX_VALUE }),
             )
+        link.connect = { synchronized(queue) { queue.removeFirst() } }
         link.waitForClockMs = waitForClockMs
         link.stallMs = stallMs
         link.configure(sps, pps)
@@ -120,6 +130,12 @@ class UplinkTest {
         keyframe: Boolean,
     ) = EncodedFrame(byteArrayOf(0, 0, 0, 1, if (keyframe) 0x65 else 0x41, 7), ptsUs, keyframe)
 
+    /** [seconds] of frames at 10 fps, a keyframe each second. */
+    private fun offerSeconds(
+        link: Uplink,
+        seconds: Int,
+    ) = repeat(seconds * 10) { link.offer(frame(it * 100_000L, keyframe = it % 10 == 0)) }
+
     @After
     fun stop() = running.forEach { it.stop() }
 
@@ -129,7 +145,7 @@ class UplinkTest {
         val link = uplink(listOf(sink))
         start(link)
         awaitConnected()
-        link.offer(frame(100_000, keyframe = false)) // before any keyframe: not sent
+        link.offer(frame(100_000, keyframe = false)) // before any keyframe: nothing to start from
         link.offer(frame(133_333, keyframe = true))
         link.offer(frame(166_666, keyframe = false))
         val key = sink.next()
@@ -140,6 +156,7 @@ class UplinkTest {
         assertEquals(33L, sink.next().timestampMs)
         assertArrayEquals(Avc.configurationRecord(sps, pps), sink.headers.single())
         assertTrue(statuses.first() is UplinkStatus.Connecting)
+        assertEquals(1L, link.dropped)
     }
 
     @Test
@@ -243,23 +260,54 @@ class UplinkTest {
     }
 
     @Test
-    fun `a lost connection is made again, its header resent, from a keyframe`() {
-        val first = FakeSink(failOn = 2)
+    fun `a lost connection is made again, its header resent, from the keyframe before what it swallowed`() {
+        val first = FakeSink(failOn = 3)
         val second = FakeSink()
         val link = uplink(listOf(first, second))
         start(link)
         awaitConnected()
         link.offer(frame(0, keyframe = true))
-        first.next()
-        link.offer(frame(33_333, keyframe = false)) // fails: the connection is lost
+        link.offer(frame(33_333, keyframe = false))
+        repeat(2) { first.next() }
+        link.offer(frame(66_666, keyframe = false)) // fails: the connection is lost
         awaitConnected()
         assertTrue(statuses.any { it is UplinkStatus.Reconnecting && it.reason == "lost" })
-        link.offer(frame(66_666, keyframe = false))
-        link.offer(frame(100_000, keyframe = true))
         val resumed = second.next()
         assertTrue(resumed.keyframe)
         assertEquals(0L, resumed.timestampMs) // timestamps start again with the connection
+        assertEquals(1_000_000L, momentOf(resumed.units[0])) // the frame sent before, as it was
+        assertEquals(listOf(33L, 66L), List(2) { second.next().timestampMs })
         assertEquals(1, second.headers.size)
+    }
+
+    @Test
+    fun `after a loss the last six seconds go again, with the moments they were kept with`() {
+        val first = FakeSink(failOn = 101) // 10 s of frames arrive; the eleventh second's is lost
+        val second = FakeSink()
+        val clock = AtomicReference<Sample?>(exchange(1_000_000))
+        val link = uplink(listOf(first, second), clock = clock)
+        offerSeconds(link, 11) // kept through a break, before the uplink connects
+        clock.set(exchange(1_300_000)) // the clock moved meanwhile: what was kept keeps its moments
+        start(link)
+        repeat(100) { first.next() }
+        val resumed = second.next()
+        assertTrue(resumed.keyframe)
+        assertEquals(4_000_000L + 1_000_000, momentOf(resumed.units[0])) // 6 s before 10 s, its keyframe
+        assertEquals(100L, second.next().timestampMs)
+    }
+
+    @Test
+    fun `a connection says how long its first frame was kept`() {
+        val refused = FakeSink(publishFailure = IllegalStateException("refused"))
+        val second = FakeSink()
+        val link = uplink(listOf(refused, second))
+        link.captureClock = { 9_000_000 }
+        link.offer(frame(0, keyframe = true))
+        start(link)
+        awaitConnected()
+        val said = second.metadata.single()
+        assertEquals(9_000L, said["held_ms"])
+        assertEquals("PhotoFinish Camera", said["encoder"])
     }
 
     @Test
@@ -278,17 +326,16 @@ class UplinkTest {
 
     @Test
     fun `a connection that streamed is made again at once after each loss, all day`() {
-        val sinks = List(5) { FakeSink(failOn = 2) }
+        val sinks = List(5) { FakeSink(failOn = 2) } // each sends the keyframe again, then loses the next
         val link = uplink(sinks)
         start(link)
+        awaitConnected()
+        link.offer(frame(0, keyframe = true))
+        link.offer(frame(33_333, keyframe = false))
         for (sink in sinks.dropLast(1)) {
-            awaitConnected()
-            link.offer(frame(0, keyframe = true))
             sink.next()
-            link.offer(frame(33_333, keyframe = false)) // lost
             val since = System.nanoTime()
-            assertTrue(keyframesAsked.tryAcquire(900, TimeUnit.MILLISECONDS)) // the next, soon
-            keyframesAsked.release()
+            awaitConnected() // the next, soon
             assertTrue((System.nanoTime() - since) / 1_000_000 < 900)
         }
     }
@@ -303,17 +350,19 @@ class UplinkTest {
     }
 
     @Test
-    fun `a full queue is emptied, counted and a keyframe asked for`() {
-        val link = uplink(emptyList(), fps = 1) // two seconds at 1 fps: room for 2
-        repeat(3) { link.offer(frame(it * 1_000_000L, keyframe = it == 0)) }
-        assertEquals(3L, link.dropped)
+    fun `frames the store has no room for are counted, and a keyframe asked for`() {
+        val link = uplink(emptyList(), capBytes = 10) // room for one frame of 6 bytes, and a run more
+        link.offer(frame(0, keyframe = true))
+        link.offer(frame(1_000_000, keyframe = false))
+        link.offer(frame(2_000_000, keyframe = true)) // 12 bytes kept, none sent: the first run goes
+        assertEquals(2L, link.dropped)
         assertTrue(keyframesAsked.tryAcquire())
     }
 
     @Test
     fun `a keyframe tells the frames dropped in the last minute, not since the start`() {
         val sink = FakeSink(gateOn = 2)
-        val link = uplink(listOf(sink), fps = 1) // room for two frames
+        val link = uplink(listOf(sink), capBytes = 10)
         var now = 0L
         link.nanos = { now }
         val told = CopyOnWriteArrayList<Long>()
@@ -323,30 +372,30 @@ class UplinkTest {
         link.offer(frame(0, keyframe = true))
         link.offer(frame(1_000_000, keyframe = false))
         assertTrue(sink.atGate.await(5, TimeUnit.SECONDS)) // its send is under way
-        repeat(3) { link.offer(frame((it + 2) * 1_000_000L, keyframe = false)) } // 3 dropped
-        link.offer(frame(6_000_000, keyframe = true))
+        link.offer(frame(2_000_000, keyframe = true))
+        link.offer(frame(3_000_000, keyframe = false))
+        link.offer(frame(4_000_000, keyframe = true)) // no room: the 2 s and 3 s frames go unsent
         sink.gate.countDown()
         repeat(3) { sink.next() }
         now = 61_000_000_000L // a minute on
-        link.offer(frame(7_000_000, keyframe = true))
+        link.offer(frame(5_000_000, keyframe = true))
         sink.next()
-        assertEquals(listOf(0L, 3L, 0L), told.toList())
+        assertEquals(listOf(0L, 2L, 0L), told.toList())
     }
 
     @Test
-    fun `frames dropped while a send waits are followed by a keyframe, not by what came after`() {
+    fun `frames kept while a send waits all go after it, in order`() {
         val sink = FakeSink(gateOn = 2)
-        val link = uplink(listOf(sink), fps = 1) // room for two frames
+        val link = uplink(listOf(sink))
         start(link)
         awaitConnected()
         link.offer(frame(0, keyframe = true))
         link.offer(frame(1_000_000, keyframe = false))
-        assertTrue(sink.atGate.await(5, TimeUnit.SECONDS)) // its send is under way
-        repeat(3) { link.offer(frame((it + 2) * 1_000_000L, keyframe = false)) } // dropped
-        link.offer(frame(5_000_000, keyframe = false)) // after a gap: no picture without its keyframe
-        link.offer(frame(6_000_000, keyframe = true))
+        assertTrue(sink.atGate.await(5, TimeUnit.SECONDS)) // its send is under way: a slow network
+        repeat(4) { link.offer(frame((it + 2) * 1_000_000L, keyframe = it == 3)) }
         sink.gate.countDown()
-        assertEquals(listOf(0L, 1_000L, 6_000L), List(3) { sink.next().timestampMs })
+        assertEquals(listOf(0L, 1_000L, 2_000L, 3_000L, 4_000L, 5_000L), List(6) { sink.next().timestampMs })
+        assertEquals(0L, link.dropped)
     }
 
     @Test
@@ -359,17 +408,20 @@ class UplinkTest {
         link.offer(frame(0, keyframe = true))
         assertTrue(hanging.closed.await(5, TimeUnit.SECONDS))
         awaitConnected()
-        link.offer(frame(33_333, keyframe = true))
-        assertTrue(second.next().keyframe)
+        assertTrue(second.next().keyframe) // the frame the hung send never delivered
     }
 
     @Test
-    fun `stop ends the loop`() {
-        val link = uplink(listOf(FakeSink()))
+    fun `stop ends the loop and drops what is kept`() {
+        val sink = FakeSink()
+        val link = uplink(listOf(sink))
         val thread = start(link)
         awaitConnected()
+        link.offer(frame(0, keyframe = true))
+        sink.next() // sent, and kept to be sent again after a loss
         link.stop()
         thread.join(5_000)
         assertFalse(thread.isAlive)
+        assertTrue(kept.listFiles()!!.isEmpty())
     }
 }

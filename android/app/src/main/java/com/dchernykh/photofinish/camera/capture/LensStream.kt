@@ -10,6 +10,7 @@ import android.view.Surface
 import com.dchernykh.photofinish.camera.pairing.Lens
 import com.dchernykh.photofinish.camera.stream.Avc
 import com.dchernykh.photofinish.camera.stream.EncodedFrame
+import com.dchernykh.photofinish.camera.stream.FrameStore
 import com.dchernykh.photofinish.camera.stream.Uplink
 import com.dchernykh.photofinish.camera.stream.UplinkStatus
 import com.dchernykh.photofinish.camera.sync.ClockSync
@@ -35,9 +36,13 @@ internal class LensStream private constructor(
 
     val lens: Lens get() = planned.target.lens
 
-    /** The clock exchange with the lens's recorder, on [clock], unless one runs or the stream ended. */
+    /**
+     * The clock exchange with the lens's recorder, on [clock], unless one runs or the stream ended; the
+     * uplink tells by it how long a connection's first frame was kept.
+     */
     fun startClock(clock: () -> Long) {
         if (stopped || sync.get() != null) return
+        uplink.captureClock = clock
         val address = planned.target.address
         sync.set(ClockSync(address.host, address.port, clock).also { it.start() })
     }
@@ -65,7 +70,8 @@ internal class LensStream private constructor(
 
         /**
          * [planned]'s stream at [format], started: [report] hears its uplink, [onFirstFrame] the
-         * first frame's presentation time; [status] gives the phone's status line for each keyframe.
+         * first frame's presentation time; [status] gives the phone's status line for each keyframe;
+         * [store] keeps the frames until they are sent.
          */
         fun start(
             planned: PlannedLens,
@@ -73,6 +79,7 @@ internal class LensStream private constructor(
             report: (UplinkStatus) -> Unit,
             onFirstFrame: (LensStream, Long) -> Unit,
             status: (Long) -> String?,
+            store: FrameStore,
         ): LensStream {
             val media = mediaFormat(format)
             val codec = encoderFor(media)
@@ -101,6 +108,7 @@ internal class LensStream private constructor(
                     clock = { sync.get()?.offset?.best() },
                     requestKeyframe = { requestKeyframe(codec) },
                     report = report,
+                    store = store,
                 )
             uplink.status = status
             val stream = LensStream(planned, codec, surface, uplink, sync)
