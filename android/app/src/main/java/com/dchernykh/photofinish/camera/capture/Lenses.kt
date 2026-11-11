@@ -44,7 +44,8 @@ object LensChoice {
     ): Map<Lens, LensInfo> {
         val found = linkedMapOf<Lens, LensInfo>()
         if (back != null) {
-            val main = physical.minByOrNull { abs(it.focalMm - back.focalMm) } ?: back
+            val own = if (back.focalMm > 0) back.focalMm else MAIN_MM // one not told: a main lens's
+            val main = physical.minByOrNull { abs(it.focalMm - own) } ?: back
             found[Lens.MAIN] = main
             // A focal length the phone does not tell, 0, makes no lens wider or longer.
             val others = physical.filter { it !== main && it.focalMm > 0 && main.focalMm > 0 }
