@@ -140,7 +140,9 @@ class Heartbeat:
             "state": "starting",
             "detail": "",
             "clock": "",  # why a phone's clock exchange is left out; "" when it is not
-            "phone": {},  # a phone's last status and when it came (specs/005)
+            # A phone's last status and when it came (specs/005): the one a recorder
+            # before this one heard, until the phone is heard again.
+            "phone": _last_phone(self.path),
             "frames": 0,
             "segments": 0,
             "free_bytes": 0,
@@ -174,6 +176,15 @@ class Heartbeat:
             if error.errno != errno.ENOSPC or not _in_place(self.path, data):
                 return
         self._written = now
+
+
+def _last_phone(path: Path) -> dict[str, Any]:
+    """The phone status in a heartbeat left behind; {} when it holds none."""
+    try:
+        phone = json.loads(path.read_text()).get("phone")
+    except OSError, ValueError, AttributeError:
+        return {}
+    return phone if isinstance(phone, dict) else {}
 
 
 def _in_place(path: Path, data: bytes) -> bool:
