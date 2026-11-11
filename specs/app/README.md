@@ -87,6 +87,12 @@ or a swaying patch.
 - **Video.** Every camera's view side by side, each at its frame nearest the moment shown; the
   chosen camera, framed in blue, is the one the keys step through. The timeline shows its
   recording and gaps; the wheel zooms around the pointer, a click moves there.
+- **Recording.** The top right corner says in large letters whether the cameras are recording
+  now, wherever in the video the referee is: green RECORDING while every camera that records is
+  (a file opened as it is does not count), red NOT RECORDING while one is not -- its stream
+  lost, its recorder down or not started, still waiting for its camera -- naming each such
+  camera and the time of its last frame on the timing source's scale. A stream that stops
+  sending is noticed after the recorder's 5 s read timeout. No dialog and no sound.
 - **Keys** (they work while a number is typed): Left/Right one frame, Shift ten, Ctrl one second,
   End back to Live (L too, when no number is being typed: a number may hold an L). Live follows
   the newest frame.

@@ -33,7 +33,9 @@ a first session with the test camera:
 4. In PhotoFinish Camera: "Scan PhotoFinish's code", pick the picture size and
    the frame rate (60 fps first, when the phone gives it), "Start". The app says
    how many frames a second it sends and how closely its clock is in step with
-   PhotoFinish's; the camera list says "recording".
+   PhotoFinish's; the camera list says "recording", and the window's top right
+   corner turns to a green RECORDING. Red NOT RECORDING there, wherever in the
+   video you are, means a camera's stream is lost.
 
 The app keeps the phone's camera clock in step with the recorder's and writes
 each frame's moment into the frame, so Wi-Fi delays do not move frames on the
