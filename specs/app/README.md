@@ -106,6 +106,13 @@ or a swaying patch.
   lost, its recorder down or not started, still waiting for its camera -- naming each such
   camera and the time of its last frame on the timing source's scale. A stream that stops
   sending is noticed after the recorder's 5 s read timeout. No dialog and no sound.
+- **Phones.** Under it, a line per phone running PhotoFinish Camera with what may stop its
+  stream, read from the status its keyframes carry once a second (`specs/005-phone-status`):
+  battery with a charging mark, the battery's heat and the phone's thermal state, Wi-Fi signal,
+  power saver, frames dropped for the network. Amber when worth a look -- 25 % or less and not
+  charging, 40 degrees C, thermal moderate, -70 dBm, saver on, frames dropped -- red when the
+  stream is at risk: 10 % or less and not charging, 45 degrees C, thermal severe, -80 dBm. A
+  status not heard for 5 s, by the recorder's clock, stays greyed with its time.
 - **Keys** (they work while a number is typed): Left/Right one frame, Shift ten, Ctrl one second,
   End back to Live (L too, when no number is being typed: a number may hold an L). Live follows
   the newest frame. Ctrl+1 to Ctrl+9 show camera 1 to 9 alone, Ctrl+0 all of them, Ctrl+Up and
