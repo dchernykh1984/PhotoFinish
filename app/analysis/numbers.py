@@ -44,22 +44,24 @@ class NumberReader:
 
     def read(self, rgb: np.ndarray) -> tuple[str, float] | None:
         """The digits most confidently read in a picture, with how sure; None when
-        none is read with LEAST_CONFIDENCE."""
+        none is read with LEAST_CONFIDENCE. PaddleOCR's models take their pictures
+        in BGR, as OpenCV reads them: given so."""
+        bgr = np.ascontiguousarray(rgb[..., ::-1])
         best: tuple[str, float] | None = None
-        for top, left, bottom, right in self.texts(rgb):
-            text, sure = self.line(rgb[top:bottom, left:right])
+        for top, left, bottom, right in self.texts(bgr):
+            text, sure = self.line(bgr[top:bottom, left:right])
             digits = "".join(c for c in text if c.isdigit())
             if digits and sure >= LEAST_CONFIDENCE and (best is None or sure > best[1]):
                 best = digits, sure
         return best
 
-    def texts(self, rgb: np.ndarray) -> list[Piece]:
+    def texts(self, bgr: np.ndarray) -> list[Piece]:
         """Where the finder sees text, in the picture's pixels."""
-        height, width = rgb.shape[:2]
+        height, width = bgr.shape[:2]
         size = min(1.0, LARGEST / max(height, width))
         high = max(SIDE, round(height * size / SIDE) * SIDE)
         wide = max(SIDE, round(width * size / SIDE) * SIDE)
-        scaled = scale(rgb, wide, high) / 255.0
+        scaled = scale(bgr, wide, high) / 255.0
         x = ((scaled - MEAN) / STD).transpose(2, 0, 1)[None].astype(np.float32)
         marked = self.finder.run(None, {"x": x})[0][0, 0] > MARKED
         return [
@@ -67,13 +69,13 @@ class NumberReader:
             for piece in pieces(marked)
         ]
 
-    def line(self, rgb: np.ndarray) -> tuple[str, float]:
+    def line(self, bgr: np.ndarray) -> tuple[str, float]:
         """A line of text read, with how sure the reader is of it."""
-        height, width = rgb.shape[:2]
+        height, width = bgr.shape[:2]
         if not height or not width:
             return "", 0.0
         wide = max(16, min(WIDEST, round(width * HEIGHT / height)))
-        scaled = scale(rgb, wide, HEIGHT) / 255.0
+        scaled = scale(bgr, wide, HEIGHT) / 255.0
         x = ((scaled - 0.5) / 0.5).transpose(2, 0, 1)[None].astype(np.float32)
         return ctc(self.reader.run(None, {"x": x})[0][0], self.chars)
 

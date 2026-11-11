@@ -135,3 +135,20 @@ def test_the_reader_loads_its_two_models_and_reads_with_them(tmp_path: Path) -> 
     found = made.read(np.full((60, 90, 3), 230, np.uint8))
     assert found is not None
     assert found[0] == "42"
+
+
+def test_the_models_are_given_bgr_as_paddleocr_trained_them() -> None:
+    made = reader([], [])
+    given: list[np.ndarray] = []
+
+    def find(_: Any, feed: dict[str, np.ndarray]) -> list[np.ndarray]:
+        given.append(feed["x"])
+        return [np.zeros((1, 1, *feed["x"].shape[2:]), np.float32)]
+
+    made.finder = SimpleNamespace(run=find)  # type: ignore[assignment]
+    red = np.zeros((32, 32, 3), np.uint8)
+    red[..., 0] = 255
+    assert made.read(red) is None
+    channels = given[0][0].mean(axis=(1, 2))
+    assert channels[0] == pytest.approx((0 - 0.485) / 0.229, abs=0.05)  # blue first
+    assert channels[2] == pytest.approx((1 - 0.406) / 0.225, abs=0.05)  # red last
