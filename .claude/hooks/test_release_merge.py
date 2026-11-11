@@ -158,6 +158,24 @@ class MergesTests(unittest.TestCase):
         ):
             self.assertEqual(HOOK.merges(command), [[*merged, "--admin"]], command)
 
+    def test_pushd_moves_the_merge_and_popd_takes_it_back(self) -> None:
+        for command, folder in (
+            ("pushd ../X && gh pr merge 5", "/x/X"),
+            ("pushd ../X && popd && gh pr merge 5", "/x/repo"),
+            ("pushd ../X && cd sub && popd && gh pr merge 5", "/x/repo"),
+        ):
+            merged = HOOK.merges(command)[0]
+            self.assertEqual(HOOK.where(merged, "/x/repo")[0], folder, command)
+        for command in (
+            "popd && gh pr merge 5",
+            "pushd && gh pr merge 5",
+            "pushd +1; gh pr merge 5",
+        ):
+            here, args = HOOK.where(HOOK.merges(command)[0], "/x/repo")
+            self.assertIn(
+                "through the shell", HOOK.refusal(args, lambda v: None, here or "")
+            )
+
     def test_a_cd_s_options_are_no_folder_and_cd_dash_is_the_shell_s(self) -> None:
         for command, folder in (
             ("cd -P /srv && gh pr merge 21", "/srv"),
