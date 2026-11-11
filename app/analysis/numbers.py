@@ -19,6 +19,7 @@ import numpy as np
 import onnxruntime
 
 LEAST_CONFIDENCE = 0.8  # a reading less sure than this names no number
+MOST_PIECES = 6  # of a box's text, the largest read: a bib is a rider's largest
 MARKED = 0.3  # the finder's map: text from here up
 LEAST_PIXELS = 20  # of the finder's map: a piece smaller is noise
 GROWN = 1.5  # a piece grown as DB's unclip grows it: area x this / perimeter
@@ -50,7 +51,9 @@ class NumberReader:
         in BGR, as OpenCV reads them: given so."""
         bgr = np.ascontiguousarray(rgb[..., ::-1])
         best: tuple[str, float] | None = None
-        for top, left, bottom, right in self.texts(bgr):
+        found = self.texts(bgr)
+        found.sort(key=lambda piece: (piece[2] - piece[0]) * (piece[3] - piece[1]))
+        for top, left, bottom, right in found[::-1][:MOST_PIECES]:  # the largest
             text, sure = self.line(bgr[top:bottom, left:right])
             digits = longest_digits(text)
             if digits and sure >= LEAST_CONFIDENCE and (best is None or sure > best[1]):
