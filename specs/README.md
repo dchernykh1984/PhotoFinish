@@ -30,3 +30,5 @@ request.
   among them, recorded at once; one camera large, and switching between cameras.
 - [005-phone-status](005-phone-status/spec.md): the phone's battery, heat, Wi-Fi and dropped
   frames, shown on the laptop beside the recording banner.
+- [006-numbers-and-one-line](006-numbers-and-one-line/spec.md): riders' numbers read, every
+  camera's crossings as one, one finish line for all cameras (issue #21).
