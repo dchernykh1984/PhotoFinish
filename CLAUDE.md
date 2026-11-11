@@ -103,7 +103,10 @@ Python is pinned to 3.14.
   every PR. Never add a `Co-Authored-By` line or Claude attribution to a commit,
   a PR body or an issue comment.
 - **Every change ships with automated tests.** A fix or a behaviour change
-  comes with a test that fails without it (`shipping-a-change`). A step CI
+  comes with a test that fails without it (`shipping-a-change`): Python with
+  pytest, the window through Qt-level tests, the phone app with JVM unit tests
+  under Kover's gate. Logic is kept out of the glue tests cannot drive -- the
+  Qt window, Camera2 and the encoder -- so that it can be covered. A step CI
   cannot run -- the macOS build, a real camera -- is checked by hand, and the
   PR says how.
 - **Coverage gate is 90%**, with `app/main.py` and `app/main_window.py` omitted
@@ -119,7 +122,10 @@ the other timing tools start as a specification: see
 [`specs/README.md`](specs/README.md) and the constitution in
 [`.specify/memory/constitution.md`](.specify/memory/constitution.md). The Spec
 Kit skills (`speckit-specify`, `speckit-plan`, `speckit-tasks`,
-`speckit-implement` and the rest) drive that flow.
+`speckit-implement` and the rest) drive that flow. A feature gets its
+`specs/<NNN>-<name>/` -- spec, plan, tasks -- before it is built, and its tasks
+are ticked as they are done; what changes in the program as it works goes into
+`specs/app/README.md` in the same pull request.
 
 ## Skills
 
@@ -130,6 +136,11 @@ Kit skills (`speckit-specify`, `speckit-plan`, `speckit-tasks`,
 - `qt-window-tests` - how to test the PySide6 window.
 - `trying-a-camera` - connecting a real camera and judging its video.
 - `android-app` - PhotoFinish Camera: its gate, trying it with a recorder, its release.
+
+Know-how the next change will need -- how something is tried, tested, reviewed
+or released -- goes into a skill, in both `.claude/skills/` and
+`.agents/skills/`, in the pull request that learned it; a new skill is listed
+here in both guides.
 
 ## Release
 
