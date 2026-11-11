@@ -50,6 +50,8 @@ VALUE_FLAGS = {
 ADMIN = {"--admin"} | {f"--admin={v}" for v in ("1", "t", "T", "true", "True", "TRUE")}
 SHELL_PUNCTUATION = set("();<>|&\n")  # a new line ends a command, as ; does
 SHELLS = {"sh", "bash", "zsh", "dash"}
+# The shell's words after which a command begins, as after a ; or a (.
+KEYWORDS = {"{", "}", "if", "then", "else", "elif", "do", "while", "until", "!", "time"}
 WORD_START = set(" \t\n;&|()<>")  # what a word may begin after: a # there is a comment
 DESCRIPTOR = re.compile(r"(?<![\w./-])\d+(?=[<>])")
 FIELDS = "number,state,headRefName,headRefOid,statusCheckRollup"
@@ -150,16 +152,8 @@ def _folder(before: list[str]) -> list[str]:
     begins = True  # a command begins at this word
     for at, word in enumerate(before):
         if word and set(word) <= SHELL_PUNCTUATION:
-            for char in word:  # ");" and the like come as one word
-                if char == "(":
-                    levels.append(list(levels[-1]))
-                    pushed.append(list(pushed[-1]))
-                elif char == ")" and len(levels) > 1:
-                    levels.pop()
-                    pushed.pop()
-            begins = True
-            continue
-        if begins and word in {"cd", "pushd"}:
+            _nest(word, levels, pushed)
+        elif begins and word in {"cd", "pushd"}:
             if word == "pushd":
                 pushed[-1].append(len(levels[-1]))
             levels[-1] += [CD, _cd_to(before[at + 1 :], word)]
@@ -168,8 +162,22 @@ def _folder(before: list[str]) -> list[str]:
                 del levels[-1][pushed[-1].pop() :]
             else:  # pushed before this command: the shell's to know
                 levels[-1] += [CD, "$DIRSTACK"]
-        begins = False
+        # After punctuation or a keyword -- {, if, do -- a command begins.
+        punctuation = bool(word) and set(word) <= SHELL_PUNCTUATION
+        begins = punctuation or (begins and word in KEYWORDS)
     return levels[-1]
+
+
+def _nest(word: str, levels: list[list[str]], pushed: list[list[int]]) -> None:
+    """A subshell opened or closed by the punctuation ``word``: ");" and the like
+    come as one word."""
+    for char in word:
+        if char == "(":
+            levels.append(list(levels[-1]))
+            pushed.append(list(pushed[-1]))
+        elif char == ")" and len(levels) > 1:
+            levels.pop()
+            pushed.pop()
 
 
 def _cd_to(after: list[str], command: str = "cd") -> str:
