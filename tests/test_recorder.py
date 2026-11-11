@@ -194,6 +194,28 @@ def test_the_heartbeat_keeps_the_phone_s_last_status(
     assert heartbeat(folder)["phone"] == {"battery": "57", "at_ms": START}
 
 
+class Fixed:
+    """A recorder's clock standing at ``ms``."""
+
+    def __init__(self, ms: int) -> None:
+        self.ms = ms
+
+    def __call__(self) -> int:
+        return self.ms
+
+    def micros(self) -> int:
+        return self.ms * 1000
+
+
+def test_the_heartbeat_says_how_far_behind_its_clock_the_newest_frame_is(
+    folder: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A phone sending what it kept through a break: its frames, seconds old.
+    cameras(monkeypatch, Camera(folder, START, 3, stop_after=2))
+    assert run("cam1", clock=Fixed(START + 10_000)) == 0  # type: ignore[arg-type]
+    assert heartbeat(folder)["behind_ms"] == 10_000 - 66
+
+
 def test_a_recorder_started_again_keeps_the_phone_s_last_status(folder: Path) -> None:
     folder.mkdir(parents=True, exist_ok=True)
     last = {"battery": "9", "at_ms": START, "heard_ms": START}

@@ -212,6 +212,7 @@ class Watchdog:
 
 
 _STATES = {"disk_full": "disk full, recording stopped"}
+BEHIND_SAID_MS = 2000  # a phone this far behind live is catching up: said
 
 
 def describe(info: dict[str, Any] | None) -> str:
@@ -224,6 +225,9 @@ def describe(info: dict[str, Any] | None) -> str:
     if state == "recording":
         text = f"recording, {info.get('frames', 0)} frames"
         text = f"{text}, under 2 GB free" if detail == "low disk" else text
+        behind = int(info.get("behind_ms") or 0)
+        if behind >= BEHIND_SAID_MS:
+            text = f"{text}, {behind // 1000} s behind"
     else:
         text = _STATES.get(state, state)
         text = f"{text}: {detail}" if detail else text
