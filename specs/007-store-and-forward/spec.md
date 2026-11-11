@@ -117,12 +117,15 @@ out, shows the front camera as left out and the banner green.
 ### Functional Requirements
 
 - **FR-001**: PhotoFinish Camera keeps each lens's encoded frames, with their moments, in a store
-  on its own storage, oldest first, until they are sent; a frame sent is kept 6 s more. The uplink
-  takes its frames from the store, so a break, a slow network or a recorder restarting costs no
-  frame while the store has room.
-- **FR-002**: A connection made after a loss begins at the last keyframe at least 6 s before the
-  loss was noticed -- what a dead connection may have swallowed -- and goes on through the kept
-  frames to the live ones, as fast as the network takes them.
+  on its own storage, oldest first, until the recorder has acknowledged reading them: once
+  publishing it asks for an RTMP acknowledgement every 64 KiB, which FFmpeg's listener gives. The
+  uplink takes its frames from the store, so a break, a slow network or a recorder restarting
+  costs no frame while the store has room.
+- **FR-002**: A connection made after a loss begins at the keyframe 2 s before the newest frame
+  acknowledged -- what a dead connection, and the buffers on its way, may have swallowed, and
+  what a recorder killed meanwhile had not written -- or 6 s before the newest frame sent, from a
+  server that acknowledges nothing; it goes on through the kept frames to the live ones, as fast
+  as the network takes them.
 - **FR-003**: The store holds at most 2 GB for all the lenses, and less if the phone would keep
   under 1 GB free; when it is full, the oldest unsent frames give way, up to the next keyframe, and
   are counted among the frames dropped (`specs/005-phone-status`, `dropped`).
@@ -131,9 +134,10 @@ out, shows the front camera as left out and the banner green.
   (contract).
 - **FR-006**: The recorder believes a phone's frame moment up to `held_ms` older than it would
   otherwise (5 s).
-- **FR-007**: The recorder writes a frame whose moment is at or before the newest it recorded in
-  this run -- one sent again -- into the segment, for the frames after it to decode, and leaves it
-  out of the segment's frame times, so the recording lists each frame once.
+- **FR-007**: The recorder writes a frame whose moment it listed in the last 10 s -- this run's or
+  the run before's: one sent again, with the moment it carried the first time -- into the
+  segment, for the frames after it to decode, and leaves it out of the segment's frame times and
+  of the gaps, so the recording lists each frame once. A moment set back is another frame's.
 - **FR-008**: The recorder's heartbeat says how far its newest frame is behind its clock; the
   camera's line says "N s behind" while it is 2 s or more.
 - **FR-009**: The recorder writes its PhotoFinish version into its heartbeat. The window that
@@ -161,8 +165,9 @@ out, shows the front camera as left out and the banner green.
 ## Assumptions
 
 - Stop is the referee's word that the stream is over: nothing kept is sent after it.
-- 6 s covers what a dead connection may have taken: a send hangs 5 s before the uplink gives the
-  connection up, and keyframes come every second.
+- Guessing what a dead connection took failed on the emulator: its network held 10 s of video
+  while the recorder was frozen, more than the 6 s a send hangs before the uplink gives up. The
+  recorder's acknowledgements say it exactly; 6 s is kept for a server that gives none.
 - The store is the app's own, not shared with other apps; the space it takes is its while the
   phone streams.
 - What took the Xiaomi 17 Ultra's camera down with four lenses at 2560x1440 and 60 fps is looked

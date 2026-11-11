@@ -38,6 +38,7 @@ ChronometerPython issue #49.
 | `app/interpolation.py` | The finish line and the caliper reading. |
 | `app/shared_event.py` | Cameras in step on an event they all show. |
 | `app/paths.py` | Resolves where data lives (see below). |
+| `app/version.py` | The program's version, from `pyproject.toml`: a window replaces a recorder of another. |
 | `tests/` | pytest; `conftest.py` holds the offscreen Qt fixtures. |
 | `specs/` | Specifications; `specs/app/` is the program as built; the principles are in `.specify/memory/constitution.md`. |
 

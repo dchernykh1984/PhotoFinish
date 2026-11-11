@@ -85,6 +85,26 @@ each camera's `availableFocalLengths` and `physicalSize`; the app's screen lists
 the lenses it found, with their 35 mm-equivalent focal lengths. Put the AVD's
 front camera back to `none` when done, if it was.
 
+## A break, on the emulator
+
+The phone keeps every frame until the recorder acknowledges reading it
+(`specs/007-store-and-forward`), so a break must cost none. Two breaks to try,
+with one recorder streaming from the emulator:
+
+```
+kill -9 <the recorder's pid>; sleep 10; <start it again>   # a recorder crashed
+kill -STOP <pid>; sleep 10; kill -CONT <pid>                 # a network that holds everything
+```
+
+The pid is in `video/cam1/recorder.json`. Then read the recording back with
+`VideoIndex`: every moment once (`len(ms) == len(set(ms))`), no step between
+frames much over the frame interval, and `gaps.txt` with nothing from the break.
+The frozen recorder is the hard one: the emulator's network holds about 10 s of
+video meanwhile, all of it lost when the phone gives the connection up; only the
+recorder's acknowledgements, which the phone asks for every 64 KiB, tell what to
+send again. FFmpeg's default is one a megabyte: on the emulator's slow stream
+none came for 15 s.
+
 ## Reading what came
 
 ```python
