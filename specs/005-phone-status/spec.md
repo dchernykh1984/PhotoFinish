@@ -52,14 +52,16 @@ the readings; the window shows them with the levels the thresholds give.
 
 - **FR-001**: PhotoFinish Camera writes, once a second with each keyframe, a status into the frame:
   an SEI after the frame's moment (contract), holding battery percent, charging, battery
-  temperature, thermal status (Android 10), power saver, Wi-Fi signal and the frames its uplink
-  dropped for the network in the last minute; a reading it cannot tell is left out.
+  temperature, thermal status (Android 10), power saver, Wi-Fi signal, the frames its uplink
+  dropped for the network in the last minute and the lenses asked for that it does not stream
+  (`specs/004-phone-lenses`); a reading it cannot tell is left out.
 - **FR-002**: The recorder reads the status from a phone's keyframes and keeps the last one in its
   heartbeat with the moment it came, through reconnects.
 - **FR-003**: The window shows, under the recording banner, a line per camera with a status: the
   camera's name, then small icons with the readings -- battery (with a charging mark), heat, Wi-Fi,
-  power saver, dropped frames. Amber: battery 25 % or less and not charging, thermal status
-  moderate, battery 40 degrees C or more, Wi-Fi -70 dBm or weaker, power saver on, frames dropped.
+  power saver, dropped frames, lenses left out. Amber: battery 25 % or less and not charging,
+  thermal status moderate, battery 40 degrees C or more, Wi-Fi -70 dBm or weaker, power saver on,
+  frames dropped, a lens left out.
   Red: battery 10 % or less and not charging, thermal status severe or worse, battery 45 degrees C
   or more, Wi-Fi -80 dBm or weaker. A status older than 5 s is greyed, with its time.
 - **FR-004**: Covered by automated tests: the status written and read (JVM, pytest), the levels,

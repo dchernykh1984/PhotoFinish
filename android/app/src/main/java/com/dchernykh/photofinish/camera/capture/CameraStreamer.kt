@@ -61,6 +61,9 @@ class CameraStreamer(
     private val executor = Executor { handler.post(it) }
     private val opened = mutableListOf<OpenCamera>()
 
+    /** The lenses asked for and not streamed, as the status tells the laptop; read from the uplinks' threads. */
+    @Volatile private var leftOut: List<String> = emptyList()
+
     /** Counts the opens: a callback of an earlier one says nothing. Read from the uplinks' threads too. */
     @Volatile private var generation = 0
 
@@ -97,12 +100,19 @@ class CameraStreamer(
         val mine = ++generation
         val plan = plan(lenses, targets) ?: return onStatus(null, StreamerStatus.Failed("no back camera"))
         plan.left.forEach { (lens, why) -> onStatus(lens, StreamerStatus.Left(why)) }
+        leftOut = plan.left.keys.map { it.code }
         val again = { reason: String -> openAgain(preview, format, targets, reason) }
         try {
             startInTurn(plan.cameras) { camera, withPreview ->
                 val open = OpenCamera(if (withPreview) preview else null, mine, again)
                 opened += open
-                open.startStreams(camera, format).also { if (it) manager.openCamera(camera.cameraId, open, handler) }
+                open.startStreams(camera, format).also { started ->
+                    if (started) {
+                        manager.openCamera(camera.cameraId, open, handler)
+                    } else {
+                        leftOut = leftOut + camera.lenses.map { it.target.lens.code }
+                    }
+                }
             }
         } catch (error: Exception) {
             close()
@@ -195,7 +205,7 @@ class CameraStreamer(
                         common,
                         report = { status -> if (mine == generation) onStatus(lens, StreamerStatus.Link(status)) },
                         onFirstFrame = { stream, ptsUs -> clockOfFrames(stream, ptsUs, mine) },
-                        status = { dropped -> phone.read().copy(dropped = dropped).line() },
+                        status = { dropped -> phone.read().copy(dropped = dropped, left = leftOut).line() },
                     )
             }
             return true

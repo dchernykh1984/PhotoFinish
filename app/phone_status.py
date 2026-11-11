@@ -2,7 +2,8 @@
 
 The readings PhotoFinish Camera's keyframes carry (specs/005-phone-status), each as
 a small icon and a number with how worrying it is: battery, heat, Wi-Fi, power
-saver, frames dropped for the network. A reading the phone did not give is left out.
+saver, frames dropped for the network, lenses asked for that it does not stream. A
+reading the phone did not give is left out.
 """
 
 from __future__ import annotations
@@ -10,12 +11,15 @@ from __future__ import annotations
 import math
 from typing import Any
 
+from app.cameras import LENSES
+
 OK, WARN, BAD = "ok", "warn", "bad"
 STALE_MS = 5_000  # older than this, a status is the last one heard, not the phone now
 
 BATTERY, PLUGGED = "\U0001f50b", chr(0x26A1)
 HEAT, HOT = "\U0001f321", "\U0001f525"
 WIFI, SAVER, DROPPED = "\U0001f4f6", "\U0001f343", chr(0x23EC)
+LEFT = "\U0001f6ab"
 DEGREES = chr(0xB0) + "C"
 THERMAL = {2: "warm", 3: "hot", 4: "critical", 5: "emergency", 6: "shutting down"}
 
@@ -44,6 +48,9 @@ def readings(status: dict[str, Any]) -> list[tuple[str, str]]:
     dropped = _number(status.get("dropped"))
     if dropped:
         found.append((f"{DROPPED} {dropped:.0f} frames dropped", WARN))
+    left = [LENSES.get(code, code) for code in str(status.get("left", "")).split(",")]
+    if any(left):  # its camera records nothing: the phone would not run it so
+        found.append((f"{LEFT} {', '.join(n for n in left if n)} left out", WARN))
     return found
 
 

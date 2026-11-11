@@ -87,6 +87,7 @@ Each keyframe -- one a second -- carries, after the frame's moment, a second SEI
 | `saver` | power saver on, `1` or `0` |
 | `wifi` | the Wi-Fi signal, dBm |
 | `dropped` | the frames the uplink dropped for the network in the last minute |
+| `left` | the lenses asked for and not streamed -- the phone lacks them, cannot run them beside the others or at a size they give -- by their codes, `,` between; left out when none is |
 
 A reading the phone cannot tell is left out; a key the recorder does not know is kept and not
 shown. The message's size is written as SEI sizes are (a 255 for each full 255).
