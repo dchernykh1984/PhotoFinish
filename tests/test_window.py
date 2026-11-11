@@ -2579,7 +2579,8 @@ def test_suggestions_need_a_model(
     session.save({**session.load(), "analysis": {"on": True, "model": ""}})
     suggest(recording, START + 1000)
     win = make_window()
-    assert win.suggestion_list.count() == 0  # motion alone: nothing suggested
+    said = "Numbers and crossings are off: riders are found by motion alone"
+    assert win.suggestion_list.item(0).text() == said  # so the list is empty
     win.crossings_box.setChecked(True)
     assert (
         win.suggestion_list.item(0)
