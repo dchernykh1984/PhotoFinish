@@ -76,7 +76,9 @@ the readings; the window shows them with the levels the thresholds give.
 
 ## Assumptions
 
-- Battery, charging and temperature come from Android's battery broadcast; the thermal status from
+- Battery, charging and temperature come from Android's battery broadcast -- charging as its
+  status says, filling or full: a phone plugged into a supply weaker than its use drains, and is
+  not charging -- the thermal status from
   `PowerManager` (Android 10); the Wi-Fi signal from the active network's capabilities (Android 10)
   or the Wi-Fi manager.
 - The status rides the video: a phone whose stream is down cannot be heard; its last readings are
