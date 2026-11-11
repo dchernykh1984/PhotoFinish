@@ -1,5 +1,104 @@
 # Changelog
 
+## [0.5.0](https://github.com/dchernykh1984/PhotoFinish/compare/v0.4.0...v0.5.0) (2026-11-11)
+
+
+### Features
+
+* **android:** add the camera screen to scan, choose the picture, start and dim ([6008a4b](https://github.com/dchernykh1984/PhotoFinish/commit/6008a4be80d664e9e7b029646d1a22441ef13044))
+* **android:** keep the phone's camera clock in step with the recorder's ([a1fd4a3](https://github.com/dchernykh1984/PhotoFinish/commit/a1fd4a3903b7ccf2fb091748d5702a8bd952ca64))
+* **android:** publish H.264 over RTMP with each frame's moment in an SEI ([ca471e4](https://github.com/dchernykh1984/PhotoFinish/commit/ca471e461cf5bab8275c723e60e4ddf172a1f85e))
+* **android:** read the address PhotoFinish shows to stream to ([42c739a](https://github.com/dchernykh1984/PhotoFinish/commit/42c739aeb13e76e87f016164685e2366218c3aa2))
+* **android:** stream the back camera with its sensor timestamps ([b83bcae](https://github.com/dchernykh1984/PhotoFinish/commit/b83bcae8653cae36f89d01230495f6cc13f1c705))
+* **cameras:** show the address to stream to as a QR code for the phone ([a68ab31](https://github.com/dchernykh1984/PhotoFinish/commit/a68ab31a3e47fefe0b8dcb5e059394007a3ba7ec))
+* **recorder:** answer PhotoFinish Camera's clock exchange on the phone's port ([d5cd549](https://github.com/dchernykh1984/PhotoFinish/commit/d5cd549dc98b9f3ce701da3c158d0b425b1e2fae))
+* **recorder:** place a frame by the moment PhotoFinish Camera wrote in it ([a29eec8](https://github.com/dchernykh1984/PhotoFinish/commit/a29eec84b5cb36a1a28923966f623077a11ea488))
+
+
+### Bug Fixes
+
+* **android:** connect again after any failure of a connection, not only a lost socket ([87358cb](https://github.com/dchernykh1984/PhotoFinish/commit/87358cb5d0d72e49c069e5cca5916b5d782b5781))
+* **android:** connect again when the clock comes late, so no connection mixes frames with and without moments ([e2e41ba](https://github.com/dchernykh1984/PhotoFinish/commit/e2e41ba525fb78e65b0ad17ec6e412c1d7c0cd4c))
+* **android:** follow a better clock exchange a millisecond a second, so frame moments keep their steps ([6ab0384](https://github.com/dchernykh1984/PhotoFinish/commit/6ab0384053bbfc5924d7adc058fa6680f10c6b10))
+* **android:** forget the clock exchanges made before the recorder's clock changed ([70d6434](https://github.com/dchernykh1984/PhotoFinish/commit/70d6434434e14fd7d6dfe5d63410b2d849e81d18))
+* **android:** give frames their moments from when the clock comes, not only from a connection's start ([dcbc5bd](https://github.com/dchernykh1984/PhotoFinish/commit/dcbc5bdabec157ff6a9e377f7d0a3868883c2722))
+* **android:** keep streaming through dark mode, font, language and display changes ([77e88a1](https://github.com/dchernykh1984/PhotoFinish/commit/77e88a196ce9856298a600254e94e70d358910a4))
+* **android:** keep streaming while a dialog covers the screen, from start to stop rather than resume to pause ([677861c](https://github.com/dchernykh1984/PhotoFinish/commit/677861c034bceb6cbc751334eb4bd9b8b555ee0a))
+* **android:** keep up with a recorder clock that slews, over a shorter window of exchanges ([a5e5082](https://github.com/dchernykh1984/PhotoFinish/commit/a5e5082457f909c58312f457f855f44676997482))
+* **android:** let an earlier open's capture session neither take the place of the new one nor speak for it ([09b0001](https://github.com/dchernykh1984/PhotoFinish/commit/09b0001593ea311a1c1c0070927bca803fb68cc3))
+* **android:** let go of a connection made after its publisher was closed ([afb8e06](https://github.com/dchernykh1984/PhotoFinish/commit/afb8e06b3b1d6d1fb6b453472e2aa07eca59c5b8))
+* **android:** let no stopped uplink's report overwrite what the screen says ([b7d2ab3](https://github.com/dchernykh1984/PhotoFinish/commit/b7d2ab34e1dc77992c195c49d8c6cfb2358b047f))
+* **android:** make a new connection for a late clock only at a connection's start, not mid-race ([9948a1c](https://github.com/dchernykh1984/PhotoFinish/commit/9948a1cdefae020ebe672334973e770854c69df4))
+* **android:** mark each frame with its run, so no frame after a drop goes before its keyframe ([e0d4238](https://github.com/dchernykh1984/PhotoFinish/commit/e0d423888691fa85a73d7cebc53666a6700d16b3))
+* **android:** offer a frame rate only where the camera gives it at that size ([dd80752](https://github.com/dchernykh1984/PhotoFinish/commit/dd80752cbc0bc0e1793f43c5b941ab1f9efc97f4))
+* **android:** open the camera again when it is lost mid-stream, instead of leaving the stream dead ([eea462e](https://github.com/dchernykh1984/PhotoFinish/commit/eea462e5f04c6f18232f718e051739f7d7a35eb8))
+* **android:** read the frames' clock from the encoder's first frame, as Android moves them to monotonic time ([850ce5c](https://github.com/dchernykh1984/PhotoFinish/commit/850ce5c019795942c8ad8eb62b33b9b07d6879cf))
+* **android:** read the server without a timeout while publishing, so no message is cut in two ([47709b8](https://github.com/dchernykh1984/PhotoFinish/commit/47709b87cf8b557cba854caf1fd8c524647286be))
+* **android:** refuse an AMF0 array counted longer than its message instead of allocating it ([855a538](https://github.com/dchernykh1984/PhotoFinish/commit/855a5388ccddde088c47559362d2f0e7a6dd0cdd))
+* **android:** say on the screen when the camera or the encoder fails, and pick an encoder that takes the format ([f06ad5b](https://github.com/dchernykh1984/PhotoFinish/commit/f06ad5b3cc7c9c30e706ed8a08cc3942d4bb9e65))
+* **android:** start the reconnect pauses over after a connection that streamed ([d6ee0e1](https://github.com/dchernykh1984/PhotoFinish/commit/d6ee0e15369204cc1edf44aa8cc931646c8ad58c))
+* **android:** take an address whose path is one part, as PhotoFinish shows it ([7f3ddce](https://github.com/dchernykh1984/PhotoFinish/commit/7f3ddce6c2a99d6067150ffdee9e9027a73390f1))
+* **android:** take the first exchanges as they come, so a connection's first frames are not stamped off ([10c30f8](https://github.com/dchernykh1984/PhotoFinish/commit/10c30f86a67a51e024a0a3fc7a57e1829c132cf5))
+* **android:** try a host that does not resolve again later instead of ending the app ([55c85a2](https://github.com/dchernykh1984/PhotoFinish/commit/55c85a2a02e0f1b0f41fce6e26adfc51068f0736))
+* **android:** weigh a clock exchange's age against its round trip, as the recorder's clock may move meanwhile ([59d0022](https://github.com/dchernykh1984/PhotoFinish/commit/59d00228e6d77e7375be8c72e619913da58211e5))
+* **cameras:** find this computer's address on a network with no gateway, as at an offline race ([37c17ba](https://github.com/dchernykh1984/PhotoFinish/commit/37c17bac47202140c3fe3b04a66cd30574f78532))
+* **cameras:** look for this computer's address again until it has a network, so the QR code comes once it joins one ([8c618f9](https://github.com/dchernykh1984/PhotoFinish/commit/8c618f9062f88951c35985393401925354d4c8bb))
+* **cameras:** look for this computer's network every two seconds while it has none, not at every key typed ([033e433](https://github.com/dchernykh1984/PhotoFinish/commit/033e433439cd3f98f4912b049413cf515b7e06b6))
+* **cameras:** look for this computer's network off the window's thread, so the dialog never stalls on it ([222d5e1](https://github.com/dchernykh1984/PhotoFinish/commit/222d5e1eac83f2c7f432961b969449010d3b21ce))
+* **cameras:** offer an address and answer the exchange on the same networks a phone shares, a carrier's and Tailscale's included ([05ce0a1](https://github.com/dchernykh1984/PhotoFinish/commit/05ce0a1573ed786079c9d17be152963d9fa205db))
+* **cameras:** prefer a router's or hotspot's address to a self-assigned or virtual one on a network with no gateway ([e329499](https://github.com/dchernykh1984/PhotoFinish/commit/e3294997b1f2bee5d9af9089c128c04a56dcb656))
+* **cameras:** say how to go on when this computer's address is not found, and note where it may not be ([1c6a0b6](https://github.com/dchernykh1984/PhotoFinish/commit/1c6a0b6bd9ed15a9d5efc4e6e97bc1a7edc1ab6f))
+* **cameras:** say this computer has no network address instead of a QR code that points the phone at itself ([a37ff46](https://github.com/dchernykh1984/PhotoFinish/commit/a37ff46df56a1e1b451a46ab220de3bb1bc29175))
+* **cameras:** show no address or QR code for a port another phone camera has ([e67c6b5](https://github.com/dchernykh1984/PhotoFinish/commit/e67c6b528a76769b254e122fb8eb43bd020324a7))
+* **cameras:** stop looking for a network once the dialog is closed ([96ac724](https://github.com/dchernykh1984/PhotoFinish/commit/96ac7245ee3d21da8877a414e1a18f8292d8b97c))
+* **cameras:** take only a local network's address on a network with no gateway, not a proxy's made-up one ([06374fd](https://github.com/dchernykh1984/PhotoFinish/commit/06374fdf30d860dffb511822b716f8be6b5b3110))
+* **recorder:** answer a phone on any network, and ration the answers instead of turning strangers away ([aa6af34](https://github.com/dchernykh1984/PhotoFinish/commit/aa6af34ab59bd867ec4d61aa0dd18099188bfca2))
+* **recorder:** answer the clock exchange on a carrier's or Tailscale's shared addresses too ([5d4d83a](https://github.com/dchernykh1984/PhotoFinish/commit/5d4d83a9472305a34e206bd3858e84ecdbda79f7))
+* **recorder:** answer the clock exchange only to senders on this network ([7940f83](https://github.com/dchernykh1984/PhotoFinish/commit/7940f83abb7225a0e646c035deaf23ab5cc9a0d5))
+* **recorder:** begin no second lookup of the waiting address while one is under way ([bf4f854](https://github.com/dchernykh1984/PhotoFinish/commit/bf4f854520a7ae8948294b8d915c132ee7616c11))
+* **recorder:** believe a phone's moment only a few seconds back, now that the look-over is short ([434fe8c](https://github.com/dchernykh1984/PhotoFinish/commit/434fe8c46da3e8ad1a64d8c981ec629eb4902e18))
+* **recorder:** believe no phone moment from after its frame was read, beyond a camera's late stamp ([2ad6570](https://github.com/dchernykh1984/PhotoFinish/commit/2ad65704d6bd20811d728fe860bd7d4a153a78e4))
+* **recorder:** decide on a phone's own moments once per connection, so a frame held up on the way keeps its own ([934c1eb](https://github.com/dchernykh1984/PhotoFinish/commit/934c1ebf3e40807533eab488780829f5f6d84922))
+* **recorder:** hold a phone's moment against the clock as its frame is read, not the anchor FFmpeg's look-over makes late ([7a117ed](https://github.com/dchernykh1984/PhotoFinish/commit/7a117eda1637e4ed84422ce164be505a3b7e1c14))
+* **recorder:** keep a phone's frames in order when a better exchange moves its offset back ([87925eb](https://github.com/dchernykh1984/PhotoFinish/commit/87925ebb13195acf3cb97ec00b8d2811c799584b))
+* **recorder:** keep a stream's frames in order where a phone's own moments begin or end ([25e7467](https://github.com/dchernykh1984/PhotoFinish/commit/25e746701cd0758c79426f8709344f7db22d141b))
+* **recorder:** keep the phone's clock near the computer's when only the exchange reads it ([49b78fb](https://github.com/dchernykh1984/PhotoFinish/commit/49b78fb95c3b4cc62f0434733b24edad18678053))
+* **recorder:** leave the clock out of a stopped or failed recorder's line ([bce270b](https://github.com/dchernykh1984/PhotoFinish/commit/bce270b8cd944f7b62e4adbb0be77fb7304c8c8c))
+* **recorder:** listen for a phone that hung up again at once, with no pause that grows ([4d1a220](https://github.com/dchernykh1984/PhotoFinish/commit/4d1a2204c9450b84e84402f9c1df27081d234b5b))
+* **recorder:** look a pushed stream over for half a second, not five, so frames placed by arrival are not seconds late ([137e4b7](https://github.com/dchernykh1984/PhotoFinish/commit/137e4b7eefcd662e73b32da55753028b114e6b97))
+* **recorder:** look the waiting address up again on a thread of its own, not on the loop that listens for the phone ([15c68ab](https://github.com/dchernykh1984/PhotoFinish/commit/15c68aba88eb2e4d358439536f7abc99695e6f2d))
+* **recorder:** look this computer's address up for the waiting line every ten seconds, not every second ([11596c7](https://github.com/dchernykh1984/PhotoFinish/commit/11596c7bb069da47482709280e3950f04c08a1e3))
+* **recorder:** pause before reading again when the exchange's socket keeps failing ([4bca9b0](https://github.com/dchernykh1984/PhotoFinish/commit/4bca9b00dbd149a230c02d80aa4a9b347708f8c4))
+* **recorder:** place a phone's frame by its arrival when its moment is far from it ([3c67ed2](https://github.com/dchernykh1984/PhotoFinish/commit/3c67ed24999297d49f9310a4b83a581f8c17efde))
+* **recorder:** place a trusted phone's frame that lacks its moment by its timestamp, not by its arrival ([968ae04](https://github.com/dchernykh1984/PhotoFinish/commit/968ae0461e3cf4f8df06db1c6ae1cf6d5ceef656))
+* **recorder:** say a left-out clock exchange in the camera list in every state, in a field of its own ([7e32d5f](https://github.com/dchernykh1984/PhotoFinish/commit/7e32d5f553bc9e35bd746db4f16f5f58368717f6))
+* **recorder:** say a taken clock-exchange port again once low disk is over ([b08c1c8](https://github.com/dchernykh1984/PhotoFinish/commit/b08c1c8d71779f0ba958864537e96f06b0c06f7f))
+* **recorder:** say in the camera list when a phone sends its frames without their moments ([c4712da](https://github.com/dchernykh1984/PhotoFinish/commit/c4712da5fc6b58b965db0197ac649467ccd41ba5))
+* **recorder:** say no more of a stream's moments once that stream is over ([326c35c](https://github.com/dchernykh1984/PhotoFinish/commit/326c35c1e9c4c8bed2b4846c83c7e1c51823861f))
+* **recorder:** say the address a phone is waited on as this computer has it now, not as it had it at the start ([9af1928](https://github.com/dchernykh1984/PhotoFinish/commit/9af19288708bf61637ae40c2367c56dd6b554212))
+* **recorder:** tell a phone sending no moments from one whose moments are out of step ([268a77c](https://github.com/dchernykh1984/PhotoFinish/commit/268a77c32f93a45318eebc30ae9a3671be082c8e))
+* **recorder:** try a taken clock-exchange port again while the phone is waited for, and say so there ([dd88fd6](https://github.com/dchernykh1984/PhotoFinish/commit/dd88fd65f0974874e819b3130f40af0d30948e73))
+* **recorder:** try a taken clock-exchange port again while the phone streams, and say it is taken ([24c442f](https://github.com/dchernykh1984/PhotoFinish/commit/24c442ff2257bfa85a3905564bef2c49f7be2c3c))
+* **recorder:** try the clock exchange's port again at each connection when it was taken ([0252d07](https://github.com/dchernykh1984/PhotoFinish/commit/0252d0793c0ace2ca7184d34595f36fb956fd2c1))
+
+
+### Performance Improvements
+
+* **android:** ask the codecs once for each size and rate, not at every redraw ([6cde4ad](https://github.com/dchernykh1984/PhotoFinish/commit/6cde4ad46d8e14fd6a008cb3c99d9e516fa1ddf8))
+* **cameras:** draw the QR code again only when the address changes ([902b1ad](https://github.com/dchernykh1984/PhotoFinish/commit/902b1adebbf40e9a119a594458f0582699ab537a))
+* **recorder:** look at the clock exchange per frame only while a phone's is not open ([6891885](https://github.com/dchernykh1984/PhotoFinish/commit/6891885b4cbc8901237fa9ef48f23b6a99bb92e8))
+* **recorder:** look for a phone's moments only in streams pushed here, read without a copy ([2d588ce](https://github.com/dchernykh1984/PhotoFinish/commit/2d588ce5172fb1eef2cdf64cb4efdfb1ed38c64c))
+* **recorder:** look into a stream's packets for moments no more once it is placed by arrival ([86fe71d](https://github.com/dchernykh1984/PhotoFinish/commit/86fe71da88d3039ad9300e0604196471bbc0e9c7))
+
+
+### Documentation
+
+* describe PhotoFinish Camera in the readme, the app spec and the guides ([249a521](https://github.com/dchernykh1984/PhotoFinish/commit/249a5216c8f84d02f387e373c3af6c46475dff51))
+* name the phone app's Russian and Kazakh strings in the ASCII rule ([800fc05](https://github.com/dchernykh1984/PhotoFinish/commit/800fc05c0b480d4edb5e81b92a3a1724a39e6ef3))
+* **skills:** add the android-app skill and point the others at it ([6cf3bdd](https://github.com/dchernykh1984/PhotoFinish/commit/6cf3bdd4f94c9d069da520787d8b39529dafc7f3))
+* **spec:** bring the clock exchange's contract and the recording notes up to date ([ce51a81](https://github.com/dchernykh1984/PhotoFinish/commit/ce51a81c05c0e51bba3a73fa61139084e23e2285))
+* **spec:** specify PhotoFinish Camera, the phone app with each frame's moment ([5787427](https://github.com/dchernykh1984/PhotoFinish/commit/5787427b2ff91a617eee0859a4366b9a513de021))
+
 ## [0.4.0](https://github.com/dchernykh1984/PhotoFinish/compare/v0.3.2...v0.4.0) (2026-11-10)
 
 
