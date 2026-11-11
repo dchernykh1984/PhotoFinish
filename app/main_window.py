@@ -6,7 +6,7 @@ from __future__ import annotations
 import html
 import math
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
@@ -904,10 +904,7 @@ class MainWindow(QMainWindow):
         else:
             changed, said = self._set_line(camera, ends)
         self._save_session()
-        if self.analysis_box.isChecked():  # the new line or zone from here on
-            for each in changed:
-                self._stop_analyzer(each)
-                self._analyze(each)
+        self._restart_analyzers(changed)  # the new line or zone from here on
         self.drawing = None if zone else []  # the line's edit mode stays on
         self._say(said)
 
@@ -1133,10 +1130,7 @@ class MainWindow(QMainWindow):
         self._ensure_numbers()  # the detector's crossings read with numbers
         self._show_model()
         self._show_suggestions()
-        if self.analysis_box.isChecked():  # the model chosen from here on
-            for camera in self.cameras.values():
-                self._stop_analyzer(camera)
-                self._analyze(camera)
+        self._restart_analyzers()  # the model chosen from here on
 
     def _show_model(self) -> None:
         """The presets, a file of the referee's own when one is chosen, and the model
@@ -1161,10 +1155,8 @@ class MainWindow(QMainWindow):
         self._show_switches()
         self._ensure_model()
         self._ensure_numbers()
-        if self.analysis_box.isChecked() and analysis.settings(self.session)["model"]:
-            for camera in self.cameras.values():
-                self._stop_analyzer(camera)
-                self._analyze(camera)
+        if analysis.settings(self.session)["model"]:
+            self._restart_analyzers()
         self._show_suggestions()
 
     def _ensure_numbers(self) -> None:
@@ -1192,11 +1184,8 @@ class MainWindow(QMainWindow):
             self._ensure_numbers()  # the next of them
             return
         self._say("The number reader is ready")
-        if self.analysis_box.isChecked() and analysis.model_in_use(self.session):
-            # numbers read from here on, where crossings still are looked for
-            for camera in self.cameras.values():
-                self._stop_analyzer(camera)
-                self._analyze(camera)
+        if analysis.model_in_use(self.session):  # crossings still looked for
+            self._restart_analyzers()  # numbers read from here on
 
     def _show_switches(self) -> None:
         """Numbers and crossings with finding riders on. The model stays open to
@@ -1259,6 +1248,15 @@ class MainWindow(QMainWindow):
                 ended.deleteLater()  # not kept: one that crashes is restarted all day
         camera.analyzer, camera.stopping = start_analyzer(camera.id, self), None
         camera.analyzer_started = time.monotonic()
+
+    def _restart_analyzers(self, cameras: Iterable[Camera] | None = None) -> None:
+        """The analysers, of every camera or of ``cameras``, started again on what
+        they now run, while riders are found."""
+        if not self.analysis_box.isChecked():
+            return
+        for camera in self.cameras.values() if cameras is None else cameras:
+            self._stop_analyzer(camera)
+            self._analyze(camera)
 
     def _stop_analyzer(self, camera: Camera) -> None:
         """Its standard input closed, the analyser ends after the segment it is on;
