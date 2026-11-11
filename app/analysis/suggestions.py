@@ -40,7 +40,11 @@ class Suggestions:
                 found.append(entry)
         decided = _entries(self._decided.new_lines())
         self.found += found
-        self.done |= {str(e.get("id")): str(e.get("done", "")) for e in decided}
+        # Any line decides its suggestion, as before decisions said how: one
+        # without the word, written by hand, still keeps it from coming back.
+        self.done |= {
+            str(e.get("id")): str(e.get("done") or "decided") for e in decided
+        }
         return bool(found or decided)
 
     def pending(self) -> list[dict[str, Any]]:
