@@ -23,7 +23,8 @@ LEAST_PIXELS = 20  # of the finder's map: a piece smaller is noise
 GROWN = 1.5  # a piece grown as DB's unclip grows it: area x this / perimeter
 SIDE = 32  # the finder takes sides in multiples of this
 LARGEST = 640  # nor longer than this, so a box is read in a moment
-HEIGHT, WIDEST = 48, 320  # the reader's line
+HEIGHT = 48  # the reader's line, as PaddleOCR gives it: its width the text's own
+LONGEST = 1280  # nor longer, so a line is read in a moment
 MEAN = np.array([0.485, 0.456, 0.406])
 STD = np.array([0.229, 0.224, 0.225])
 
@@ -74,7 +75,7 @@ class NumberReader:
         height, width = bgr.shape[:2]
         if not height or not width:
             return "", 0.0
-        wide = max(16, min(WIDEST, round(width * HEIGHT / height)))
+        wide = max(16, min(LONGEST, round(width * HEIGHT / height)))
         scaled = scale(bgr, wide, HEIGHT) / 255.0
         x = ((scaled - 0.5) / 0.5).transpose(2, 0, 1)[None].astype(np.float32)
         return ctc(self.reader.run(None, {"x": x})[0][0], self.chars)
