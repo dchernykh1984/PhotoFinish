@@ -78,6 +78,21 @@ class ScreenState(
         settings.fps = rate
     }
 
+    /**
+     * What a camera said: of the cameras as a whole, or of one lens while streaming -- a lens's word
+     * heard after Stop is the stopped stream's, said before its camera closed, and not the next one's.
+     */
+    fun hear(
+        lens: Lens?,
+        said: StreamerStatus,
+    ) {
+        if (lens == null) {
+            status = said
+        } else if (streaming) {
+            lensStatus[lens] = said
+        }
+    }
+
     /** Streaming on or off; what the cameras and the lenses said before is forgotten. */
     fun toggleStreaming() {
         status = null
