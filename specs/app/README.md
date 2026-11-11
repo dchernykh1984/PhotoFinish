@@ -135,8 +135,12 @@ or a swaying patch.
 - **Caliper.** Click the same point of the rider -- the front of the wheel -- on a frame before the
   finish line and on one after it: the time it crossed is offered to accept or adjust, and goes to
   a crossing for the typed number or, with no number typed, to the chosen output line. Points on one side give nothing.
-  "Finish line" draws a camera's line with two clicks; the default is the picture's vertical
-  centre. Zoomed in until a frame interval is 100 pixels wide, a click on the timeline between two
+  **Edit finish line** is the line's edit mode (`specs/006-numbers-and-one-line`): two clicks on
+  a picture draw the common line every camera follows -- the camera clicked follows it again --
+  or, with **This camera only**, that camera's own, which the common line's moves leave alone.
+  Out of the mode, clicks are the caliper's; the lines are always shown. The common line starts
+  as the picture's vertical centre; in a session from before, a line drawn is its camera's own.
+  Zoomed in until a frame interval is 100 pixels wide, a click on the timeline between two
   frames offers that moment, picked by hand.
 - **Cameras in step.** "Mark event" on a moment every camera shows -- a flash, a hand wave -- on
   each camera in turn: each takes the offset that shows it at the first one's moment. Once every
@@ -152,6 +156,9 @@ or a swaying patch.
 Built by [002-video-analysis](../002-video-analysis/spec.md). Timing stays by hand; this only
 helps find the moments to look at.
 
+- Two switches (`specs/006-numbers-and-one-line`): **Find riders**, and with it **Numbers and
+  crossings** -- the model chosen, its suggestions and the numbers read; off, riders are found by
+  motion alone, whatever model is chosen. The model list stays open, to download one ahead.
 - **Find riders** starts an analyser process per recording camera: below the recorder in
   priority, a child of the window that ends with it. It reads closed segments only, so recording
   and timing never wait for it, and a segment it has indexed is not indexed again.
@@ -171,9 +178,19 @@ helps find the moments to look at.
   analysis has got.
 - **Suggested crossings** (with a model): a rider followed from sample to sample whose front
   changes side of the finish line is looked for again on the frames between, and the two
-  around the line give the moment, as the caliper does. Pick one to see it; **Accept with the
-  number** adds the crossing through the output's usual path, journaled with the model;
-  **Dismiss** drops it. Neither comes back.
+  around the line give the moment, as the caliper does -- the front: the first part of the rider
+  to reach the line. Suggestions of several cameras within 0.3 s of each other are one crossing,
+  listed once at the median of their moments with the cameras that saw it; one camera's are
+  never gathered, so riders abreast stay apart. Pick one to see it; **Accept with the number**
+  adds the crossing through the output's usual path -- with the number typed, else the one
+  read -- journaled with the model and the camera at the median; **Dismiss** drops it, every
+  camera's suggestion of it. Neither comes back.
+- **Numbers** (with Numbers and crossings): at each suggested crossing the text in the rider's
+  box is found and read by PaddleOCR's PP-OCRv3 English text finder and reader (ONNX,
+  Apache-2.0, about 11 MB), downloaded from RapidOCR's mirror at a pinned commit when the switch
+  is turned on and checked like the detectors; the digits of the surest reading of at least 0.8
+  are the number, shown with the suggestion. Until both are there, or when one cannot be
+  downloaded, crossings come without numbers.
 
 ## Known limits
 
