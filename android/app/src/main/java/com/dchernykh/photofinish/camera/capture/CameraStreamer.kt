@@ -134,8 +134,9 @@ class CameraStreamer(
                 }
             }
         } catch (error: Exception) {
-            close()
-            onStatus(null, failed(error))
+            // A camera the phone's camera service lost a moment ago is unknown to it until it is back: tried
+            // again, as one lost while streaming is (specs/007, FR-010).
+            again(error.message ?: error.javaClass.simpleName)
         }
     }
 
