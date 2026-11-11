@@ -1368,10 +1368,13 @@ class MainWindow(QMainWindow):
             for c in self.cameras.values()
             for s in c.suggestions.found
         ]
+        listed: list[tuple[Gathered, str]] = []
         for whole in gathered(found):  # every camera's suggestion of one, once
             suggested, how = remaining(whole, self._decision)
-            if suggested is None:
-                continue
+            if suggested is not None:
+                listed.append((suggested, how))
+        listed.sort(key=lambda left: left[0].moment)  # in time order, as shown
+        for suggested, how in listed:
             said = f"  (one {how} with it)" if how else ""
             item = QListWidgetItem(self._suggestion_text(suggested) + said)
             item.setToolTip(

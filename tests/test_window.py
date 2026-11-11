@@ -2566,6 +2566,35 @@ def test_a_number_reader_come_after_crossings_were_turned_off_restarts_nothing(
     assert len(analyzers) == started
 
 
+def suggestions_at(base: Path, camera_id: str, moments: list[int]) -> None:
+    """The camera's analyser suggested crossings at these moments."""
+    lines = []
+    for ms in moments:
+        entry = {"id": f"{camera_id}-{ms}", "camera": camera_id, "ms": ms}
+        entry |= {
+            "model": "m",
+            "frames": [["a.mkv", 1, ms - 10], ["a.mkv", 2, ms + 23]],
+        }
+        lines.append(json.dumps(entry | {"fraction": 0.3}) + "\n")
+    (base / "video" / camera_id / "suggestions.jsonl").write_text("".join(lines))
+
+
+def test_the_suggestions_are_listed_in_the_order_of_their_moments_shown(
+    two: None, make_window: Callable[[], mw.MainWindow], base: Path
+) -> None:
+    analysis = {"on": True, "model": "m.onnx", "crossings": True}
+    session.save({**session.load(), "analysis": analysis})
+    suggestions_at(base, "cam1", [FLASH, FLASH + 100])
+    suggestions_at(base, "cam2", [FLASH + 120, FLASH + 280])  # 280: with Side's 0
+    done = json.dumps({"id": f"cam1-{FLASH}", "done": "dismissed"}) + "\n"
+    (base / "video" / "cam1" / "suggestions.done.jsonl").write_text(done)
+    win = make_window()
+    shown = [win.suggestion_list.item(n).text() for n in range(2)]
+    side = scale_time(to_line_scale(FLASH + 100, False)).split(" ")[1]
+    assert shown[0].startswith(side)  # Side's 100, Front's 120 with it
+    assert shown[1].endswith("(one dismissed with it)")  # Front's 280, after
+
+
 def test_a_crossing_two_cameras_saw_is_one_suggestion_with_the_number_read(
     two: None, make_window: Callable[[], mw.MainWindow], base: Path
 ) -> None:
