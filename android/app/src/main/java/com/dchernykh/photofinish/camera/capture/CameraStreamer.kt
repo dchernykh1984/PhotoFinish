@@ -190,7 +190,10 @@ class CameraStreamer(
         /**
          * The lenses' streams, at the size and rate [chosen] or the nearest they all give; false,
          * said for each lens, when they give none. A camera opened for its preview alone takes [chosen].
+         * A lens whose encoder will not start -- the phone has no more of them -- is left out alone,
+         * said; false when none started and there is no preview to show.
          */
+        @Suppress("TooGenericExceptionCaught") // whatever an encoder throws costs its lens alone
         fun startStreams(
             camera: PlannedCamera,
             chosen: StreamFormat,
@@ -204,16 +207,21 @@ class CameraStreamer(
             format = common
             camera.lenses.forEach { planned ->
                 val lens = planned.target.lens
-                streams +=
-                    LensStream.start(
-                        planned,
-                        common,
-                        report = { status -> if (mine == generation) onStatus(lens, StreamerStatus.Link(status)) },
-                        onFirstFrame = { stream, ptsUs -> clockOfFrames(stream, ptsUs, mine) },
-                        status = { dropped -> phone.read().copy(dropped = dropped, left = leftOut).line() },
-                    )
+                try {
+                    streams +=
+                        LensStream.start(
+                            planned,
+                            common,
+                            report = { status -> if (mine == generation) onStatus(lens, StreamerStatus.Link(status)) },
+                            onFirstFrame = { stream, ptsUs -> clockOfFrames(stream, ptsUs, mine) },
+                            status = { dropped -> phone.read().copy(dropped = dropped, left = leftOut).line() },
+                        )
+                } catch (error: Exception) {
+                    onStatus(lens, failed(error))
+                    leaveOut(listOf(lens))
+                }
             }
-            return true
+            return streams.isNotEmpty() || camera.lenses.isEmpty() || preview != null
         }
 
         override fun onOpened(camera: CameraDevice) {
