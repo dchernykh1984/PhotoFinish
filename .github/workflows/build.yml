@@ -224,6 +224,8 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          # gh finds no repository in a job that checked none out: named here.
+          GH_REPO: ${{ github.repository }}
           TAG: ${{ inputs.release_tag }}
           MATRIX: ${{ needs.targets.outputs.matrix }}
           BUILDS: ${{ needs.build.result }}

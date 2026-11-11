@@ -67,3 +67,12 @@ def test_workflow_bundle_id_is_reverse_dns_for_this_project() -> None:
     bundle_id = _workflow_env("APP_BUNDLE_ID")
     assert re.fullmatch(r"[a-z0-9]+(\.[a-z0-9-]+)+", bundle_id), bundle_id
     assert bundle_id.rsplit(".", 1)[-1] == _project_name()
+
+
+def test_the_release_s_verify_job_names_its_repository_for_gh() -> None:
+    # It lists the release's assets with gh and checks out nothing, so gh finds
+    # no repository of its own: v0.5.0's verify failed so, every asset there.
+    text = WORKFLOW.read_text(encoding="utf-8")
+    verify = text[text.index("\n  verify:\n") :]
+    assert "gh release view" in verify
+    assert "GH_REPO: ${{ github.repository }}" in verify
