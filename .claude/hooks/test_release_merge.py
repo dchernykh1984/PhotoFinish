@@ -79,6 +79,11 @@ class MergesTests(unittest.TestCase):
         )
         self.assertEqual(HOOK.merges("ls -c 'gh pr merge 21'"), [])  # no shell
 
+    def test_a_redirection_s_descriptor_is_no_pr(self) -> None:
+        self.assertEqual(HOOK.merges("gh pr merge --admin 2>&1"), [["--admin"]])
+        self.assertEqual(HOOK.merges("gh pr merge 2>/dev/null"), [[]])
+        self.assertEqual(HOOK.target(HOOK.merges("gh pr merge 2>/dev/null")[0]), [])
+
     def test_no_merge(self) -> None:
         self.assertEqual(HOOK.merges("gh pr view 19 && gh run list"), [])
         self.assertEqual(HOOK.merges("echo 'unclosed"), [])
