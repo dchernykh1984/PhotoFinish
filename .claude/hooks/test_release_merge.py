@@ -201,6 +201,25 @@ class RefusalTests(unittest.TestCase):
         merged = HOOK.merges("echo 19 | xargs gh pr merge --admin")
         self.assertIn("through the shell", self.refusal(merged[0], None))
 
+    def test_a_run_still_waiting_for_approval_holds_a_green_release_pr(self) -> None:
+        green = pr([check("tests")]) | {"headRefOid": "abc"}
+        approved = {"name": "CI", "status": "completed", "conclusion": "success"}
+        waiting = {"name": "pr-build", "status": "completed"}
+        waiting["conclusion"] = "action_required"
+        asked: list[tuple[str, list[str]]] = []
+
+        def runs(sha: str, repo: list[str]) -> list[dict]:
+            asked.append((sha, repo))
+            return [approved, waiting]
+
+        reason = HOOK.refusal(["19", "-R", "o/r"], lambda view: green, "", runs)
+        self.assertIn("its runs pr-build wait", reason)
+        self.assertEqual(asked, [("abc", ["--repo", "o/r"])])
+        both = [approved, approved | {"name": "pr-build"}]
+        self.assertIsNone(HOOK.refusal(["19"], lambda view: green, "", lambda *a: both))
+        unknown = HOOK.refusal(["19"], lambda view: green, "", lambda *a: None)
+        self.assertIsNone(unknown)  # gh cannot say: the checks decide
+
     def test_a_release_pr_with_no_checks_waits_for_their_approval(self) -> None:
         reason = self.refusal(["19", "--rebase"], pr([]))
         self.assertIn("action_required", reason)
@@ -247,6 +266,7 @@ class MainTests(unittest.TestCase):
         out = io.StringIO()
         with (
             patch.object(HOOK, "look_up", return_value=found) as look_up,
+            patch.object(HOOK, "look_up_runs", return_value=None),
             patch("sys.stdin", io.StringIO(json.dumps(payload))),
             patch("sys.stdout", out),
         ):
