@@ -103,6 +103,22 @@ class MergesTests(unittest.TestCase):
             HOOK.merges('gh pr merge 21 -t "a\nb"'), [["21", "-t", "a\nb"]]
         )
 
+    def test_a_hash_quoted_or_inside_a_word_is_no_comment(self) -> None:
+        for command in ("gh pr merge '#19' --admin", 'gh pr merge "#19" --admin'):
+            self.assertEqual(HOOK.merges(command), [["#19", "--admin"]], command)
+        self.assertEqual(
+            HOOK.merges("gh pr merge 19 -t fix#2 --admin"),
+            [["19", "-t", "fix#2", "--admin"]],
+        )
+        self.assertEqual(HOOK.merges("# gh pr merge 19 --admin"), [])
+        self.assertEqual(
+            HOOK.merges("echo x # a note \\\ngh pr merge 19 --admin"),
+            [["19", "--admin"]],  # a comment's backslash continues no line
+        )
+        self.assertEqual(
+            HOOK.merges("gh pr merge 19 \\# --admin"), [["19", "#", "--admin"]]
+        )
+
     def test_no_merge(self) -> None:
         self.assertEqual(HOOK.merges("gh pr view 19 && gh run list"), [])
         self.assertEqual(HOOK.merges("echo 'unclosed"), [])

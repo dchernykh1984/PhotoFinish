@@ -46,6 +46,7 @@ VALUE_FLAGS = {
 ADMIN = {"--admin"} | {f"--admin={v}" for v in ("1", "t", "T", "true", "True", "TRUE")}
 SHELL_PUNCTUATION = set("();<>|&\n")  # a new line ends a command, as ; does
 SHELLS = {"sh", "bash", "zsh", "dash"}
+WORD_START = set(" \t\n;&|()<>")  # what a word may begin after: a # there is a comment
 DESCRIPTOR = re.compile(r"(?<![\w./-])\d+(?=[<>])")
 FIELDS = "number,state,headRefName,statusCheckRollup"
 SKILL = "see the shipping-a-change skill, Releasing"
@@ -56,10 +57,10 @@ def merges(command: str) -> list[list[str]]:
     spaces between its words, a line continuation among them."""
     # A descriptor touching its redirection -- 2>&1 -- is no word of the command:
     # the lexer would part it from the > as a word, a PR number to the merge.
-    line = DESCRIPTOR.sub("", command.replace("\\\n", " "))
+    line = DESCRIPTOR.sub("", _uncommented(command).replace("\\\n", " "))
     lexer = shlex.shlex(line, posix=True, punctuation_chars="".join(SHELL_PUNCTUATION))
     lexer.whitespace = " \t\r"  # a new line is punctuation
-    lexer.commenters = ""  # a comment would take its new line along: see _merge_args
+    lexer.commenters = ""  # gone already, as the shell reads them
     lexer.whitespace_split = True
     try:
         words = list(lexer)
@@ -93,11 +94,36 @@ def _merge_args(rest: list[str]) -> list[str] | None:
         return None
     args = []
     for arg in words:
-        # &&, ;, a new line, |, a redirection; or a comment, a word that begins with #
-        if arg and (set(arg) <= SHELL_PUNCTUATION or arg.startswith("#")):
+        if arg and set(arg) <= SHELL_PUNCTUATION:  # &&, ;, a new line, |, a redirection
             break
         args.append(arg)
     return before + args
+
+
+def _uncommented(command: str) -> str:
+    """The command without its comments, as the shell reads them: from a # that
+    begins a word, outside quotes, to the line's end -- its new line kept, which
+    ends the command, even after a backslash."""
+    kept: list[str] = []
+    quote = ""
+    at = 0
+    while at < len(command):
+        char = command[at]
+        if char == "\\" and quote != "'":  # escaped: neither a quote nor a comment
+            kept.append(command[at : at + 2])
+            at += 2
+            continue
+        if quote:
+            quote = "" if char == quote else quote
+        elif char in "'\"":
+            quote = char
+        elif char == "#" and (not kept or kept[-1][-1] in WORD_START):
+            end = command.find("\n", at)
+            at = len(command) if end < 0 else end
+            continue
+        kept.append(char)
+        at += 1
+    return "".join(kept)
 
 
 def _script(words: list[str], at: int) -> bool:
