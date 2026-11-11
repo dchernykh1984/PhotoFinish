@@ -16,7 +16,8 @@ internal object SessionOutputs {
      * The outputs to configure, and the lenses dropped to get there (specs/004-phone-lenses,
      * FR-005): the preview on the first lens, then the camera's own picture as the preview, then
      * no preview -- the first set the camera says it supports (Android 10), dropping lenses from the
-     * last while it supports none. Where the camera cannot say, the fullest set is tried.
+     * last while it supports none. Where the camera cannot say, the fullest set is tried; where it
+     * supports none at all, the first lens alone.
      */
     fun choose(
         camera: CameraDevice,
