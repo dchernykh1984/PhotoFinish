@@ -8,13 +8,16 @@ from PySide6.QtGui import QKeyEvent
 from PySide6.QtWidgets import QLineEdit
 
 # Keys the window's shortcuts use; a field would keep them for its cursor.
-# L is no key of theirs here: a number may hold one. End goes Live from the field.
+# L is no key of theirs here: a number may hold one. End goes Live from the field;
+# Up and Down, with Ctrl, choose the camera (on a Mac, Cmd+Up is the field's).
 PASSED_ON = (
     Qt.Key.Key_Left,
     Qt.Key.Key_Right,
     Qt.Key.Key_End,
     Qt.Key.Key_PageUp,
     Qt.Key.Key_PageDown,
+    Qt.Key.Key_Up,
+    Qt.Key.Key_Down,
 )
 
 
