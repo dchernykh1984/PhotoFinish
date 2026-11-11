@@ -28,6 +28,16 @@ A phone on a tripod runs PhotoFinish Camera, our own app (`android/`, the
 - **Network.** The computer on the phone's own hotspot keeps the phone's mobile
   internet, so a remote or agent session stays up; one shared Wi-Fi works too.
 
+## A phone's other lenses
+
+Tick them in the add-camera dialog (Ultra-wide, Telephoto, Front): each is a
+camera of its own, and PhotoFinish Camera streams them all from the one code.
+The app lists, under its controls, the lenses the phone gives apps, with their
+35 mm-equivalent focal lengths; a lens missing there the phone hides from apps
+(Xiaomi has), and one it cannot stream with the others is said on its line. Each
+lens costs its bitrate on the Wi-Fi -- about 10 Mbit/s at 1080p60 -- and heat:
+several lenses for hours want shade and a charger.
+
 ## Measuring a recording
 
 Numbers, not impressions. Run against the camera's folder next to the program:
