@@ -46,8 +46,11 @@ SKILL = "see the shipping-a-change skill, Releasing"
 
 
 def merges(command: str) -> list[list[str]]:
-    """The arguments of each `gh pr merge` in a shell command line."""
-    lexer = shlex.shlex(command, posix=True, punctuation_chars=True)
+    """The arguments of each `gh pr merge` in a shell command line, whatever the
+    spaces between its words, a line continuation among them."""
+    lexer = shlex.shlex(
+        command.replace("\\\n", " "), posix=True, punctuation_chars=True
+    )
     lexer.whitespace_split = True
     try:
         words = list(lexer)
