@@ -1780,6 +1780,64 @@ def test_a_preset_missing_on_disk_is_downloaded_before_the_analysers_start(
     assert [a.camera_id for a in analyzers] == ["cam1"]
 
 
+def gated_fetch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[threading.Event, list[str]]:
+    """Downloads that wait for the gate; the detector alone, no number reader."""
+    fetched: list[str] = []
+    gate = threading.Event()
+
+    def fetch(
+        model: models.Model,
+        progress: Callable[[int], None],
+        cancelled: Callable[[], bool] = lambda: False,
+    ) -> Path:
+        gate.wait(5)
+        fetched.append(model.key)
+        return Path(model.file)
+
+    monkeypatch.setattr(mw.models, "NUMBER_MODELS", ())
+    monkeypatch.setattr(mw.models, "fetch", fetch)
+    monkeypatch.setattr(mw.models, "ready", lambda model: model.key in fetched)
+    return gate, fetched
+
+
+def test_numbers_and_crossings_turned_off_while_the_model_comes_stay_off(
+    recording: Path,
+    make_window: Callable[[], mw.MainWindow],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    nano = models.MODELS[0]
+    saved = session.load()
+    saved["analysis"] = {"on": True, "model": nano.file, "crossings": True}
+    session.save(saved)
+    gate, _ = gated_fetch(monkeypatch)
+    win = make_window()
+    assert downloading(win) is nano  # the model in use, missing on this disk
+    win.crossings_box.setChecked(False)  # then turned off on purpose
+    gate.set()
+    wait_until(lambda: downloading(win) is None)
+    assert not win.crossings_box.isChecked()
+    assert analysis.settings(session.load()) == {
+        **saved["analysis"],
+        "crossings": False,
+    }
+
+
+def test_a_detector_chosen_to_download_turns_numbers_and_crossings_on_at_once(
+    win: mw.MainWindow, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    nano = models.MODELS[0]
+    gate, _ = gated_fetch(monkeypatch)
+    win._model_chosen(win.model_box.findData(nano.file))
+    assert win.crossings_box.isChecked()  # as one ready does
+    win.crossings_box.setChecked(False)  # then turned off on purpose
+    gate.set()
+    wait_until(lambda: analysis.settings(session.load())["model"] == nano.file)
+    assert not win.crossings_box.isChecked()
+    assert analysis.settings(session.load())["crossings"] is False
+
+
 def test_choosing_the_model_in_use_again_restarts_nothing(
     recording: Path,
     make_window: Callable[[], mw.MainWindow],

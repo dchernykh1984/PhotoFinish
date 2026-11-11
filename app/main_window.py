@@ -1065,6 +1065,9 @@ class MainWindow(QMainWindow):
         model = models.preset(chosen)
         if model is not None and not models.ready(model):
             self._download(model)
+            # Chosen for its crossings now, as one ready is: the switch is then the
+            # referee's while it comes.
+            self.crossings_box.setChecked(True)
         elif chosen != analysis.settings(self.session)["model"]:
             self._set_model(chosen)
         else:
@@ -1111,13 +1114,14 @@ class MainWindow(QMainWindow):
             self._show_model()
             return
         self._say(f"{model.title} downloaded")
-        self._set_model(model.file)
+        self._set_model(model.file, turn_on=False)  # turned on as it was chosen
 
-    def _set_model(self, path: str) -> None:
+    def _set_model(self, path: str, turn_on: bool = True) -> None:
         """The model chosen; a detector chosen turns numbers and crossings on, what
-        it is chosen for -- off, it would run motion alone without a word."""
+        it is chosen for -- off, it would run motion alone without a word. One
+        downloaded leaves the switch as the referee left it meanwhile."""
         chosen = {**analysis.settings(self.session), "model": path}
-        chosen["crossings"] = chosen["crossings"] or bool(path)
+        chosen["crossings"] = chosen["crossings"] or (turn_on and bool(path))
         self.session["analysis"] = chosen
         self._save_session()
         self.crossings_box.blockSignals(True)  # its analysers restarted below
