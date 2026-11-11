@@ -188,16 +188,15 @@ class CameraDialog(QDialog):
         if self.kind() != "rtmp" or len(lenses) < 2:
             return [first]
         ids = [self.camera_id, *self.spare_ids]
-        taken = cameras.ports_taken(self.others) | {first["settings"]["port"]}
-        free = (p for p in itertools.count(RTMP_PORT) if p not in taken)
-        made = []
-        for n, lens in enumerate(lenses[: len(ids)]):
-            settings = first["settings"]
-            if n:
-                settings = {"port": next(free), "path": f"live/{ids[n]}"}
-            name = f"{first['name']} {cameras.LENSES[lens].lower()}"
-            made.append(self._made(ids[n], name, settings))
-        return made
+        taken = cameras.ports_taken(self.others)
+        return [
+            self._made(
+                camera_id, f"{first['name']} {cameras.LENSES[lens].lower()}", made
+            )
+            for lens, camera_id, made in cameras.lens_cameras(
+                lenses, ids, first["settings"], taken
+            )
+        ]
 
     def _made(
         self, camera_id: str, name: str, settings: dict[str, Any]

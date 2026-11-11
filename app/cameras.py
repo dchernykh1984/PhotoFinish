@@ -9,6 +9,7 @@ such a camera.
 from __future__ import annotations
 
 import ipaddress
+import itertools
 import re
 import socket
 import sys
@@ -93,6 +94,27 @@ LENSES = {
     "telephoto": "Telephoto",
     "front": "Front",
 }
+
+
+def lens_cameras(
+    lenses: list[str],
+    ids: list[str],
+    first: dict[str, Any],
+    taken: set[int],
+) -> list[tuple[str, str, dict[str, Any]]]:
+    """A phone's cameras for its ``lenses``: each lens with its id and settings --
+    the first lens on ``first`` settings, each other on the next of ``ids``, the
+    next port not ``taken`` nor the first's, and ``live/<id>`` (004, FR-001). As many
+    lenses as there are ids."""
+    taken = taken | {first.get("port", RTMP_PORT)}
+    free = (port for port in itertools.count(RTMP_PORT) if port not in taken)
+    made = []
+    for n, (lens, camera_id) in enumerate(zip(lenses, ids, strict=False)):
+        settings = (
+            first if n == 0 else {"port": next(free), "path": f"live/{camera_id}"}
+        )
+        made.append((lens, camera_id, settings))
+    return made
 
 
 def pairing_text(streams: list[tuple[str, str]]) -> str:

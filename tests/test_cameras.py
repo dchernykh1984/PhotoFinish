@@ -90,6 +90,19 @@ def test_a_computer_without_usb_capture_says_so(
     ]
 
 
+def test_a_phone_s_other_lenses_take_the_next_ids_and_free_ports() -> None:
+    first = {"port": 1936, "path": "live/finish"}
+    made = cameras.lens_cameras(
+        ["main", "telephoto", "front"], ["cam2", "cam3", "cam5"], first, {1935, 1938}
+    )
+    assert made == [
+        ("main", "cam2", first),
+        ("telephoto", "cam3", {"port": 1937, "path": "live/cam3"}),
+        ("front", "cam5", {"port": 1939, "path": "live/cam5"}),  # 1938: another phone's
+    ]
+    assert len(cameras.lens_cameras(["main", "front"], ["cam2"], first, set())) == 1
+
+
 def test_the_pairing_code_is_the_address_alone_only_for_the_main_lens_alone() -> None:
     main, tele = "rtmp://10.0.0.5:1935/live/cam1", "rtmp://10.0.0.5:1936/live/cam2"
     assert cameras.pairing_text([("main", main)]) == main  # any streaming app reads it
