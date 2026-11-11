@@ -33,7 +33,7 @@ class MainActivity : ComponentActivity() {
         }
         streamer =
             CameraStreamer(this, lenses, PhoneStatusReader(this)) { lens, status ->
-                runOnUiThread { if (lens == null) state.status = status else state.lensStatus[lens] = status }
+                runOnUiThread { state.hear(lens, status) }
             }
         setContent { CameraScreen(state, streamer) }
     }
