@@ -64,3 +64,4 @@ def test_a_status_not_heard_for_five_seconds_is_stale() -> None:
     assert not phone_status.stale({"at_ms": "1000"}, 6_000)
     assert phone_status.stale({"at_ms": 1000}, 6_001)
     assert phone_status.stale({}, 0)
+    assert phone_status.stale({"at_ms": 10_000}, 4_000)  # the clock set back 6 s
