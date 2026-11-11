@@ -137,7 +137,8 @@ or a swaying patch.
   finish line and on one after it: the time it crossed is offered to accept or adjust, and goes to
   a crossing for the typed number or, with no number typed, to the chosen output line. Points on one side give nothing.
   **Edit finish line** is the line's edit mode (`specs/006-numbers-and-one-line`): two clicks on
-  a picture draw the common line every camera follows -- the camera clicked follows it again --
+  one picture -- a click on another camera's starts the line over there -- draw the common line
+  every camera follows -- the camera clicked follows it again --
   or, with **This camera only**, that camera's own, which the common line's moves leave alone.
   Out of the mode, clicks are the caliper's; the lines are always shown. The common line starts
   as the picture's vertical centre; in a session from before, a line drawn is its camera's own.

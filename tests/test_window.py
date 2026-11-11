@@ -2833,14 +2833,20 @@ def test_a_line_half_drawn_starts_over_when_another_camera_is_chosen(
     wait_until(lambda: win.place is not None)
     win.edit_line.setChecked(True)
     win.picture_clicked((0.4, 0.1))  # one end on Side
-    win.picture_clicked((0.6, 0.9), "cam2")  # then Front's picture
-    assert win.drawing == []  # both ends from Front's picture now
+    win.picture_clicked((0.6, 0.9), "cam2")  # then Front's picture: its first end
+    assert win.drawing == [(0.6, 0.9)]  # both ends from Front's picture now
     assert win.current == "cam2"
-    assert "Drawing stopped" in win.statusBar().currentMessage()
-    assert win.caliper == []  # that click chose the camera, no more
+    assert "starts over" in win.statusBar().currentMessage()
+    assert win.caliper == []
     assert "finish_line" not in session.load()
-    win.draw_zone()  # a zone given up the same way
-    win.picture_clicked((0.3, 0.2), "cam1")
+    win.picture_clicked((0.6, 0.1))
+    assert session.load()["finish_line"] == [[0.6, 0.9], [0.6, 0.1]]
+    win.statusBar().clearMessage()
+    win.picture_clicked((0.2, 0.9), "cam1")  # nothing drawn yet: Side's first end
+    assert win.drawing == [(0.2, 0.9)]
+    assert win.statusBar().currentMessage() == ""  # nothing was given up
+    win.draw_zone()  # a zone given up: that click chose the camera, no more
+    win.picture_clicked((0.3, 0.2), "cam2")
     assert win.drawing is None
     assert not win.edit_line.isChecked()
 

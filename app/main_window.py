@@ -560,8 +560,14 @@ class MainWindow(QMainWindow):
         half drawn is given up: its ends must come from one camera's picture."""
         if self.drawing is not None:
             # A line's edit mode starts over on the camera chosen; a zone is given up.
-            self.drawing = [] if self.edit_line.isChecked() else None
-            self._say("Drawing stopped: click both ends on one camera's picture")
+            line = self.edit_line.isChecked()
+            if self.drawing or not line:  # an end clicked on the other: said
+                self._say(
+                    "The line starts over: both ends on one camera's picture"
+                    if line
+                    else "Drawing stopped: click both ends on one camera's picture"
+                )
+            self.drawing = [] if line else None
         item = self.camera_list.item(row) if row >= 0 else None
         self.current = (
             None if item is None else str(item.data(Qt.ItemDataRole.UserRole))
@@ -854,12 +860,13 @@ class MainWindow(QMainWindow):
 
     def picture_clicked(self, point: Point, camera_id: str | None = None) -> None:
         """A click on a camera's picture: that camera is chosen, then the click is a
-        point of the finish line being drawn or of the caliper."""
+        point of the finish line being drawn -- in the edit mode, the first end of
+        one on that camera -- or of the caliper."""
         if camera_id is not None and camera_id != self.current:
-            drawing = self.drawing is not None
+            zone = self.drawing is not None and not self.edit_line.isChecked()
             self.camera_list.setCurrentRow(list(self.cameras).index(camera_id))
-            if drawing:
-                return  # the drawing was stopped: this click chose the camera
+            if zone:
+                return  # the zone half drawn was given up: this click chose the camera
         camera = self._camera()
         if camera is None or self.place is None:
             return
