@@ -152,6 +152,10 @@ def test_a_phone_with_several_lenses_is_a_camera_each_on_a_port_of_its_own(
     dialog.lenses["main"].setChecked(True)
     assert len(dialog.cameras()) == 1  # lenses are a phone's
     assert ok.isEnabled()
+    alone = CameraDialog(None, "cam2", [], [line])  # no spare ids given
+    alone.lenses["front"].setChecked(True)
+    assert "free camera ids" in alone.problems.text()
+    assert not alone.buttons.button(alone.buttons.StandardButton.Ok).isEnabled()
 
 
 def test_a_port_another_phone_has_shows_no_address_to_scan(
