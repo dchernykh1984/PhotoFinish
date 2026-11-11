@@ -437,6 +437,15 @@ def test_a_heartbeat_is_read_as_it_is(folder: Path) -> None:
     assert not alive({"state": "stopped", "heartbeat_ms": now_ms()})
 
 
+def test_a_recorder_records_while_its_fresh_heartbeat_says_so() -> None:
+    assert launcher.recording({"state": "recording", "heartbeat_ms": now_ms()})
+    for state in ("starting", "connecting", "reconnecting", "stopped", "failed"):
+        assert not launcher.recording({"state": state, "heartbeat_ms": now_ms()})
+    stale = {"state": "recording", "heartbeat_ms": now_ms() - 15_001}
+    assert not launcher.recording(stale)  # its recorder died recording
+    assert not launcher.recording(None)
+
+
 def test_the_command_is_this_program(monkeypatch: pytest.MonkeyPatch) -> None:
     assert command("cam1")[1:] == ["-m", "app.main", "--recorder", "cam1"]
     monkeypatch.setattr(sys, "frozen", True, raising=False)

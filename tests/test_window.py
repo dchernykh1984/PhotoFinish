@@ -77,6 +77,7 @@ def showing(win: mw.MainWindow, ms: int) -> Callable[[], bool]:
 def test_window_title_names_the_app(win: mw.MainWindow) -> None:
     assert win.windowTitle() == "PhotoFinish"
     assert win.view.text == "Add a camera"
+    assert win.recording_banner.isHidden()  # no camera records: nothing to say
 
 
 @pytest.fixture
@@ -500,6 +501,40 @@ def test_the_list_says_how_each_recorder_is(
     beating(recording, state="disk_full")
     win.poll()
     assert win.camera_list.item(0).text() == "Side: disk full, recording stopped"
+
+
+def test_the_corner_says_whether_every_camera_records(
+    recording: Path, make_window: Callable[[], mw.MainWindow]
+) -> None:
+    win = make_window()
+    banner = win.recording_banner
+    assert not banner.isHidden()
+    assert banner.text() == "RECORDING"
+    assert mw.GREEN in banner.styleSheet()
+    beating(recording, state="reconnecting", detail="the stream ended")
+    win.poll()
+    last = scale_time(to_line_scale(START + 69 * 33, False)).split(" ")[1]
+    assert banner.text().startswith("NOT RECORDING<br>")
+    assert f"Side: no video since {last.split('.')[0]}</span>" in banner.text()
+    assert mw.RED in banner.styleSheet()
+    beating(recording)  # the camera is back
+    win.poll()
+    assert banner.text() == "RECORDING"
+    assert mw.GREEN in banner.styleSheet()
+
+
+def test_the_corner_counts_only_cameras_that_record_and_names_them_as_text(
+    base: Path, make_window: Callable[[], mw.MainWindow]
+) -> None:
+    card = {"id": "cam9", "name": "Card", "connection": "file", "record": False}
+    session.save({**session.DEFAULTS, "cameras": [card]})
+    win = make_window()
+    assert win.recording_banner.isHidden()  # a file opened as it is records nothing
+    session.save({**session.DEFAULTS, "cameras": [card, {**CAMERA, "name": "<i>"}]})
+    win = make_window()
+    win.poll()  # its recorder only started: nothing recorded yet
+    assert not win.recording_banner.isHidden()
+    assert win.recording_banner.text().endswith("&lt;i&gt;: no video yet</span>")
 
 
 def journal(path: Path) -> list[dict[str, Any]]:

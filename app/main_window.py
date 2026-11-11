@@ -3,6 +3,7 @@ Qt-free modules (session, video_index, recorder) and the widgets."""
 
 from __future__ import annotations
 
+import html
 import math
 import time
 from collections.abc import Callable
@@ -61,6 +62,7 @@ from app.recorder.launcher import (
     command,
     describe,
     heartbeat,
+    recording,
 )
 from app.video_index import FileIndex, Frame, VideoIndex
 from app.widgets.camera_dialog import CameraDialog
@@ -76,6 +78,12 @@ FOLLOW_S = 0.25  # how often the lists follow a video playing: not at every fram
 NEAR_MS = 1000  # another camera's frame further from the moment than this: none
 STOP_MS = 3000  # an analyser stopped is killed if it has not ended by then
 OUTSIDE = "The output file was changed outside PhotoFinish: kept beside it"
+# The corner's word on recording (FR-019): large, white on green or on red.
+BANNER = (
+    "QLabel {{ background: {}; color: white; font-size: 24px; font-weight: bold;"
+    " padding: 6px; border-radius: 4px; }}"
+)
+GREEN, RED = "#2e7d32", "#c62828"
 
 
 @dataclass
@@ -139,6 +147,11 @@ class MainWindow(QMainWindow):
             "Added to the video's time to give the timing source's: set with "
             "'Align with source'"
         )
+        self.recording_banner = QLabel()  # whether the cameras record now (FR-019)
+        self.recording_banner.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.recording_banner.setTextFormat(Qt.TextFormat.RichText)
+        self.recording_banner.setWordWrap(True)
+        self.recording_banner.hide()  # until a camera records
         self.camera_list = QListWidget()
         self.camera_list.setWordWrap(True)
         self.camera_list.currentRowChanged.connect(self._choose_camera)
@@ -273,6 +286,7 @@ class MainWindow(QMainWindow):
         buttons.addWidget(add)
         buttons.addWidget(remove)
         cameras = QVBoxLayout()
+        cameras.addWidget(self.recording_banner)
         cameras.addWidget(QLabel("Cameras"))
         cameras.addWidget(self.camera_list)
         cameras.addLayout(buttons)
@@ -1224,12 +1238,18 @@ class MainWindow(QMainWindow):
     def poll(self) -> None:
         finding = self.analysis_box.isChecked()
         suggested = False
+        recorders, missing = 0, []
         for camera in self.cameras.values():
             if finding:
                 camera.activity.refresh()  # its progress first: a failed one waits
                 suggested = camera.suggestions.refresh() or suggested
                 self._analyze(camera)
-            self._label(camera)
+            info = self._label(camera)
+            if camera.settings.get("record", True):
+                recorders += 1
+                if not recording(info):
+                    missing.append(self._missing(camera))
+        self._show_recording(recorders, missing)
         if suggested:
             self._show_suggestions()
         if self.output is None and self.session.get("output"):
@@ -1241,8 +1261,9 @@ class MainWindow(QMainWindow):
         offset = self._offset()
         self.timeline.set_stretches([(a + offset, b + offset) for a, b in stretches])
 
-    def _label(self, camera: Camera) -> None:
-        """The camera's line in the list: its name and how its recorder is."""
+    def _label(self, camera: Camera) -> dict[str, Any] | None:
+        """The camera's line in the list: its name and how its recorder is, as the
+        heartbeat it returns says."""
         watchdog = camera.watchdog
         info = (watchdog.poll() if watchdog.wanted else None) or heartbeat(camera.id)
         if watchdog.wanted and watchdog.error:
@@ -1266,6 +1287,35 @@ class MainWindow(QMainWindow):
             else:
                 state += f"; riders {self._riders_progress(camera)}"
         camera.item.setText(f"{camera.settings.get('name', camera.id)}: {state}")
+        return info
+
+    def _missing(self, camera: Camera) -> str:
+        """A camera that does not record, as the corner names it: with the time of
+        its last frame, on the timing source's scale as the time shown is."""
+        name = camera.settings.get("name", camera.id)
+        if not len(camera.index):
+            return f"{name}: no video yet"
+        last = int(camera.index.ms[-1]) + int(camera.settings.get("offset_ms", 0))
+        clock = scale_time(self._line_ms(last)).split(" ")[1].split(".")[0]
+        return f"{name}: no video since {clock}"
+
+    def _show_recording(self, recorders: int, missing: list[str]) -> None:
+        """The corner's word (FR-019): nothing with no camera that records, green
+        while every one records, red naming those that do not."""
+        banner = self.recording_banner
+        banner.setVisible(recorders > 0)
+        if missing:
+            names = "<br>".join(html.escape(line) for line in missing)
+            text = (
+                "NOT RECORDING<br><span style='font-size: 14px; font-weight: normal'>"
+                f"{names}</span>"
+            )
+        else:
+            text = "RECORDING"
+        style = BANNER.format(RED if missing else GREEN)
+        banner.setText(text)
+        if banner.styleSheet() != style:  # set again, it would be polished again
+            banner.setStyleSheet(style)
 
     def _riders_progress(self, camera: Camera) -> str:
         """How far the camera's analyser has got (FR-009)."""
