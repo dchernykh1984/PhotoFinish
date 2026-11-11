@@ -39,7 +39,7 @@ number most read; accepting it decides both.
 **Acceptance Scenarios**:
 
 1. **Given** cameras whose suggestions for one crossing lie within 0.3 s of each other (offsets
-   applied), **Then** the list shows one, at their median moment, naming the cameras.
+   applied), **Then** the list shows one, at the median camera's moment, naming the cameras.
 2. **Given** a number read from the rider at the crossing, **Then** the suggestion shows it, and
    "Accept" takes it when no number is typed; a number typed is taken over it.
 3. **Given** a number that cannot be read, **Then** the suggestion has none and needs one typed.
@@ -84,8 +84,10 @@ finish-line edit mode.
   program. At a suggested crossing, the text in the rider's box is found and read; the digits of
   the most confident reading of at least 0.8 are the rider's number.
 - **FR-003**: Suggestions of different cameras within 0.3 s of each other, offsets applied, are one
-  crossing: listed once at their median moment with each camera's, the number most read, and
-  accepted or dismissed together; the journal names the camera whose moment is the median.
+  crossing -- each joining the nearest -- listed once at the median camera's moment (for an even
+  count, the earlier of the two in the middle) with each camera's, the number most read, and
+  accepted or dismissed together; the journal names that camera and its frames, which give the
+  time written. A suggestion arriving for a crossing already decided is decided with it.
 - **FR-004**: The session keeps a common finish line; a camera follows it until a line is drawn
   for it alone ("own"). A camera whose line was drawn before this feature keeps it as its own.
 - **FR-005**: The finish line is edited only in its edit mode -- a switch -- where two clicks on a
