@@ -2046,7 +2046,7 @@ def test_the_number_reader_is_fetched_once_numbers_and_crossings_are_on(
 ) -> None:
     """006 FR-002: its two models one after the other, then read with."""
     saved = session.load()
-    saved["analysis"] = {"on": True, "model": "", "crossings": False}
+    saved["analysis"] = {"on": True, "model": "m.onnx", "crossings": False}
     session.save(saved)
     fetched: list[str] = []
     failing = [True]
@@ -2077,6 +2077,26 @@ def test_the_number_reader_is_fetched_once_numbers_and_crossings_are_on(
     wait_until(lambda: win.statusBar().currentMessage() == "The number reader is ready")
     win.poll()
     assert len(analyzers) > started  # started again, to read numbers
+
+
+def test_no_number_reader_is_fetched_without_a_detector_to_read_for(
+    recording: Path,
+    make_window: Callable[[], mw.MainWindow],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    saved = session.load()
+    saved["analysis"] = {"on": True, "model": "", "crossings": True}
+    session.save(saved)
+    fetched: list[str] = []
+    monkeypatch.setattr(
+        mw.models, "fetch", lambda model, *a, **k: fetched.append(model.key)
+    )
+    monkeypatch.setattr(mw.models, "ready", lambda model: False)
+    win = make_window()
+    win.crossings_box.setChecked(False)
+    win.crossings_box.setChecked(True)
+    QApplication.processEvents()
+    assert fetched == []  # motion only: no crossing to read a number at
 
 
 def test_a_closed_window_hears_nothing_from_a_download_still_running(

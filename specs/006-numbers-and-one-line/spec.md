@@ -80,14 +80,15 @@ finish-line edit mode.
   analysers run on motion alone whatever model is chosen.
 - **FR-002**: The numbers are read with two ONNX models, PaddleOCR's PP-OCRv3 English text detector
   and recogniser (Apache-2.0), downloaded from RapidOCR's mirror pinned by commit, size and
-  SHA-256 -- about 11 MB -- when "Numbers and crossings" is turned on, and kept next to the
+  SHA-256 -- about 11 MB -- when "Numbers and crossings" is on with a detector chosen, and kept next to the
   program. At a suggested crossing, the text in the rider's box is found and read; the digits of
   the most confident reading of at least 0.8 are the rider's number.
 - **FR-003**: Suggestions of different cameras within 0.3 s of each other, offsets applied, are one
   crossing -- each joining the nearest -- listed once at the median camera's moment (for an even
   count, the earlier of the two in the middle) with each camera's, the number most read, and
   accepted or dismissed together; the journal names that camera and its frames, which give the
-  time written. A suggestion arriving for a crossing already decided is decided with it.
+  time written. A camera's suggestion arriving after its crossing was decided is offered still,
+  with that decision said: it may be another rider.
 - **FR-004**: The session keeps a common finish line; a camera follows it until a line is drawn
   for it alone ("own"). A camera whose line was drawn before this feature keeps it as its own.
 - **FR-005**: The finish line is edited only in its edit mode -- a switch -- where two clicks on a
