@@ -2479,6 +2479,22 @@ def test_a_late_camera_s_suggestion_of_a_crossing_decided_is_decided_with_it(
     assert len((base / "out.txt").read_text().splitlines()) == 1
 
 
+def test_a_detector_chosen_turns_numbers_and_crossings_on(
+    recording: Path, make_window: Callable[[], mw.MainWindow]
+) -> None:
+    session.save({**session.load(), "analysis": {"on": True, "model": ""}})
+    win = make_window()
+    assert not win.crossings_box.isChecked()
+    win._set_model("m.onnx")  # chosen for its crossings
+    assert win.crossings_box.isChecked()
+    assert analysis.settings(session.load())["crossings"] is True
+    win.crossings_box.setChecked(False)  # turned off on purpose: said
+    said = "Numbers and crossings are off: riders are found by motion alone"
+    assert win.suggestion_list.item(0).text() == said
+    win._set_model("")  # motion only: the switch left as it is
+    assert not win.crossings_box.isChecked()
+
+
 def test_suggestions_need_a_model(
     recording: Path, make_window: Callable[[], mw.MainWindow]
 ) -> None:

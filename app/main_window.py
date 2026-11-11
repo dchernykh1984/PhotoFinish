@@ -1107,8 +1107,15 @@ class MainWindow(QMainWindow):
         self._set_model(model.file)
 
     def _set_model(self, path: str) -> None:
-        self.session["analysis"] = {**analysis.settings(self.session), "model": path}
+        """The model chosen; a detector chosen turns numbers and crossings on, what
+        it is chosen for -- off, it would run motion alone without a word."""
+        chosen = {**analysis.settings(self.session), "model": path}
+        chosen["crossings"] = chosen["crossings"] or bool(path)
+        self.session["analysis"] = chosen
         self._save_session()
+        self.crossings_box.blockSignals(True)  # its analysers restarted below
+        self.crossings_box.setChecked(chosen["crossings"])
+        self.crossings_box.blockSignals(False)
         self._show_model()
         self._show_suggestions()
         if self.analysis_box.isChecked():  # the model chosen from here on
@@ -1330,6 +1337,11 @@ class MainWindow(QMainWindow):
         settings = analysis.settings(self.session)
         if not settings["on"]:
             return
+        if not settings["crossings"] and settings["model"]:
+            self._hint(
+                "Numbers and crossings are off: riders are found by motion alone"
+            )
+            return
         if not settings["crossings"]:
             return  # motion alone suggests nothing
         if not settings["model"]:
@@ -1359,6 +1371,12 @@ class MainWindow(QMainWindow):
             self.suggestion_list.addItem(item)
             if chosen & {str(s[2].get("id")) for s in suggested.seen}:
                 self.suggestion_list.setCurrentItem(item)
+
+    def _hint(self, said: str) -> None:
+        """A line of the suggestion list that is no suggestion."""
+        hint = QListWidgetItem(said)
+        hint.setFlags(Qt.ItemFlag.NoItemFlags)
+        self.suggestion_list.addItem(hint)
 
     def _settled(self, suggested: Gathered) -> bool:
         """A crossing already decided, by any camera's suggestion of it: one that
