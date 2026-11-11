@@ -62,6 +62,29 @@ the computer as the emulator sees it. A phone: USB debugging on, `adb devices`,
 the same install and start with the computer's address on the shared network
 (`ipconfig getifaddr en0`).
 
+## Several lenses on the emulator
+
+The AVD's front camera, once enabled (`hw.camera.front=emulated` in
+`~/.android/avd/Xiaomi_17_Ultra.avd/config.ini`, the emulator restarted), is a
+logical camera of two lenses -- physical 4 and 5, about 27 and 43 mm
+equivalent. A debug build started with `--es facing front` takes its lenses from
+it, main and telephoto, and gives the back camera the role of "front". A code of
+several lenses goes in the `address` extra, `|` between its lines, with a
+recorder per lens (cam1 to cam3 on ports 1999 to 2001):
+
+```
+adb shell "am start -n com.dchernykh.photofinish.camera/.MainActivity --es facing front --es address 'main rtmp://10.0.2.2:1999/live/cam1|telephoto rtmp://10.0.2.2:2000/live/cam2|front rtmp://10.0.2.2:2001/live/cam3' --ez autostart true"
+```
+
+Run the emulator headless (`-no-window -gpu swiftshader_indirect`): with its
+window it gave 4 fps for one lens, and three lenses timed out waiting for the
+encoders' buffers. Headless, on 2026-11-11: two lenses of the logical camera and
+the other camera at 30 fps each, 450 of 450 frames with their own moments. What a
+phone gives apps: `adb shell dumpsys media.camera` -- `logicalMultiCamera.physicalIds`,
+each camera's `availableFocalLengths` and `physicalSize`; the app's screen lists
+the lenses it found, with their 35 mm-equivalent focal lengths. Put the AVD's
+front camera back to `none` when done, if it was.
+
 ## Reading what came
 
 ```python
