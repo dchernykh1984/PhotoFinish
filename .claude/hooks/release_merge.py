@@ -142,37 +142,51 @@ def _given(before: list[str]) -> list[str]:
 
 
 def _folder(before: list[str]) -> list[str]:
-    """[CD, folder] for each cd among the commands before, in turn -- one in a
-    subshell closed since left out, as the shell leaves it there; [] with none."""
+    """[CD, folder] for each cd or pushd among the commands before, in turn, a popd
+    taking its pushd's back -- one in a subshell closed since left out, as the shell
+    leaves it there; [] with none."""
     levels: list[list[str]] = [[]]
+    pushed: list[list[int]] = [[]]  # where each pushd's folder starts, by level
     begins = True  # a command begins at this word
     for at, word in enumerate(before):
         if word and set(word) <= SHELL_PUNCTUATION:
             for char in word:  # ");" and the like come as one word
                 if char == "(":
                     levels.append(list(levels[-1]))
+                    pushed.append(list(pushed[-1]))
                 elif char == ")" and len(levels) > 1:
                     levels.pop()
+                    pushed.pop()
             begins = True
             continue
-        if begins and word == "cd":
-            levels[-1] += [CD, _cd_to(before[at + 1 :])]
+        if begins and word in {"cd", "pushd"}:
+            if word == "pushd":
+                pushed[-1].append(len(levels[-1]))
+            levels[-1] += [CD, _cd_to(before[at + 1 :], word)]
+        elif begins and word == "popd":
+            if pushed[-1]:
+                del levels[-1][pushed[-1].pop() :]
+            else:  # pushed before this command: the shell's to know
+                levels[-1] += [CD, "$DIRSTACK"]
         begins = False
     return levels[-1]
 
 
-def _cd_to(after: list[str]) -> str:
-    """The folder a cd's words give: its options passed over, home with none, and
-    `cd -` the folder before -- $OLDPWD, the shell's to know."""
+def _cd_to(after: list[str], command: str = "cd") -> str:
+    """The folder a cd's or pushd's words give: options passed over, and those the
+    shell knows -- `cd -`, `pushd` alone or `pushd +1` -- as $OLDPWD and $DIRSTACK;
+    `cd` alone goes home."""
     for word in after:
         if word and set(word) <= SHELL_PUNCTUATION:
             break
         if word == "-":
             return "$OLDPWD"
+        if command == "pushd" and re.fullmatch(r"[+-][0-9]+", word):
+            return "$DIRSTACK"
         if word == "--" or (word.startswith("-") and len(word) > 1):
-            continue  # -P, -L, -e, -@ and the end of options
+            continue  # -P, -L, -e, -@, -n and the end of options
         return word
-    return "~"
+    return "~" if command == "cd" else "$DIRSTACK"
 
 
 def where(args: list[str], cwd: str | None) -> tuple[str | None, list[str]]:
