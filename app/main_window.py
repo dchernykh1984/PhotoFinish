@@ -8,6 +8,7 @@ import math
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -155,6 +156,14 @@ class MainWindow(QMainWindow):
         self.camera_list = QListWidget()
         self.camera_list.setWordWrap(True)
         self.camera_list.currentRowChanged.connect(self._choose_camera)
+        self.one_camera = QPushButton("One camera")  # the chosen one alone (004)
+        self.one_camera.setCheckable(True)
+        self.one_camera.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.one_camera.setToolTip(
+            "The chosen camera alone, large. Ctrl+1 to Ctrl+9: that camera alone; "
+            "Ctrl+0: all side by side; Ctrl+Up, Ctrl+Down: the previous, the next"
+        )
+        self.one_camera.toggled.connect(self._one_camera_toggled)
         self.number = NumberField()
         self.number.returnPressed.connect(self.add_crossing)
         self.finish = QCheckBox("Finish")
@@ -285,6 +294,7 @@ class MainWindow(QMainWindow):
         buttons = QHBoxLayout()
         buttons.addWidget(add)
         buttons.addWidget(remove)
+        buttons.addWidget(self.one_camera)
         cameras = QVBoxLayout()
         cameras.addWidget(self.recording_banner)
         cameras.addWidget(QLabel("Cameras"))
@@ -361,8 +371,33 @@ class MainWindow(QMainWindow):
             ("L", self.go_live),  # when no number is being typed
             ("PgUp", self.previous_rider),
             ("PgDown", self.next_rider),
+            ("Ctrl+0", lambda: self.show_alone(None)),
+            ("Ctrl+Up", lambda: self.next_camera(-1)),
+            ("Ctrl+Down", lambda: self.next_camera(1)),
+            *((f"Ctrl+{n}", partial(self.show_alone, n - 1)) for n in range(1, 10)),
         ):
             QShortcut(QKeySequence(keys), self).activated.connect(slot)
+
+    def show_alone(self, row: int | None) -> None:
+        """Camera ``row`` of the list alone, large; None: every camera side by side.
+        A row with no camera changes nothing."""
+        if row is None:
+            self.one_camera.setChecked(False)
+        elif row < self.camera_list.count():
+            self.camera_list.setCurrentRow(row)
+            self.one_camera.setChecked(True)
+
+    def next_camera(self, step: int) -> None:
+        """The next camera of the list, or the previous, at the moment shown."""
+        count = self.camera_list.count()
+        if count:
+            self.camera_list.setCurrentRow(
+                (self.camera_list.currentRow() + step) % count
+            )
+
+    def _one_camera_toggled(self) -> None:
+        self._arrange()
+        self._refresh(force=True)  # the cameras shown again ask for their frames
 
     # -- cameras ---------------------------------------------------------------
 
@@ -440,12 +475,23 @@ class MainWindow(QMainWindow):
         self._label(camera)
 
     def _arrange(self) -> None:
-        """The cameras' views side by side, as square a grid as they make."""
-        views = [camera.view for camera in self.cameras.values()] or [self.placeholder]
+        """The cameras' views side by side, as square a grid as they make; in
+        one-camera mode the chosen camera's alone, over the whole area."""
+        views = [camera.view for camera in self.cameras.values()]
+        alone = self._hidden_others()
+        shown = [self.view] if alone else views or [self.placeholder]
         self.placeholder.setVisible(not self.cameras)
-        columns = math.ceil(math.sqrt(len(views)))
-        for n, view in enumerate(views):
+        for view in views:
+            if view not in shown:
+                self.grid.removeWidget(view)
+            view.setVisible(view in shown)
+        columns = math.ceil(math.sqrt(len(shown)))
+        for n, view in enumerate(shown):
             self.grid.addWidget(view, n // columns, n % columns)
+
+    def _hidden_others(self) -> bool:
+        """One-camera mode, with a camera chosen: the others are hidden."""
+        return self.one_camera.isChecked() and self._camera() is not None
 
     @property
     def view(self) -> CameraView:
@@ -480,6 +526,7 @@ class MainWindow(QMainWindow):
         for other in self.cameras.values():
             other.view.chosen = other is camera
             other.view.update()
+        self._arrange()  # in one-camera mode, the camera chosen is the one shown
         self.place = None if camera is None else camera.shown
         self.timeline.zoomed = False
         if camera is None:
@@ -1519,6 +1566,8 @@ class MainWindow(QMainWindow):
             # slower than the camera shows every frame it can, each the one asked.
             return
         camera.shown = place
+        if self._hidden_others() and camera is not self._camera():
+            return  # hidden: decoded once it is shown again (004, FR-007)
         if place is None:
             camera.wanted, camera.pending = None, False
             if len(camera.index):

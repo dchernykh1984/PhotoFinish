@@ -483,6 +483,42 @@ def test_a_phone_with_several_lenses_adds_a_camera_for_each(
     assert win.camera_list.currentRow() == 0  # the first of them chosen
 
 
+def test_one_camera_alone_and_the_keys_that_switch_between_cameras(
+    recording: Path, make_window: Callable[[], mw.MainWindow]
+) -> None:
+    second = {**CAMERA, "id": "cam2", "name": "Wide"}
+    session.save({**session.DEFAULTS, "cameras": [CAMERA, second]})
+    record(recording, START, 70, "cam2")
+    beating(recording, "cam2")
+    win = make_window()
+    win.show()
+    win.activateWindow()
+    wait_until(win.isActiveWindow)  # keys reach the shortcuts of the active window
+    side, wide = win.cameras["cam1"], win.cameras["cam2"]
+    wait_until(showing(win, START + 69 * 33))
+    assert side.view.isVisible() and wide.view.isVisible()
+    win.one_camera.click()
+    assert side.view.isVisible() and not wide.view.isVisible()
+    asked = wide.wanted
+    win.step(-10)  # the hidden camera follows the moment, but is not decoded
+    wait_until(showing(win, START + 59 * 33))
+    assert wide.wanted == asked
+    win.number.setFocus()
+    QTest.keyClick(win.number, Qt.Key.Key_Down, Qt.KeyboardModifier.ControlModifier)
+    assert win.current == "cam2"
+    assert wide.view.isVisible() and not side.view.isVisible()
+    wait_until(showing(win, START + 59 * 33))  # at the same moment
+    QTest.keyClick(win.number, Qt.Key.Key_Up, Qt.KeyboardModifier.ControlModifier)
+    assert win.current == "cam1"
+    QTest.keyClick(win, Qt.Key.Key_2, Qt.KeyboardModifier.ControlModifier)
+    assert (win.current, win.one_camera.isChecked()) == ("cam2", True)
+    QTest.keyClick(win, Qt.Key.Key_0, Qt.KeyboardModifier.ControlModifier)
+    assert not win.one_camera.isChecked()
+    assert side.view.isVisible() and wide.view.isVisible()
+    QTest.keyClick(win, Qt.Key.Key_9, Qt.KeyboardModifier.ControlModifier)
+    assert (win.current, win.one_camera.isChecked()) == ("cam2", False)  # no camera 9
+
+
 def test_a_removed_camera_stops_recording_and_keeps_its_video(
     recording: Path,
     make_window: Callable[[], mw.MainWindow],
