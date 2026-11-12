@@ -11,6 +11,7 @@ hear a stop.
 
 from __future__ import annotations
 
+import collections
 import sys
 import threading
 import time
@@ -24,6 +25,7 @@ import numpy as np
 from app import cameras
 from app.paths import app_path
 from app.recorder import frame_time
+from app.recorder.segments import RESENT_MS
 from app.recorder.testcam import TestCamera
 
 PHONE_APP = "PhotoFinish Camera"  # the encoder its stream's metadata names
@@ -118,6 +120,9 @@ def open_source(
 # says it held the connection's first frame (specs/007). Further back, the phone's
 # clock is not in step with this one: its frame is placed by its arrival.
 OWN_PAST_MS = 5_000
+# A phone's frames placed by their arrival kept by their own moments, to place one sent
+# again where it was: what it may send again, at 120 fps.
+ARRIVALS_KEPT = RESENT_MS * 120 // 1000
 OWN_FUTURE_MS = 250  # a camera stamping a frame as it ends it: the emulator's, by one
 SLEW = 0.001  # the share of the time passed by which a clock may be brought nearer
 LEAP_MS = 2000  # clocks further apart than this are not drifting: one jumped, or lags
@@ -143,16 +148,19 @@ class Anchor:
         self._last = 0.0
         self._skew = 0.0
 
-    def __call__(self, stamp_ms: float | None) -> int:
+    def __call__(self, stamp_ms: float | None, held_ms: int = 0) -> int:
+        """The moment of the timestamp ``stamp_ms``; a connection's first, that its
+        phone says it held ``held_ms`` (specs/007), anchored that long before now."""
         if stamp_ms is None:
             return self.clock()
         now = self.clock()
         if (
-            self._stamp is None
+            held_ms
+            or self._stamp is None
             or stamp_ms < self._last - 1000
             or stamp_ms > self._last + 5000
         ):
-            self._stamp, self._moment, self._skew = stamp_ms, now, 0.0
+            self._stamp, self._moment, self._skew = stamp_ms, now - held_ms, 0.0
         moment = self._moment + (stamp_ms - self._stamp) + self._skew
         late = now - moment
         if abs(late) <= LEAP_MS:
@@ -227,6 +235,10 @@ class Stream:
         self.phone: dict[str, Any] = {}
         self.fps = 30.0
         self.anchor = Anchor(clock)
+        # A phone's frames placed by their arrival lately, by their own moments: one
+        # sent again after a loss is placed where it was (specs/007).
+        self._by_arrival: dict[int, int] = {}
+        self._arrivals: collections.deque[int] = collections.deque()
 
     @property
     def waiting(self) -> str:
@@ -275,7 +287,7 @@ class Stream:
         def place(packet: av.Packet, pts: int) -> int:
             if stamped and getattr(packet, "is_keyframe", True):
                 self._hear(packet)
-            if trusted and not trusted[0]:  # by arrival: nothing more to look for
+            if trusted and not trusted[0] and not phone:  # another app's: no moments
                 return self.anchor(float(pts * unit))
             own = frame_time.moment_ms(memoryview(packet)) if stamped else None
             if not trusted:
@@ -284,8 +296,10 @@ class Stream:
                 # moments out of step; another camera's never carry them.
                 missing = UNSTAMPED if own is None else NOT_IN_STEP
                 self.clock_note = missing if phone and not trusted[0] else ""
-                if not trusted[0]:
-                    return self.anchor(float(pts * unit))
+                if not trusted[0]:  # from when the phone says it took the first
+                    return self._arrived(own, self.anchor(float(pts * unit), held))
+            if not trusted[0]:
+                return self._arrived(own, self.anchor(float(pts * unit)))
             if own is None:  # a trusted stream's frame without it: by its timestamp
                 own = last[1] + round(float((pts - last[0]) * unit))
             # A better exchange may move the phone's offset back a little, at its
@@ -295,6 +309,19 @@ class Stream:
             return moment
 
         return place
+
+    def _arrived(self, own: int | None, moment: int) -> int:
+        """A frame placed by its arrival at ``moment``; a phone's whose own moment
+        was so placed lately -- sent again after a loss -- where it was then, so the
+        recording lists it once."""
+        if own is None:
+            return moment
+        if own not in self._by_arrival:
+            self._by_arrival[own] = moment
+            self._arrivals.append(own)
+            while len(self._arrivals) > ARRIVALS_KEPT:
+                del self._by_arrival[self._arrivals.popleft()]
+        return self._by_arrival[own]
 
     def _hear(self, packet: av.Packet) -> None:
         """The phone's status a keyframe carries, kept with when it came: through a

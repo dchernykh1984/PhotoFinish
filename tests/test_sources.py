@@ -564,10 +564,42 @@ def test_a_phone_s_frame_it_kept_through_a_break_keeps_its_own_moment() -> None:
     assert kept(avcc(sei((START - 61_000) * 1000), b"\x65\x88"), 0) == START - 61_000  # type: ignore[arg-type]
     assert not source.clock_note
     beyond = source._placing(stream, phone=True, held=60_000)  # type: ignore[arg-type]
-    assert beyond(avcc(sei((START - 70_000) * 1000), b"\x65\x88"), 0) == START  # type: ignore[arg-type]
+    first = avcc(sei((START - 70_000) * 1000), b"\x65\x88")
+    assert beyond(first, 0) == START - 60_000  # type: ignore[arg-type]
     assert sources.NOT_IN_STEP == source.clock_note  # older than it says: out of step
-    unsaid = source._placing(stream, phone=True)  # type: ignore[arg-type]
+    # ... and placed by its arrival, less the time the phone says it held it
+    fresh = sources.Stream("rtmp://0.0.0.0:1935/live/x", {}, lambda: START, listen=True)
+    unsaid = fresh._placing(stream, phone=True)  # type: ignore[arg-type]
     assert unsaid(avcc(sei((START - 61_000) * 1000), b"\x65\x88"), 0) == START  # type: ignore[arg-type]
+
+
+def test_a_phone_s_frames_placed_by_arrival_and_sent_again_stay_where_they_were() -> (
+    None
+):
+    # A phone out of step is placed by its arrival; after a loss it sends its last
+    # second again, with the moments it kept them with: placed once (specs/007).
+    now = {"ms": START}
+    source = sources.Stream(
+        "rtmp://0.0.0.0:1935/live/x", {}, lambda: now["ms"], listen=True
+    )
+    stream = SimpleNamespace(
+        time_base=Fraction(1, 1000), codec_context=SimpleNamespace(name="h264")
+    )
+
+    def frame(k: int) -> bytes:  # its moment a minute off: not believed
+        return avcc(sei((START - 60_000 + k * 33) * 1000), b"\x41\x9a")
+
+    first = source._placing(stream, phone=True)  # type: ignore[arg-type]
+    placed = []
+    for k in range(60):
+        now["ms"] = START + k * 33  # each as it was taken: live
+        placed.append(first(frame(k), k * 33))  # type: ignore[arg-type]
+    now["ms"] = START + 10_000  # ten seconds of a break later
+    held = now["ms"] - (START + 30 * 33)
+    again = source._placing(stream, phone=True, held=held)  # type: ignore[arg-type]
+    resent = [again(frame(k), (k - 30) * 33) for k in range(30, 90)]  # type: ignore[arg-type]
+    assert resent[:30] == placed[30:]  # the frames sent again, where they were
+    assert abs(resent[30] - (START + 60 * 33)) < 50  # the next, as it was taken
 
 
 @pytest.mark.parametrize(
