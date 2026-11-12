@@ -166,6 +166,7 @@ def test_frames_a_phone_sends_again_are_listed_once_and_the_rest_decode(
                     ms = START + round((packet.pts or 0) * unit)
                     writer.write_packet(packet, ms)
         writer.close()  # the phone hung up
+        writer.hung_up()
 
     connection(slice(0, 70))  # the connection the network broke
     if restarted:  # the recorder itself started again meanwhile
@@ -204,7 +205,7 @@ def test_a_break_frames_sent_again_fill_gives_its_reason_to_no_later_gap(
                 if k in frames and not 75 <= k < 80:  # the camera never gave five
                     writer.write_packet(packet, START + round((packet.pts or 0) * unit))
         writer.close()
-        writer.gap_reason = "reconnect"  # as the recorder hangs up
+        writer.hung_up()  # as the recorder does
     gaps = (folder / "gaps.txt").read_text().splitlines()
     assert len(gaps) == 1
     assert gaps[0].endswith(" no frames")
@@ -229,6 +230,24 @@ def test_frames_at_moments_set_back_are_other_frames_and_listed(tmp_path: Path) 
     index = VideoIndex(folder)
     index.refresh()
     assert len(index) == 120
+
+
+def test_a_frame_set_back_on_a_moment_listed_is_another_frame_and_listed(
+    tmp_path: Path,
+) -> None:
+    # The computer's clock set back a second between two recorders: the second's
+    # frames fall on the first's moments, each one of them -- other frames, listed.
+    make_phone_h264(tmp_path / "phone.mp4", 60)
+    folder = tmp_path / "cam1"
+    for shift in (0, -990):  # thirty frames' worth, to the millisecond
+        writer = SegmentWriter(folder, fps=30)
+        with av.open(str(tmp_path / "phone.mp4")) as container:
+            stream = container.streams.video[0]
+            sent = [p for p in container.demux(stream) if p.pts is not None]
+            for k, packet in enumerate(sent):
+                writer.write_packet(packet, START + shift + k * 33)
+        writer.close()
+        assert writer.frames == 60
 
 
 def test_gaps_are_read_as_the_recorder_writes_them(tmp_path: Path) -> None:
