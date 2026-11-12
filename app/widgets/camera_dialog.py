@@ -5,6 +5,7 @@ from __future__ import annotations
 import contextlib
 import io
 import ipaddress
+import secrets
 import threading
 from collections.abc import Sequence
 from typing import Any
@@ -67,6 +68,9 @@ class CameraDialog(QDialog):
         self.setWindowTitle("Add a camera")
         self.camera_id = camera_id
         self.spare_ids = list(spare_ids)  # free ids for a phone's other lenses
+        # The phone its lens cameras note: the first's id, and a mark of this one --
+        # an id freed is given again, to another phone's (007, FR-012).
+        self.phone = f"{camera_id}-{secrets.token_hex(4)}"
         self.name = QLineEdit(f"Camera {camera_id.removeprefix('cam')}")
         self.connection = QComboBox()
         for key, label in CONNECTION_NAMES.items():
@@ -179,8 +183,8 @@ class CameraDialog(QDialog):
     def cameras(self) -> list[dict[str, Any]]:
         """The cameras to add: this one, or a phone's camera for each lens ticked --
         named after its lens, on the next free id, port and ``live/<id>`` path when
-        there are several (004, FR-001), each noting its lens and its phone, the
-        first lens's id (007, FR-012)."""
+        there are several (004, FR-001), each noting its lens and its phone
+        (007, FR-012)."""
         lenses = self._lenses()
         first = self.camera()
         if self.kind() != "rtmp" or len(lenses) < 2:
@@ -191,7 +195,7 @@ class CameraDialog(QDialog):
             self._made(
                 camera_id, f"{first['name']} {cameras.LENSES[lens].lower()}", made
             )
-            | {"lens": lens, "phone": self.camera_id}
+            | {"lens": lens, "phone": self.phone}
             for lens, camera_id, made in cameras.lens_cameras(
                 lenses, ids, first["settings"], taken
             )

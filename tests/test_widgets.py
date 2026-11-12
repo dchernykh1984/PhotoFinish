@@ -132,9 +132,15 @@ def test_a_phone_with_several_lenses_is_a_camera_each_on_a_port_of_its_own(
         ("cam3", "Finish telephoto", {"port": 1937, "path": "live/cam3"}),  # 1935: Line
         ("cam4", "Finish front", {"port": 1938, "path": "live/cam4"}),
     ]
-    # Each notes its lens and its phone, the first lens's camera (007, FR-012).
+    # Each notes its lens and its phone (007, FR-012): the same for the three, and
+    # not another phone's that gets cam2 once this one's are gone.
     noted = [(c["lens"], c["phone"]) for c in dialog.cameras()]
-    assert noted == [("main", "cam2"), ("telephoto", "cam2"), ("front", "cam2")]
+    phone = noted[0][1]
+    assert noted == [("main", phone), ("telephoto", phone), ("front", phone)]
+    assert phone.startswith("cam2-")
+    again = CameraDialog(None, "cam2", [], [line], ["cam3", "cam4", "cam5"])
+    again.lenses["front"].setChecked(True)
+    assert again.cameras()[0]["phone"] != phone
     code = (
         "main rtmp://10.0.0.5:1936/live/cam2\n"
         "telephoto rtmp://10.0.0.5:1937/live/cam3\n"
