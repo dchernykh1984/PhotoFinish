@@ -578,7 +578,7 @@ def _recent_recorded(folder: Path, closed: list[str], span_ms: int) -> list[int]
     for name in reversed(closed):
         try:
             text = (folder / f"{name}.times").read_text(encoding="ascii").split()
-        except OSError:
+        except OSError, ValueError:  # cut short by a kill, or garbled: the one before
             continue
         moments = [int(ms) for ms in text[1::2] if ms.isdigit()]
         found = moments + found
