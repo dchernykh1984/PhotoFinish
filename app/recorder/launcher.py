@@ -26,9 +26,6 @@ from app.version import version
 
 ENDED = ("stopped", "failed", "disk_full")
 START_GRACE_S = 30  # a frozen onefile build unpacks itself before its first heartbeat
-# How long a window waits, before it is shown, for the recorders of another version it
-# asked to stop: a recorder stops within a second, or a stalled read's 5 s.
-REPLACE_WAIT_S = 5.0
 
 
 def command(camera_id: str, role: str = "--recorder") -> list[str]:
@@ -134,7 +131,8 @@ class Watchdog:
     def start(self) -> None:
         """Record: attach to a running recorder, or start one. A stop asked before,
         and not yet heard, is withdrawn either way. A running recorder of another
-        version is asked to stop, and replaced once it has (``poll``)."""
+        version is asked to stop, and this one's started at once: it takes the camera
+        over once the other has ended, whatever becomes of the window."""
         self.wanted = True
         self._retry_at = None
         (folder_of(self.camera_id) / "stop.request").unlink(missing_ok=True)
@@ -143,9 +141,9 @@ class Watchdog:
             self.replacing = ""  # one this window started is of its own program
             if info is not None and self._process is None:
                 self.replacing = _another_program(info)
-            if self.replacing:
-                (folder_of(self.camera_id) / "stop.request").touch()
-            return
+            if not self.replacing:
+                return
+            (folder_of(self.camera_id) / "stop.request").touch()
         self._started_ms = time.time_ns() // 1_000_000  # an end before: not its own
         try:
             self._process = (self._spawn or spawn)(self.camera_id)
@@ -162,27 +160,17 @@ class Watchdog:
         folder.mkdir(parents=True, exist_ok=True)
         (folder / "stop.request").touch()
 
-    def finish_replacing(
-        self, deadline: float, sleep: Callable[[float], None] | None = None
-    ) -> None:
-        """A recorder being replaced waited for until ``deadline`` (monotonic), and
-        this one's started as soon as it has ended: the window does so before it is
-        shown, as one closed or lost at once would leave the camera with no recorder.
-        One still running then is left to ``poll``."""
-        while self.replacing and time.monotonic() < deadline:
-            (sleep or time.sleep)(0.1)
-            self.poll()
-
     def poll(self) -> dict[str, Any] | None:
         """The heartbeat, for the window; a dead recorder is started again after
-        the pause, one being replaced at once once it has ended."""
+        the pause. One being replaced is waited for; this one's, started with the
+        request, takes over -- or is started now, when it could not be then."""
         info = heartbeat(self.camera_id)
         now = time.monotonic()
         if self.replacing:
             if alive(info):
                 return info
             self.replacing = ""
-            if self.wanted:
+            if self.wanted and self._process is None:
                 self.start()
             return info
         if self._running(info):
