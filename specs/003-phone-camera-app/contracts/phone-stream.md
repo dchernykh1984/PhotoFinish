@@ -65,7 +65,10 @@ holding one
 The NAL unit carries emulation-prevention bytes as H.264 requires. The recorder reads it from the
 packet as the RTMP demuxer gives it (length-prefixed NAL units), takes the moment rounded to the
 millisecond as the frame's moment, and stores the packet unchanged: the SEI stays in the recording,
-and decoders ignore it.
+and decoders ignore it. A frame's moment is fixed when the phone keeps it and is at least 1 ms after
+the one before (`specs/007-store-and-forward`): an offset set back -- the first exchanges, the
+recorder's clock set -- does not take moments back, so a frame sent again carries the moment it was
+listed with.
 
 ## The phone's status (H.264 SEI, `specs/005-phone-status`)
 
@@ -107,4 +110,6 @@ publishing, the phone sends a Window Acknowledgement Size of 131072: FFmpeg ackn
 loss begins at the keyframe 2 s before the newest frame acknowledged -- 6 s before the newest sent
 when none was -- and goes on through the frames kept to the live ones, so its first frames may be
 ones the recorder has: it writes a frame whose moment it listed in the last 10 s for the frames
-after it to decode, and does not list it again.
+after it to decode, and does not list it again. A connection whose frames carry no moments starts
+at the next keyframe, and its loss sends nothing again: placed by their arrival, frames kept would
+be late and frames sent again listed twice.
