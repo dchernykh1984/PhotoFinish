@@ -41,6 +41,9 @@ from app.recorder.sources import (
 from app.version import version
 
 LOW_DISK = 2 * 1024**3
+# A recorder asked to stop ends within a second, or a stalled read's 5 s: the one
+# that takes its camera over waits this long for it.
+TAKE_OVER_S = 20.0
 CLOCK_RETRY_S = 5.0  # a phone's clock-exchange port another program holds: tried again
 # A heartbeat older than this: the recorder is gone. Longer than a camera open
 # blocks (OPEN_TIMEOUT_S), when no heartbeat is written.
@@ -218,7 +221,7 @@ def run(
         return 2
     folder = folder_of(camera_id)
     folder.mkdir(parents=True, exist_ok=True)
-    lock = _lock(folder / "recorder.lock")
+    lock = _lock(folder / "recorder.lock") or _take_over(folder, sleep)
     if lock is None:
         return 3  # another recorder has this camera
     with lock:
@@ -398,6 +401,24 @@ def _disk[T](write: Callable[..., T], *args: Any) -> T:
         if error.errno == errno.ENOSPC:
             raise _DiskFullError from error
         raise
+
+
+def _take_over(folder: Path, sleep: Callable[[float], None]) -> IO[bytes] | None:
+    """The camera's lock, once the recorder that holds it has heard the stop asked of
+    it: a window replacing a recorder of another version starts this one as it asks,
+    so the camera records on whatever becomes of the window (specs/007). None when no
+    stop was asked, or the other kept the camera TAKE_OVER_S."""
+    stop = folder / "stop.request"
+    if not stop.exists():
+        return None
+    deadline = time.monotonic() + TAKE_OVER_S
+    while time.monotonic() < deadline:
+        sleep(0.1)
+        lock = _lock(folder / "recorder.lock")
+        if lock is not None:
+            stop.unlink(missing_ok=True)  # the other's, left by one that died
+            return lock
+    return None
 
 
 def _lock(path: Path) -> IO[bytes] | None:

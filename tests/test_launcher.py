@@ -651,7 +651,7 @@ def test_a_phone_catching_up_says_how_far_behind_live_it_is() -> None:
     assert describe({**recording, "behind_ms": 1_999}) == "recording, 5 frames"
 
 
-def test_a_recorder_of_another_version_is_replaced_once_it_has_stopped(
+def test_a_recorder_of_another_version_is_asked_to_stop_and_this_one_s_takes_over(
     folder: Path, clock: dict[str, float]
 ) -> None:
     # specs/007: an update left the recorder 0.5.0 started at work under 0.6.0.
@@ -661,52 +661,36 @@ def test_a_recorder_of_another_version_is_replaced_once_it_has_stopped(
     watchdog.start()
     assert (folder / "stop.request").exists()  # asked to stop
     assert watchdog.replacing == "PhotoFinish 0.5.0"
+    # Started at once, this one's takes the camera over once the other has ended,
+    # whatever becomes of the window meanwhile.
+    assert len(spawns.processes) == 1
     watchdog.poll()
-    assert not spawns.processes  # it records on until it has stopped
     beat(folder, "stopped", version="0.5.0")
     watchdog.poll()
-    assert len(spawns.processes) == 1  # this program's, at once
     assert not watchdog.replacing
-    assert not (folder / "stop.request").exists()
+    beat(folder, "stopped", version="0.5.0", age_ms=1_000)  # this one's beats yet
+    watchdog.poll()
+    assert len(spawns.processes) == 1  # none more: it is starting
 
 
-def test_a_replacement_is_finished_while_the_window_waits_for_it(
-    folder: Path, clock: dict[str, float]
-) -> None:
-    # A window closed or lost right after it asked the old recorder to stop would
-    # leave the camera with none: it waits for it, and starts this one's itself.
-    beat(folder, "recording", version="0.5.0")
-    spawns = Spawns()
-    watchdog = Watchdog("cam1", spawns)
-    watchdog.start()
-
-    def pause(seconds: float) -> None:
-        clock["now"] += seconds
-        beat(folder, "stopped", version="0.5.0")  # it heard the stop meanwhile
-
-    watchdog.finish_replacing(clock["now"] + 5, sleep=pause)
-    assert len(spawns.processes) == 1
-    assert not watchdog.replacing
-
-
-def test_a_replacement_not_finished_in_time_is_left_to_the_window_s_polls(
+def test_this_one_s_recorder_not_started_with_the_stop_is_started_once_the_old_ends(
     folder: Path, clock: dict[str, float]
 ) -> None:
     beat(folder, "recording", version="0.5.0")
     spawns = Spawns()
-    watchdog = Watchdog("cam1", spawns)
+    refused = [OSError("blocked by an antivirus")]
+
+    def spawning(camera_id: str) -> Any:
+        if refused:
+            raise refused.pop()
+        return spawns(camera_id)
+
+    watchdog = Watchdog("cam1", spawning)
     watchdog.start()
-    waited: list[float] = []
-
-    def pause(seconds: float) -> None:
-        waited.append(seconds)
-        clock["now"] += seconds
-        beat(folder, "recording", version="0.5.0")  # it goes on: a stalled read
-
-    watchdog.finish_replacing(clock["now"] + 1, sleep=pause)
-    assert sum(waited) == pytest.approx(1.0)
     assert not spawns.processes
-    assert watchdog.replacing == "PhotoFinish 0.5.0"
+    beat(folder, "stopped", version="0.5.0")
+    watchdog.poll()
+    assert len(spawns.processes) == 1
 
 
 def test_a_recorder_that_names_no_version_is_an_older_one_replaced(
@@ -717,9 +701,10 @@ def test_a_recorder_that_names_no_version_is_an_older_one_replaced(
     watchdog = Watchdog("cam1", spawns)
     watchdog.start()
     assert watchdog.replacing == "an older PhotoFinish"
+    assert len(spawns.processes) == 1
     beat(folder, "recording", age_ms=60_000, version=None)  # it hung: gone stale
     watchdog.poll()
-    assert len(spawns.processes) == 1
+    assert not watchdog.replacing
 
 
 def test_a_recorder_of_this_version_is_attached_to(
@@ -746,9 +731,10 @@ def test_a_window_that_cannot_tell_its_version_replaces_no_recorder(
     assert not (folder / "stop.request").exists()
 
 
-def test_a_replacement_the_window_stops_meanwhile_starts_none(
+def test_a_replacement_the_window_stops_meanwhile_starts_no_more(
     folder: Path, clock: dict[str, float]
 ) -> None:
+    # The one taking over finds the camera gone from the session, and ends.
     beat(folder, "recording", version="0.5.0")
     spawns = Spawns()
     watchdog = Watchdog("cam1", spawns)
@@ -756,7 +742,7 @@ def test_a_replacement_the_window_stops_meanwhile_starts_none(
     watchdog.stop()  # the camera removed while the old one stops
     beat(folder, "stopped", version="0.5.0")
     watchdog.poll()
-    assert not spawns.processes
+    assert len(spawns.processes) == 1
     assert not watchdog.replacing
 
 

@@ -474,6 +474,51 @@ def test_a_camera_with_a_recorder_gets_no_second_one(
     assert not (folder / "recorder.json").exists()
 
 
+def test_a_recorder_asked_to_stop_has_its_camera_taken_over_once_it_ends(
+    folder: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # specs/007: a window replacing a recorder of another version starts this one as
+    # it asks the other to stop; it waits for the camera, and records with it.
+    folder.mkdir(parents=True)
+    held = recorder._lock(folder / "recorder.lock")
+    assert held is not None
+    (folder / "stop.request").touch()  # the other is asked to stop
+    pauses: list[float] = []
+
+    def pause(seconds: float) -> None:
+        pauses.append(seconds)
+        if len(pauses) == 3:
+            held.close()  # it has ended
+
+    lock = recorder._take_over(folder, pause)
+    assert lock is not None
+    lock.close()
+    assert len(pauses) == 3
+    assert not (folder / "stop.request").exists()  # the other's: not this one's word
+
+
+def test_a_recorder_that_keeps_its_camera_is_not_taken_over(
+    folder: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    folder.mkdir(parents=True)
+    held = recorder._lock(folder / "recorder.lock")
+    assert held is not None
+    moment = {"now": 0.0}
+    monkeypatch.setattr(recorder.time, "monotonic", lambda: moment["now"])
+
+    def pause(seconds: float) -> None:
+        moment["now"] += seconds
+
+    try:
+        assert recorder._take_over(folder, pause) is None  # no stop asked: at once
+        assert moment["now"] == 0
+        (folder / "stop.request").touch()
+        assert recorder._take_over(folder, pause) is None  # it never ends
+        assert moment["now"] == pytest.approx(recorder.TAKE_OVER_S)
+    finally:
+        held.close()
+
+
 def test_a_camera_that_ends_is_opened_again(
     folder: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
