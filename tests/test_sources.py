@@ -602,6 +602,32 @@ def test_a_phone_s_frames_placed_by_arrival_and_sent_again_stay_where_they_were(
     assert abs(resent[30] - (START + 60 * 33)) < 50  # the next, as it was taken
 
 
+def test_a_phone_s_new_frames_after_frames_sent_again_come_after_them() -> None:
+    # The next connection's anchor, from when the phone says it took its first, may
+    # fall before where the frames it sends again were placed, a slower network
+    # then: the new frames still come after them.
+    now = {"ms": START}
+    source = sources.Stream(
+        "rtmp://0.0.0.0:1935/live/x", {}, lambda: now["ms"], listen=True
+    )
+    stream = SimpleNamespace(
+        time_base=Fraction(1, 1000), codec_context=SimpleNamespace(name="h264")
+    )
+
+    def frame(k: int) -> bytes:  # its moment a minute off: not believed
+        return avcc(sei((START - 60_000 + k * 33) * 1000), b"\x41\x9a")
+
+    first = source._placing(stream, phone=True)  # type: ignore[arg-type]
+    for k in range(60):
+        now["ms"] = START + k * 33 + 150  # 150 ms on the way
+        first(frame(k), k * 33)  # type: ignore[arg-type]
+    now["ms"] = START + 10_000
+    held = now["ms"] - (START + 30 * 33)
+    again = source._placing(stream, phone=True, held=held)  # type: ignore[arg-type]
+    moments = [again(frame(k), (k - 30) * 33) for k in range(30, 90)]  # type: ignore[arg-type]
+    assert all(b > a for a, b in itertools.pairwise(moments))
+
+
 @pytest.mark.parametrize(
     ("said", "held"),
     [("8123", 8123), ("8123.6", 8124), ("-5", 0), ("x", 0), ("inf", 0), ("nan", 0)],
