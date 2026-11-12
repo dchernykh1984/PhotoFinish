@@ -128,6 +128,21 @@ def test_a_cameras_own_stream_is_indexed_in_display_order(tmp_path: Path) -> Non
     decoder.close()
 
 
+def make_phone_h264(path: Path, frames: int) -> None:
+    """A phone's stream: H.264 without B-frames, a keyframe a second."""
+    with av.open(str(path), "w") as container:
+        options = {"g": "30", "bf": "0"}
+        stream = container.add_stream("libx264", rate=30, options=options)
+        stream.width, stream.height, stream.pix_fmt = 640, 360, "yuv420p"
+        for k in range(frames):
+            frame = av.VideoFrame.from_ndarray(render(START + k * 33, 640, 360))
+            frame.pts = k
+            for packet in stream.encode(frame):
+                container.mux(packet)
+        for packet in stream.encode(None):
+            container.mux(packet)
+
+
 @pytest.mark.parametrize("restarted", [False, True])
 def test_frames_a_phone_sends_again_are_listed_once_and_the_rest_decode(
     tmp_path: Path, restarted: bool
@@ -135,17 +150,7 @@ def test_frames_a_phone_sends_again_are_listed_once_and_the_rest_decode(
     # specs/007: a connection after a break begins at a keyframe seconds back; what
     # the recorder has from it is written for the frames after it, not listed again,
     # whether the recorder went on or started again.
-    with av.open(str(tmp_path / "phone.mp4"), "w") as container:
-        options = {"g": "30", "bf": "0"}  # the phone's: no B-frames
-        stream = container.add_stream("libx264", rate=30, options=options)
-        stream.width, stream.height, stream.pix_fmt = 640, 360, "yuv420p"
-        for k in range(90):
-            frame = av.VideoFrame.from_ndarray(render(START + k * 33, 640, 360))
-            frame.pts = k
-            for packet in stream.encode(frame):
-                container.mux(packet)
-        for packet in stream.encode(None):
-            container.mux(packet)
+    make_phone_h264(tmp_path / "phone.mp4", 90)
     folder = tmp_path / "cam1"
     writer = SegmentWriter(folder, fps=30)
 
@@ -180,6 +185,29 @@ def test_frames_a_phone_sends_again_are_listed_once_and_the_rest_decode(
     assert decoded is not None
     assert read_time(decoded.to_ndarray(format="rgb24")) == START + 70 * 33
     decoder.close()
+
+
+def test_a_break_frames_sent_again_fill_gives_its_reason_to_no_later_gap(
+    tmp_path: Path,
+) -> None:
+    # A reconnect says why the gap after it is there; one the phone's frames sent
+    # again fill has none, and a gap later is the camera's own (specs/007).
+    make_phone_h264(tmp_path / "phone.mp4", 90)
+    folder = tmp_path / "cam1"
+    writer = SegmentWriter(folder, fps=30)
+    for frames in (range(60), range(30, 90)):  # the next from a keyframe a second back
+        with av.open(str(tmp_path / "phone.mp4")) as container:
+            stream = container.streams.video[0]
+            unit = float(stream.time_base or 0) * 1000
+            sent = [p for p in container.demux(stream) if p.pts is not None]
+            for k, packet in enumerate(sent):
+                if k in frames and not 75 <= k < 80:  # the camera never gave five
+                    writer.write_packet(packet, START + round((packet.pts or 0) * unit))
+        writer.close()
+        writer.gap_reason = "reconnect"  # as the recorder hangs up
+    gaps = (folder / "gaps.txt").read_text().splitlines()
+    assert len(gaps) == 1
+    assert gaps[0].endswith(" no frames")
 
 
 def test_frames_at_moments_set_back_are_other_frames_and_listed(tmp_path: Path) -> None:
