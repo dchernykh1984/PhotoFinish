@@ -548,6 +548,24 @@ def test_a_lens_left_out_by_an_old_status_is_a_recording_lost(
     assert "Mi main" in win.recording_banner.text()
 
 
+def test_a_lens_camera_beside_a_garbled_phone_status_is_shown_as_it_is(
+    base: Path, make_window: Callable[[], mw.MainWindow], spawned: list[str]
+) -> None:
+    # A heartbeat of another version, or edited, may hold no table for the phone: the
+    # window's tick must not raise on it, as a slot that raises ends the program.
+    phone: dict[str, Any] = {"connection": "rtmp", "phone": "cam2"}
+    main = {**phone, "id": "cam2", "name": "Mi main", "lens": "main"}
+    main["settings"] = {"port": 1999, "path": "live/cam2"}
+    tele = {**phone, "id": "cam3", "name": "Mi tele", "lens": "tele"}
+    tele["settings"] = {"port": 2000, "path": "live/cam3"}
+    session.save({**session.DEFAULTS, "cameras": [main, tele]})
+    beating(base, "cam2", state="connecting", detail="waiting for the phone")
+    beating(base, "cam3", phone="left=main")
+    win = make_window()
+    win.poll()
+    assert win.cameras["cam2"].item.text().startswith("Mi main: connecting")
+
+
 def test_a_lens_left_out_still_says_what_else_keeps_it_from_recording(
     base: Path, make_window: Callable[[], mw.MainWindow], spawned: list[str]
 ) -> None:
