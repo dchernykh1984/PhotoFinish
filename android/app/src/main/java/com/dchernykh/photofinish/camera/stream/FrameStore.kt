@@ -27,6 +27,7 @@ class KeptFrame(
  * with less than [reserveBytes] left on the phone -- then none of the last [KEPT_ANYWAY_US] -- the oldest run
  * goes, its frames not read yet dropped.
  */
+@Suppress("TooManyFunctions") // the uplink's steps through the store, each a few lines
 class FrameStore(
     private val folder: File,
     private val capBytes: Long,
@@ -256,11 +257,14 @@ class FrameStore(
     }
 
     /**
-     * No room for a run more at [nowUs]: over the share, or the phone short of space -- which takes no run of
-     * the last [KEPT_ANYWAY_US], as the queue before the store did not: a full phone still rides out a hiccup.
+     * No room for a run more at [nowUs]: over the share; or the phone short of space, and the oldest run older
+     * than [KEPT_ANYWAY_US] -- a full phone still rides out a hiccup, as with the queue before the store.
      */
-    private fun full(nowUs: Long): Boolean =
-        total > capBytes || (freeBytes() < reserveBytes && runs.first().frames.last().ptsUs < nowUs - KEPT_ANYWAY_US)
+    private fun full(nowUs: Long): Boolean {
+        if (total > capBytes) return true
+        val oldest = runs.first().frames.last()
+        return freeBytes() < reserveBytes && oldest.ptsUs < nowUs - KEPT_ANYWAY_US
+    }
 
     /** The oldest run removed with its file; returns its frames not read yet. */
     private fun removeOldest(): Int {
