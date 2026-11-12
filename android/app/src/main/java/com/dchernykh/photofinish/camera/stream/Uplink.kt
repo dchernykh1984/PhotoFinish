@@ -88,6 +88,12 @@ class Uplink(
     /** The connection under way has sent a frame; the uplink's thread alone keeps it. */
     private var streamed = false
 
+    /**
+     * The connection under way sends its frames with their moments: the recorder knows a frame sent again by
+     * its moment, so only such a connection's loss sends frames again. The uplink's thread alone keeps it.
+     */
+    private var stamped = false
+
     /** A keyframe asked for since a frame was lost; the encoder's thread alone keeps it. */
     private var askedKeyframe = false
 
@@ -151,7 +157,7 @@ class Uplink(
                 publisher?.close()
                 if (!running) break
                 publisher?.let { confirm(it) } // what it acknowledged before it died
-                store.rewind()
+                if (stamped) store.rewind()
                 if (streamed) pause = FIRST_PAUSE_MS // a connection that streamed: the pauses start over
                 report(UplinkStatus.Reconnecting(error.message ?: error.javaClass.simpleName))
                 sleep(pause)
@@ -163,6 +169,7 @@ class Uplink(
 
     private fun stream() {
         streamed = false
+        stamped = false
         unacknowledged.clear()
         val connected = connect(address)
         publisher = connected
@@ -171,23 +178,26 @@ class Uplink(
         await(System.nanoTime() + waitForClockMs * 1_000_000) { clock() != null }
         // A connection's frames all carry their moments, or none do: the recorder places frames without one by
         // their arrival, later than they were taken, and a mix of the two would not keep its order. Once the
-        // clock is in step, a connection starts at a keyframe kept with a moment.
-        if (clock() != null) store.skipToStamped()
+        // clock is in step, a connection starts at a keyframe kept with a moment; before, at the next keyframe,
+        // as what was kept would be placed late by all the time it was kept.
+        if (clock() != null) store.skipToStamped() else store.skipKept()
         val until = System.nanoTime() + stampWindowMs * 1_000_000
         await(Long.MAX_VALUE) { record != null }
         connected.sendSequenceHeader(record ?: throw IOException("stopped"))
         requestKeyframe()
         var first: Long? = null
-        var stamped = false
         val throughput = Throughput()
         while (running) {
             // A connection starts on a keyframe.
             val kept = store.next(POLL_MS)?.takeIf { first != null || it.keyframe } ?: continue
             if (first == null) stamped = kept.momentUs != null
-            // A clock that comes at the start makes a new connection; one that comes once the race may be under
-            // way is left for the next, as a new one is a moment of frames sent again.
+            // A clock that comes at the start makes a new connection, from this frame; one that comes once the
+            // race may be under way is left for the next, as a new one is a moment of frames sent again.
             val early = System.nanoTime() < until
-            if (!stamped && kept.momentUs != null && early) throw IOException("the clock is in step now")
+            if (!stamped && kept.momentUs != null && early) {
+                store.back()
+                throw IOException("the clock is in step now")
+            }
             val start = first ?: kept.ptsUs
             first = start
             send(connected, kept, kept.ptsUs - start, kept.momentUs?.takeIf { stamped })
