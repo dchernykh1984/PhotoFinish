@@ -145,11 +145,20 @@ class FrameStoreTest {
     fun `a phone short of space keeps less, whatever the store's share`() {
         var free = Long.MAX_VALUE
         val store = store(free = { free })
-        second(store, 0)
-        second(store, 1)
+        (0..3).forEach { second(store, it) }
         free = 500 // under the reserve
-        assertEquals(20, second(store, 2)) // both runs kept go; the new one is kept
+        assertEquals(20, second(store, 4)) // the runs of 0 s and 1 s go; the last two seconds stay
         assertEquals(2_000_000L, store.next(0)!!.ptsUs)
+    }
+
+    @Test
+    fun `a phone short of space from the start still keeps the last two seconds not sent`() {
+        val store = store(free = { 500 })
+        assertEquals(0, second(store, 0))
+        assertEquals(0, second(store, 1))
+        assertEquals(0, second(store, 2)) // a hiccup of two seconds costs no frame, as before the store
+        assertEquals(10, second(store, 3)) // the run of 0 s goes, now three seconds old
+        assertEquals(listOf(1_000_000L, 1_100_000L), read(store, 2))
     }
 
     @Test

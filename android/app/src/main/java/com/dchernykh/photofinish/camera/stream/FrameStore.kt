@@ -24,7 +24,8 @@ class KeptFrame(
  * not outlive the app (FR-004). The uplink reads at a cursor; a frame read stays until the server has
  * confirmed reading it ([confirm]), [CONFIRMED_MARGIN_US] more, to be sent again after a loss ([rewind]) --
  * or [KEEP_SENT_US] after the newest frame read, from a server that confirms nothing. Over [capBytes], or
- * with less than [reserveBytes] left on the phone, the oldest run goes, its frames not read yet dropped.
+ * with less than [reserveBytes] left on the phone -- then none of the last [KEPT_ANYWAY_US] -- the oldest run
+ * goes, its frames not read yet dropped.
  */
 class FrameStore(
     private val folder: File,
@@ -85,7 +86,7 @@ class FrameStore(
             if (frame.keyframe) {
                 val safe = safeBefore(confirmedUs, lastReadUs)
                 while (runs.size > 1 && sent(runs.first(), cursorRun, safe)) removeOldest()
-                while (runs.isNotEmpty() && (total > capBytes || freeBytes() < reserveBytes)) dropped += removeOldest()
+                while (runs.isNotEmpty() && full(frame.ptsUs)) dropped += removeOldest()
             }
             return dropped + if (append(frame, momentUs)) 0 else 1
         }
@@ -234,6 +235,13 @@ class FrameStore(
         }
     }
 
+    /**
+     * No room for a run more at [nowUs]: over the share, or the phone short of space -- which takes no run of
+     * the last [KEPT_ANYWAY_US], as the queue before the store did not: a full phone still rides out a hiccup.
+     */
+    private fun full(nowUs: Long): Boolean =
+        total > capBytes || (freeBytes() < reserveBytes && runs.first().frames.last().ptsUs < nowUs - KEPT_ANYWAY_US)
+
     /** The oldest run removed with its file; returns its frames not read yet. */
     private fun removeOldest(): Int {
         val run = runs.removeFirst()
@@ -275,6 +283,9 @@ class FrameStore(
 
         /** Left free on the phone, whatever the store's share. */
         const val RESERVE_BYTES = 1L shl 30
+
+        /** Kept however short of space the phone is: the two seconds the uplink's queue held before the store. */
+        const val KEPT_ANYWAY_US = 2_000_000L
 
         /** [folder] made, and emptied of what an earlier store left: a killed app's frames are not sent. */
         fun empty(folder: File) {
