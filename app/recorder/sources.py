@@ -283,6 +283,7 @@ class Stream:
         stamped = self.listen and stream.codec_context.name == "h264"
         trusted: list[bool] = []  # the first packet's say, for the whole stream
         last: list[int] = []  # the pts and moment of the last frame given
+        arrived: list[int] = []  # the moment of the last phone frame placed by arrival
 
         def place(packet: av.Packet, pts: int) -> int:
             if stamped and getattr(packet, "is_keyframe", True):
@@ -297,9 +298,10 @@ class Stream:
                 missing = UNSTAMPED if own is None else NOT_IN_STEP
                 self.clock_note = missing if phone and not trusted[0] else ""
                 if not trusted[0]:  # from when the phone says it took the first
-                    return self._arrived(own, self.anchor(float(pts * unit), held))
+                    first = self.anchor(float(pts * unit), held)
+                    return self._arrived(own, first, arrived)
             if not trusted[0]:
-                return self._arrived(own, self.anchor(float(pts * unit)))
+                return self._arrived(own, self.anchor(float(pts * unit)), arrived)
             if own is None:  # a trusted stream's frame without it: by its timestamp
                 own = last[1] + round(float((pts - last[0]) * unit))
             # A better exchange may move the phone's offset back a little, at its
@@ -310,18 +312,23 @@ class Stream:
 
         return place
 
-    def _arrived(self, own: int | None, moment: int) -> int:
-        """A frame placed by its arrival at ``moment``; a phone's whose own moment
-        was so placed lately -- sent again after a loss -- where it was then, so the
-        recording lists it once."""
+    def _arrived(self, own: int | None, moment: int, last: list[int]) -> int:
+        """A frame placed by its arrival at ``moment``. A phone's whose own moment was
+        so placed lately -- sent again after a loss -- where it was then, so the
+        recording lists it once; a phone's new one after the one before, ``last``,
+        as a connection's anchor may fall a little before the frames it sends again
+        (a phone's frames come in order: no B-frames)."""
         if own is None:
             return moment
-        if own not in self._by_arrival:
-            self._by_arrival[own] = moment
+        placed = self._by_arrival.get(own)
+        if placed is None:
+            placed = max(moment, last[0] + 1) if last else moment
+            self._by_arrival[own] = placed
             self._arrivals.append(own)
             while len(self._arrivals) > ARRIVALS_KEPT:
                 del self._by_arrival[self._arrivals.popleft()]
-        return self._by_arrival[own]
+        last[:] = [placed]
+        return placed
 
     def _hear(self, packet: av.Packet) -> None:
         """The phone's status a keyframe carries, kept with when it came: through a
