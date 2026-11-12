@@ -507,6 +507,8 @@ def test_a_recorder_asked_to_stop_has_its_camera_taken_over_once_it_ends(
     held = recorder._lock(folder / "recorder.lock")
     assert held is not None
     (folder / "stop.request").touch()  # the other is asked to stop
+    asked = time.time() - 10
+    os.utime(folder / "stop.request", (asked, asked))
     pauses: list[float] = []
 
     def pause(seconds: float) -> None:
@@ -519,6 +521,63 @@ def test_a_recorder_asked_to_stop_has_its_camera_taken_over_once_it_ends(
     lock.close()
     assert len(pauses) == 3
     assert not (folder / "stop.request").exists()  # the other's: not this one's word
+
+
+def test_a_camera_whose_recorder_stopped_lately_is_waited_for(
+    folder: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Its stop heard and gone, the other lets go of the lock late (Windows): this one,
+    # unpacked meanwhile, waits for it all the same.
+    folder.mkdir(parents=True)
+    held = recorder._lock(folder / "recorder.lock")
+    assert held is not None
+    now = time.time_ns() // 1_000_000
+    beat: dict[str, Any] = {"state": "stopped", "heartbeat_ms": now}
+    (folder / "recorder.json").write_text(json.dumps(beat))
+    pauses: list[float] = []
+
+    def pause(seconds: float) -> None:
+        pauses.append(seconds)
+        if len(pauses) == 2:
+            held.close()
+
+    lock = recorder._take_over(folder, pause)
+    assert lock is not None
+    lock.close()
+    beat["heartbeat_ms"] = now - recorder.STALE_MS - 1_000  # long ago: not one
+    (folder / "recorder.json").write_text(json.dumps(beat))  # that is ending now
+    again = recorder._lock(folder / "recorder.lock")
+    assert again is not None
+    try:
+        assert recorder._take_over(folder, pause) is None
+    finally:
+        again.close()
+
+
+def test_a_stop_asked_while_a_camera_is_taken_over_is_heard(
+    folder: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    folder.mkdir(parents=True)
+    held = recorder._lock(folder / "recorder.lock")
+    assert held is not None
+    stop = folder / "stop.request"
+    stop.touch()
+    old = time.time() - 10
+    os.utime(stop, (old, old))  # the other's, asked before this one started
+    pauses: list[float] = []
+
+    def pause(seconds: float) -> None:
+        pauses.append(seconds)
+        if len(pauses) == 1:
+            later = time.time() + 1
+            os.utime(stop, (later, later))  # the camera removed meanwhile
+        if len(pauses) == 2:
+            held.close()
+
+    lock = recorder._take_over(folder, pause)
+    assert lock is not None
+    lock.close()
+    assert stop.exists()  # this one's to hear
 
 
 def test_a_recorder_that_keeps_its_camera_is_not_taken_over(

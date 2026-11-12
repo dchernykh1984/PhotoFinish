@@ -411,18 +411,36 @@ def _take_over(folder: Path, sleep: Callable[[float], None]) -> IO[bytes] | None
     """The camera's lock, once the recorder that holds it has heard the stop asked of
     it: a window replacing a recorder of another version starts this one as it asks,
     so the camera records on whatever becomes of the window (specs/007). None when no
-    stop was asked, or the other kept the camera TAKE_OVER_S."""
+    stop was asked, nor heard lately, or the other kept the camera TAKE_OVER_S."""
     stop = folder / "stop.request"
-    if not stop.exists():
+    if not _stopping(folder):
         return None
+    asked = time.time()  # a stop asked from now on is this one's to hear
     deadline = time.monotonic() + TAKE_OVER_S
     while time.monotonic() < deadline:
         sleep(0.1)
         lock = _lock(folder / "recorder.lock")
         if lock is not None:
-            stop.unlink(missing_ok=True)  # the other's, left by one that died
+            with contextlib.suppress(OSError):  # the other's, left by one that died
+                if stop.stat().st_mtime < asked:
+                    stop.unlink()
             return lock
     return None
+
+
+def _stopping(folder: Path) -> bool:
+    """The recorder that holds the camera is asked to stop, or has stopped lately:
+    its lock may be let go of late (Windows), the stop asked gone with it."""
+    if (folder / "stop.request").exists():
+        return True
+    try:
+        info = json.loads((folder / "recorder.json").read_text(encoding="ascii"))
+    except OSError, ValueError:
+        return False
+    heard = info.get("heartbeat_ms") if isinstance(info, dict) else None
+    if not isinstance(heard, int) or info.get("state") != "stopped":
+        return False
+    return time.time_ns() // 1_000_000 - heard <= STALE_MS
 
 
 def _lock(path: Path) -> IO[bytes] | None:
