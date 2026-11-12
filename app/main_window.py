@@ -1545,10 +1545,13 @@ class MainWindow(QMainWindow):
         heartbeat it returns says."""
         watchdog = camera.watchdog
         info = (watchdog.poll() if watchdog.wanted else None) or heartbeat(camera.id)
+        left = self._left_out(camera) and not recording(info)
         if watchdog.wanted and watchdog.error:
             state = f"the recorder cannot be started: {watchdog.error}"
         elif watchdog.replacing:  # an update came between: this version's records
             state = f"replacing the recorder of {watchdog.replacing} with this one's"
+        elif left:  # the phone said so: not a recording lost (007, FR-012)
+            state = "the phone leaves this lens out"
         elif info is not None:
             state = describe(info)
         else:
@@ -1558,9 +1561,6 @@ class MainWindow(QMainWindow):
         clash = cameras.port_clash(camera.settings, self.session["cameras"])
         if clash:
             state = f"{clash}; {state}"
-        left = self._left_out(camera) and not recording(info)
-        if left:  # the phone said so: not a recording lost (007, FR-012)
-            state = "the phone leaves this lens out"
         warn = QColor(LEVELS[phone_status.WARN]) if left else None
         camera.item.setData(Qt.ItemDataRole.ForegroundRole, warn)
         if self.analysis_box.isChecked() and camera.settings.get("record", True):

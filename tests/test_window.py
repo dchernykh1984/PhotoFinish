@@ -527,6 +527,29 @@ def test_a_lens_the_phone_leaves_out_is_said_amber_and_the_banner_stays_green(
     assert item.data(Qt.ItemDataRole.ForegroundRole) is None
 
 
+def test_a_lens_left_out_still_says_what_else_keeps_it_from_recording(
+    base: Path, make_window: Callable[[], mw.MainWindow], spawned: list[str]
+) -> None:
+    # The phone's word replaces what its recorder says, not a clash of ports the
+    # referee has to mend before the lens can record at all.
+    phone: dict[str, Any] = {"connection": "rtmp", "phone": "cam2"}
+    main = {**phone, "id": "cam2", "name": "Mi main", "lens": "main"}
+    main["settings"] = {"port": 1999, "path": "live/cam2"}
+    front = {**phone, "id": "cam3", "name": "Mi front", "lens": "front"}
+    front["settings"] = {"port": 1999, "path": "live/cam3"}
+    session.save({**session.DEFAULTS, "cameras": [main, front]})
+    now = time.time_ns() // 1_000_000
+    status = {"left": "front", "at_ms": now, "heard_ms": now}
+    beating(base, "cam2", phone=status)
+    beating(base, "cam3", state="connecting", detail="waiting for the phone")
+    win = make_window()
+    win.poll()
+    assert win.cameras["cam3"].item.text() == (
+        "Mi front: port 1999 is also Mi main's: each phone needs its own; "
+        "the phone leaves this lens out"
+    )
+
+
 def test_one_camera_alone_and_the_keys_that_switch_between_cameras(
     recording: Path, make_window: Callable[[], mw.MainWindow]
 ) -> None:
