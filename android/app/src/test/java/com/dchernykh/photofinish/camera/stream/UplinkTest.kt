@@ -548,6 +548,19 @@ class UplinkTest {
     }
 
     @Test
+    fun `frames a server never acknowledges are not kept waiting all day`() {
+        val sink = FakeSink() // acknowledges nothing
+        val link = uplink(listOf(sink))
+        val thread = start(link)
+        awaitConnected()
+        offerSeconds(link, 110) // 1,100 frames
+        repeat(1_100) { sink.next() }
+        link.stop()
+        thread.join(5_000)
+        assertEquals(1_024, link.waitingForAcknowledgement)
+    }
+
+    @Test
     fun `stop ends the loop and drops what is kept`() {
         val sink = FakeSink()
         val link = uplink(listOf(sink))

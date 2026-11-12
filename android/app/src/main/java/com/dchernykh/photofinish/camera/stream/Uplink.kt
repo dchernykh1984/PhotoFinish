@@ -103,6 +103,9 @@ class Uplink(
     /** The connection's frames sent and not yet acknowledged: the bytes sent once each was, and its capture time. */
     private val unacknowledged = ArrayDeque<Pair<Long, Long>>()
 
+    /** How many frames wait for an acknowledgement, for a test once the uplink's thread has ended. */
+    internal val waitingForAcknowledgement: Int get() = unacknowledged.size
+
     /** Frames dropped because the store had no room for them, or could not keep them. */
     @Volatile var dropped = 0L
         private set
@@ -207,6 +210,8 @@ class Uplink(
             first = start
             send(connected, kept, kept.ptsUs - start, kept.momentUs?.takeIf { stamped })
             unacknowledged.addLast(connected.sentBytes to kept.ptsUs)
+            // A server that acknowledges nothing leaves the store its 6 s after the newest sent (FrameStore).
+            if (unacknowledged.size > UNACKNOWLEDGED_KEPT) unacknowledged.removeFirst()
             confirm(connected)
             streamed = true
             val rates = throughput.count(kept.data.size)
@@ -307,6 +312,12 @@ class Uplink(
         private const val STALL_MS = 5_000L
         private const val STAMP_WINDOW_MS = 10_000L
         private const val VIDEO_CODEC_AVC = 7
+
+        /**
+         * Frames sent kept waiting for an acknowledgement: FFmpeg's come every 64 KiB, or every half megabyte
+         * when it keeps its own window, seconds of frames; more is a server that acknowledges nothing.
+         */
+        private const val UNACKNOWLEDGED_KEPT = 1024
 
         /** A frame's moment after the one before, at least: a millisecond, the recorder's step. */
         private const val STEP_US = 1_000L
