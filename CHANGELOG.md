@@ -1,5 +1,61 @@
 # Changelog
 
+## [0.7.0](https://github.com/dchernykh1984/PhotoFinish/compare/v0.6.0...v0.7.0) (2026-11-12)
+
+
+### Features
+
+* **phone:** keep each lens's frames on the phone and send them after a break, the last six seconds again ([3f6e78c](https://github.com/dchernykh1984/PhotoFinish/commit/3f6e78c5375f88d7c74e26b44467012a014ae434))
+* **recorder:** believe the moments of frames a phone kept through a break, as long as it says it held them ([aa5a28d](https://github.com/dchernykh1984/PhotoFinish/commit/aa5a28d2d58adf2bde23ee7dfd65fe753cda94c9))
+* **recorder:** name the program's version in the heartbeat, the frozen build carrying pyproject.toml for it ([4d01de8](https://github.com/dchernykh1984/PhotoFinish/commit/4d01de8a3d2864efb920d60c2945663734a5c028))
+* **recorder:** say how far behind live a camera is while a phone catches up ([ad30d21](https://github.com/dchernykh1984/PhotoFinish/commit/ad30d21cdb44249143f782b6b9eae694586df2f7))
+* **recorder:** write a frame a phone sends again for the frames after it, without listing it twice ([8b38809](https://github.com/dchernykh1984/PhotoFinish/commit/8b388094f9ebad86fd2b4182ef5574d3959670ad))
+* **window:** replace a running recorder of another version with this one's, saying so in its camera's line ([f8a4e06](https://github.com/dchernykh1984/PhotoFinish/commit/f8a4e06ff5f777644a6337642915825fe92d4c23))
+* **window:** say a lens the phone leaves out in amber, not as a camera that stopped recording ([efc3017](https://github.com/dchernykh1984/PhotoFinish/commit/efc30173a0c90f3b72bd2a78f76cbf334a873181))
+
+
+### Bug Fixes
+
+* **phone:** ask for a keyframe only for a frame the store could not keep, not for the runs it drops for room ([a1d5def](https://github.com/dchernykh1984/PhotoFinish/commit/a1d5def87953e240d39ed2b932e48d19a3e4aa53))
+* **phone:** drop the lenses' last words when the cameras fail as a whole ([5fdc3c6](https://github.com/dchernykh1984/PhotoFinish/commit/5fdc3c6ee94fff6033694eb089de2cbef910121a))
+* **phone:** keep at most 1,024 frames waiting for an acknowledgement, for a server that gives none ([369d85a](https://github.com/dchernykh1984/PhotoFinish/commit/369d85a0cdf7f279536183afde5cfbe7f2240989))
+* **phone:** keep the last two seconds however short of space the phone is, as the queue before the store did ([e9ce41d](https://github.com/dchernykh1984/PhotoFinish/commit/e9ce41dd4f9c00d278ee76d0247f317e32229cd8))
+* **phone:** never set a frame's moment back past the one before, so a frame sent again carries the moment it was listed with ([85d1972](https://github.com/dchernykh1984/PhotoFinish/commit/85d1972bce7ad919a6631ad70904f3c9134f86b3))
+* **phone:** send a connection without moments nothing kept and nothing again, as its recorder places frames by their arrival ([55ed436](https://github.com/dchernykh1984/PhotoFinish/commit/55ed4365ef05871425b28b2153aab837889fec2e))
+* **phone:** send again after a loss from what the recorder acknowledged reading, asked to say so every 64 KiB ([d88e261](https://github.com/dchernykh1984/PhotoFinish/commit/d88e261c9781c58fd12aa72a0a449daac82a6e36))
+* **phone:** take the recorder's clock set back at once, holding only a better exchange's small step back to the moment before ([8f1490b](https://github.com/dchernykh1984/PhotoFinish/commit/8f1490b536ec5ed1c340c93cf3be7c53baf0c4a3))
+* **phone:** tell how long a connection's first frame was kept of the frame it starts at, after the wait for the clock ([b159451](https://github.com/dchernykh1984/PhotoFinish/commit/b1594518011ef220a80343c76d44ad3407446644))
+* **phone:** try opening the camera again after an open that throws, as after a camera lost ([79e0096](https://github.com/dchernykh1984/PhotoFinish/commit/79e0096b6c148cac2796127e6df3086bb8955210))
+* **recorder:** find the run before's newest frame past a last segment that lists none, of frames a phone sent again ([450c787](https://github.com/dchernykh1984/PhotoFinish/commit/450c787b7e3ce2e61587e8b2c7b396e862f0cc1e))
+* **recorder:** keep a phone's frame put after the one before in that place when it is sent again ([c1ff535](https://github.com/dchernykh1984/PhotoFinish/commit/c1ff53533288e07813fc50a7e7a9b3936b763b80))
+* **recorder:** keep a phone's frames placed by arrival in order after the frames it sent again ([399e6c9](https://github.com/dchernykh1984/PhotoFinish/commit/399e6c92150f7bc1e3f27bad0d27356662f82d12))
+* **recorder:** keep where a phone's frames were placed by arrival across its connections, each a stream of its own ([6b4abdd](https://github.com/dchernykh1984/PhotoFinish/commit/6b4abdd12c657f3e62a47aae08bdb506f870fb33))
+* **recorder:** list a frame a phone sends again once across a recorder's restart too, by its moment ([64f68ff](https://github.com/dchernykh1984/PhotoFinish/commit/64f68ff02db7f270962889774b7e145b6b4257cb))
+* **recorder:** note a later gap as the camera's own when the frames a phone sent again filled the reconnect before it ([31ae46a](https://github.com/dchernykh1984/PhotoFinish/commit/31ae46ad667c806f1ffa3ecb58156faf069d1628))
+* **recorder:** note no gap again for the frames a phone sends again after a restart ([4d040e8](https://github.com/dchernykh1984/PhotoFinish/commit/4d040e86f39c58637f2218a749aef7d07e7b5436))
+* **recorder:** place a phone connection it cannot believe from when its first frame was taken, and a frame sent again where it was ([37744af](https://github.com/dchernykh1984/PhotoFinish/commit/37744aff0e2631330bb7104d0e213a3617af1855))
+* **recorder:** start after a segment whose times are garbled, from the one before, instead of failing every frame ([77cb574](https://github.com/dchernykh1984/PhotoFinish/commit/77cb574cb3ed1c10d175720936f358553237f831))
+* **recorder:** start this version's recorder as another's is asked to stop, to take its camera over whatever becomes of the window ([3771fa9](https://github.com/dchernykh1984/PhotoFinish/commit/3771fa9ad7fc7f76e5e46892a8f77de85f90f533))
+* **recorder:** take a camera over from a recorder that stopped lately too, and hear a stop asked meanwhile ([4e3a626](https://github.com/dchernykh1984/PhotoFinish/commit/4e3a626234cf5bf1c4d75b5073f8739967d16a04))
+* **recorder:** take as sent again only a connection's first frames on moments listed, listing a new frame that falls on one ([ded4f5a](https://github.com/dchernykh1984/PhotoFinish/commit/ded4f5accefca37cc7ab24771b983046f7e15296))
+* **window:** end a recorder's replacement once its heartbeat is this version's, the old one's end unseen ([b81f2fe](https://github.com/dchernykh1984/PhotoFinish/commit/b81f2fee4e212701c7c72f310e00222f31af6381))
+* **window:** keep a port clash or a recorder that cannot start in the line of a lens the phone leaves out ([6e09e2d](https://github.com/dchernykh1984/PhotoFinish/commit/6e09e2d526f1a12c10a20eeb480d4f5c8726dd0c))
+* **window:** mark a phone's lens cameras with a phone no other gets, as a freed id is given again ([fda37fb](https://github.com/dchernykh1984/PhotoFinish/commit/fda37fb2969474fc1e2cce69f7bde3a1be58bdff))
+* **window:** read a lens left out only from a phone status that is a table, so a garbled heartbeat cannot end the window ([6262500](https://github.com/dchernykh1984/PhotoFinish/commit/62625001acbaf30704bcabfccb2dcbf022b43452))
+* **window:** replace the recorders of another version before the window is shown, so one closed at once leaves its cameras recording ([c9bb9e7](https://github.com/dchernykh1984/PhotoFinish/commit/c9bb9e77c2bee45dddec3a56377aa9d9a46e72de))
+* **window:** take a lens as left out only from a phone status heard lately, so a lost lens is not hidden by an old one ([3ab3271](https://github.com/dchernykh1984/PhotoFinish/commit/3ab32712045a7c76b1141ce54d1c0ae32da8a016))
+
+
+### Documentation
+
+* describe the frames a phone keeps through a break, in the specs, the guides and the android-app skill ([8d05571](https://github.com/dchernykh1984/PhotoFinish/commit/8d05571b5917393f663b01b550a449c99bd487c9))
+* describe the last two seconds a full phone keeps and the connections without moments, in the specs ([1a6c517](https://github.com/dchernykh1984/PhotoFinish/commit/1a6c517efb38636ebb1d4c7cdd6e591ba48c2220))
+* describe the recorder that takes a camera over and the frames taken as sent again, in the specs ([4e76fdd](https://github.com/dchernykh1984/PhotoFinish/commit/4e76fdd619bfd9c1930322f9a00fd6fb0c91e992))
+* describe this cycle's changes to the moments, the replaced recorders and the lenses left out, in the specs ([d734885](https://github.com/dchernykh1984/PhotoFinish/commit/d7348856bc8737f3e252e27a3914eaad12d7b417))
+* describe this cycle's take-over, placements kept across connections and garbled times, in the specs ([2c2b6d2](https://github.com/dchernykh1984/PhotoFinish/commit/2c2b6d28ba1fe89185cdc89d79cc5ac15fe677c6))
+* say an older PhotoFinish places a phone's connection after a break late by the break, so the two update together ([eef7811](https://github.com/dchernykh1984/PhotoFinish/commit/eef781159f6594dbdabb2529f62872f6c52ade2b))
+* specify keeping a phone's frames through a network break ([a6d8acf](https://github.com/dchernykh1984/PhotoFinish/commit/a6d8acfaaf3475be73e132223cb1650b73151cff))
+
 ## [0.6.0](https://github.com/dchernykh1984/PhotoFinish/compare/v0.5.0...v0.6.0) (2026-11-11)
 
 
