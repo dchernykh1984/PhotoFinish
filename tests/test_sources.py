@@ -596,7 +596,12 @@ def test_a_phone_s_frames_placed_by_arrival_and_sent_again_stay_where_they_were(
         placed.append(first(frame(k), k * 33))  # type: ignore[arg-type]
     now["ms"] = START + 10_000  # ten seconds of a break later
     held = now["ms"] - (START + 30 * 33)
-    again = source._placing(stream, phone=True, held=held)  # type: ignore[arg-type]
+    # The next connection is another Stream; the recorder hands it what it placed.
+    next_one = sources.Stream(
+        "rtmp://0.0.0.0:1935/live/x", {}, lambda: now["ms"], listen=True
+    )
+    next_one.placed = source.placed
+    again = next_one._placing(stream, phone=True, held=held)  # type: ignore[arg-type]
     resent = [again(frame(k), (k - 30) * 33) for k in range(30, 90)]  # type: ignore[arg-type]
     assert resent[:30] == placed[30:]  # the frames sent again, where they were
     assert abs(resent[30] - (START + 60 * 33)) < 50  # the next, as it was taken

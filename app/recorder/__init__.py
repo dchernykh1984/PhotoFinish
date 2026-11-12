@@ -33,6 +33,7 @@ from app.recorder.segments import SegmentWriter, recover
 from app.recorder.sources import (
     LEAP_MS,
     CameraSettingsError,
+    Placed,
     Source,
     Stream,
     open_source,
@@ -260,6 +261,7 @@ class _Recording:
         self.clock_tried = -CLOCK_RETRY_S  # time.monotonic() of the last try
         self.port_taken = ""  # why the exchange is left out: its port, taken
         self.newest_ms: int | None = None  # the newest frame's moment so far
+        self.placed = Placed()  # a phone's frames placed elsewhere than their moments
 
     def _answer_the_clock(self) -> None:
         """A phone's clock exchange answered on its port. A port another program
@@ -295,6 +297,8 @@ class _Recording:
                 self.beat.beat(state="connecting", detail="", clock=self.port_taken)
                 try:
                     source = open_source(self.camera, self.clock)  # settings checked
+                    if isinstance(source, Stream):  # one a connection: this outlives
+                        source.placed = self.placed
                     self._answer_the_clock()
                     if self._record(source):
                         break
