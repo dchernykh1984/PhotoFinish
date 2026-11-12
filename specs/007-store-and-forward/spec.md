@@ -107,6 +107,8 @@ out, shows the front camera as left out and the banner green.
   back.
 - Several lenses: each keeps and sends its own frames on its own connection; one catching up does
   not hold the others back.
+- A segment's times garbled -- a power cut -- at a recorder's start: it starts from the segment
+  before.
 - The phone's storage nearly full: the store stays within its share and leaves 1 GB free; with
   less than that free, it keeps the last 2 s, as the phone did before it had a store.
 - A connection whose frames carry no moments -- the clock exchange not through: the recorder places
@@ -142,8 +144,9 @@ out, shows the front camera as left out and the banner green.
   (contract).
 - **FR-006**: The recorder believes a phone's frame moment up to `held_ms` older than it would
   otherwise (5 s). A connection it does not believe -- the phone's clock out of step -- it places
-  by arrival from `held_ms` before its first frame came, and a frame sent again on such a
-  connection where it was placed the first time.
+  by arrival from `held_ms` before its first frame came, in order; a frame it placed elsewhere
+  than its own moment -- by arrival, or after the one before -- it places there again when the
+  phone sends it again, on whatever connection.
 - **FR-007**: The recorder writes a connection's first frames whose moments it listed in the last
   10 s -- this run's or the run before's: ones sent again, with the moments they carried the
   first time -- into the segment, for the frames after them to decode, and leaves them out of the
@@ -153,8 +156,9 @@ out, shows the front camera as left out and the banner green.
   camera's line says "N s behind" while it is 2 s or more.
 - **FR-009**: The recorder writes its PhotoFinish version into its heartbeat. The window that
   finds a recorder of another version, or of none, running asks it to stop and starts its own at
-  once, which waits up to 20 s for the old one to end and takes its camera over -- whatever
-  becomes of the window meanwhile -- the camera's line saying so until the old one has ended.
+  once, which waits up to 20 s for the old one to end -- or to let go of the camera, when it
+  stopped lately -- and takes its camera over, whatever becomes of the window meanwhile; a stop
+  asked during the wait is heard. The camera's line says so until the heartbeat is this version's.
 - **FR-010**: An open of the camera that throws is tried again after 2 s, as a camera lost while
   streaming is; the screen says the reason and that it tries again.
 - **FR-011**: When the camera stops -- lost, failed, closed -- each of its lenses' lines says its

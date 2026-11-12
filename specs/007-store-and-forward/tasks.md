@@ -69,3 +69,14 @@
   (FR-006)
 - [x] T029 `camera_dialog.py`: a phone's lens cameras marked with a phone no other gets (FR-012)
 - [x] T030 `segments.py`: the run before's newest frame from the moments read for frames sent again
+
+## Review cycle 4
+
+- [x] T031 `segments.py`: a start after a segment whose times are garbled
+- [x] T032 `launcher.py`: a replacement over once the heartbeat is this version's (FR-009)
+- [x] T033 `sources.py`, `recorder/__init__.py`: where a phone's frames were placed elsewhere than
+  their moments kept across connections, frames put after the one before too (FR-006)
+- [x] T034 `recorder/__init__.py`: a camera taken over from a recorder that stopped lately; a stop
+  asked meanwhile heard (FR-009)
+- [x] T035 `main_window.py`: a phone status that is not a table skipped (FR-012)
+- [x] T036 `recorder/__init__.py`, `segments.py`: the lag from the writer's newest frame (FR-008)
