@@ -98,7 +98,7 @@ class Uplink(
     private var askedKeyframe = false
 
     /** The moment the last frame was kept with; the encoder's thread alone keeps it. */
-    private var lastMomentUs = Long.MIN_VALUE
+    private var lastMomentUs: Long? = null
 
     /** The connection's frames sent and not yet acknowledged: the bytes sent once each was, and its capture time. */
     private val unacknowledged = ArrayDeque<Pair<Long, Long>>()
@@ -122,10 +122,7 @@ class Uplink(
      * runs it drops for a keyframe's room, the next run starting with its own.
      */
     fun offer(frame: EncodedFrame) {
-        // An offset set back at once -- the first exchanges, the recorder's clock set -- takes no moment back
-        // past the one before: the recorder would put it after, by where the connection began, and a frame sent
-        // again from elsewhere would carry another moment than it was listed with.
-        val moment = clock()?.let { maxOf(frame.ptsUs + slew.at(frame.ptsUs, it.offset), lastMomentUs + STEP_US) }
+        val moment = clock()?.let { inOrder(frame.ptsUs + slew.at(frame.ptsUs, it.offset), lastMomentUs) }
         moment?.let { lastMomentUs = it }
         val lost = store.keep(frame, moment)
         if (frame.keyframe) askedKeyframe = false
@@ -312,6 +309,24 @@ class Uplink(
 
         /** A frame's moment after the one before, at least: a millisecond, the recorder's step. */
         private const val STEP_US = 1_000L
+
+        /** An offset set back further than a better exchange sets it: the recorder's clock changed (OffsetSlew). */
+        private const val CLOCK_SET_US = 50_000L
+
+        /**
+         * [momentUs] a millisecond after [lastUs], the moment before, when a better exchange set the offset back --
+         * at the start, a few milliseconds: the recorder would put the frame after the one before by where its
+         * connection began, and a frame sent again from elsewhere would carry another moment than it was listed
+         * with. A step further back is the recorder's clock started again or set: taken, as the frames after it
+         * are on that clock.
+         */
+        private fun inOrder(
+            momentUs: Long,
+            lastUs: Long?,
+        ): Long {
+            val next = lastUs?.plus(STEP_US)
+            return if (next != null && next - momentUs in 1..CLOCK_SET_US) next else momentUs
+        }
 
         /** The stream's metadata; [heldMs]: how long its first frame was kept (specs/007, contract). */
         private fun metadata(

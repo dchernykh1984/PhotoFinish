@@ -309,7 +309,7 @@ class UplinkTest {
     }
 
     @Test
-    fun `a frame's moment never goes back past the one before, so one sent again carries the same`() {
+    fun `a better exchange takes no frame's moment back past the one before, so one sent again carries the same`() {
         val sink = FakeSink()
         val clock = AtomicReference<Sample?>(exchange(1_000_000))
         val link = uplink(listOf(sink), clock = clock)
@@ -317,11 +317,25 @@ class UplinkTest {
         awaitConnected()
         link.offer(frame(0, keyframe = true))
         link.offer(frame(33_333, keyframe = false))
-        clock.set(exchange(900_000)) // the recorder's clock set back 100 ms: taken at once
+        clock.set(exchange(960_000)) // a shorter round trip at the start: 40 ms back, taken at once
         link.offer(frame(66_666, keyframe = false))
         link.offer(frame(200_000, keyframe = false))
         val moments = List(4) { momentOf(sink.next().units[0]) }
-        assertEquals(listOf(1_000_000L, 1_033_333L, 1_034_333L, 1_100_000L), moments)
+        assertEquals(listOf(1_000_000L, 1_033_333L, 1_034_333L, 1_160_000L), moments)
+    }
+
+    @Test
+    fun `the recorder's clock set back takes the frames' moments back with it, at once`() {
+        val sink = FakeSink()
+        val clock = AtomicReference<Sample?>(exchange(60_000_000))
+        val link = uplink(listOf(sink), clock = clock)
+        start(link)
+        awaitConnected()
+        link.offer(frame(0, keyframe = true))
+        clock.set(exchange(1_000_000)) // a recorder started again on a clock a minute back
+        link.offer(frame(33_333, keyframe = false))
+        val moments = List(2) { momentOf(sink.next().units[0]) }
+        assertEquals(listOf(60_000_000L, 1_033_333L), moments) // not a millisecond a frame for a minute
     }
 
     @Test
