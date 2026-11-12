@@ -30,9 +30,10 @@ Formats: [output and journal](../001-video-refinement/contracts/output-and-journ
 
 Each camera is recorded by a process of its own, the program run as
 `PhotoFinish --recorder <camera>`. The window starts it, or finds it running and attaches to it
--- one of another version, as an update leaves, it asks to stop and replaces with its own before
-the window is shown, the camera list saying so while it takes longer than 5 s
-(`specs/007-store-and-forward`); the heartbeat names its version, read from
+-- one of another version, as an update leaves, it asks to stop and starts its own at once,
+which takes the camera over once the old one has ended, whatever becomes of the window, the
+camera list saying so meanwhile (`specs/007-store-and-forward`); the heartbeat names its version,
+read from
 the `pyproject.toml` the program carries. Killing the window does not stop a recorder, and one
 that dies is started again after 1 s, the
 pause doubling to 30 s while it keeps failing. A lock keeps a second recorder off a camera.
@@ -64,9 +65,9 @@ recorder is down and at most the 0.1 s before it.
   1 GB left free, and the last 2 s however full the phone. A connection whose frames carry no
   moments starts at the next keyframe and sends nothing again: they would be placed by their
   arrival. After a loss it sends again from 2 s before the newest frame acknowledged, then
-  what it kept, then live, as fast as the network takes them; the recorder writes a frame whose
-  moment it listed in the last 10 s, this run's or the last's, for the frames after it to decode,
-  without listing it twice or noting a gap for it. While a phone catches up the camera list says
+  what it kept, then live, as fast as the network takes them; the recorder writes a connection's
+  first frames whose moments it listed in the last 10 s, this run's or the last's, for the frames
+  after them to decode, without listing them twice or noting a gap for them. While a phone catches up the camera list says
   how many seconds behind live it is, from 2 s on. Tried on the emulator: the recorder killed for
   10 s and started again, or frozen for 10 s: no frame missing, none listed twice. Stop on the
   phone drops what it kept.

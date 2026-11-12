@@ -54,8 +54,9 @@ app/main_window.py                   the replacing line; a lens left out: amber,
   unless an update came between them. Unreadable, it is "": an older build's window replaces
   nothing.
 - **Replacing a recorder**: the watchdog that finds one of another version asks it to stop and
-  starts its own once its heartbeat says it stopped or went stale; a phone keeps its frames
-  meanwhile (US1).
+  starts its own at once; finding the camera's lock held while a stop is asked, the new recorder
+  waits for it, up to 20 s, so the camera records on whatever becomes of the window. A phone keeps
+  its frames meanwhile (US1).
 
 ## Tests
 

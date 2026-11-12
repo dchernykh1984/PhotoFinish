@@ -111,7 +111,8 @@ publishing, the phone sends a Window Acknowledgement Size of 131072: FFmpeg ackn
 64 KiB it reads, and the phone keeps each frame until it is acknowledged. A connection after a
 loss begins at the keyframe 2 s before the newest frame acknowledged -- 6 s before the newest sent
 when none was -- and goes on through the frames kept to the live ones, so its first frames may be
-ones the recorder has: it writes a frame whose moment it listed in the last 10 s for the frames
-after it to decode, and does not list it again. A connection whose frames carry no moments starts
+ones the recorder has: it writes a connection's first frames whose moments it listed in the last
+10 s for the frames after them to decode, and does not list them again; from the first new one
+on, every frame is listed. A connection whose frames carry no moments starts
 at the next keyframe, and its loss sends nothing again: placed by their arrival, frames kept would
 be late and frames sent again listed twice.
