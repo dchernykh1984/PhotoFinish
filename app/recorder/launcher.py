@@ -162,12 +162,13 @@ class Watchdog:
 
     def poll(self) -> dict[str, Any] | None:
         """The heartbeat, for the window; a dead recorder is started again after
-        the pause. One being replaced is waited for; this one's, started with the
-        request, takes over -- or is started now, when it could not be then."""
+        the pause. One being replaced is waited for, until the heartbeat is no longer
+        its; this one's, started with the request, takes over -- or is started now,
+        when it could not be then."""
         info = heartbeat(self.camera_id)
         now = time.monotonic()
         if self.replacing:
-            if alive(info):
+            if alive(info) and info is not None and _another_program(info):
                 return info
             self.replacing = ""
             if self.wanted and self._process is None:
