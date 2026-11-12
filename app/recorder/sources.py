@@ -214,6 +214,27 @@ def held_ms(metadata: Mapping[str, str]) -> int:
         return 0
 
 
+class Placed:
+    """A phone's frames placed elsewhere than at their own moments, by those moments,
+    across a camera's connections -- the recorder hands it to each: one the phone sends
+    again after a loss is placed where it was, and listed once (specs/007)."""
+
+    def __init__(self) -> None:
+        self._moments: dict[int, int] = {}
+        self._order: collections.deque[int] = collections.deque()
+
+    def get(self, own: int) -> int | None:
+        return self._moments.get(own)
+
+    def add(self, own: int, moment: int) -> None:
+        if own in self._moments:
+            return
+        self._moments[own] = moment
+        self._order.append(own)
+        while len(self._order) > ARRIVALS_KEPT:
+            del self._moments[self._order.popleft()]
+
+
 class Stream:
     """A network stream, read (RTSP) or received (RTMP, ``listen``); its packets are
     kept as the camera encoded them. A packet that carries its own moment -- PhotoFinish
@@ -235,10 +256,9 @@ class Stream:
         self.phone: dict[str, Any] = {}
         self.fps = 30.0
         self.anchor = Anchor(clock)
-        # A phone's frames placed by their arrival lately, by their own moments: one
-        # sent again after a loss is placed where it was (specs/007).
-        self._by_arrival: dict[int, int] = {}
-        self._arrivals: collections.deque[int] = collections.deque()
+        # A phone's frames placed by their arrival lately: the recorder's, which
+        # outlives this connection, once it is handed over.
+        self.placed = Placed()
 
     @property
     def waiting(self) -> str:
@@ -320,13 +340,10 @@ class Stream:
         (a phone's frames come in order: no B-frames)."""
         if own is None:
             return moment
-        placed = self._by_arrival.get(own)
+        placed = self.placed.get(own)
         if placed is None:
             placed = max(moment, last[0] + 1) if last else moment
-            self._by_arrival[own] = placed
-            self._arrivals.append(own)
-            while len(self._arrivals) > ARRIVALS_KEPT:
-                del self._by_arrival[self._arrivals.popleft()]
+            self.placed.add(own, placed)
         last[:] = [placed]
         return placed
 

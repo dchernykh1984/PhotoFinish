@@ -194,6 +194,30 @@ def test_the_heartbeat_keeps_the_phone_s_last_status(
     assert heartbeat(folder)["phone"] == {"battery": "57", "at_ms": START}
 
 
+class Hanging(sources.Stream):
+    """A phone's connection that ends at once; the last asks the recorder to stop."""
+
+    def __init__(self, folder: Path, last: bool = False) -> None:
+        super().__init__("rtmp://0.0.0.0:1935/live/x", {}, lambda: START, listen=True)
+        self.folder, self.last = folder, last
+
+    def frames(self) -> Iterator[Any]:
+        if self.last:
+            (self.folder / "stop.request").touch()
+        return iter(())
+
+
+def test_a_phone_s_connections_share_what_the_recorder_placed_of_its_frames(
+    folder: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # specs/007: a frame a phone sends again comes on the next connection, which is
+    # another Stream: what was placed elsewhere than its moment outlives the one.
+    first, second = Hanging(folder), Hanging(folder, last=True)
+    cameras(monkeypatch, first, second)
+    assert run("cam1") == 0
+    assert first.placed is second.placed
+
+
 class Fixed:
     """A recorder's clock standing at ``ms``."""
 
