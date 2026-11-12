@@ -665,6 +665,21 @@ def test_a_recorder_of_another_version_is_asked_to_stop_and_this_one_s_takes_ove
     # whatever becomes of the window meanwhile.
     assert len(spawns.processes) == 1
     watchdog.poll()
+    assert watchdog.replacing  # the old one records on until it has heard
+    beat(folder, "starting")  # this one's has the camera: the old one's end unseen
+    watchdog.poll()
+    assert not watchdog.replacing
+    watchdog.poll()
+    assert len(spawns.processes) == 1  # none more: it is starting
+
+
+def test_a_replacement_whose_old_recorder_was_seen_to_stop_is_over(
+    folder: Path, clock: dict[str, float]
+) -> None:
+    beat(folder, "recording", version="0.5.0")
+    spawns = Spawns()
+    watchdog = Watchdog("cam1", spawns)
+    watchdog.start()
     beat(folder, "stopped", version="0.5.0")
     watchdog.poll()
     assert not watchdog.replacing

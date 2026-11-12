@@ -690,10 +690,10 @@ def test_the_list_says_a_recorder_of_another_version_is_being_replaced(
     assert win.camera_list.item(0).text() == (
         "Side: replacing the recorder of PhotoFinish 0.5.0 with this one's"
     )
-    beating(base, state="stopped", version="0.5.0")
+    beating(base)  # this one's took the camera over, its heartbeat now
     win.poll()
     assert spawned == ["cam1"]  # no other
-    assert "replacing" not in win.camera_list.item(0).text()
+    assert win.camera_list.item(0).text() == "Side: recording, 70 frames"
 
 
 def test_the_corner_says_whether_every_camera_records(
