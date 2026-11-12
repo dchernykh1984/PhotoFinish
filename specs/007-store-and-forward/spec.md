@@ -107,7 +107,11 @@ out, shows the front camera as left out and the banner green.
   back.
 - Several lenses: each keeps and sends its own frames on its own connection; one catching up does
   not hold the others back.
-- The phone's storage nearly full: the store stays within its share and leaves 1 GB free.
+- The phone's storage nearly full: the store stays within its share and leaves 1 GB free; with
+  less than that free, it keeps the last 2 s, as the phone did before it had a store.
+- A connection whose frames carry no moments -- the clock exchange not through: the recorder places
+  its frames by their arrival. It starts at the next keyframe, and a loss sends nothing again:
+  frames kept would be placed late by all the time they were kept, frames sent again listed twice.
 - An older PhotoFinish (0.6.0 and before) receiving kept frames does not believe their moments and
   places them by their arrival, as it places any frame it cannot believe.
 - The app killed or closed during a break: what it kept is gone; it is not sent at the next Start.
@@ -127,8 +131,10 @@ out, shows the front camera as left out and the banner green.
   server that acknowledges nothing; it goes on through the kept frames to the live ones, as fast
   as the network takes them.
 - **FR-003**: The store holds at most 2 GB for all the lenses, and less if the phone would keep
-  under 1 GB free; when it is full, the oldest unsent frames give way, up to the next keyframe, and
-  are counted among the frames dropped (`specs/005-phone-status`, `dropped`).
+  under 1 GB free -- but always its last 2 s, as the uplink's queue held before the store; when it
+  is full, the oldest unsent frames give way, up to the next keyframe, and are counted among the
+  frames dropped (`specs/005-phone-status`, `dropped`). A keyframe is asked for when a frame could
+  not be kept, not for the runs given way: the next run starts with its own.
 - **FR-004**: Stop empties the store, and so does the app's start (what a killed app left).
 - **FR-005**: Each connection's metadata says how long its first frame was kept, `held_ms`
   (contract).

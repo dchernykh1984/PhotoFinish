@@ -59,7 +59,9 @@ recorder is down and at most the 0.1 s before it.
 - PhotoFinish Camera keeps every frame on the phone until the recorder has acknowledged reading
   it (`specs/007-store-and-forward`): a network break, a network slower than the stream or the
   recorder starting again costs no frame while the phone has room -- 2 GB for all its lenses,
-  1 GB left free. After a loss it sends again from 2 s before the newest frame acknowledged, then
+  1 GB left free, and the last 2 s however full the phone. A connection whose frames carry no
+  moments starts at the next keyframe and sends nothing again: they would be placed by their
+  arrival. After a loss it sends again from 2 s before the newest frame acknowledged, then
   what it kept, then live, as fast as the network takes them; the recorder writes a frame whose
   moment it listed in the last 10 s, this run's or the last's, for the frames after it to decode,
   without listing it twice or noting a gap for it. While a phone catches up the camera list says

@@ -33,3 +33,15 @@
   case, 005's `dropped`, `specs/app/README.md`, the android-app skill (trying a break)
 - [x] T013 The emulator in tandem: the recorder killed for 10 s, no gap, each frame once
   (SC-001, SC-002); frozen for 10 s, the same -- once the phone asks for acknowledgements
+
+## Review cycle 1
+
+- [x] T014 `FrameStore.kt`: the last 2 s kept however short of space the phone is (FR-003)
+- [x] T015 `Uplink.kt`: a keyframe asked for only for a frame the store could not keep (FR-003)
+- [x] T016 `Uplink.kt`, `FrameStore.kt`: a connection without moments sends nothing kept, nothing
+  again (FR-002)
+- [x] T017 `Uplink.kt`: a frame's moment never set back past the one before (FR-007)
+- [x] T018 `segments.py`: a later gap's reason the camera's own after a break the frames sent again
+  filled; the run before's newest frame past a segment that lists none (FR-007)
+- [x] T019 `main_window.py`: a lens left out keeps a port clash, a recorder that cannot start, in
+  its line (FR-012)
