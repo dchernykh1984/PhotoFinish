@@ -1026,6 +1026,21 @@ def test_closed_segments_are_listed_and_a_restart_lists_any_a_crash_missed(
     assert restarted._before_ms == START + 39 * 33
 
 
+def test_a_restart_after_a_garbled_segment_records_on_from_the_one_before(
+    tmp_path: Path,
+) -> None:
+    # A power cut can leave a segment's times garbled: the recorder still starts,
+    # or the camera would record nothing for the rest of the race.
+    writer = SegmentWriter(tmp_path, fps=30)
+    record(writer, START, 40)
+    writer.close()
+    listed = (tmp_path / "segments.txt").read_text().split()
+    (tmp_path / f"{listed[-1]}.times").write_bytes(b"0 \xff\xfe\n")
+    before = (tmp_path / f"{listed[-2]}.times").read_text().split()[-1]
+    restarted = SegmentWriter(tmp_path, fps=30)
+    assert restarted._before_ms == int(before)
+
+
 def test_a_restart_after_a_segment_of_frames_sent_again_takes_the_one_before(
     tmp_path: Path,
 ) -> None:
