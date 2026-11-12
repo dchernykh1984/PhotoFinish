@@ -144,22 +144,23 @@ out, shows the front camera as left out and the banner green.
   otherwise (5 s). A connection it does not believe -- the phone's clock out of step -- it places
   by arrival from `held_ms` before its first frame came, and a frame sent again on such a
   connection where it was placed the first time.
-- **FR-007**: The recorder writes a frame whose moment it listed in the last 10 s -- this run's or
-  the run before's: one sent again, with the moment it carried the first time -- into the
-  segment, for the frames after it to decode, and leaves it out of the segment's frame times and
-  of the gaps, so the recording lists each frame once. A moment set back is another frame's.
+- **FR-007**: The recorder writes a connection's first frames whose moments it listed in the last
+  10 s -- this run's or the run before's: ones sent again, with the moments they carried the
+  first time -- into the segment, for the frames after them to decode, and leaves them out of the
+  segment's frame times and of the gaps, so the recording lists each frame once. From the first
+  new frame on, a moment set back on a listed one is another frame's, and listed.
 - **FR-008**: The recorder's heartbeat says how far its newest frame is behind its clock; the
   camera's line says "N s behind" while it is 2 s or more.
 - **FR-009**: The recorder writes its PhotoFinish version into its heartbeat. The window that
-  finds a recorder of another version, or of none, running stops it and starts its own once it has
-  ended -- before it is shown, waiting 5 s at most, so that a window closed at once leaves its
-  cameras recording -- the camera's line saying so meanwhile.
+  finds a recorder of another version, or of none, running asks it to stop and starts its own at
+  once, which waits up to 20 s for the old one to end and takes its camera over -- whatever
+  becomes of the window meanwhile -- the camera's line saying so until the old one has ended.
 - **FR-010**: An open of the camera that throws is tried again after 2 s, as a camera lost while
   streaming is; the screen says the reason and that it tries again.
 - **FR-011**: When the camera stops -- lost, failed, closed -- each of its lenses' lines says its
   stream stopped with the camera; a connection's later words are not shown.
 - **FR-012**: The cameras the add-camera dialog makes for a phone's lenses note their lens and
-  their phone. A lens camera whose phone's status (any of its lenses', heard in the last 5 s)
+  their phone -- a mark no other phone's get, as a freed id is given again. A lens camera whose phone's status (any of its lenses', heard in the last 5 s)
   lists its lens as left out shows "the phone leaves this lens out" in amber, after any clash of
   ports or recorder that cannot start, and does not count against RECORDING.
 - **FR-013**: Covered by automated tests: the store, the resend and the order of frames (JVM); the

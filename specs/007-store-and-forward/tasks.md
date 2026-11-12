@@ -58,3 +58,14 @@
   is shown (FR-009)
 - [x] T025 `sources.py`: a connection not believed placed from `held_ms` before its first frame, a
   frame sent again on one where it was (FR-006)
+
+## Review cycle 3
+
+- [x] T026 `recorder/__init__.py`, `launcher.py`, `main_window.py`: this version's recorder started
+  as the other is asked to stop, taking its camera over; no wait before the window shows (FR-009)
+- [x] T027 `segments.py`: only a connection's first frames on listed moments taken as sent again
+  (FR-007)
+- [x] T028 `sources.py`: a phone's frames placed by arrival kept in order after those sent again
+  (FR-006)
+- [x] T029 `camera_dialog.py`: a phone's lens cameras marked with a phone no other gets (FR-012)
+- [x] T030 `segments.py`: the run before's newest frame from the moments read for frames sent again
