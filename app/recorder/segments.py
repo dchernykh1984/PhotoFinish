@@ -71,6 +71,9 @@ class SegmentWriter:
         # The moments listed lately, oldest first, and as a set to look them up in.
         self._recent = collections.deque(_recent_recorded(folder, closed, RESENT_MS))
         self._listed = set(self._recent)
+        # A connection's first frames may be ones sent again: a restart's, or after
+        # the camera hung up (``hung_up``), until the first new one.
+        self._resending = True
         self._unlisted: list[str] = []  # closed, the list refused their names so far
 
     def write(self, image: np.ndarray | av.VideoFrame, ms: int) -> None:
@@ -86,17 +89,19 @@ class SegmentWriter:
 
     def write_packet(self, packet: av.Packet, ms: int) -> None:
         """A packet of a network camera, its frame taken at ``ms``. A segment starts
-        at a keyframe; packets before the first are of no use and are dropped. One
-        whose moment was listed lately -- the same frame a phone sends again after a
-        break, with the moment it was sent with (specs/007) -- is written for the
-        frames after it to decode, and not listed: the recording lists each frame
-        once. A moment set back is another frame's, and listed."""
+        at a keyframe; packets before the first are of no use and are dropped. A
+        connection's first ones whose moments were listed lately -- the frames a
+        phone sends again after a break, with the moments they were sent with
+        (specs/007) -- are written for the frames after them to decode, and not
+        listed: the recording lists each frame once. From its first new frame on, a
+        moment set back on a listed one is another frame's, and listed."""
         if packet.pts is None or packet.dts is None or packet.stream is None:
             return  # nothing to place it by
         if not isinstance(self._open, _Remuxed) and not packet.is_keyframe:
             return
         stream = packet.stream
-        again = ms in self._listed
+        again = self._resending and ms in self._listed
+        self._resending = again
         # A camera's keyframes a second apart cut each one, a moment early or late.
         cut = packet.is_keyframe
         self._next(ms, cut=cut, slack=KEYFRAME_SLACK_MS, listed=not again)
@@ -110,6 +115,12 @@ class SegmentWriter:
             self._listed.add(ms)
             while self._recent and self._recent[0] < ms - RESENT_MS:
                 self._listed.discard(self._recent.popleft())
+
+    def hung_up(self) -> None:
+        """The camera hung up, its segment closed: the gap before its next frame is
+        a reconnect's, and its next connection may begin with frames sent again."""
+        self.gap_reason = "reconnect"
+        self._resending = True
 
     def _segment[T: (_Encoded, _Remuxed)](
         self, kind: type[T], begun: Callable[[], T]

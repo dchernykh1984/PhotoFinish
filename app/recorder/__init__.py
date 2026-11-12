@@ -368,7 +368,7 @@ class _Recording:
         """The open segment closed, as at a reconnect, with no pause after it."""
         self._close()
         if self.writer is not None:
-            self.writer.gap_reason = "reconnect"
+            self.writer.hung_up()
 
     def _wait(self, detail: str) -> bool:
         """The open segment closed, a pause before trying again; True when a stop
