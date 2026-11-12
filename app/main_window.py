@@ -1592,13 +1592,22 @@ class MainWindow(QMainWindow):
         )
 
     def _left_out(self, camera: Camera) -> bool:
-        """A phone's lens camera whose phone says, in any of its lenses' status,
-        that it does not stream that lens (007, FR-012)."""
+        """A phone's lens camera whose phone says, in any of its lenses' status heard
+        lately, that it does not stream that lens (007, FR-012): an old status of a
+        lens no longer streamed may be of lenses asked for before."""
         lens, phone = camera.settings.get("lens"), camera.settings.get("phone")
-        return bool(lens and phone) and any(
-            lens in phone_status.lenses_left((other.info or {}).get("phone") or {})
+        if not lens or not phone:
+            return False
+        now = QDateTime.currentMSecsSinceEpoch()
+        statuses = [
+            (other.info or {}).get("phone") or {}
             for other in self.cameras.values()
             if other.settings.get("phone") == phone
+        ]
+        return any(
+            lens in phone_status.lenses_left(status)
+            and not phone_status.stale(status, now)
+            for status in statuses
         )
 
     def _missing(self, camera: Camera) -> str:

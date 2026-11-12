@@ -527,6 +527,27 @@ def test_a_lens_the_phone_leaves_out_is_said_amber_and_the_banner_stays_green(
     assert item.data(Qt.ItemDataRole.ForegroundRole) is None
 
 
+def test_a_lens_left_out_by_an_old_status_is_a_recording_lost(
+    base: Path, make_window: Callable[[], mw.MainWindow], spawned: list[str]
+) -> None:
+    # The main lens was once left out; the phone now streams it alone, and the tele's
+    # recorder keeps the last status it heard. Main losing its stream is said red.
+    phone: dict[str, Any] = {"connection": "rtmp", "phone": "cam2"}
+    main = {**phone, "id": "cam2", "name": "Mi main", "lens": "main"}
+    main["settings"] = {"port": 1999, "path": "live/cam2"}
+    tele = {**phone, "id": "cam3", "name": "Mi tele", "lens": "tele"}
+    tele["settings"] = {"port": 2000, "path": "live/cam3"}
+    session.save({**session.DEFAULTS, "cameras": [main, tele]})
+    long_ago = time.time_ns() // 1_000_000 - 60_000
+    old = {"left": "main", "at_ms": long_ago, "heard_ms": long_ago}
+    beating(base, "cam2", state="connecting", detail="waiting for the phone")
+    beating(base, "cam3", state="connecting", detail="waiting for the phone", phone=old)
+    win = make_window()
+    win.poll()
+    assert win.cameras["cam2"].item.text().startswith("Mi main: connecting")
+    assert "Mi main" in win.recording_banner.text()
+
+
 def test_a_lens_left_out_still_says_what_else_keeps_it_from_recording(
     base: Path, make_window: Callable[[], mw.MainWindow], spawned: list[str]
 ) -> None:
