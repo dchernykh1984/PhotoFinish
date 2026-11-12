@@ -108,8 +108,9 @@ class Uplink(
 
     /**
      * A frame from the encoder, kept with its moment on the recorder's clock once the clock is in step: a frame
-     * sent again after a loss carries the moment it was first sent with. Frames the store drops are counted, and
-     * a keyframe is asked for, as the frames after a lost one wait for it.
+     * sent again after a loss carries the moment it was first sent with. Frames the store drops are counted; a
+     * frame it could not keep has a keyframe asked for, as the frames after it wait for one -- not the oldest
+     * runs it drops for a keyframe's room, the next run starting with its own.
      */
     fun offer(frame: EncodedFrame) {
         val moment = clock()?.let { frame.ptsUs + slew.at(frame.ptsUs, it.offset) }
@@ -118,7 +119,7 @@ class Uplink(
         if (lost > 0) {
             dropped += lost
             drops.add(lost.toLong())
-            if (!askedKeyframe) {
+            if (!frame.keyframe && !askedKeyframe) {
                 askedKeyframe = true
                 requestKeyframe()
             }

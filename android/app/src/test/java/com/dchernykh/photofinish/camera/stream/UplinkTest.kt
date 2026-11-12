@@ -371,13 +371,27 @@ class UplinkTest {
     }
 
     @Test
-    fun `frames the store has no room for are counted, and a keyframe asked for`() {
+    fun `frames the store has no room for are counted, with no keyframe asked for, as the next run has its own`() {
         val link = uplink(emptyList(), capBytes = 10) // room for one frame of 6 bytes, and a run more
         link.offer(frame(0, keyframe = true))
         link.offer(frame(1_000_000, keyframe = false))
-        link.offer(frame(2_000_000, keyframe = true)) // 12 bytes kept, none sent: the first run goes
-        assertEquals(2L, link.dropped)
+        repeat(3) { link.offer(frame((it + 2) * 1_000_000L, keyframe = true)) } // two make room
+        assertEquals(3L, link.dropped)
+        assertFalse(keyframesAsked.tryAcquire()) // a keyframe asked for each would make more to keep
+    }
+
+    @Test
+    fun `a frame the store cannot keep has a keyframe asked for, once until one comes`() {
+        val link = uplink(emptyList())
+        link.offer(frame(0, keyframe = true))
+        kept.deleteRecursively()
+        kept.writeBytes(ByteArray(0)) // a file where the folder was: nothing more can be written
+        link.offer(frame(100_000, keyframe = true))
+        assertFalse(keyframesAsked.tryAcquire()) // a keyframe lost: the frames after it ask
+        repeat(2) { link.offer(frame((it + 2) * 100_000L, keyframe = false)) }
         assertTrue(keyframesAsked.tryAcquire())
+        assertFalse(keyframesAsked.tryAcquire())
+        assertEquals(3L, link.dropped)
     }
 
     @Test
