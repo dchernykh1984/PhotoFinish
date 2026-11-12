@@ -141,7 +141,9 @@ out, shows the front camera as left out and the banner green.
 - **FR-005**: Each connection's metadata says how long its first frame was kept, `held_ms`
   (contract).
 - **FR-006**: The recorder believes a phone's frame moment up to `held_ms` older than it would
-  otherwise (5 s).
+  otherwise (5 s). A connection it does not believe -- the phone's clock out of step -- it places
+  by arrival from `held_ms` before its first frame came, and a frame sent again on such a
+  connection where it was placed the first time.
 - **FR-007**: The recorder writes a frame whose moment it listed in the last 10 s -- this run's or
   the run before's: one sent again, with the moment it carried the first time -- into the
   segment, for the frames after it to decode, and leaves it out of the segment's frame times and
@@ -150,14 +152,16 @@ out, shows the front camera as left out and the banner green.
   camera's line says "N s behind" while it is 2 s or more.
 - **FR-009**: The recorder writes its PhotoFinish version into its heartbeat. The window that
   finds a recorder of another version, or of none, running stops it and starts its own once it has
-  ended, the camera's line saying so meanwhile.
+  ended -- before it is shown, waiting 5 s at most, so that a window closed at once leaves its
+  cameras recording -- the camera's line saying so meanwhile.
 - **FR-010**: An open of the camera that throws is tried again after 2 s, as a camera lost while
   streaming is; the screen says the reason and that it tries again.
 - **FR-011**: When the camera stops -- lost, failed, closed -- each of its lenses' lines says its
   stream stopped with the camera; a connection's later words are not shown.
 - **FR-012**: The cameras the add-camera dialog makes for a phone's lenses note their lens and
-  their phone. A lens camera whose phone's status (any of its lenses') lists its lens as left out
-  shows "the phone leaves this lens out" in amber and does not count against RECORDING.
+  their phone. A lens camera whose phone's status (any of its lenses', heard in the last 5 s)
+  lists its lens as left out shows "the phone leaves this lens out" in amber, after any clash of
+  ports or recorder that cannot start, and does not count against RECORDING.
 - **FR-013**: Covered by automated tests: the store, the resend and the order of frames (JVM); the
   moments believed, a frame sent again written and not listed, the heartbeat's lag and version
   (pytest); the watchdog's replacement, the lag and the left-out lens in the window (Qt tests).

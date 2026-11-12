@@ -65,10 +65,10 @@ holding one
 The NAL unit carries emulation-prevention bytes as H.264 requires. The recorder reads it from the
 packet as the RTMP demuxer gives it (length-prefixed NAL units), takes the moment rounded to the
 millisecond as the frame's moment, and stores the packet unchanged: the SEI stays in the recording,
-and decoders ignore it. A frame's moment is fixed when the phone keeps it and is at least 1 ms after
-the one before (`specs/007-store-and-forward`): an offset set back -- the first exchanges, the
-recorder's clock set -- does not take moments back, so a frame sent again carries the moment it was
-listed with.
+and decoders ignore it. A frame's moment is fixed when the phone keeps it (`specs/007-store-and-forward`),
+and a better exchange setting the offset back a little -- at the start -- holds it 1 ms after the
+moment before, so a frame sent again carries the moment it was listed with; a step of more than
+50 ms back is the recorder's clock started again or set, and is taken.
 
 ## The phone's status (H.264 SEI, `specs/005-phone-status`)
 
@@ -103,8 +103,10 @@ the stream name, then `@setDataFrame`/`onMetaData` (width, height, frame rate, v
 audio), the AVC sequence header and the frames. Chunk size 65536. Timestamps are milliseconds from
 the connection's first frame; from 0xFFFFFF on they are sent as extended timestamps.
 
-`onMetaData` also holds `held_ms`: how long the connection's first frame was kept on the phone
-(`specs/007-store-and-forward`); the recorder believes that frame's moment as much older. Once
+`onMetaData` also holds `held_ms`: how long the frame the connection begins with was kept on the
+phone (`specs/007-store-and-forward`), told once it is known; the recorder believes that frame's
+moment as much older, and a connection it does not believe it places from that long before the
+first frame came, a frame sent again where that one placed it. Once
 publishing, the phone sends a Window Acknowledgement Size of 131072: FFmpeg acknowledges every
 64 KiB it reads, and the phone keeps each frame until it is acknowledged. A connection after a
 loss begins at the keyframe 2 s before the newest frame acknowledged -- 6 s before the newest sent

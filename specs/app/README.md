@@ -30,8 +30,9 @@ Formats: [output and journal](../001-video-refinement/contracts/output-and-journ
 
 Each camera is recorded by a process of its own, the program run as
 `PhotoFinish --recorder <camera>`. The window starts it, or finds it running and attaches to it
--- one of another version, as an update leaves, it asks to stop and replaces with its own, the
-camera list saying so (`specs/007-store-and-forward`); the heartbeat names its version, read from
+-- one of another version, as an update leaves, it asks to stop and replaces with its own before
+the window is shown, the camera list saying so while it takes longer than 5 s
+(`specs/007-store-and-forward`); the heartbeat names its version, read from
 the `pyproject.toml` the program carries. Killing the window does not stop a recorder, and one
 that dies is started again after 1 s, the
 pause doubling to 30 s while it keeps failing. A lock keeps a second recorder off a camera.
@@ -51,7 +52,8 @@ recorder is down and at most the 0.1 s before it.
   Wi-Fi delays do not move the frame. A connection's first frame decides for all of it: a moment
   not after the frame was read and at most 5 s before it -- longer by what the phone says it
   kept the frame, `held_ms` -- is believed; else -- no moments, or a
-  phone clock out of step -- its frames are placed by their arrival, and the camera list says
+  phone clock out of step -- its frames are placed by their arrival, from `held_ms` before the
+  first came, a frame the phone sends again where it was placed, and the camera list says
   why. A port another program holds is tried again every 5 s, and said meanwhile. A phone that
   hangs up is listened for again at once. A pushed stream is looked over for half a second
   before its first frame (FFmpeg's default is five), so frames placed by their arrival are not
