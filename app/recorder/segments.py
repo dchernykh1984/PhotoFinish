@@ -63,14 +63,15 @@ class SegmentWriter:
         self.segments = len(closed)
         self.frames = 0
         self._last_ms: int | None = None  # this run's newest frame: frames keep order
-        # The run before's newest frame: a gap from it noted once, never a frame
-        # dropped for it -- a clock set back between runs still records.
-        self._before_ms = _last_recorded(folder, closed)
-        self.gap_reason = "restart" if self._before_ms is not None else "no frames"
-        self._open: _Encoded | _Remuxed | None = None
-        # The moments listed lately, oldest first, and as a set to look them up in.
+        # The moments the run before listed in its last RESENT_MS, oldest first, and
+        # as a set to look a frame sent again up in. Its newest frame: a gap from it
+        # noted once, never a frame dropped for it -- a clock set back between runs
+        # still records.
         self._recent = collections.deque(_recent_recorded(folder, closed, RESENT_MS))
         self._listed = set(self._recent)
+        self._before_ms = self._recent[-1] if self._recent else None
+        self.gap_reason = "restart" if self._before_ms is not None else "no frames"
+        self._open: _Encoded | _Remuxed | None = None
         # A connection's first frames may be ones sent again: a restart's, or after
         # the camera hung up (``hung_up``), until the first new one.
         self._resending = True
@@ -585,18 +586,3 @@ def _recent_recorded(folder: Path, closed: list[str], span_ms: int) -> list[int]
             break
     newest = max(found, default=0)
     return sorted(ms for ms in found if ms >= newest - span_ms)
-
-
-def _last_recorded(folder: Path, closed: list[str]) -> int | None:
-    """The time of the run before's newest frame: the last of the segment closed
-    last. Taken from the list, not by looking at every segment of a long day."""
-    for name in reversed(closed):
-        # A name a kill cut short has no times, a segment of frames a phone sent
-        # again none listed (specs/007): the one before.
-        try:
-            found = (folder / f"{name}.times").read_text(encoding="ascii").split()
-            if found:
-                return int(found[-1])
-        except OSError, ValueError:
-            continue
-    return None
