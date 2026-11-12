@@ -46,8 +46,9 @@ app/main_window.py                   the replacing line; a lens left out: amber,
   when its first frame has a moment; a clock in step during the first 10 s of an unstamped one
   still makes a new connection, which starts at the first keyframe with a moment.
 - **held_ms** is in `onMetaData`: the capture clock now minus the first frame's capture time.
-  The recorder widens its belief by it; nothing else of the contract changes, and an older
-  recorder places kept frames by arrival.
+  The recorder widens its belief by it; nothing else of the contract changes. An older recorder
+  places such a connection by arrival, all of it late by what its first frame was kept: the two
+  programs are updated together.
 - **The version** is pyproject.toml's, which release-please already bumps: the window and its
   recorders read the same file (the repository's, or the copy the build carries), so they agree
   unless an update came between them. Unreadable, it is "": an older build's window replaces
