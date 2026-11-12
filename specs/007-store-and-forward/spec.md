@@ -112,8 +112,10 @@ out, shows the front camera as left out and the banner green.
 - A connection whose frames carry no moments -- the clock exchange not through: the recorder places
   its frames by their arrival. It starts at the next keyframe, and a loss sends nothing again:
   frames kept would be placed late by all the time they were kept, frames sent again listed twice.
-- An older PhotoFinish (0.6.0 and before) receiving kept frames does not believe their moments and
-  places them by their arrival, as it places any frame it cannot believe.
+- An older PhotoFinish (0.6.0 and before) receiving a connection whose first frame was kept more
+  than 5 s does not believe its moments and places the connection's frames by their arrival --
+  all of them, the live ones too, late by what the first was kept: PhotoFinish is updated with
+  PhotoFinish Camera, and a window replaces the recorders of an older one (User Story 3).
 - The app killed or closed during a break: what it kept is gone; it is not sent at the next Start.
 
 ## Requirements *(mandatory)*
