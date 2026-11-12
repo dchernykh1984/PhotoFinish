@@ -177,7 +177,6 @@ class Uplink(
         unacknowledged.clear()
         val connected = connect(address)
         publisher = connected
-        connected.publish(metadata(format, store.heldMs(captureClock?.invoke())))
         // Waits a little for the clock, so that the connection's frames carry their moments.
         await(System.nanoTime() + waitForClockMs * 1_000_000) { clock() != null }
         // A connection's frames all carry their moments, or none do: the recorder places frames without one by
@@ -185,6 +184,8 @@ class Uplink(
         // clock is in step, a connection starts at a keyframe kept with a moment; before, at the next keyframe,
         // as what was kept would be placed late by all the time it was kept.
         if (clock() != null) store.skipToStamped() else store.skipKept()
+        // Then how long the frame it starts at was kept is known, the wait for the clock in it too (contract).
+        connected.publish(metadata(format, store.heldMs(captureClock?.invoke())))
         val until = System.nanoTime() + stampWindowMs * 1_000_000
         await(Long.MAX_VALUE) { record != null }
         connected.sendSequenceHeader(record ?: throw IOException("stopped"))

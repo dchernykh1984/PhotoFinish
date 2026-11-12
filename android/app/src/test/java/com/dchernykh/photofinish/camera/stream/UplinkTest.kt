@@ -418,6 +418,21 @@ class UplinkTest {
     }
 
     @Test
+    fun `how long a connection's first frame was kept is told of the frame it starts at`() {
+        val sink = FakeSink()
+        val clock = AtomicReference<Sample?>(null)
+        val link = uplink(listOf(sink), clock = clock)
+        link.captureClock = { 9_000_000 }
+        link.offer(frame(0, keyframe = true)) // kept before the clock came: not sent
+        clock.set(exchange(1_000_000))
+        link.offer(frame(5_000_000, keyframe = true))
+        start(link)
+        awaitConnected()
+        assertEquals(4_000L, sink.metadata.single()["held_ms"]) // the keyframe of 5 s, not that of 0 s
+        assertEquals(5_000_000L + 1_000_000, momentOf(sink.next().units[0]))
+    }
+
+    @Test
     fun `a send that failed leaves the next connection to run`() {
         val first = FakeSink(failOn = 2)
         val second = FakeSink()
