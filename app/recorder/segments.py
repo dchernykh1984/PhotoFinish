@@ -135,6 +135,8 @@ class SegmentWriter:
             self._before_ms = None
             if last is not None and ms - last > 3 * 1000 / self.fps:
                 self._gap(last, ms)
+            elif last is not None:  # a reconnect or restart frames sent again filled
+                self.gap_reason = "no frames"
         if (
             cut
             and self._open is not None
