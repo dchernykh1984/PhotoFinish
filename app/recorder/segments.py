@@ -117,6 +117,11 @@ class SegmentWriter:
             while self._recent and self._recent[0] < ms - RESENT_MS:
                 self._listed.discard(self._recent.popleft())
 
+    @property
+    def newest_ms(self) -> int | None:
+        """This run's newest frame listed: how far behind live a phone is (007)."""
+        return self._last_ms
+
     def hung_up(self) -> None:
         """The camera hung up, its segment closed: the gap before its next frame is
         a reconnect's, and its next connection may begin with frames sent again."""

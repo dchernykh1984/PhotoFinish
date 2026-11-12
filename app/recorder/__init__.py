@@ -260,7 +260,6 @@ class _Recording:
         self.phone = camera.get("connection") == "rtmp"  # a phone answers the clock
         self.clock_tried = -CLOCK_RETRY_S  # time.monotonic() of the last try
         self.port_taken = ""  # why the exchange is left out: its port, taken
-        self.newest_ms: int | None = None  # the newest frame's moment so far
         self.placed = Placed()  # a phone's frames placed elsewhere than their moments
 
     def _answer_the_clock(self) -> None:
@@ -363,8 +362,8 @@ class _Recording:
         if self.beat.info["state"] != "recording":
             counts["detail"] = ""  # what was said while connecting is over
         clock = self.port_taken or source.clock_note
-        self.newest_ms = ms if self.newest_ms is None else max(self.newest_ms, ms)
-        counts["behind_ms"] = max(self.clock() - self.newest_ms, 0)
+        newest = writer.newest_ms
+        counts["behind_ms"] = 0 if newest is None else max(self.clock() - newest, 0)
         self.beat.beat(state="recording", clock=clock, phone=source.phone, **counts)
         self._answer_the_clock()  # returns at its first check once open
 
