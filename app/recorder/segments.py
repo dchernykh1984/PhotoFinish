@@ -579,12 +579,13 @@ def _recent_recorded(folder: Path, closed: list[str], span_ms: int) -> list[int]
 def _last_recorded(folder: Path, closed: list[str]) -> int | None:
     """The time of the run before's newest frame: the last of the segment closed
     last. Taken from the list, not by looking at every segment of a long day."""
-    for name in reversed(
-        closed
-    ):  # a name a kill cut short has no times: the one before
+    for name in reversed(closed):
+        # A name a kill cut short has no times, a segment of frames a phone sent
+        # again none listed (specs/007): the one before.
         try:
             found = (folder / f"{name}.times").read_text(encoding="ascii").split()
-            return int(found[-1]) if found else None
+            if found:
+                return int(found[-1])
         except OSError, ValueError:
             continue
     return None
