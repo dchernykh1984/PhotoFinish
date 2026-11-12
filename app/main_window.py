@@ -75,6 +75,7 @@ from app.output_list import Change, JournalError, OutputLine, OutputList
 from app.paths import app_path
 from app.recorder import folder_of, free_ids
 from app.recorder.launcher import (
+    REPLACE_WAIT_S,
     Watchdog,
     child_environment,
     command,
@@ -240,6 +241,11 @@ class MainWindow(QMainWindow):
         self._shortcuts()
         for camera in self.session["cameras"]:
             self._add(camera)
+        # The recorders of another version asked to stop are replaced before the
+        # window is shown: one closed or lost at once leaves its cameras recording.
+        replaced_by = time.monotonic() + REPLACE_WAIT_S
+        for added in self.cameras.values():
+            added.watchdog.finish_replacing(replaced_by)
         if self.cameras:
             self.camera_list.setCurrentRow(0)
         else:

@@ -26,6 +26,9 @@ from app.version import version
 
 ENDED = ("stopped", "failed", "disk_full")
 START_GRACE_S = 30  # a frozen onefile build unpacks itself before its first heartbeat
+# How long a window waits, before it is shown, for the recorders of another version it
+# asked to stop: a recorder stops within a second, or a stalled read's 5 s.
+REPLACE_WAIT_S = 5.0
 
 
 def command(camera_id: str, role: str = "--recorder") -> list[str]:
@@ -158,6 +161,17 @@ class Watchdog:
         folder = folder_of(self.camera_id)
         folder.mkdir(parents=True, exist_ok=True)
         (folder / "stop.request").touch()
+
+    def finish_replacing(
+        self, deadline: float, sleep: Callable[[float], None] | None = None
+    ) -> None:
+        """A recorder being replaced waited for until ``deadline`` (monotonic), and
+        this one's started as soon as it has ended: the window does so before it is
+        shown, as one closed or lost at once would leave the camera with no recorder.
+        One still running then is left to ``poll``."""
+        while self.replacing and time.monotonic() < deadline:
+            (sleep or time.sleep)(0.1)
+            self.poll()
 
     def poll(self) -> dict[str, Any] | None:
         """The heartbeat, for the window; a dead recorder is started again after

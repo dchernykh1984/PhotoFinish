@@ -670,6 +670,45 @@ def test_a_recorder_of_another_version_is_replaced_once_it_has_stopped(
     assert not (folder / "stop.request").exists()
 
 
+def test_a_replacement_is_finished_while_the_window_waits_for_it(
+    folder: Path, clock: dict[str, float]
+) -> None:
+    # A window closed or lost right after it asked the old recorder to stop would
+    # leave the camera with none: it waits for it, and starts this one's itself.
+    beat(folder, "recording", version="0.5.0")
+    spawns = Spawns()
+    watchdog = Watchdog("cam1", spawns)
+    watchdog.start()
+
+    def pause(seconds: float) -> None:
+        clock["now"] += seconds
+        beat(folder, "stopped", version="0.5.0")  # it heard the stop meanwhile
+
+    watchdog.finish_replacing(clock["now"] + 5, sleep=pause)
+    assert len(spawns.processes) == 1
+    assert not watchdog.replacing
+
+
+def test_a_replacement_not_finished_in_time_is_left_to_the_window_s_polls(
+    folder: Path, clock: dict[str, float]
+) -> None:
+    beat(folder, "recording", version="0.5.0")
+    spawns = Spawns()
+    watchdog = Watchdog("cam1", spawns)
+    watchdog.start()
+    waited: list[float] = []
+
+    def pause(seconds: float) -> None:
+        waited.append(seconds)
+        clock["now"] += seconds
+        beat(folder, "recording", version="0.5.0")  # it goes on: a stalled read
+
+    watchdog.finish_replacing(clock["now"] + 1, sleep=pause)
+    assert sum(waited) == pytest.approx(1.0)
+    assert not spawns.processes
+    assert watchdog.replacing == "PhotoFinish 0.5.0"
+
+
 def test_a_recorder_that_names_no_version_is_an_older_one_replaced(
     folder: Path, clock: dict[str, float]
 ) -> None:

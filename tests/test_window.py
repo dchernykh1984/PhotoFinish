@@ -678,9 +678,13 @@ def test_the_list_says_how_each_recorder_is(
 
 
 def test_the_list_says_a_recorder_of_another_version_is_being_replaced(
-    base: Path, make_window: Callable[[], mw.MainWindow], spawned: list[str]
+    base: Path,
+    make_window: Callable[[], mw.MainWindow],
+    spawned: list[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # specs/007: the window found 0.5.0's recorder at work after an update.
+    monkeypatch.setattr(mw, "REPLACE_WAIT_S", 0.0)  # one that stops after it is shown
     session.save({**session.DEFAULTS, "cameras": [CAMERA]})
     beating(base, version="0.5.0")
     win = make_window()
@@ -694,6 +698,27 @@ def test_the_list_says_a_recorder_of_another_version_is_being_replaced(
     win.poll()
     assert spawned == ["cam1"]  # this version's, once the old one has stopped
     assert "replacing" not in win.camera_list.item(0).text()
+
+
+def test_a_recorder_of_another_version_is_replaced_before_the_window_is_shown(
+    base: Path, make_window: Callable[[], mw.MainWindow], spawned: list[str]
+) -> None:
+    # Closed at once, or lost, the window leaves this version's recorder running.
+    session.save({**session.DEFAULTS, "cameras": [CAMERA]})
+    beating(base, version="0.5.0")
+    stop = base / "video" / "cam1" / "stop.request"
+
+    def old_recorder() -> None:  # hears the stop and ends, as recorders do
+        deadline = time.monotonic() + 5
+        while not stop.exists() and time.monotonic() < deadline:
+            time.sleep(0.01)
+        beating(base, state="stopped", version="0.5.0")
+
+    hearing = threading.Thread(target=old_recorder)
+    hearing.start()
+    make_window()
+    hearing.join()
+    assert spawned == ["cam1"]
 
 
 def test_the_corner_says_whether_every_camera_records(
