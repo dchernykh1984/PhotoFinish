@@ -1026,6 +1026,22 @@ def test_closed_segments_are_listed_and_a_restart_lists_any_a_crash_missed(
     assert restarted._before_ms == START + 39 * 33
 
 
+def test_a_restart_after_a_segment_of_frames_sent_again_takes_the_one_before(
+    tmp_path: Path,
+) -> None:
+    # A segment a phone's frames sent again made lists none of them (specs/007): the
+    # run before's newest frame is in the segment before it.
+    writer = SegmentWriter(tmp_path, fps=30)
+    record(writer, START, 40)
+    writer.close()
+    listed = (tmp_path / "segments.txt").read_text().split()
+    (tmp_path / f"{listed[-1]}.times").write_text("")  # all of it sent again
+    before = (tmp_path / f"{listed[-2]}.times").read_text().split()[-1]
+    restarted = SegmentWriter(tmp_path, fps=30)
+    assert restarted._before_ms == int(before)
+    assert restarted.gap_reason == "restart"
+
+
 def test_a_segment_the_list_refused_is_listed_with_the_next(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
