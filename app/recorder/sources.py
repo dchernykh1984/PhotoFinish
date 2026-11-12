@@ -323,10 +323,17 @@ class Stream:
             if not trusted[0]:
                 return self._arrived(own, self.anchor(float(pts * unit)), arrived)
             if own is None:  # a trusted stream's frame without it: by its timestamp
-                own = last[1] + round(float((pts - last[0]) * unit))
-            # A better exchange may move the phone's offset back a little, at its
-            # start or in a step: its frames keep their order still.
-            moment = max(own, last[1] + 1) if last else own
+                guessed = last[1] + round(float((pts - last[0]) * unit))
+                last[:] = [pts, max(guessed, last[1] + 1)]
+                return last[1]
+            # An offset set back -- the recorder's clock changed -- puts a frame after
+            # the one before, its frames keeping their order; and there it is when the
+            # phone sends it again, whatever frame the next connection begins with.
+            moment = self.placed.get(own)
+            if moment is None:
+                moment = max(own, last[1] + 1) if last else own
+                if moment != own:
+                    self.placed.add(own, moment)
             last[:] = [pts, moment]
             return moment
 

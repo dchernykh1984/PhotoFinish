@@ -607,6 +607,33 @@ def test_a_phone_s_frames_placed_by_arrival_and_sent_again_stay_where_they_were(
     assert abs(resent[30] - (START + 60 * 33)) < 50  # the next, as it was taken
 
 
+def test_a_phone_s_frame_put_after_the_one_before_keeps_its_place_sent_again() -> None:
+    # A step back of the phone's offset puts its next frames after the one before; a
+    # connection after a loss that begins among them places them there again.
+    source = sources.Stream(
+        "rtmp://0.0.0.0:1935/live/x", {}, lambda: START, listen=True
+    )
+    stream = SimpleNamespace(
+        time_base=Fraction(1, 1000), codec_context=SimpleNamespace(name="h264")
+    )
+
+    def frame(own: int) -> bytes:
+        return avcc(sei(own * 1000), b"\x41\x9a")
+
+    owns = [START - 1000 + k * 33 for k in range(10)]  # then 100 ms back:
+    owns += [START - 1000 + (10 + k) * 33 - 100 for k in range(10)]
+    first = source._placing(stream, phone=True)  # type: ignore[arg-type]
+    placed = [first(frame(own), k * 33) for k, own in enumerate(owns)]  # type: ignore[arg-type]
+    assert placed[10] == placed[9] + 1  # put after the one before
+    next_one = sources.Stream(
+        "rtmp://0.0.0.0:1935/live/x", {}, lambda: START, listen=True
+    )
+    next_one.placed = source.placed
+    again = next_one._placing(stream, phone=True)  # type: ignore[arg-type]
+    resent = [again(frame(owns[k]), (k - 11) * 33) for k in range(11, 20)]  # type: ignore[arg-type]
+    assert resent == placed[11:]
+
+
 def test_a_phone_s_new_frames_after_frames_sent_again_come_after_them() -> None:
     # The next connection's anchor, from when the phone says it took its first, may
     # fall before where the frames it sends again were placed, a slower network
