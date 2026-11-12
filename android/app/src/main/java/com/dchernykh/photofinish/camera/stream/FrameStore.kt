@@ -140,9 +140,23 @@ class FrameStore(
             val at = cursorRun ?: runs.firstOrNull() ?: return
             val ahead = runs.drop(runs.indexOf(at)).filter { it !== at || cursorFrame == 0 }
             val stamped = ahead.firstOrNull { it.frames.first().momentUs != null }
-            cursorRun = stamped ?: runs.last()
-            cursorFrame = if (stamped != null) 0 else runs.last().frames.size
+            if (stamped == null) return skipAll()
+            cursorRun = stamped
+            cursorFrame = 0
         }
+    }
+
+    /**
+     * The cursor past every frame kept, on to the next keyframe: for a connection without moments, whose
+     * recorder places frames by their arrival -- what was kept would be placed late, what was sent again twice.
+     */
+    fun skipKept() {
+        lock.withLock { skipAll() }
+    }
+
+    /** The frame read last to be read again: one a connection read and did not send. */
+    fun back() {
+        lock.withLock { if (cursorFrame > 0) cursorFrame-- }
     }
 
     /** How long the frame the cursor is at has been kept: [nowUs], on the frames' clock, minus its capture. */
@@ -211,6 +225,12 @@ class FrameStore(
         total += frame.data.size
         more.signalAll()
         return true
+    }
+
+    private fun skipAll() {
+        val last = runs.lastOrNull() ?: return
+        cursorRun = last
+        cursorFrame = last.frames.size
     }
 
     /** The frame at the cursor in [run], the cursor past it; null when its file cannot be read. */

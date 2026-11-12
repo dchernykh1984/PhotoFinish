@@ -237,6 +237,62 @@ class UplinkTest {
     }
 
     @Test
+    fun `a connection without moments sends nothing kept, after a loss either, but the next keyframe on`() {
+        val first = FakeSink(failOn = 3)
+        val second = FakeSink()
+        val link = uplink(listOf(first, second), offset = null, waitForClockMs = 50)
+        start(link)
+        awaitConnected()
+        link.offer(frame(0, keyframe = true))
+        link.offer(frame(33_333, keyframe = false))
+        repeat(2) { first.next() }
+        link.offer(frame(66_666, keyframe = false)) // fails: the connection is lost
+        link.offer(frame(100_000, keyframe = true)) // kept meanwhile: placed by its arrival, it would be late
+        link.offer(frame(133_333, keyframe = false))
+        awaitConnected()
+        link.offer(frame(1_000_000, keyframe = true))
+        link.offer(frame(1_050_000, keyframe = false))
+        assertEquals(listOf(0L, 50L), List(2) { second.next().timestampMs }) // not 0 s, 33 ms, ... again
+    }
+
+    @Test
+    fun `a connection with moments after one without sends none of that one's frames again`() {
+        val first = FakeSink(failOn = 4)
+        val second = FakeSink()
+        val clock = AtomicReference<Sample?>(null)
+        val link = uplink(listOf(first, second), waitForClockMs = 50, clock = clock)
+        link.stampWindowMs = 0 // the clock comes once the race is under way: left for the next connection
+        start(link)
+        awaitConnected()
+        link.offer(frame(0, keyframe = true))
+        first.next()
+        clock.set(exchange(2_000_000))
+        link.offer(frame(33_333, keyframe = false))
+        link.offer(frame(100_000, keyframe = true)) // kept with its moment, sent without: the recorder has it
+        repeat(2) { first.next() }
+        link.offer(frame(133_333, keyframe = false)) // fails: the connection is lost
+        awaitConnected()
+        link.offer(frame(1_000_000, keyframe = true))
+        assertEquals(1_000_000L + 2_000_000, momentOf(second.next().units[0])) // not 100 ms, listed twice
+    }
+
+    @Test
+    fun `a clock that comes early makes a new connection from the keyframe it came with`() {
+        val unstamped = FakeSink()
+        val stamped = FakeSink()
+        val clock = AtomicReference<Sample?>(null)
+        val link = uplink(listOf(unstamped, stamped), waitForClockMs = 50, clock = clock)
+        start(link)
+        awaitConnected()
+        link.offer(frame(0, keyframe = true))
+        unstamped.next()
+        clock.set(exchange(2_000_000))
+        link.offer(frame(33_333, keyframe = true)) // read, and not sent on a connection without moments
+        awaitConnected()
+        assertEquals(33_333L + 2_000_000, momentOf(stamped.next().units[0]))
+    }
+
+    @Test
     fun `a better exchange moves the frames' moments two milliseconds a second, not at once`() {
         val sink = FakeSink()
         val clock = AtomicReference<Sample?>(exchange(1_000_000))

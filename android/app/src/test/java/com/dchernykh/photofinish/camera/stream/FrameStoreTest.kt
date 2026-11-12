@@ -181,6 +181,26 @@ class FrameStoreTest {
     }
 
     @Test
+    fun `a connection without moments skips what was kept, on to the next keyframe`() {
+        val store = store()
+        second(store, 0, moment = false)
+        store.keep(frame(950_000, keyframe = false), null) // the last run's: past it too
+        store.skipKept()
+        assertNull(store.next(0))
+        second(store, 1, moment = false)
+        assertEquals(1_000_000L, store.next(0)!!.ptsUs)
+    }
+
+    @Test
+    fun `a frame read and not sent is read again`() {
+        val store = store()
+        second(store, 0)
+        read(store, 2)
+        store.back()
+        assertEquals(listOf(100_000L, 200_000L), read(store, 2))
+    }
+
+    @Test
     fun `how long the frame to send next has been kept is told`() {
         val store = store()
         assertEquals(0L, store.heldMs(9_000_000))
