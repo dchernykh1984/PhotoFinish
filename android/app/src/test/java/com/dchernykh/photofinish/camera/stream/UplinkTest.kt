@@ -309,6 +309,22 @@ class UplinkTest {
     }
 
     @Test
+    fun `a frame's moment never goes back past the one before, so one sent again carries the same`() {
+        val sink = FakeSink()
+        val clock = AtomicReference<Sample?>(exchange(1_000_000))
+        val link = uplink(listOf(sink), clock = clock)
+        start(link)
+        awaitConnected()
+        link.offer(frame(0, keyframe = true))
+        link.offer(frame(33_333, keyframe = false))
+        clock.set(exchange(900_000)) // the recorder's clock set back 100 ms: taken at once
+        link.offer(frame(66_666, keyframe = false))
+        link.offer(frame(200_000, keyframe = false))
+        val moments = List(4) { momentOf(sink.next().units[0]) }
+        assertEquals(listOf(1_000_000L, 1_033_333L, 1_034_333L, 1_100_000L), moments)
+    }
+
+    @Test
     fun `a clock that comes once a connection has run is left for the next, with no gap now`() {
         val sink = FakeSink()
         val clock = AtomicReference<Sample?>(null)

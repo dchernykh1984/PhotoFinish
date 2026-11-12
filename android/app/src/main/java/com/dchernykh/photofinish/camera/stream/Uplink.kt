@@ -97,6 +97,9 @@ class Uplink(
     /** A keyframe asked for since a frame was lost; the encoder's thread alone keeps it. */
     private var askedKeyframe = false
 
+    /** The moment the last frame was kept with; the encoder's thread alone keeps it. */
+    private var lastMomentUs = Long.MIN_VALUE
+
     /** The connection's frames sent and not yet acknowledged: the bytes sent once each was, and its capture time. */
     private val unacknowledged = ArrayDeque<Pair<Long, Long>>()
 
@@ -119,7 +122,11 @@ class Uplink(
      * runs it drops for a keyframe's room, the next run starting with its own.
      */
     fun offer(frame: EncodedFrame) {
-        val moment = clock()?.let { frame.ptsUs + slew.at(frame.ptsUs, it.offset) }
+        // An offset set back at once -- the first exchanges, the recorder's clock set -- takes no moment back
+        // past the one before: the recorder would put it after, by where the connection began, and a frame sent
+        // again from elsewhere would carry another moment than it was listed with.
+        val moment = clock()?.let { maxOf(frame.ptsUs + slew.at(frame.ptsUs, it.offset), lastMomentUs + STEP_US) }
+        moment?.let { lastMomentUs = it }
         val lost = store.keep(frame, moment)
         if (frame.keyframe) askedKeyframe = false
         if (lost > 0) {
@@ -302,6 +309,9 @@ class Uplink(
         private const val STALL_MS = 5_000L
         private const val STAMP_WINDOW_MS = 10_000L
         private const val VIDEO_CODEC_AVC = 7
+
+        /** A frame's moment after the one before, at least: a millisecond, the recorder's step. */
+        private const val STEP_US = 1_000L
 
         /** The stream's metadata; [heldMs]: how long its first frame was kept (specs/007, contract). */
         private fun metadata(
