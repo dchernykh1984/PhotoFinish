@@ -1600,12 +1600,13 @@ class MainWindow(QMainWindow):
             return False
         now = QDateTime.currentMSecsSinceEpoch()
         statuses = [
-            (other.info or {}).get("phone") or {}
+            (other.info or {}).get("phone")
             for other in self.cameras.values()
             if other.settings.get("phone") == phone
         ]
         return any(
-            lens in phone_status.lenses_left(status)
+            isinstance(status, dict)  # a heartbeat written by hand may hold anything
+            and lens in phone_status.lenses_left(status)
             and not phone_status.stale(status, now)
             for status in statuses
         )
