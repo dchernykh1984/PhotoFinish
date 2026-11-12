@@ -45,3 +45,16 @@
   filled; the run before's newest frame past a segment that lists none (FR-007)
 - [x] T019 `main_window.py`: a lens left out keeps a port clash, a recorder that cannot start, in
   its line (FR-012)
+
+## Review cycle 2
+
+- [x] T020 `Uplink.kt`: only a better exchange's small step back held to the moment before; the
+  recorder's clock set back taken (contract)
+- [x] T021 `Uplink.kt`: `held_ms` told of the frame a connection starts at, after the wait for the
+  clock (FR-005)
+- [x] T022 `Uplink.kt`: at most 1,024 frames waiting for an acknowledgement (FR-001)
+- [x] T023 `main_window.py`: a lens left out only by a status heard lately (FR-012)
+- [x] T024 `launcher.py`, `main_window.py`: recorders of another version replaced before the window
+  is shown (FR-009)
+- [x] T025 `sources.py`: a connection not believed placed from `held_ms` before its first frame, a
+  frame sent again on one where it was (FR-006)
