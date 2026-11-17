@@ -67,7 +67,8 @@ PFLG 1 <run> <from> <prev>
 messages began with -- the one after the newest the recorder answered, or the oldest the phone
 still keeps; `prev` the line the phone sent just before this message's first, `from - 1` in a
 round's first message. A line: its number in the run, from 1; the phone's Unix milliseconds; its
-level, `I`, `W`, `E` for the app's own lines, `w`, `e` for its system log's; the lens's code, `-`
+level, `I`, `W`, `E` for the app's own lines, `w`, `e` for its system log's and the log's notes
+about itself; the lens's code, `-`
 for the phone as a whole; its text, on one line, 400 bytes at most. Lines the phone let go of leave
 gaps in the numbers. The recorder keeps a message's lines it does not have when the message follows
 what it kept (`prev` at most its newest), or begins a round; a round's first message begins a run
