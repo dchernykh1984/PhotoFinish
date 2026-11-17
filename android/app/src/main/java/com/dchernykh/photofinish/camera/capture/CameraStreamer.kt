@@ -384,8 +384,12 @@ class CameraStreamer(
             try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                     // The rate asked goes with the session, and with the question whether the camera runs these
-                    // lenses: a camera that weighs it (Android 15) can say no to a set it cannot run at that rate.
-                    val parameters = request(camera, format, streams.isNotEmpty()).build()
+                    // lenses, from Android 15, which weighs it: a set it cannot run at that rate said no to
+                    // beforehand. Earlier, sessions are made as they were: a phone that streamed them streams on.
+                    val parameters =
+                        request(camera, format, streams.isNotEmpty())
+                            .build()
+                            .takeIf { Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM }
                     val (outputs, dropped) = SessionOutputs.choose(camera, preview, streams, executor, parameters)
                     dropped.forEach {
                         streams.remove(it)
@@ -396,7 +400,7 @@ class CameraStreamer(
                     targets = outputs.flatMap { it.surfaces }
                     camera.createCaptureSession(
                         SessionConfiguration(SessionConfiguration.SESSION_REGULAR, outputs, executor, callback).apply {
-                            sessionParameters = parameters
+                            parameters?.let { sessionParameters = it }
                         },
                     )
                 } else {
