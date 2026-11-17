@@ -37,23 +37,19 @@ class LensFallbackTest {
     }
 
     @Test
-    fun `a lens that gave no frame goes before one that streams, the first lens kept`() {
+    fun `a lens that gave no frame goes, never one that streams for it, the first kept and waited for`() {
         val fallback = LensFallback()
         val streamed = listOf(Lens.MAIN, Lens.TELEPHOTO, Lens.FRONT)
         assertEquals(
             Lens.TELEPHOTO,
             fallback.failed(1, streamed, streamed, CameraFailure.NoFrame(listOf(Lens.TELEPHOTO), 5_000)),
         )
-        // The first lens silent: the others' load lightened, from the last.
-        assertEquals(
-            Lens.FRONT,
-            fallback.failed(
-                2,
-                streamed - Lens.TELEPHOTO,
-                streamed - Lens.TELEPHOTO,
-                CameraFailure.NoFrame(listOf(Lens.MAIN), 5_000),
-            ),
-        )
+        // The first lens silent, the front streaming: none left out for it, which could leave none streaming.
+        val firstSilent = CameraFailure.NoFrame(listOf(Lens.MAIN), 5_000)
+        assertNull(fallback.failed(2, streamed - Lens.TELEPHOTO, streamed - Lens.TELEPHOTO, firstSilent))
+        assertEquals(false, fallback.madeAgain(2, firstSilent))
+        assertEquals(listOf(Lens.MAIN), fallback.waitedFor(2, firstSilent))
+        assertEquals(setOf(Lens.TELEPHOTO), fallback.leftOut)
     }
 
     @Test
@@ -116,10 +112,10 @@ class LensFallbackTest {
         fallback.failed(1, listOf(Lens.MAIN), listOf(Lens.MAIN), stalled)
         assertEquals(false, fallback.madeAgain(1, stalled))
         val two = listOf(Lens.MAIN, Lens.TELEPHOTO)
-        fallback.failed(2, two, two, stalled)
-        assertEquals(true, fallback.madeAgain(2, stalled))
-        fallback.settle() // they ran together: one silent after a reopen mid-race is waited for, the other on
         val telephoto = CameraFailure.NoFrame(listOf(Lens.TELEPHOTO), 5_000)
+        assertEquals(Lens.TELEPHOTO, fallback.failed(2, two, two, telephoto))
+        assertEquals(true, fallback.madeAgain(2, telephoto)) // one left out: made again without it
+        fallback.settle() // they ran together: one silent after a reopen mid-race is waited for, the other on
         assertNull(fallback.failed(3, two, two, telephoto))
         assertEquals(false, fallback.madeAgain(3, telephoto)) // not the main cut every 7 s for as long
     }
