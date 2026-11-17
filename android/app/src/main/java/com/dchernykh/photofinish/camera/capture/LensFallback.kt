@@ -51,8 +51,9 @@ class LensFallback {
     /** The lenses left out so far, in the order they were. */
     val leftOut: Set<Lens> get() = left.toSet()
 
-    /** The lenses waited for, silent, since the start: the others run together without them. */
+    /** The lenses waited for, silent, in open [waitingIn]: its others run together without them. */
     private val waiting = mutableSetOf<Lens>()
+    private var waitingIn: Int? = null
 
     /** What the last start asked for: the cameras started again for the same keep what was left out. */
     private var asked: Pair<StreamFormat, List<LensTarget>>? = null
@@ -70,6 +71,7 @@ class LensFallback {
         asked = format to targets
         left.clear()
         waiting.clear()
+        waitingIn = null
         paid = null
         settled = false
     }
@@ -125,14 +127,22 @@ class LensFallback {
     fun waitedFor(
         open: Int,
         failure: CameraFailure?,
-    ): List<Lens> =
-        (if (failure is CameraFailure.NoFrame && open != paid) failure.silent else emptyList()).also { waiting += it }
+    ): List<Lens> {
+        if (failure !is CameraFailure.NoFrame || open == paid) return emptyList()
+        if (open != waitingIn) waiting.clear()
+        waitingIn = open
+        return failure.silent.also { waiting += it }
+    }
 
     /**
-     * Whether [lens] is waited for, silent: the lenses settle without it -- the others giving frames for [EARLY_MS]
-     * run together --, a camera lost mid-race after then not costing one of them.
+     * Whether [lens] is waited for in open [open], silent: the lenses settle without it -- the others giving frames
+     * for [EARLY_MS] run together --, a camera lost mid-race after then not costing one of them; and a failure of the
+     * open leaves out none that streams for it.
      */
-    fun waitsFor(lens: Lens): Boolean = lens in waiting
+    fun waitsFor(
+        open: Int,
+        lens: Lens,
+    ): Boolean = open == waitingIn && lens in waiting
 
     /**
      * The other camera of open [open] -- the front beside the back -- failed alone and was closed, its [lenses]
@@ -150,7 +160,7 @@ class LensFallback {
     /**
      * One of [candidates] left out of open [open] after [failure] when it counts and the open has paid none: after
      * a lens gave no frame, the last of those, never one that streams -- left out, it could leave none streaming --;
-     * else the last of [own], else the last.
+     * with a lens waited for in the open, the last waited for, so; else the last of [own], else the last.
      */
     private fun choose(
         open: Int,
@@ -160,10 +170,10 @@ class LensFallback {
     ): Lens? {
         if (!counts(failure) || open == paid) return null
         val lens =
-            if (failure is CameraFailure.NoFrame) {
-                candidates.lastOrNull { it in failure.silent }
-            } else {
-                candidates.lastOrNull { it in own } ?: candidates.lastOrNull()
+            when {
+                failure is CameraFailure.NoFrame -> candidates.lastOrNull { it in failure.silent }
+                open == waitingIn -> candidates.lastOrNull { it in waiting }
+                else -> candidates.lastOrNull { it in own } ?: candidates.lastOrNull()
             } ?: return null
         paid = open
         return lens.also { left += it }
