@@ -129,7 +129,7 @@ class CameraDialog(QDialog):
         size_row.addWidget(self.width_box)
         size_row.addWidget(QLabel("x"))
         size_row.addWidget(self.height_box)
-        self.advice = QLabel()  # said, the OK left to the referee
+        self.advice = QLabel(MANY_LENSES)  # said, the OK left to the referee
         self.advice.setStyleSheet("color: #b07000")
         self.advice.setWordWrap(True)
         self.problems = QLabel()
@@ -249,7 +249,6 @@ class CameraDialog(QDialog):
         for key, row in self._rows.items():
             self.form.setRowVisible(row, key in shown)
         many = self.kind() == "rtmp" and len(self._lenses()) > MOST_LENSES
-        self.advice.setText(MANY_LENSES if many else "")
         self.form.setRowVisible(self._rows["advice"], many)
         clash = cameras.port_clash(self.camera(), self.others)
         if self.kind() == "rtmp":
