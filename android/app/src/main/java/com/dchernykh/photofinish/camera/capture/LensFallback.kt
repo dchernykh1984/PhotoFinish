@@ -51,6 +51,9 @@ class LensFallback {
     /** The lenses left out so far, in the order they were. */
     val leftOut: Set<Lens> get() = left.toSet()
 
+    /** The lenses waited for, silent, since the start: the others run together without them. */
+    private val waiting = mutableSetOf<Lens>()
+
     /** What the last start asked for: the cameras started again for the same keep what was left out. */
     private var asked: Pair<StreamFormat, List<LensTarget>>? = null
 
@@ -66,6 +69,7 @@ class LensFallback {
         if (asked == format to targets) return
         asked = format to targets
         left.clear()
+        waiting.clear()
         paid = null
         settled = false
     }
@@ -121,7 +125,14 @@ class LensFallback {
     fun waitedFor(
         open: Int,
         failure: CameraFailure?,
-    ): List<Lens> = if (failure is CameraFailure.NoFrame && open != paid) failure.silent else emptyList()
+    ): List<Lens> =
+        (if (failure is CameraFailure.NoFrame && open != paid) failure.silent else emptyList()).also { waiting += it }
+
+    /**
+     * Whether [lens] is waited for, silent: the lenses settle without it -- the others giving frames for [EARLY_MS]
+     * run together --, a camera lost mid-race after then not costing one of them.
+     */
+    fun waitsFor(lens: Lens): Boolean = lens in waiting
 
     /**
      * The other camera of open [open] -- the front beside the back -- failed alone and was closed, its [lenses]
