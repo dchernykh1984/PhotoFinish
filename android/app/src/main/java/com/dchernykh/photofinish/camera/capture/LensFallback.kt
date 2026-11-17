@@ -69,10 +69,12 @@ class LensFallback {
         /** How soon a failure is the lenses' own: a camera that streamed longer was lost, not unable. */
         const val EARLY_MS = 10_000L
 
-        /** A camera's errors of the lenses asked of it, not of another app or the phone's policy. */
+        /**
+         * A camera's errors of the lenses asked of it: not another app's holding the camera, nor too many cameras
+         * open -- another app's as likely as ours, which the phone said it runs together --, nor the phone's policy.
+         */
         private val LENSES_ERRORS =
             setOf(
-                CameraDevice.StateCallback.ERROR_MAX_CAMERAS_IN_USE,
                 CameraDevice.StateCallback.ERROR_CAMERA_DEVICE,
                 CameraDevice.StateCallback.ERROR_CAMERA_SERVICE,
             )
