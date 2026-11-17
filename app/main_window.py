@@ -76,6 +76,7 @@ from app.paths import app_path
 from app.recorder import folder_of, free_ids
 from app.recorder.launcher import (
     Watchdog,
+    alive,
     child_environment,
     command,
     describe,
@@ -1560,7 +1561,9 @@ class MainWindow(QMainWindow):
         said = last_word(
             (info or {}).get("phone_said"), QDateTime.currentMSecsSinceEpoch()
         )
-        if said and not recording(info):  # why the phone gives nothing (008, FR-005)
+        # Why the phone gives nothing (008, FR-005): its recorder's word while it runs;
+        # a recorder stopped or gone is the reason itself.
+        if said and alive(info) and not recording(info):
             state += f"; {said}"
         if camera.index.unreadable:
             state += f"; segments that cannot be read: {len(camera.index.unreadable)}"
