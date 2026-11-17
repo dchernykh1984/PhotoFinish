@@ -1,7 +1,5 @@
 package com.dchernykh.photofinish.camera.diagnostics
 
-import java.io.IOException
-
 /**
  * The app's own part of the system log, warnings and errors (specs/008-phone-log): what the camera and the
  * encoder services answer the app, said in its process, without a call site for each. Android gives an app
@@ -26,7 +24,11 @@ object ProcessLog {
         return kept to "$tag: $text"
     }
 
-    /** [pid]'s system log, warnings and errors, into [log] on a thread of its own while the app lives. */
+    /**
+     * [pid]'s system log, warnings and errors, into [log] on a thread of its own while the app lives; whatever
+     * it throws ends the reading alone, said, never the app (FR-006).
+     */
+    @Suppress("TooGenericExceptionCaught")
     fun follow(
         log: PhoneLog,
         pid: Int,
@@ -40,7 +42,7 @@ object ProcessLog {
                 process.inputStream.bufferedReader().forEachLine { line ->
                     read(line)?.let { (level, text) -> log.add(level, null, text) }
                 }
-            } catch (error: IOException) {
+            } catch (error: Exception) {
                 log.warning(null, "the system log cannot be read: ${Crashes.describe(error)}")
             }
         }, "process-log").apply { isDaemon = true }.start()

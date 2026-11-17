@@ -42,11 +42,18 @@ class LogSender(
         Thread({ run() }, "phone-log").apply { isDaemon = true }.start()
     }
 
+    // Whatever a round throws costs that round: the log must never end the app it tells of (FR-006).
+    @Suppress("TooGenericExceptionCaught")
     private fun run() {
         while (running) {
-            round()
-            val until = nowMs() + ROUND_MS
-            while (running && nowMs() < until) hear()
+            try {
+                round()
+                val until = nowMs() + ROUND_MS
+                while (running && nowMs() < until) hear()
+            } catch (error: Exception) {
+                log.warning(null, "the log could not be sent: ${Crashes.describe(error)}")
+                Thread.sleep(ROUND_MS)
+            }
         }
     }
 
@@ -84,22 +91,25 @@ class LogSender(
     fun hear() {
         val buffer = ByteArray(ANSWER_BYTES)
         val packet = DatagramPacket(buffer, buffer.size)
-        val came =
-            try {
-                socket.receive(packet)
-                true
-            } catch (_: SocketTimeoutException) {
-                false
-            } catch (_: IOException) {
-                if (running) Thread.sleep(LISTEN_MS.toLong()) // a network gone: no busy loop
-                false
-            }
-        val seq = if (came) LogMessages.answered(buffer, packet.length, log.run) else null
+        if (!receive(packet)) return // a packet that came from nowhere has no sender to ask about
+        val seq = LogMessages.answered(buffer, packet.length, log.run)
         val recorder = recorders[packet.socketAddress as? InetSocketAddress]
         if (seq == null || recorder == null) return
         recorder.answered = maxOf(recorder.answered, seq)
         recorder.heardMs = nowMs()
     }
+
+    /** [packet] received; false when none came in [LISTEN_MS], or the network failed. */
+    private fun receive(packet: DatagramPacket): Boolean =
+        try {
+            socket.receive(packet)
+            true
+        } catch (_: SocketTimeoutException) {
+            false
+        } catch (_: IOException) {
+            if (running) Thread.sleep(LISTEN_MS.toLong()) // a network gone: no busy loop
+            false
+        }
 
     /** The newest line [host]'s recorder on [port] answered: a test's look. */
     internal fun answered(
