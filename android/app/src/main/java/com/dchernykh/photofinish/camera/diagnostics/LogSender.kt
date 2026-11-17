@@ -11,8 +11,8 @@ import java.net.SocketTimeoutException
 /**
  * Sends [log] to each recorder [destinations] names -- a lens's host, and the port its clock exchange is
  * answered on (specs/008-phone-log) -- from the line after the newest it answered, a few messages a round,
- * twice a second: a message lost on the way is sent again. A recorder that has answered nothing for
- * [QUIET_MS] -- an older PhotoFinish answers none -- is sent to every [SLOW_MS]. One socket for all: an
+ * twice a second: a message lost on the way is sent again. A recorder that has answered nothing it was sent
+ * for [QUIET_MS] -- an older PhotoFinish answers none -- is sent to every [SLOW_MS]. One socket for all: an
  * answer is told by who sent it.
  */
 class LogSender(
@@ -21,18 +21,22 @@ class LogSender(
     private val socket: DatagramSocket = DatagramSocket(),
     private val nowMs: () -> Long = { System.nanoTime() / NANOS_PER_MS },
 ) : Closeable {
-    private class Recorder(
-        val since: Long,
-    ) {
+    private class Recorder {
         var answered = 0L
         var heardMs: Long? = null
         var sentMs: Long? = null
 
+        /** Since when it has been sent lines and answered nothing; null while all it was sent is answered. */
+        var waitingMs: Long? = null
+
         /** Where its host was found; a name looked up again only when it was not found, or it is quiet. */
         var address: InetSocketAddress? = null
 
-        /** Nothing answered for [QUIET_MS]: an older PhotoFinish, or one gone elsewhere. */
-        fun quiet(now: Long): Boolean = now - (heardMs ?: since) > QUIET_MS
+        /**
+         * Sent lines and nothing answered for [QUIET_MS]: an older PhotoFinish, or one gone elsewhere -- not one
+         * with nothing sent to it a while, its next line's message lost on the way sent again in a round.
+         */
+        fun quiet(now: Long): Boolean = waitingMs?.let { now - it > QUIET_MS } ?: false
     }
 
     /** How a recorder's host and port are found; a test's stands in for a name's look-up. */
@@ -74,9 +78,10 @@ class LogSender(
         val wanted = destinations().toSet()
         recorders.keys.retainAll(wanted)
         for (named in wanted) {
-            val recorder = recorders.getOrPut(named) { Recorder(now) }
+            val recorder = recorders.getOrPut(named) { Recorder() }
             if (log.newest <= recorder.answered || !due(recorder, now)) continue
             recorder.sentMs = now // a try, found or not: a name nowhere looked up as seldom as a quiet one is sent to
+            recorder.waitingMs = recorder.waitingMs ?: now
             // A name that does not resolve now keeps what its recorder answered: tried again when next due.
             // Found once and kept -- a name not looked up twice a second -- but found again, when due, while
             // its recorder is quiet: a laptop's address may change, the video and the clock exchange following.
@@ -119,6 +124,7 @@ class LogSender(
         if (seq == null || recorder == null) return
         recorder.answered = maxOf(recorder.answered, seq)
         recorder.heardMs = nowMs()
+        recorder.waitingMs = null
     }
 
     /** [packet] received; false when none came in [LISTEN_MS], or the network failed. */
