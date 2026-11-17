@@ -83,6 +83,30 @@ class LogSenderTest {
     }
 
     @Test
+    fun `no answer in time is no answer, and nothing more`() {
+        val sender = sender()
+        sender.hear() // the emulator's crash: a packet that never came asked who sent it
+        assertNull(sender.answered("127.0.0.1", recorder.port))
+    }
+
+    @Test
+    fun `a round that throws costs that round alone, the sender going on`() {
+        var calls = 0
+        val sender =
+            sender {
+                if (calls++ == 0) error("a code that cannot be read now")
+                listOf("127.0.0.1" to recorder.port)
+            }
+        log.info(null, "line")
+        sender.start()
+        val deadline = System.currentTimeMillis() + 5_000
+        var seen = emptyList<Long>()
+        while (seen.isEmpty() && System.currentTimeMillis() < deadline) seen = recorder.received()
+        assertTrue(seen.isNotEmpty())
+        assertTrue(log.after(0).any { it.text.startsWith("the log could not be sent: IllegalStateException") })
+    }
+
+    @Test
     fun `a backlog goes in several messages a round, each saying where the round began`() {
         val sender = sender()
         repeat(20) { log.info(null, "x".repeat(300) + it) } // three to a message
