@@ -93,6 +93,15 @@ class LensFallbackTest {
     }
 
     @Test
+    fun `lenses that streamed a while keep their place through the hiccups of a camera opened again mid-race`() {
+        val fallback = LensFallback()
+        assertNull(fallback.failed(1, four, four, error(3_600_000))) // the camera service started again mid-race
+        assertNull(fallback.failed(2, four, four, error(3_000))) // and, still settling, failed the open after
+        assertEquals(emptyList<Lens>(), fallback.failedAlone(2, listOf(Lens.FRONT), error(3_000)))
+        assertEquals(emptySet<Lens>(), fallback.leftOut)
+    }
+
+    @Test
     fun `the code's order says which lens goes`() {
         val fallback = LensFallback()
         val frontFirst = listOf(Lens.FRONT, Lens.MAIN)
