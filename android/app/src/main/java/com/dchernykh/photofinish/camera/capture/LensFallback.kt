@@ -39,6 +39,12 @@ class LensFallback {
     /** The open that left a lens out already: its other camera's failure is the same one. */
     private var paid: Int? = null
 
+    /**
+     * The lenses streamed a while since the start -- a camera failed late --: one failing early after it is a camera
+     * opened again mid-race, its service still settling, not the lenses'.
+     */
+    private var settled = false
+
     /** The lenses left out so far, in the order they were. */
     val leftOut: Set<Lens> get() = left.toSet()
 
@@ -58,6 +64,13 @@ class LensFallback {
         asked = format to targets
         left.clear()
         paid = null
+        settled = false
+    }
+
+    /** [failure] the lenses', early, before they streamed a while; a late one tells they did. */
+    private fun counts(failure: CameraFailure?): Boolean {
+        if ((failure as? CameraFailure.Error)?.sinceStartMs?.let { it >= EARLY_MS } == true) settled = true
+        return !settled && early(failure)
     }
 
     /**
@@ -72,7 +85,7 @@ class LensFallback {
         own: List<Lens>,
         failure: CameraFailure?,
     ): Lens? {
-        if (!early(failure) || open == paid || streamed.size < 2) return null
+        if (!counts(failure) || open == paid || streamed.size < 2) return null
         paid = open
         val silent = (failure as? CameraFailure.NoFrame)?.silent.orEmpty()
         val rest = streamed.drop(1) // the first lens streams on
@@ -90,7 +103,7 @@ class LensFallback {
         lenses: List<Lens>,
         failure: CameraFailure?,
     ): List<Lens> {
-        if (!early(failure) || lenses.isEmpty()) return emptyList()
+        if (!counts(failure) || lenses.isEmpty()) return emptyList()
         paid = open
         return lenses.filter { left.add(it) }
     }
