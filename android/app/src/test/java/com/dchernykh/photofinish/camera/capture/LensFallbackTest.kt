@@ -17,7 +17,8 @@ class LensFallbackTest {
         val fallback = LensFallback()
         assertEquals(Lens.FRONT, fallback.failed(1, four, error(1_500))) // the Xiaomi 17 Ultra's camera error 4
         assertNull(fallback.failed(1, four, error(1_510))) // the other camera's error is the same failure
-        assertEquals(Lens.TELEPHOTO, fallback.failed(2, four - Lens.FRONT, CameraFailure.NoFrame(5_000)))
+        val stalled = CameraFailure.NoFrame(four - Lens.FRONT, 5_000) // no frame in 5 s
+        assertEquals(Lens.TELEPHOTO, fallback.failed(2, four - Lens.FRONT, stalled))
         assertEquals(Lens.ULTRAWIDE, fallback.failed(3, listOf(Lens.MAIN, Lens.ULTRAWIDE), error(0)))
         assertNull(fallback.failed(4, listOf(Lens.MAIN), error(1_000))) // the first lens streams on, tried again
         assertEquals(listOf(Lens.FRONT, Lens.TELEPHOTO, Lens.ULTRAWIDE), fallback.leftOut.toList())
@@ -29,6 +30,18 @@ class LensFallbackTest {
         assertNull(fallback.failed(1, four, error(null)))
         assertEquals(emptyList<Lens>(), fallback.failedAlone(2, listOf(Lens.FRONT), error(null)))
         assertEquals(emptySet<Lens>(), fallback.leftOut)
+    }
+
+    @Test
+    fun `a lens that gave no frame goes before one that streams, the first lens kept`() {
+        val fallback = LensFallback()
+        val streamed = listOf(Lens.MAIN, Lens.TELEPHOTO, Lens.FRONT)
+        assertEquals(Lens.TELEPHOTO, fallback.failed(1, streamed, CameraFailure.NoFrame(listOf(Lens.TELEPHOTO), 5_000)))
+        // The first lens silent: the others' load lightened, from the last.
+        assertEquals(
+            Lens.FRONT,
+            fallback.failed(2, streamed - Lens.TELEPHOTO, CameraFailure.NoFrame(listOf(Lens.MAIN), 5_000)),
+        )
     }
 
     @Test

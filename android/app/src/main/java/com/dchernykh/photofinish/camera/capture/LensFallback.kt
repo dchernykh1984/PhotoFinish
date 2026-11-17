@@ -11,8 +11,9 @@ sealed interface CameraFailure {
         val sinceStartMs: Long?,
     ) : CameraFailure
 
-    /** A camera that gave a lens no frame, [sinceStartMs] after they started. */
+    /** A camera that gave its [silent] lenses no frame, [sinceStartMs] after they started. */
     data class NoFrame(
+        val silent: List<Lens>,
         val sinceStartMs: Long,
     ) : CameraFailure
 }
@@ -22,7 +23,8 @@ sealed interface CameraFailure {
  * FR-005): a phone may say it streams lenses together and then not -- the Xiaomi 17 Ultra, asked for four at
  * 2560x1440 and 60 fps, gave no frame and its camera failed in 1.5 s, again each time it was opened. Cameras
  * that fail, or give a lens no frame, within [EARLY_MS] of their lenses' start are opened again with one lens
- * fewer: the last of the code's order, as a session the phone says it cannot run drops them, never the first.
+ * fewer: the last of the code's order -- of those that gave no frame, when some did --, as a session the phone
+ * says it cannot run drops them, never the first.
  * The cameras failing together -- the front's and the back's at once -- are one failure: an open leaves one
  * lens out at most. Cameras lost later, having streamed a while, or taken by another app, are opened again
  * with all their lenses.
@@ -47,7 +49,9 @@ class LensFallback {
     ): Lens? {
         if (!early(failure) || open == paid || streamed.size < 2) return null
         paid = open
-        return streamed.last().also { left += it }
+        val silent = (failure as? CameraFailure.NoFrame)?.silent.orEmpty()
+        val lens = streamed.drop(1).lastOrNull { it in silent } ?: streamed.last()
+        return lens.also { left += it }
     }
 
     /**

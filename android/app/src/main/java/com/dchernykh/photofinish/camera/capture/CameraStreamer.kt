@@ -429,13 +429,8 @@ class CameraStreamer(
             if (mine != generation || closed) return
             val silent = streams.map { it.lens }.filter { it !in framed }
             if (silent.isEmpty()) return
-            val which = silent.joinToString { it.code }
-            lost(
-                "the camera gave $which no frame in ${NO_FRAME_MS / MS_PER_S} s",
-                CameraFailure.NoFrame(
-                    sinceStart ?: 0L,
-                ),
-            )
+            val reason = "the camera gave ${silent.joinToString { it.code }} no frame in ${NO_FRAME_MS / MS_PER_S} s"
+            lost(reason, CameraFailure.NoFrame(silent, sinceStart ?: 0L))
         }
 
         /**
