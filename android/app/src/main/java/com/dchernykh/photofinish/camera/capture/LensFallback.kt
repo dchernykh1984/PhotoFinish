@@ -30,8 +30,8 @@ sealed interface CameraFailure {
  * FR-005): a phone may say it streams lenses together and then not -- the Xiaomi 17 Ultra, asked for four at
  * 2560x1440 and 60 fps, gave no frame and its camera failed in 1.5 s, again each time it was opened. Cameras
  * that fail, or give a lens no frame, within [EARLY_MS] of their lenses' start are opened again with one lens
- * fewer: the last of the code's order -- of those that gave no frame, when some did --, as a session the phone
- * says it cannot run drops them, never the first.
+ * fewer: the last of the code's order -- for a lens that gave no frame, the last of those, never one that
+ * streams --, as a session the phone says it cannot run drops them, never the first.
  * The cameras failing together -- the front's and the back's at once -- are one failure: an open leaves one
  * lens out at most. Cameras lost later, having streamed a while, or taken by another app, are opened again
  * with all their lenses.
@@ -84,8 +84,9 @@ class LensFallback {
     /**
      * The camera of [own] lenses failed, of open [open] streaming [streamed] in the code's order: the lens left
      * out from now on, or null -- a failure not the lenses', or late, one this open paid for already, or a lens
-     * streamed alone. Its own go first, those that gave no frame before the others; another camera's when it
-     * streams the first lens alone, their load lightened.
+     * streamed alone. After a lens gave no frame, the last of those goes, never one that streams for it: the
+     * first alone silent, none goes, waited for. Else its own go first; another camera's when it streams the first
+     * lens alone, their load lightened.
      */
     fun failed(
         open: Int,
@@ -124,8 +125,8 @@ class LensFallback {
 
     /**
      * The other camera of open [open] -- the front beside the back -- failed alone and was closed, its [lenses]
-     * left out of this open: one of them left out from now on, as the first camera's path does -- the last that
-     * gave no frame, else its last, never the first of [streamed], the open's in the code's order --, the
+     * left out of this open: one of them left out from now on, as the first camera's path does -- after a lens gave
+     * no frame the last of those, else its last, never the first of [streamed], the open's in the code's order --, the
      * others tried again in the next open, made for them. The lens left out, or null.
      */
     fun failedAlone(
@@ -136,8 +137,9 @@ class LensFallback {
     ): Lens? = choose(open, failure, streamed.drop(1).filter { it in lenses }, lenses)
 
     /**
-     * One of [candidates] left out of open [open] after [failure] when it counts and the open has paid none: the
-     * last that gave no frame, else the last of [own], else the last.
+     * One of [candidates] left out of open [open] after [failure] when it counts and the open has paid none: after
+     * a lens gave no frame, the last of those, never one that streams -- left out, it could leave none streaming --;
+     * else the last of [own], else the last.
      */
     private fun choose(
         open: Int,
@@ -145,10 +147,14 @@ class LensFallback {
         candidates: List<Lens>,
         own: List<Lens>,
     ): Lens? {
-        if (!counts(failure) || open == paid || candidates.isEmpty()) return null
+        if (!counts(failure) || open == paid) return null
+        val lens =
+            if (failure is CameraFailure.NoFrame) {
+                candidates.lastOrNull { it in failure.silent }
+            } else {
+                candidates.lastOrNull { it in own } ?: candidates.lastOrNull()
+            } ?: return null
         paid = open
-        val silent = (failure as? CameraFailure.NoFrame)?.silent.orEmpty()
-        val lens = candidates.lastOrNull { it in silent } ?: candidates.lastOrNull { it in own } ?: candidates.last()
         return lens.also { left += it }
     }
 
