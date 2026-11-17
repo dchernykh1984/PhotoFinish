@@ -21,3 +21,14 @@
 - [x] T007 The contract, `specs/app/README.md`, the android-app skill (reading `phone.log`),
   CLAUDE.md and AGENTS.md
 - [x] T008 The emulator in tandem (SC-001, SC-002, SC-003)
+
+## Review cycle 1
+
+- [x] T009 The phone's gaps passed over, each message saying the line before it (contract)
+- [x] T010 `phone_log.py`: the last runs each; a time of no computer's; a new file's run
+- [x] T011 `clock_sync.py`: the log on a thread of its own
+- [x] T012 `PhoneLog.kt`: the app's own lines mirrored alone; the left-out count told once its
+  second is over
+- [x] T013 `StatusLog.kt`: a status said again within a minute counted
+- [x] T014 `LogSender.kt`: one message a round to a recorder that never answered; the recorders of
+  the kept code, no activity held
