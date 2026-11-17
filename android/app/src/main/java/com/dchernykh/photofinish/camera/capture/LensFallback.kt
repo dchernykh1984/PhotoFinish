@@ -120,18 +120,20 @@ class LensFallback {
     ): Boolean = open == paid || settled || failure != CameraFailure.NotConfigured && failure !is CameraFailure.NoFrame
 
     /**
-     * The other camera of open [open] -- the front beside the back -- failed alone and was closed: its [lenses],
-     * left out of this open, are left out from now on when the failure was the lenses' and early. The lenses
-     * newly left out.
+     * The other camera of open [open] -- the front beside the back -- failed alone and was closed, its [lenses]
+     * left out of this open: one of them left out from now on when the failure was the lenses' and early, as the
+     * first camera's path does -- the last that gave no frame, else its last --, the others tried again in the
+     * next open. The lens left out, or null.
      */
     fun failedAlone(
         open: Int,
         lenses: List<Lens>,
         failure: CameraFailure?,
-    ): List<Lens> {
-        if (!counts(failure) || lenses.isEmpty()) return emptyList()
+    ): Lens? {
+        if (!counts(failure) || lenses.isEmpty()) return null
         paid = open
-        return lenses.filter { left.add(it) }
+        val silent = (failure as? CameraFailure.NoFrame)?.silent.orEmpty()
+        return (lenses.lastOrNull { it in silent } ?: lenses.last()).also { left += it }
     }
 
     companion object {
