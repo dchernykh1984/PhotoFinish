@@ -36,12 +36,15 @@ object Diagnostics {
     private var sender: LogSender? = null
 
     /**
-     * Started, once: the log sent to the recorders of the pairing code the app keeps, read each round from the
-     * settings of [context]'s application -- no activity is held, whatever becomes of it.
+     * Started, once, told the phone's [lenses]: the log sent to the recorders of the pairing code the app keeps,
+     * read each round from the settings of [context]'s application -- no activity is held, whatever becomes of it.
      */
     @Synchronized
-    fun start(context: Context) {
-        if (sender != null) return
+    fun start(
+        context: Context,
+        lenses: String,
+    ) {
+        if (sender != null) return // an activity made again: told once, its lenses' line too
         val settings = Settings(context.applicationContext)
         val crash = File(context.filesDir, CRASH_FILE)
         Crashes.tell(crash, log)
@@ -51,6 +54,7 @@ object Diagnostics {
             "PhotoFinish Camera ${BuildConfig.VERSION_NAME} on ${Build.MANUFACTURER} ${Build.MODEL}, " +
                 "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})",
         )
+        log.info(null, lenses) // once: a line of the phone's after an error would end its last word
         ProcessLog.follow(log, Process.myPid())
         sender = LogSender(log, { LogSender.recordersOf(settings.address) }).also { it.start() }
     }

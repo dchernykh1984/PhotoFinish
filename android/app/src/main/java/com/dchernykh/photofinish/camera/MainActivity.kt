@@ -35,14 +35,13 @@ class MainActivity : ComponentActivity() {
         }
         // What the app meets goes to the recorders of the lenses the code names, streaming or not
         // (specs/008-phone-log): the laptop sees why a phone gives no video.
-        Diagnostics.start(this)
-        val log = Diagnostics.log
         val found =
             lenses.found.entries.joinToString { (lens, info) ->
                 val physical = info.physicalId?.let { "/$it" }.orEmpty()
                 "${lens.code}: camera ${info.cameraId}$physical, ${info.focalMm.roundToInt()} mm"
             }
-        log.info(null, "lenses: ${found.ifEmpty { "none" }}")
+        Diagnostics.start(this, "lenses: ${found.ifEmpty { "none" }}")
+        val log = Diagnostics.log
         val statuses = Diagnostics.statuses
         streamer =
             CameraStreamer(this, lenses, PhoneStatusReader(this), log) { lens, status ->
