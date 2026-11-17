@@ -110,7 +110,7 @@ class LensFallbackTest {
     }
 
     @Test
-    fun `a lens that gave no frame with none to leave out is waited for, not the camera made again every 7 s`() {
+    fun `a lens that gave no frame with none to leave out, or once they ran together, is waited for, not made again`() {
         val fallback = LensFallback()
         val stalled = CameraFailure.NoFrame(listOf(Lens.MAIN), 5_000)
         fallback.failed(1, listOf(Lens.MAIN), listOf(Lens.MAIN), stalled)
@@ -118,9 +118,10 @@ class LensFallbackTest {
         val two = listOf(Lens.MAIN, Lens.TELEPHOTO)
         fallback.failed(2, two, two, stalled)
         assertEquals(true, fallback.madeAgain(2, stalled))
-        fallback.settle() // they ran together: a stall after a reopen mid-race is the camera's, made again
-        fallback.failed(3, two, two, stalled)
-        assertEquals(true, fallback.madeAgain(3, stalled))
+        fallback.settle() // they ran together: one silent after a reopen mid-race is waited for, the other on
+        val telephoto = CameraFailure.NoFrame(listOf(Lens.TELEPHOTO), 5_000)
+        assertNull(fallback.failed(3, two, two, telephoto))
+        assertEquals(false, fallback.madeAgain(3, telephoto)) // not the main cut every 7 s for as long
     }
 
     @Test
