@@ -63,7 +63,11 @@ class PhoneLog(
         level: Char,
         lens: String?,
         text: String,
-    ) = keep(clockMs(), level, lens, text)
+    ) {
+        val now = clockMs()
+        tell(now)
+        keep(now, level, lens, text)
+    }
 
     /** A line of the phone's system log, of [level] -- [SYSTEM_WARNING] or [SYSTEM_ERROR]: [perSecond] a second. */
     @Synchronized
@@ -72,20 +76,7 @@ class PhoneLog(
         text: String,
     ) {
         val now = clockMs()
-        if (Math.floorDiv(now, SECOND_MS) != second) {
-            second = Math.floorDiv(now, SECOND_MS)
-            inSecond = 0
-            if (leftOut > 0) {
-                keep(
-                    now,
-                    SYSTEM_WARNING,
-                    null,
-                    "$leftOut lines of the system log left out: more than $perSecond a second",
-                )
-                leftOut = 0
-                inSecond++
-            }
-        }
+        tell(now)
         if (inSecond >= perSecond) {
             leftOut++
             return
@@ -96,7 +87,25 @@ class PhoneLog(
 
     /** The lines after the one numbered [seq] that are still kept, oldest first. */
     @Synchronized
-    fun after(seq: Long): List<LogLine> = lines.filter { it.seq > seq }
+    fun after(seq: Long): List<LogLine> {
+        tell(clockMs())
+        return lines.filter { it.seq > seq }
+    }
+
+    /**
+     * A second gone by: how many of the system log's lines it left out said, whatever line comes next -- or
+     * none: the sender's next look tells it, a burst that ends the system log's lines told all the same.
+     */
+    private fun tell(now: Long) {
+        if (Math.floorDiv(now, SECOND_MS) == second) return
+        second = Math.floorDiv(now, SECOND_MS)
+        inSecond = 0
+        if (leftOut > 0) {
+            keep(now, SYSTEM_WARNING, null, "$leftOut lines of the system log left out: more than $perSecond a second")
+            leftOut = 0
+            inSecond++
+        }
+    }
 
     private fun keep(
         now: Long,
