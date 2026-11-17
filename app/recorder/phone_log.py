@@ -50,12 +50,33 @@ class PhoneLog:
         # The newest line kept of each run lately heard, the newest run last: two
         # phones given one code each go on where they were, not again from the start;
         # and the run written last, whose lines the file goes on with. A recorder
-        # started again finds both in its file.
-        self.run, self.runs = _where(self.path)
+        # started again finds both in its file -- at the first message, on the log's
+        # thread, not before its first frame.
+        self._run: str | None = None
+        self._runs: dict[str, int] | None = None
         # The phone's newest warning or error of this lens, or of the phone as a whole,
         # for the window (FR-005): when the phone said it, and the phone's newest time
         # and when this computer heard it -- how long ago, whatever either's clock says.
         self.said: dict[str, Any] = {}
+
+    @property
+    def run(self) -> str | None:
+        self._found()
+        return self._run
+
+    @run.setter
+    def run(self, run: str | None) -> None:
+        self._found()
+        self._run = run
+
+    @property
+    def runs(self) -> dict[str, int]:
+        return self._found()
+
+    def _found(self) -> dict[str, int]:
+        if self._runs is None:
+            self._run, self._runs = _where(self.path)
+        return self._runs
 
     def heard(self, message: bytes) -> bytes | None:
         """The answer to ``message``, its lines kept; None when it is no log message.
