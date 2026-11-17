@@ -26,8 +26,8 @@ as a rule."
 
 ### User Story 1 - The referee ticks lenses on the laptop and the phone streams each (Priority: P1)
 
-In the add-camera dialog for a phone, the referee ticks the lenses to record: Main, Ultra-wide,
-Telephoto, Front. PhotoFinish adds a camera for each, on a port of its own, and shows one QR code
+In the add-camera dialog for a phone, the referee ticks the lenses to record: Main, Telephoto,
+Ultra-wide, Front. PhotoFinish adds a camera for each, on a port of its own, and shows one QR code
 holding them all. PhotoFinish Camera scans it and streams every lens it has, each with its frames'
 moments; a lens the phone lacks, or cannot stream with the others, is said on the phone, and its
 camera keeps waiting.
@@ -99,10 +99,11 @@ switch to the other at the same moment and back to both.
 ### Functional Requirements
 
 - **FR-001**: The add-camera dialog's phone connection offers the lenses Main (ticked by default),
-  Ultra-wide, Telephoto and Front. Each ticked lens is a camera of its own: the name typed,
-  followed by the lens when more than one is ticked; the next free id; the port typed for the
-  first lens and the next free ports for the others; the path typed for the first and
-  `live/<id>` for the others. The session's format does not change: to PhotoFinish each is a
+  Telephoto, Ultra-wide and Front -- in the code's order, the phone leaving them out from the
+  last (FR-005), so the two advised below are kept the longest. Each ticked lens is a camera of
+  its own: the name typed, followed by the lens when more than one is ticked; the next free id;
+  the port typed for the first lens and the next free ports for the others; the path typed for
+  the first and `live/<id>` for the others. The session's format does not change: to PhotoFinish each is a
   phone's camera like any other. More than two lenses ticked, the dialog says a phone may not
   stream them at once -- Android promises two -- and advises Main and Telephoto: the telephoto
   shows who crossed first in detail, the main lens has the phone's best sensor as a rule; the

@@ -104,7 +104,7 @@ phone preview over its own Wi-Fi -- 1280x720, about 0.9 Mbit/s, seconds without 
 video over its cable.
 
 PhotoFinish Camera streams several of the phone's lenses at once (`specs/004-phone-lenses`):
-the dialog's lens boxes -- Main, ticked, Ultra-wide, Telephoto, Front -- make a camera of each,
+the dialog's lens boxes -- Main, ticked, Telephoto, Ultra-wide, Front -- make a camera of each,
 named after its lens, on a port of its own, and the QR code holds a line per lens (an address
 alone for Main alone). More than two ticked, the dialog says a phone may not stream them at
 once -- Android promises two -- and advises Main and Telephoto. The phone finds its lenses by their focal lengths among its back camera's
