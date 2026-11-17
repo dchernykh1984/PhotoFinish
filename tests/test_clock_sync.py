@@ -6,6 +6,7 @@ import socket
 import struct
 import threading
 import time
+from types import SimpleNamespace
 
 import pytest
 
@@ -98,6 +99,52 @@ def test_a_log_slow_to_write_holds_no_clock_exchange_back() -> None:
             assert time.monotonic() - sent < 0.5
     finally:
         responder.close()
+
+
+class Resetting:
+    """A socket of Windows' whose answer found no one: the next read says so."""
+
+    def __init__(self) -> None:
+        self.sent: list[bytes] = []
+        self.reads = 0
+
+    def bind(self, address: object) -> None: ...
+    def settimeout(self, seconds: float) -> None: ...
+    def close(self) -> None: ...
+
+    def getsockname(self) -> tuple[str, int]:
+        return "127.0.0.1", 1
+
+    def recvfrom(self, size: int) -> tuple[bytes, tuple[str, int]]:
+        self.reads += 1
+        if self.reads == 1:
+            raise ConnectionResetError(10054, "reset by peer")
+        if self.reads == 2:
+            return request(7), ("127.0.0.1", 9)
+        time.sleep(0.05)
+        raise TimeoutError
+
+    def sendto(self, data: bytes, address: object) -> None:
+        self.sent.append(data)
+
+
+def test_an_answer_that_found_no_one_holds_no_exchange_back(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Windows tells of an answer that found no one -- a phone's log's, its app
+    # started again -- at the next read: the exchange is answered on, unpaused.
+    resetting = Resetting()
+    sockets = SimpleNamespace(socket=lambda *args: resetting, AF_INET=0, SOCK_DGRAM=0)
+    monkeypatch.setattr(clock_sync, "socket", sockets)
+    monkeypatch.setattr(clock_sync, "_RETRY_S", 5.0)  # a pause would be seen
+    responder = ClockResponder(0, lambda: 0)
+    try:
+        deadline = time.monotonic() + 2
+        while not resetting.sent and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert resetting.sent and resetting.sent[0][:4] == b"PFTS"
+    finally:
+        responder._closed.set()
 
 
 def test_a_port_taken_by_another_program_is_said_and_nothing_left_open() -> None:
