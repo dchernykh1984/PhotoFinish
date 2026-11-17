@@ -182,6 +182,23 @@ class LogSenderTest {
     }
 
     @Test
+    fun `a recorder that answered is quiet after ten seconds of lines unanswered, not of nothing to send`() {
+        val sender = sender()
+        log.info(null, "line")
+        sender.round()
+        recorder.received()
+        recorder.answer(log.run, 1)
+        sender.hear()
+        now += 30_000 // streaming, nothing to tell for half a minute
+        log.error(null, "camera error 4: the camera device failed; trying again")
+        sender.round() // lost on the way
+        assertEquals(listOf(2L), recorder.received())
+        now += 500
+        sender.round()
+        assertEquals(listOf(2L), recorder.received()) // sent again in the next round, not five seconds on
+    }
+
+    @Test
     fun `a recorder no longer in the code is forgotten`() {
         var to = listOf("127.0.0.1" to recorder.port)
         val sender = sender { to }
