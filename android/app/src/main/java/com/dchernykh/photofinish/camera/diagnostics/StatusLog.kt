@@ -109,6 +109,7 @@ class StatusLog(
                         when (status.why) {
                             LeftOut.NOT_ON_THIS_PHONE -> "the phone has no such lens"
                             LeftOut.NOT_WITH_THE_OTHERS -> "the phone cannot stream it beside the others"
+                            LeftOut.FAILED_WITH_THE_OTHERS -> "the cameras failed with it beside the others"
                         }
                     Triple(PhoneLog.WARNING, "left out: $why", "left out: $why")
                 }

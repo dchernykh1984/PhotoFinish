@@ -61,12 +61,10 @@ private fun lensText(status: StreamerStatus?): String =
         is StreamerStatus.Link -> linkText(status.status)
         is StreamerStatus.Left ->
             stringResource(
-                if (status.why ==
-                    LeftOut.NOT_ON_THIS_PHONE
-                ) {
-                    R.string.left_missing
-                } else {
-                    R.string.left_together
+                when (status.why) {
+                    LeftOut.NOT_ON_THIS_PHONE -> R.string.left_missing
+                    LeftOut.NOT_WITH_THE_OTHERS -> R.string.left_together
+                    LeftOut.FAILED_WITH_THE_OTHERS -> R.string.left_failed
                 },
             )
         StreamerStatus.Previewing, null -> stringResource(R.string.starting)

@@ -27,6 +27,7 @@
     <string name="lens_status">%1$s: %2$s</string>
     <string name="left_missing">нет на этом телефоне</string>
     <string name="left_together">этот телефон не снимает им вместе с остальными</string>
+    <string name="left_failed">камера отказала, снимая им вместе с остальными</string>
     <string name="unread">Не прочитано: %1$s</string>
     <string name="starting">запуск</string>
 </resources>
