@@ -133,7 +133,7 @@ switch to the other at the same moment and back to both.
   out; a camera failing alone, the front beside the back, leaves one of its lenses out so, its
   others brought back by opening the cameras again. Cameras
   that fail before their lenses start, are taken by another app, or fail once every lens of every
-  camera gave frames for 10 s -- lost later for whatever reason, closed and opened again for the
+  camera, those waited for aside, gave frames for 10 s -- lost later for whatever reason, closed and opened again for the
   same, or soon after a reopen mid-race -- are opened again with all their lenses. A camera that
   fails with the screen away, its preview gone, leaves no lens out: the screen's return opens the
   cameras again. With no lens left out by either camera, a session the camera cannot make is said

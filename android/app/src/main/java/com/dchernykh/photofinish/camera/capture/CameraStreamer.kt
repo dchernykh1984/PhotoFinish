@@ -193,10 +193,10 @@ class CameraStreamer(
         get() = opened.flatMap { it.ownLenses }.toSet().let { streaming -> order.filter { it in streaming } }
 
     /**
-     * Whether open [open]'s lenses now run together -- every lens of every camera still open has given a frame,
-     * checked at each first frame and when a camera closes alone --: settled [LensFallback.EARLY_MS] on, if the
-     * open lasts, whatever fails after it. A lens slow to its first frame, or a second camera started after the
-     * first, counted from its own; the settling set going once an open.
+     * Whether open [open]'s lenses now run together -- every lens of every camera still open has given a frame, or
+     * is waited for, checked at each first frame, when a lens is waited for and when a camera closes alone --:
+     * settled [LensFallback.EARLY_MS] on, if the open lasts, whatever fails after it. A lens slow to its first
+     * frame, or a second camera started after the first, counted from its own; the settling set going once an open.
      */
     private fun checkSettled(open: Int) {
         if (open != generation || settling == open || !opened.all { it.allFramed }) return
@@ -284,8 +284,8 @@ class CameraStreamer(
         /** The lenses it streams: its own, not the phone's. */
         val ownLenses: List<Lens> get() = streams.map { it.lens }
 
-        /** Each of its lenses has given a frame: none of a camera closed. */
-        val allFramed: Boolean get() = ownLenses.all { it in framed }
+        /** Each of its lenses has given a frame, or is waited for (LensFallback.waitsFor): none of a camera closed. */
+        val allFramed: Boolean get() = ownLenses.all { it in framed || fallback.waitsFor(it) }
 
         /** The lenses whose encoder has given a frame: the encoders' threads add, the cameras' reads. */
         private val framed = ConcurrentHashMap.newKeySet<Lens>()
@@ -398,11 +398,12 @@ class CameraStreamer(
                 val silent = if (made) emptyList() else fallback.waitedFor(mine, failure)
                 silent.forEach { onStatus(it, said) }
                 if (!made && silent.isEmpty()) say(said)
-                return
+                return checkSettled(mine) // the others may run together without the lens waited for
             }
             val left = fallback.failedAlone(mine, streamed, own, failure)
             val silent = fallback.waitedFor(mine, failure)
-            if (silent.isNotEmpty()) return silent.forEach { onStatus(it, said) }
+            silent.forEach { onStatus(it, said) }
+            if (silent.isNotEmpty()) return checkSettled(mine)
             close() // first: no word of its uplinks comes after the one said here
             left?.let { log.warning(it.code, "left out from now on: its camera failed with it ($reason)") }
             own.forEach { onStatus(it, StreamerStatus.Failed("$reason; left out")) }

@@ -182,6 +182,23 @@ class LensFallbackTest {
     }
 
     @Test
+    fun `a lens waited for is told apart until the referee starts again, the others settling without it`() {
+        val fullHd = StreamFormat(Resolution(1920, 1080), 60, FpsRange(60, 60), 16_000_000)
+        val two = listOf(Lens.MAIN, Lens.TELEPHOTO)
+        val targets = two.map { LensTarget(it, RtmpAddress("10.0.0.5", 1935, "live", it.code)) }
+        val fallback = LensFallback()
+        fallback.start(fullHd, targets)
+        val firstSilent = CameraFailure.NoFrame(listOf(Lens.MAIN), 5_000)
+        assertNull(fallback.failed(1, two, two, firstSilent)) // none left out for the first
+        assertEquals(false, fallback.waitsFor(Lens.MAIN))
+        assertEquals(listOf(Lens.MAIN), fallback.waitedFor(1, firstSilent))
+        assertEquals(true, fallback.waitsFor(Lens.MAIN)) // the telephoto settles without it
+        assertEquals(false, fallback.waitsFor(Lens.TELEPHOTO))
+        fallback.start(fullHd, emptyList()) // the referee stopped: every lens tried again
+        assertEquals(false, fallback.waitsFor(Lens.MAIN))
+    }
+
+    @Test
     fun `the code's order says which lens goes`() {
         val fallback = LensFallback()
         val frontFirst = listOf(Lens.FRONT, Lens.MAIN)
