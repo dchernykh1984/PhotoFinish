@@ -45,11 +45,11 @@ class PhoneLog:
         clock: Callable[[], int] = _now_ms,
     ) -> None:
         self.path, self.lens, self.clock = folder / FILE, lens, clock
-        # Where the file is: a recorder started again goes on from its last line.
-        self.run, self.kept = _where(self.path)
         # The newest line kept of each run lately heard, the newest run last: two
-        # phones given one code each go on where they were, not again from the start.
-        self.runs: dict[str, int] = {} if self.run is None else {self.run: self.kept}
+        # phones given one code each go on where they were, not again from the start;
+        # and the run written last, whose lines the file goes on with. A recorder
+        # started again finds both in its file.
+        self.run, self.runs = _where(self.path)
         # The phone's newest warning or error of this lens, or of the phone as a whole,
         # and when it came by this computer's clock: for the window (FR-005).
         self.said: dict[str, Any] = {}
@@ -89,7 +89,7 @@ class PhoneLog:
                 said |= {"at_ms": at_ms, "heard_ms": self.clock()}
         before = start - 1 if known is None else known
         if written and self._write(written, run, before):
-            self.run, self.kept, self.said = run, kept, said
+            self.run, self.said = run, said
             self.runs.pop(run, None)
             self.runs[run] = kept
             while len(self.runs) > RUNS_KEPT:
@@ -117,10 +117,15 @@ class PhoneLog:
         a new file begun past KEEP_BYTES, saying whose lines follow; False when they
         could not be written: not answered, sent again (FR-006)."""
         try:
-            if self.path.exists() and self.path.stat().st_size > KEEP_BYTES:
+            rotate = self.path.exists() and self.path.stat().st_size > KEEP_BYTES
+            if rotate:
                 self.path.replace(self.path.with_name(FILE + ".1"))
-                if not any(line.startswith("--- run ") for line in lines):
-                    lines = [f"--- run {run} from line {kept + 1}", *lines]
+            # Each line is the run's whose mark is the last before it: another run's
+            # lines -- a second phone given the code -- begin with theirs.
+            if (rotate or run != self.run) and not any(
+                line.startswith("--- run ") for line in lines
+            ):
+                lines = [f"--- run {run} from line {kept + 1}", *lines]
             with self.path.open("a", encoding="utf-8") as f:
                 f.write("".join(f"{line}\n" for line in lines))
         except OSError:
@@ -165,23 +170,24 @@ def _read(
     return parts[2], int(parts[3]), int(parts[4]), lines
 
 
-def _where(path: Path) -> tuple[str | None, int]:
-    """The run and the newest line ``path`` holds, from its last lines back to the
-    run's mark -- KEEP_BYTES of them at most: (None, 0) when it holds none, or cannot
-    be read."""
+def _where(path: Path) -> tuple[str | None, dict[str, int]]:
+    """The run ``path`` was written last with, and the newest line it holds of each of
+    its last runs, each line the run's whose mark is the last before it -- KEEP_BYTES
+    of them at most; (None, {}) when it holds none, or cannot be read."""
     try:
         lines = path.read_bytes().decode("utf-8", errors="replace").splitlines()
     except OSError:
-        return None, 0
-    newest = None
-    for line in reversed(lines):
-        seq = _SEQ.match(line)
-        if seq is not None and newest is None:
-            newest = int(seq.group(1))
+        return None, {}
+    run: str | None = None
+    runs: dict[str, int] = {}
+    for line in lines:
         mark = _MARK.match(line)
         if mark is not None:
-            return mark.group(1), newest or int(mark.group(2)) - 1
-    return None, 0
+            run = mark.group(1)
+            runs[run] = max(runs.pop(run, 0), int(mark.group(2)) - 1)
+        elif (seq := _SEQ.match(line)) is not None and run is not None:
+            runs[run] = int(seq.group(1))
+    return run, dict(list(runs.items())[-RUNS_KEPT:])
 
 
 def _clock_text(ms: int) -> str:
