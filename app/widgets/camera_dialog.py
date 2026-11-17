@@ -44,6 +44,12 @@ NO_NETWORK = (
     "or type this computer's address in the phone"
 )
 NETWORK_POLL_MS = 2000
+MOST_LENSES = 2  # the lenses Android promises a phone streams at once
+MANY_LENSES = (
+    "More than two lenses may not stream at once: Android promises two, and a phone "
+    "may fail with more. Main and Telephoto are advised: the telephoto shows who "
+    "crossed first in detail, the main lens has the phone's best sensor as a rule."
+)
 _ROWS = {  # the fields each connection shows
     "usb": ("device", "size", "fps"),
     "rtsp": ("url", "transport"),
@@ -123,6 +129,9 @@ class CameraDialog(QDialog):
         size_row.addWidget(self.width_box)
         size_row.addWidget(QLabel("x"))
         size_row.addWidget(self.height_box)
+        self.advice = QLabel()  # said, the OK left to the referee
+        self.advice.setStyleSheet("color: #b07000")
+        self.advice.setWordWrap(True)
         self.problems = QLabel()
         self.problems.setStyleSheet("color: #c03030")
         self.problems.setWordWrap(True)
@@ -144,6 +153,7 @@ class CameraDialog(QDialog):
             "port": self._row("Port", self.port),
             "path": self._row("Stream path", self.path),
             "lenses": self._row("Lenses (PhotoFinish Camera)", lens_row),
+            "advice": self._row("", self.advice),
             "address": self._row("Type in the streaming app", self.address),
             "qr": self._row("Or scan it with PhotoFinish Camera", self.qr),
             "scene": self._row("Scene", self.scene),
@@ -238,6 +248,9 @@ class CameraDialog(QDialog):
         shown = _ROWS[self.kind()]
         for key, row in self._rows.items():
             self.form.setRowVisible(row, key in shown)
+        many = self.kind() == "rtmp" and len(self._lenses()) > MOST_LENSES
+        self.advice.setText(MANY_LENSES if many else "")
+        self.form.setRowVisible(self._rows["advice"], many)
         clash = cameras.port_clash(self.camera(), self.others)
         if self.kind() == "rtmp":
             self._show_address(self._settings(), clash)

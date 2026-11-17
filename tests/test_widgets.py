@@ -168,6 +168,29 @@ def test_a_phone_with_several_lenses_is_a_camera_each_on_a_port_of_its_own(
     assert not alone.buttons.button(alone.buttons.StandardButton.Ok).isEnabled()
 
 
+def test_more_than_two_lenses_are_advised_against_main_and_telephoto_advised(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(cameras, "this_computer", lambda: "10.0.0.5")
+    dialog = CameraDialog(None, "cam1", [], [], ["cam2", "cam3", "cam4"])
+    ok = dialog.buttons.button(dialog.buttons.StandardButton.Ok)
+    advice = dialog._rows["advice"]
+    dialog.lenses["telephoto"].setChecked(True)  # the two advised: nothing said
+    assert not dialog.form.isRowVisible(advice)
+    dialog.lenses["ultrawide"].setChecked(True)
+    dialog.lenses["front"].setChecked(True)  # the Xiaomi 17 Ultra's four: none streamed
+    assert dialog.form.isRowVisible(advice)
+    assert "Main and Telephoto are advised" in dialog.advice.text()
+    assert ok.isEnabled()  # the referee's choice: said, not refused
+    dialog.connection.setCurrentIndex(dialog.connection.findData("test"))
+    assert not dialog.form.isRowVisible(advice)  # lenses are a phone's
+    dialog.connection.setCurrentIndex(dialog.connection.findData("rtmp"))
+    dialog.lenses["front"].setChecked(False)
+    dialog.lenses["ultrawide"].setChecked(False)
+    assert not dialog.form.isRowVisible(advice)
+    assert dialog.advice.text() == ""
+
+
 def test_a_port_another_phone_has_shows_no_address_to_scan(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
