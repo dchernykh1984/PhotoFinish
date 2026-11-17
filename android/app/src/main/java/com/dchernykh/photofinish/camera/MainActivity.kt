@@ -36,7 +36,7 @@ class MainActivity : ComponentActivity() {
         }
         // What the app meets goes to the recorders of the lenses the code names, streaming or not
         // (specs/008-phone-log): the laptop sees why a phone gives no video.
-        Diagnostics.start(this) { state.pairing.targets.map { it.address.host to it.address.port } }
+        Diagnostics.start(this)
         val log = Diagnostics.log
         val found =
             lenses.found.entries.joinToString { (lens, info) ->

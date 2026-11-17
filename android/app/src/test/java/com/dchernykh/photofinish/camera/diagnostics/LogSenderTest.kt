@@ -193,4 +193,12 @@ class LogSenderTest {
         sender.round() // a name that does not resolve is left for a later round
         assertTrue(recorder.received().size == 1)
     }
+
+    @Test
+    fun `the log goes to each recorder the kept pairing code names, once`() {
+        val code = "main rtmp://10.89.30.50:1935/live/cam7\ntelephoto rtmp://10.89.30.50:1937/live/cam9"
+        assertEquals(listOf("10.89.30.50" to 1935, "10.89.30.50" to 1937), LogSender.recordersOf(code))
+        assertEquals(listOf("10.0.0.5" to 1935), LogSender.recordersOf("rtmp://10.0.0.5/live/phone"))
+        assertEquals(emptyList<Pair<String, Int>>(), LogSender.recordersOf(""))
+    }
 }
