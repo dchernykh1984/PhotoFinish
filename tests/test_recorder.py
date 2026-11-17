@@ -268,6 +268,30 @@ def test_a_phone_s_log_is_kept_beside_its_clock_its_last_word_in_the_heartbeat(
         recording.responder.close()
 
 
+def test_the_phone_s_last_word_waits_for_the_heartbeat_s_second(
+    folder: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Each message of a phone's log changes its last word's times: written at each,
+    # the heartbeat would hold up the frames it is written among.
+    folder.mkdir(parents=True)
+    beat = Heartbeat(folder, "rtmp")
+    written: list[Path] = []
+    real = Path.replace
+
+    def replacing(path: Path, to: Path) -> Path:
+        written.append(to)
+        return real(path, to)
+
+    monkeypatch.setattr(Path, "replace", replacing)
+    said = {"text": "camera error 4", "heard_ms": 0}
+    beat.extra = lambda: {"phone_said": dict(said)}
+    beat.beat(state="recording")
+    for n in range(20):
+        said["heard_ms"] = n
+        beat.beat(state="recording")
+    assert len(written) == 1  # the first, then a second's wait
+
+
 def test_a_camera_that_is_no_phone_keeps_no_phone_log(folder: Path) -> None:
     folder.mkdir(parents=True)
     camera = {"id": "cam1", "connection": "test", "settings": {"fps": 30}}
