@@ -253,9 +253,9 @@ def test_the_last_warning_or_error_of_the_camera_s_lens_or_the_phone_is_its_word
     log.heard(
         message(
             1,
-            (1, "E", "-", "camera error 4"),
-            (2, "W", "main", "connection lost"),  # another lens's
-            (3, "I", "-", "the camera gives frames"),  # no warning
+            (1, "I", "-", "the camera gives frames"),  # no warning
+            (2, "E", "-", "camera error 4"),
+            (3, "W", "main", "connection lost"),  # another lens's
             (4, "e", "-", "mapper: unsupported metadata"),  # the system log's
         )
     )
@@ -263,7 +263,7 @@ def test_the_last_warning_or_error_of_the_camera_s_lens_or_the_phone_is_its_word
         "level": "E",
         "lens": "-",
         "text": "camera error 4",
-        "at_ms": START + 1,
+        "at_ms": START + 2,
         "heard_ms": START + 10_000,
     }
     assert last_word(log.said, START + 10_000 + phone_log.SAID_MS) == (
@@ -272,6 +272,8 @@ def test_the_last_warning_or_error_of_the_camera_s_lens_or_the_phone_is_its_word
     assert last_word(log.said, START + 10_001 + phone_log.SAID_MS) == ""  # old
     assert last_word({}, START) == ""
     assert last_word("x", START) == ""
+    log.heard(message(5, (5, "I", "-", "the camera gives frames")))
+    assert log.said == {}  # over: the phone is well again
     (tmp_path / "one").mkdir()
     one_lens = PhoneLog(tmp_path / "one")  # a phone of one camera: any lens's
     one_lens.heard(message(1, (1, "W", "main", "connection lost")))

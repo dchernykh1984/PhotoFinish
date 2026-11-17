@@ -83,10 +83,7 @@ class PhoneLog:
                 continue  # sent again: kept already
             written.append(f"{_clock_text(at_ms)} {level} {lens} #{seq} {text}")
             kept = seq
-            # The app's own warnings and errors; its system log's are a driver's.
-            if level in "WE" and (lens == "-" or self.lens in (None, lens)):
-                said = {"level": level, "lens": lens, "text": text}
-                said |= {"at_ms": at_ms, "heard_ms": self.clock()}
+            said = self._word(said, level, lens, text, at_ms)
         before = start - 1 if known is None else known
         if written and self._write(written, run, before):
             self.run, self.said = run, said
@@ -95,6 +92,20 @@ class PhoneLog:
             while len(self.runs) > RUNS_KEPT:
                 del self.runs[next(iter(self.runs))]
         return f"PFLG {VERSION} {run} {self.runs.get(run, 0)}\n".encode("ascii")
+
+    def _word(
+        self, said: dict[str, Any], level: str, lens: str, text: str, at_ms: int
+    ) -> dict[str, Any]:
+        """The phone's last word after a line: the app's own newest of this lens or of
+        the phone, when it is a warning or an error; a line after it -- streaming
+        again -- says it is over. The system log's lines are a driver's, not why."""
+        mine = lens == "-" or self.lens in (None, lens)
+        if level not in "IWE" or not mine:
+            return said
+        if level == "I":
+            return {}
+        heard = {"text": text, "at_ms": at_ms, "heard_ms": self.clock()}
+        return {"level": level, "lens": lens, **heard}
 
     def _begun(self, run: str, start: int, known: int | None) -> list[str]:
         """The marks of ``run`` begun at ``start``: not heard before -- the app started
