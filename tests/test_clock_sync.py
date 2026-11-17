@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import socket
 import struct
+import threading
 import time
 
 import pytest
@@ -69,6 +70,32 @@ def test_the_phone_s_log_on_the_same_port_is_handed_on_and_answered() -> None:
             phone.sendto(request(5), ("127.0.0.1", responder.port))
             assert phone.recvfrom(64)[0][:4] == b"PFTS"  # the exchange answered still
         assert heard[0] == log  # whole
+    finally:
+        responder.close()
+
+
+def test_a_log_slow_to_write_holds_no_clock_exchange_back() -> None:
+    # The phone's log written on a slow disk, an antivirus scanning it: the exchange
+    # the frames' moments come from is answered at once all the same.
+    writing = threading.Event()
+
+    def slow(datagram: bytes) -> bytes | None:
+        writing.set()
+        time.sleep(1.5)
+        return None
+
+    responder = ClockResponder(0, lambda: 0, host="127.0.0.1", others=slow)
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as phone:
+            phone.settimeout(5)
+            phone.sendto(
+                b"PFLG 1 0123456789abcdef 1 0\n", ("127.0.0.1", responder.port)
+            )
+            assert writing.wait(5)
+            sent = time.monotonic()
+            phone.sendto(request(9), ("127.0.0.1", responder.port))
+            assert phone.recvfrom(64)[0][:4] == b"PFTS"
+            assert time.monotonic() - sent < 0.5
     finally:
         responder.close()
 

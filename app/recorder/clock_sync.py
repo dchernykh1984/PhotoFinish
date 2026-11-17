@@ -9,11 +9,14 @@ into the frame itself (specs/003-phone-camera-app/contracts/phone-stream.md).
 
 from __future__ import annotations
 
+import contextlib
+import queue
 import socket
 import struct
 import threading
 import time
 from collections.abc import Callable
+from typing import Any
 
 TAG = b"PFTS"
 VERSION = 1
@@ -24,6 +27,7 @@ _RETRY_S = 0.1
 # send much elsewhere -- 1.5 kB a second at most -- while hundreds of phones fit.
 ANSWERS_PER_S = 50
 DATAGRAM_BYTES = 2048  # a log message of the phone's, 1,200 bytes at most, whole
+OTHERS_WAITING = 64  # log messages waiting for their thread; past them, sent again
 
 
 def answer(request: bytes, t2: int, t3: int) -> bytes | None:
@@ -41,7 +45,8 @@ class ClockResponder:
     """Answers the exchange on UDP ``port`` with ``micros``, on a thread of its own,
     until closed: any sender, as a venue's Wi-Fi may hand out public addresses, but
     ANSWERS_PER_S at most. A datagram that is no exchange goes to ``others``, whose
-    answer is sent back: the phone's log (specs/008-phone-log)."""
+    answer is sent back: the phone's log (specs/008-phone-log), on a thread of its own,
+    so that its file costs the exchange no moment."""
 
     def __init__(
         self,
@@ -53,6 +58,8 @@ class ClockResponder:
     ) -> None:
         self.micros, self.monotonic, self.others = micros, monotonic, others
         self._second, self._answered = 0.0, 0
+        self._rationed = threading.Lock()  # answers counted from both threads
+        self._waiting: queue.Queue[tuple[bytes, Any]] = queue.Queue(OTHERS_WAITING)
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
             self.socket.bind((host, port))  # every interface: the phone is on Wi-Fi
@@ -65,6 +72,11 @@ class ClockResponder:
             target=self._serve, name="clock-responder", daemon=True
         )
         self._thread.start()
+        self._worker = threading.Thread(
+            target=self._work, name="phone-log", daemon=True
+        )
+        if others is not None:
+            self._worker.start()
 
     @property
     def port(self) -> int:
@@ -75,8 +87,11 @@ class ClockResponder:
             try:
                 request, sender = self.socket.recvfrom(DATAGRAM_BYTES)
                 t2 = self.micros()
-                reply = answer(request, t2, self.micros()) or self._other(request)
-                if reply is not None and self.may_answer():
+                reply = answer(request, t2, self.micros())
+                if reply is None and self.others is not None:
+                    with contextlib.suppress(queue.Full):  # the phone sends it again
+                        self._waiting.put_nowait((request, sender))
+                elif reply is not None and self.may_answer():
                     self.socket.sendto(reply, sender)
             except TimeoutError:
                 continue
@@ -85,6 +100,18 @@ class ClockResponder:
                 # network gone: tried again after a pause, not in a busy loop.
                 if self._closed.wait(_RETRY_S):
                     return
+
+    def _work(self) -> None:
+        """The datagrams that are no exchange, to ``others``, its answers sent back."""
+        while not self._closed.is_set():
+            try:
+                datagram, sender = self._waiting.get(timeout=0.5)
+            except queue.Empty:
+                continue
+            reply = self._other(datagram)
+            if reply is not None and self.may_answer():
+                with contextlib.suppress(OSError):  # closed meanwhile, or no route
+                    self.socket.sendto(reply, sender)
 
     def _other(self, datagram: bytes) -> bytes | None:
         """``others``'s answer; whatever it raises costs this datagram alone, never
@@ -98,13 +125,16 @@ class ClockResponder:
 
     def may_answer(self) -> bool:
         """Another answer this second: ANSWERS_PER_S at most."""
-        now = self.monotonic()
-        if now - self._second >= 1:
-            self._second, self._answered = now, 0
-        self._answered += 1
-        return self._answered <= ANSWERS_PER_S
+        with self._rationed:
+            now = self.monotonic()
+            if now - self._second >= 1:
+                self._second, self._answered = now, 0
+            self._answered += 1
+            return self._answered <= ANSWERS_PER_S
 
     def close(self) -> None:
         self._closed.set()
         self.socket.close()
         self._thread.join(timeout=2)
+        if self._worker.is_alive():
+            self._worker.join(timeout=2)
