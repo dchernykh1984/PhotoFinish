@@ -14,6 +14,8 @@ import android.os.HandlerThread
 import android.os.SystemClock
 import android.util.Range
 import android.view.Surface
+import com.dchernykh.photofinish.camera.diagnostics.Crashes
+import com.dchernykh.photofinish.camera.diagnostics.PhoneLog
 import com.dchernykh.photofinish.camera.pairing.Lens
 import com.dchernykh.photofinish.camera.pairing.LensTarget
 import com.dchernykh.photofinish.camera.status.PhoneStatusReader
@@ -55,6 +57,8 @@ class CameraStreamer(
     private val context: Context,
     private val lenses: PhoneLenses,
     private val phone: PhoneStatusReader,
+    /** Where what is opened, and what fails and why, is told whole (specs/008-phone-log). */
+    private val log: PhoneLog,
     private val onStatus: (Lens?, StreamerStatus) -> Unit,
 ) {
     private val manager = context.getSystemService(CameraManager::class.java)
@@ -136,6 +140,7 @@ class CameraStreamer(
         } catch (error: Exception) {
             // A camera the phone's camera service lost a moment ago is unknown to it until it is back: tried
             // again, as one lost while streaming is (specs/007, FR-010).
+            log.error(null, "opening the cameras: ${Crashes.describe(error)}")
             again(error.message ?: error.javaClass.simpleName)
         }
     }
@@ -228,6 +233,16 @@ class CameraStreamer(
                 return false
             }
             format = common
+            val named =
+                camera.lenses.joinToString {
+                    it.target.lens.code +
+                        it.physicalId
+                            ?.let { id ->
+                                "/$id"
+                            }.orEmpty()
+                }
+            val what = named.ifEmpty { "its preview" }
+            log.info(null, "camera ${camera.cameraId}: $what at ${common.resolution}, ${common.fps} fps")
             camera.lenses.forEach { planned ->
                 val lens = planned.target.lens
                 try {
@@ -243,6 +258,7 @@ class CameraStreamer(
                             store = FrameStore(File(kept, lens.code), share),
                         )
                 } catch (error: Exception) {
+                    log.error(lens.code, "its encoder would not start: ${Crashes.describe(error)}")
                     onStatus(lens, failed(error))
                     leaveOut(listOf(lens))
                 }
@@ -266,7 +282,7 @@ class CameraStreamer(
             error: Int,
         ) {
             camera.close()
-            if (mine == generation) lost("camera error $error")
+            if (mine == generation) lost("camera error $error: ${meaning(error)}")
         }
 
         /**
@@ -318,6 +334,7 @@ class CameraStreamer(
                     camera.createCaptureSession(targets, callback, handler)
                 }
             } catch (error: Exception) {
+                log.error(null, "configuring camera ${camera.id}: ${Crashes.describe(error)}")
                 say(failed(error))
             }
         }
@@ -347,6 +364,7 @@ class CameraStreamer(
                 // the camera with the preview says so for the cameras as a whole, the others' lenses by their links.
                 previewStatus(preview, targets)?.let { onStatus(null, it) }
             } catch (error: Exception) {
+                log.error(null, "starting camera ${camera.id}'s frames: ${Crashes.describe(error)}")
                 say(failed(error))
             }
         }
@@ -380,6 +398,17 @@ class CameraStreamer(
         private const val KEPT = "kept"
 
         private fun failed(error: Exception) = StreamerStatus.Failed(error.message ?: error.javaClass.simpleName)
+
+        /** What a camera's error code means, as Android names it. */
+        private fun meaning(error: Int): String =
+            when (error) {
+                CameraDevice.StateCallback.ERROR_CAMERA_IN_USE -> "in use by another app"
+                CameraDevice.StateCallback.ERROR_MAX_CAMERAS_IN_USE -> "too many cameras open"
+                CameraDevice.StateCallback.ERROR_CAMERA_DISABLED -> "disabled by the phone's policy"
+                CameraDevice.StateCallback.ERROR_CAMERA_DEVICE -> "the camera device failed"
+                CameraDevice.StateCallback.ERROR_CAMERA_SERVICE -> "the camera service failed"
+                else -> "unknown"
+            }
 
         /** What to open: the lenses asked for, or else the main camera for its preview. */
         private fun plan(

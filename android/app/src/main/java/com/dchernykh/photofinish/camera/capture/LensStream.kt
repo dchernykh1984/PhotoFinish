@@ -7,6 +7,8 @@ import android.media.MediaFormat
 import android.os.Build
 import android.os.Bundle
 import android.view.Surface
+import com.dchernykh.photofinish.camera.diagnostics.Crashes
+import com.dchernykh.photofinish.camera.diagnostics.Diagnostics
 import com.dchernykh.photofinish.camera.pairing.Lens
 import com.dchernykh.photofinish.camera.stream.Avc
 import com.dchernykh.photofinish.camera.stream.EncodedFrame
@@ -71,7 +73,8 @@ internal class LensStream private constructor(
         /**
          * [planned]'s stream at [format], started: [report] hears its uplink, [onFirstFrame] the
          * first frame's presentation time; [status] gives the phone's status line for each keyframe;
-         * [store] keeps the frames until they are sent.
+         * [store] keeps the frames until they are sent. An encoder that fails while it streams is said in
+         * the phone's log (specs/008-phone-log).
          */
         fun start(
             planned: PlannedLens,
@@ -114,8 +117,11 @@ internal class LensStream private constructor(
             val stream = LensStream(planned, codec, surface, uplink, sync)
             val name = planned.target.lens.code
             Thread({ uplink.run() }, "uplink-$name").start()
+            val failed = { error: IllegalStateException ->
+                if (!stream.stopped) Diagnostics.log.error(name, "its encoder stopped: ${Crashes.describe(error)}")
+            }
             stream.drainer =
-                Thread({ drain(codec, uplink) { onFirstFrame(stream, it) } }, "encoder-$name").apply { start() }
+                Thread({ drain(codec, uplink, failed) { onFirstFrame(stream, it) } }, "encoder-$name").apply { start() }
             return stream
         }
 
@@ -153,6 +159,7 @@ internal class LensStream private constructor(
         private fun drain(
             codec: MediaCodec,
             link: Uplink,
+            failed: (IllegalStateException) -> Unit,
             onFirstFrame: (Long) -> Unit,
         ) {
             val info = MediaCodec.BufferInfo()
@@ -165,8 +172,8 @@ internal class LensStream private constructor(
             var more = true
             try {
                 while (more && !Thread.currentThread().isInterrupted) more = deliver(codec, link, info, offer)
-            } catch (_: IllegalStateException) {
-                // the encoder was stopped: the stream is over
+            } catch (error: IllegalStateException) {
+                failed(error) // the encoder was stopped, the stream over -- or it failed, and is said
             }
         }
 
