@@ -71,6 +71,9 @@ class CameraStreamer(
     /** The lenses the cameras failed with since the referee's start, left out of each open: the cameras' thread's. */
     private val fallback = LensFallback()
 
+    /** The open whose settling is set going: once an open. */
+    private var settling: Int? = null
+
     /** The lenses asked for, in the code's order: the order lenses are left out by. */
     private var order: List<Lens> = emptyList()
 
@@ -91,7 +94,7 @@ class CameraStreamer(
         targets: List<LensTarget>,
     ) {
         handler.post {
-            fallback.start(format, targets) // a start of the referee's tries every lens again
+            fallback.start(format, targets) // a choice of the referee's tries every lens again
             open(preview, format, targets)
         }
     }
@@ -184,12 +187,14 @@ class CameraStreamer(
         get() = opened.flatMap { it.lenses }.toSet().let { streaming -> order.filter { it in streaming } }
 
     /**
-     * A lens of open [open] gave its first frame: once every lens of every camera has, the lenses run together --
-     * settled [LensFallback.EARLY_MS] on, if nothing failed meanwhile, whatever fails after it. A lens slow to its
-     * first frame, or a second camera started after the first, counted from its own.
+     * Whether open [open]'s lenses now run together -- every lens of every camera still open has given a frame,
+     * checked at each first frame and when a camera closes alone --: settled [LensFallback.EARLY_MS] on, if the
+     * open lasts, whatever fails after it. A lens slow to its first frame, or a second camera started after the
+     * first, counted from its own; the settling set going once an open.
      */
-    private fun allFramed(open: Int) {
-        if (open != generation || !opened.all { it.allFramed }) return
+    private fun checkSettled(open: Int) {
+        if (open != generation || settling == open || !opened.all { it.allFramed }) return
+        settling = open
         handler.postDelayed({ if (open == generation) fallback.settle() }, LensFallback.EARLY_MS)
     }
 
@@ -325,7 +330,7 @@ class CameraStreamer(
                             },
                             onFirstFrame = { stream, ptsUs ->
                                 framed += stream.lens
-                                handler.post { allFramed(mine) }
+                                handler.post { checkSettled(mine) }
                                 clockOfFrames(stream, ptsUs, mine)
                             },
                             status = { dropped -> phone.read().copy(dropped = dropped, left = leftOut).line() },
@@ -394,6 +399,7 @@ class CameraStreamer(
             }
             lenses.forEach { onStatus(it, StreamerStatus.Failed("$reason; left out")) }
             leaveOut(lenses) // told to the laptop
+            checkSettled(mine) // the lenses left may all give frames now
         }
 
         // The list form serves Android 8, where a camera streams one lens; a camera gone meanwhile
