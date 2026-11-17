@@ -6,29 +6,22 @@ import com.dchernykh.photofinish.camera.pairing.LensTarget
 
 /** How a camera of an open failed, as [LensFallback] weighs it: none for the cameras that would not open. */
 sealed interface CameraFailure {
-    /** How long after its lenses started: null before they did. */
-    val sinceStartMs: Long?
-
-    /** A camera's error [code]. */
+    /** A camera's error [code], [sinceStartMs] after its lenses started: null before they did. */
     data class Error(
         val code: Int,
-        override val sinceStartMs: Long?,
+        val sinceStartMs: Long?,
     ) : CameraFailure
 
     /** A camera another app took: none of the lenses' doing. */
-    data class Taken(
-        override val sinceStartMs: Long?,
-    ) : CameraFailure
+    data object Taken : CameraFailure
 
     /** A camera that could not run the session of its lenses, which the phone said beforehand it runs. */
-    data object NotConfigured : CameraFailure {
-        override val sinceStartMs: Long? get() = null
-    }
+    data object NotConfigured : CameraFailure
 
-    /** A camera that gave its [silent] lenses no frame. */
+    /** A camera that gave its [silent] lenses no frame, [sinceStartMs] after they started. */
     data class NoFrame(
         val silent: List<Lens>,
-        override val sinceStartMs: Long,
+        val sinceStartMs: Long,
     ) : CameraFailure
 }
 
@@ -159,7 +152,7 @@ class LensFallback {
         /** A failure of the lenses asked, in their first seconds: none is another app's taking the camera. */
         private fun early(failure: CameraFailure?): Boolean =
             when (failure) {
-                null, is CameraFailure.Taken -> false
+                null, CameraFailure.Taken -> false
                 // Before its lenses started, a camera's error is no sign of them: its service may be starting again.
                 is CameraFailure.Error ->
                     failure.code in LENSES_ERRORS && failure.sinceStartMs != null && failure.sinceStartMs < EARLY_MS
