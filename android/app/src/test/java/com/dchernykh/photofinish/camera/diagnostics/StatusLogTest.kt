@@ -80,4 +80,21 @@ class StatusLogTest {
         statuses.settle()
         assertEquals(3, said().size) // told once
     }
+
+    @Test
+    fun `failures whose words all differ are told, the oldest of them forgotten as more come`() {
+        repeat(200) {
+            statuses.heard(null, StreamerStatus.Failed("camera error at frame $it; trying again"))
+            statuses.heard(null, StreamerStatus.Previewing)
+            now += 61_000
+        }
+        assertEquals(400, said().size) // each told: a minute apart
+        assertEquals(64, wordsKept(statuses))
+    }
+
+    private fun wordsKept(statuses: StatusLog): Int =
+        StatusLog::class.java.getDeclaredField("said").let {
+            it.isAccessible = true
+            (it.get(statuses) as Map<*, *>).size
+        }
 }

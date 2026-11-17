@@ -85,6 +85,7 @@ class StatusLog(
                 ?.let { " ($it times more in the minute before)" }
                 .orEmpty()
         said[lens to kind] = Said(at)
+        if (said.size > WORDS_KEPT) said.remove(said.minBy { it.value.atMs }.key) // reasons carrying numbers
         logged[lens] = kind
         log.add(level, lens?.code, text + more)
     }
@@ -93,6 +94,7 @@ class StatusLog(
         const val RATES = "streaming at %.1f fps, %.1f Mbit/s"
         const val QUIET_MS = 60_000L
         const val SETTLE_MS = 5_000L
+        const val WORDS_KEPT = 64
         const val NANOS_PER_MS = 1_000_000L
 
         /** How grave [status] is, its words, and what makes it news: its words but a stream's rates. */
