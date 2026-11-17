@@ -110,13 +110,19 @@ class LogSenderTest {
     }
 
     @Test
-    fun `a backlog goes in several messages a round, each saying where the round began`() {
+    fun `a backlog goes in several messages a round once the recorder answers, each saying where the round began`() {
         val sender = sender()
         repeat(20) { log.info(null, "x".repeat(300) + it) } // three to a message
         sender.round()
-        assertEquals((1L..20L).toList(), recorder.received())
-        assertEquals(1L, recorder.from)
-        assertEquals(listOf(0L, 3L, 6L, 9L, 12L, 15L, 18L), recorder.prevs) // each after the one before
+        assertEquals(listOf(1L, 2L, 3L), recorder.received()) // one, till it is known to answer
+        recorder.answer(log.run, 3)
+        sender.hear()
+        now += 500
+        recorder.prevs.clear()
+        sender.round()
+        assertEquals((4L..20L).toList(), recorder.received())
+        assertEquals(4L, recorder.from)
+        assertEquals(listOf(3L, 6L, 9L, 12L, 15L, 18L), recorder.prevs) // each after the one before
     }
 
     @Test

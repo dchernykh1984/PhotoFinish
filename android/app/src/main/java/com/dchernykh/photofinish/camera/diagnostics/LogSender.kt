@@ -66,20 +66,23 @@ class LogSender(
             val recorder = recorders.getOrPut(address) { Recorder(now) }
             if (log.newest > recorder.answered && due(recorder, now)) {
                 recorder.sentMs = now
-                send(log.after(recorder.answered), address)
+                // A recorder that never answered may be an older PhotoFinish's, to which a message is a
+                // datagram too long (Windows pauses its clock exchange for each): one a round.
+                send(log.after(recorder.answered), address, if (recorder.heardMs == null) 1 else WINDOW)
             }
         }
     }
 
-    /** [lines] to [address], [WINDOW] messages at most, each saying the round began with the first. */
+    /** [lines] to [address], [most] messages at most, each saying the round began with the first. */
     private fun send(
         lines: List<LogLine>,
         address: InetSocketAddress,
+        most: Int,
     ) {
         val from = lines.firstOrNull()?.seq ?: return
         var prev = from - 1 // the round's first message: the recorder knows it by this
         var left = lines
-        repeat(WINDOW) {
+        repeat(most) {
             if (left.isNotEmpty()) {
                 val (bytes, count) = LogMessages.message(log.run, from, prev, left)
                 send(bytes, address)
