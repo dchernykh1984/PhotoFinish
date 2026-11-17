@@ -24,6 +24,14 @@ class LensFallbackTest {
     }
 
     @Test
+    fun `a camera failing before its lenses started leaves none out, its service starting again perhaps`() {
+        val fallback = LensFallback()
+        assertNull(fallback.failed(1, four, error(null)))
+        assertEquals(emptyList<Lens>(), fallback.failedAlone(2, listOf(Lens.FRONT), error(null)))
+        assertEquals(emptySet<Lens>(), fallback.leftOut)
+    }
+
+    @Test
     fun `the code's order says which lens goes`() {
         val fallback = LensFallback()
         assertEquals(Lens.MAIN, fallback.failed(1, listOf(Lens.FRONT, Lens.MAIN), error(2_000)))

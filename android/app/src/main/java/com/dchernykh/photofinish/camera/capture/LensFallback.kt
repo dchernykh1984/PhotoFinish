@@ -5,7 +5,7 @@ import com.dchernykh.photofinish.camera.pairing.Lens
 
 /** How the cameras of an open failed, as [LensFallback] weighs it: none for another app taking them. */
 sealed interface CameraFailure {
-    /** A camera's error [code], [sinceStartMs] after its lenses started. */
+    /** A camera's error [code], [sinceStartMs] after its lenses started: null before they did. */
     data class Error(
         val code: Int,
         val sinceStartMs: Long?,
@@ -81,7 +81,9 @@ class LensFallback {
         private fun early(failure: CameraFailure?): Boolean =
             when (failure) {
                 null -> false
-                is CameraFailure.Error -> failure.code in LENSES_ERRORS && (failure.sinceStartMs ?: 0L) < EARLY_MS
+                // Before its lenses started, a camera's error is no sign of them: its service may be starting again.
+                is CameraFailure.Error ->
+                    failure.code in LENSES_ERRORS && failure.sinceStartMs != null && failure.sinceStartMs < EARLY_MS
                 is CameraFailure.NoFrame -> failure.sinceStartMs < EARLY_MS
             }
     }
