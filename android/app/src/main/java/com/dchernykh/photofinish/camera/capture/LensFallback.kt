@@ -4,21 +4,31 @@ import android.hardware.camera2.CameraDevice
 import com.dchernykh.photofinish.camera.pairing.Lens
 import com.dchernykh.photofinish.camera.pairing.LensTarget
 
-/** How the cameras of an open failed, as [LensFallback] weighs it: none for another app taking them. */
+/** How a camera of an open failed, as [LensFallback] weighs it: none for the cameras that would not open. */
 sealed interface CameraFailure {
-    /** A camera's error [code], [sinceStartMs] after its lenses started: null before they did. */
+    /** How long after its lenses started: null before they did. */
+    val sinceStartMs: Long?
+
+    /** A camera's error [code]. */
     data class Error(
         val code: Int,
-        val sinceStartMs: Long?,
+        override val sinceStartMs: Long?,
+    ) : CameraFailure
+
+    /** A camera another app took: none of the lenses' doing. */
+    data class Taken(
+        override val sinceStartMs: Long?,
     ) : CameraFailure
 
     /** A camera that could not run the session of its lenses, which the phone said beforehand it runs. */
-    data object NotConfigured : CameraFailure
+    data object NotConfigured : CameraFailure {
+        override val sinceStartMs: Long? get() = null
+    }
 
-    /** A camera that gave its [silent] lenses no frame, [sinceStartMs] after they started. */
+    /** A camera that gave its [silent] lenses no frame. */
     data class NoFrame(
         val silent: List<Lens>,
-        val sinceStartMs: Long,
+        override val sinceStartMs: Long,
     ) : CameraFailure
 }
 
@@ -67,9 +77,9 @@ class LensFallback {
         settled = false
     }
 
-    /** [failure] the lenses', early, before they streamed a while; a late one tells they did. */
+    /** [failure] the lenses', early, before they streamed a while; one late, of whatever kind, tells they did. */
     private fun counts(failure: CameraFailure?): Boolean {
-        if ((failure as? CameraFailure.Error)?.sinceStartMs?.let { it >= EARLY_MS } == true) settled = true
+        if ((failure?.sinceStartMs ?: 0L) >= EARLY_MS) settled = true
         return !settled && early(failure)
     }
 
@@ -131,7 +141,7 @@ class LensFallback {
         /** A failure of the lenses asked, in their first seconds: none is another app's taking the camera. */
         private fun early(failure: CameraFailure?): Boolean =
             when (failure) {
-                null -> false
+                null, is CameraFailure.Taken -> false
                 // Before its lenses started, a camera's error is no sign of them: its service may be starting again.
                 is CameraFailure.Error ->
                     failure.code in LENSES_ERRORS && failure.sinceStartMs != null && failure.sinceStartMs < EARLY_MS
