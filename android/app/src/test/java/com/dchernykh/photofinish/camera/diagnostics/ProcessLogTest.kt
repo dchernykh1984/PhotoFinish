@@ -55,7 +55,8 @@ class ProcessLogTest {
     fun `a system log that ends at once, nothing read, is said once and not read again`() {
         val log = PhoneLog()
         var asked = 0
-        ProcessLog.follow(log, 1, { listOf("true").also { asked++ } }, pauseMs = 10)
+        val refusal = "logcat: unknown option -- T" // logcat's own words, no line of the log
+        ProcessLog.follow(log, 1, { listOf("echo", refusal).also { asked++ } }, pauseMs = 10)
         val deadline = System.currentTimeMillis() + 5_000
         while (log.newest == 0L && System.currentTimeMillis() < deadline) Thread.sleep(20)
         Thread.sleep(200)
