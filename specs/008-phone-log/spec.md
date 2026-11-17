@@ -79,7 +79,7 @@ of a camera that does not record, and not in one that records.
 - **FR-001**: PhotoFinish Camera keeps a log of what it meets: its start (version, phone, Android),
   each camera and lens it opens at what size and rate, every status its screen shows of the
   cameras and of each lens -- once, when it changes, one said again within a minute counted and
-  told with its next time, and where a lens comes to rest told within 5 s --, the camera's error codes with their meaning, the exceptions it catches with where they were thrown, the warnings and errors its own
+  told with its next time, and where a lens comes to rest told within 5 s --, the camera's error codes with their meaning, the exceptions it catches with where they were thrown -- its own lines said again within a minute counted likewise --, the warnings and errors its own
   process writes to the system log (the camera and encoder services' words to it), and an error
   that ended the app, from its next start.
 - **FR-002**: The log is sent to the recorder of each lens the app is paired with, on the port its

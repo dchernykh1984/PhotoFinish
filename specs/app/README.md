@@ -76,8 +76,9 @@ recorder is down and at most the 0.1 s before it.
   sizes it opens, every status its screen shows, the camera's error codes, the exceptions it
   catches with where they were thrown, the warnings and errors of its own process's system log
   (the camera's and the encoder's words to it), and an error that ended the app, from its next
-  start. The recorder keeps them in `video/<camera>/phone.log`, in the phone's order and each once,
-  with the phone's time; a lens camera that does not record shows after its state the phone's last
+  start -- a line said again within a minute counted, and told with its next time. The recorder
+  keeps them in `video/<camera>/phone.log`, in the phone's order and each once, with the phone's
+  time; a lens camera that does not record shows after its state the phone's last
   warning or error of its lens, or of the phone as a whole, until the phone says otherwise --
   how long ago, past a minute. Lines sent while the recorder is down come once it is back.
 - A segment is shown once it is closed, about a second after its first frame: the newest frame
