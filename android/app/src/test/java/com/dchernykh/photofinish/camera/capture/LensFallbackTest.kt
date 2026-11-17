@@ -44,6 +44,9 @@ class LensFallbackTest {
         assertNull(fallback.failed(2, four, null)) // another app took the camera
         val disabled = CameraFailure.Error(CameraDevice.StateCallback.ERROR_CAMERA_DISABLED, 1_000)
         assertNull(fallback.failed(3, four, disabled))
+        // Too many cameras open: another app's as likely as ours, which the phone said it runs together.
+        val many = CameraFailure.Error(CameraDevice.StateCallback.ERROR_MAX_CAMERAS_IN_USE, 1_000)
+        assertNull(fallback.failed(5, four, many))
         assertEquals(emptyList<Lens>(), fallback.failedAlone(4, listOf(Lens.FRONT), error(60_000)))
         assertEquals(emptySet<Lens>(), fallback.leftOut)
     }
