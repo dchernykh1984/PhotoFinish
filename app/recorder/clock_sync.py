@@ -57,8 +57,9 @@ class ClockResponder:
         others: Callable[[bytes], bytes | None] | None = None,
     ) -> None:
         self.micros, self.monotonic, self.others = micros, monotonic, others
-        self._second, self._answered = 0.0, 0
-        self._rationed = threading.Lock()  # answers counted from both threads
+        # Each kind's second and the answers of it in that second, from both threads.
+        self._spent: dict[str, tuple[float, int]] = {}
+        self._rationed = threading.Lock()
         self._waiting: queue.Queue[tuple[bytes, Any]] = queue.Queue(OTHERS_WAITING)
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
@@ -109,7 +110,7 @@ class ClockResponder:
             except queue.Empty:
                 continue
             reply = self._other(datagram)
-            if reply is not None and self.may_answer():
+            if reply is not None and self.may_answer("log"):
                 with contextlib.suppress(OSError):  # closed meanwhile, or no route
                     self.socket.sendto(reply, sender)
 
@@ -123,14 +124,16 @@ class ClockResponder:
         except Exception:  # the log costs the video nothing (008, FR-006)
             return None
 
-    def may_answer(self) -> bool:
-        """Another answer this second: ANSWERS_PER_S at most."""
+    def may_answer(self, of: str = "clock") -> bool:
+        """Another answer this second: ANSWERS_PER_S at most of each kind -- answers to
+        the log never spend the clock exchange's, which the frames' moments need."""
         with self._rationed:
             now = self.monotonic()
-            if now - self._second >= 1:
-                self._second, self._answered = now, 0
-            self._answered += 1
-            return self._answered <= ANSWERS_PER_S
+            second, answered = self._spent.get(of, (0.0, 0))
+            if now - second >= 1:
+                second, answered = now, 0
+            self._spent[of] = (second, answered + 1)
+            return answered + 1 <= ANSWERS_PER_S
 
     def close(self) -> None:
         self._closed.set()
