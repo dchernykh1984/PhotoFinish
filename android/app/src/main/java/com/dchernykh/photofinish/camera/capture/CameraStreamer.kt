@@ -144,7 +144,7 @@ class CameraStreamer(
             fallback.madeAgain(mine, failure).also { if (it) openAgain(preview, format, targets, reason) }
         }
         try {
-            val shown =
+            val streaming =
                 startInTurn(plan.cameras) { camera, withPreview ->
                     val open = OpenCamera(if (withPreview) preview else null, mine, again)
                     opened += open
@@ -156,7 +156,7 @@ class CameraStreamer(
                         }
                     }
                 }
-            if (!shown) { // no camera streams: the first opened for its preview alone, to aim by
+            if (!streaming) { // no camera streams: the first opened for its preview alone, to aim by
                 val first = plan.cameras.first().cameraId
                 val open = OpenCamera(preview, mine, again)
                 opened += open
