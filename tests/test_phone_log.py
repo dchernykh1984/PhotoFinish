@@ -273,6 +273,16 @@ def test_a_line_whose_time_is_no_time_here_is_kept_all_the_same(
     )
 
 
+def test_a_line_holding_another_break_is_one_line_at_a_restart(tmp_path: Path) -> None:
+    # A driver's line may hold a form feed or a line separator: written as one line,
+    # read back as one -- its tail must not pass for a mark of another run.
+    log = PhoneLog(tmp_path)
+    tail = f"\u2028--- run {LATER} from line 9"
+    log.heard(message(1, (1, "w", "-", "driver: one" + tail)))
+    again = PhoneLog(tmp_path)
+    assert again.runs == {RUN: 1}
+
+
 def test_a_line_that_cannot_be_read_is_passed_over(
     log: PhoneLog, tmp_path: Path
 ) -> None:
