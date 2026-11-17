@@ -256,6 +256,7 @@ class CameraStreamer(
                             onFirstFrame = { stream, ptsUs -> clockOfFrames(stream, ptsUs, mine) },
                             status = { dropped -> phone.read().copy(dropped = dropped, left = leftOut).line() },
                             store = FrameStore(File(kept, lens.code), share),
+                            log = log,
                         )
                 } catch (error: Exception) {
                     log.error(lens.code, "its encoder would not start: ${Crashes.describe(error)}")

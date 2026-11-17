@@ -8,7 +8,7 @@ import android.os.Build
 import android.os.Bundle
 import android.view.Surface
 import com.dchernykh.photofinish.camera.diagnostics.Crashes
-import com.dchernykh.photofinish.camera.diagnostics.Diagnostics
+import com.dchernykh.photofinish.camera.diagnostics.PhoneLog
 import com.dchernykh.photofinish.camera.pairing.Lens
 import com.dchernykh.photofinish.camera.stream.Avc
 import com.dchernykh.photofinish.camera.stream.EncodedFrame
@@ -73,9 +73,10 @@ internal class LensStream private constructor(
         /**
          * [planned]'s stream at [format], started: [report] hears its uplink, [onFirstFrame] the
          * first frame's presentation time; [status] gives the phone's status line for each keyframe;
-         * [store] keeps the frames until they are sent. An encoder that fails while it streams is said in
-         * the phone's log (specs/008-phone-log).
+         * [store] keeps the frames until they are sent; [log] hears of an encoder that fails while it streams
+         * (specs/008-phone-log).
          */
+        @Suppress("LongParameterList") // a stream's parts, each its own: the camera streamer's to give
         fun start(
             planned: PlannedLens,
             format: StreamFormat,
@@ -83,6 +84,7 @@ internal class LensStream private constructor(
             onFirstFrame: (LensStream, Long) -> Unit,
             status: (Long) -> String?,
             store: FrameStore,
+            log: PhoneLog,
         ): LensStream {
             val media = mediaFormat(format)
             val codec = encoderFor(media)
@@ -118,7 +120,7 @@ internal class LensStream private constructor(
             val name = planned.target.lens.code
             Thread({ uplink.run() }, "uplink-$name").start()
             val failed = { error: IllegalStateException ->
-                if (!stream.stopped) Diagnostics.log.error(name, "its encoder stopped: ${Crashes.describe(error)}")
+                if (!stream.stopped) log.error(name, "its encoder stopped: ${Crashes.describe(error)}")
             }
             stream.drainer =
                 Thread({ drain(codec, uplink, failed) { onFirstFrame(stream, it) } }, "encoder-$name").apply { start() }
