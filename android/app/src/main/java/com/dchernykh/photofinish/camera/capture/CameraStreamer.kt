@@ -391,19 +391,18 @@ class CameraStreamer(
             }
             val own = ownLenses
             val streamed = streamed // before this camera closes
+            val said = StreamerStatus.Failed(reason)
             if (preview != null) {
-                val said = StreamerStatus.Failed(reason)
-                when {
-                    again(reason, failure, own) -> Unit
-                    // Waited for, as it may come yet: said on the screen and to the laptop, the lens's own word.
-                    failure is CameraFailure.NoFrame -> failure.silent.forEach { onStatus(it, said) }
-                    else -> say(said)
-                }
+                val made = again(reason, failure, own)
+                // Waited for, as it may come yet: said on the screen and to the laptop, the lens's own word.
+                val silent = if (made) emptyList() else fallback.waitedFor(mine, failure)
+                silent.forEach { onStatus(it, said) }
+                if (!made && silent.isEmpty()) say(said)
                 return
             }
             val left = fallback.failedAlone(mine, streamed, own, failure)
             val silent = fallback.waitedFor(mine, failure)
-            if (silent.isNotEmpty()) return silent.forEach { onStatus(it, StreamerStatus.Failed(reason)) }
+            if (silent.isNotEmpty()) return silent.forEach { onStatus(it, said) }
             close() // first: no word of its uplinks comes after the one said here
             left?.let { log.warning(it.code, "left out from now on: its camera failed with it ($reason)") }
             own.forEach { onStatus(it, StreamerStatus.Failed("$reason; left out")) }
