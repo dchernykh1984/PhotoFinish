@@ -36,4 +36,19 @@ class ProcessLogTest {
         assertEquals('W', said.level)
         assertTrue(said.text, said.text.startsWith("the system log cannot be read: "))
     }
+
+    @Test
+    fun `a system log that ends is said, and read again for its new lines`() {
+        val log = PhoneLog()
+        val asked = mutableListOf<Boolean>()
+        val line = "1794918339.123  1234  1301 W CameraDevice-JV-0: Device error received, code 4"
+        ProcessLog.follow(log, 1, { again -> listOf("echo", line).also { asked += again } }, pauseMs = 50)
+        val deadline = System.currentTimeMillis() + 5_000
+        while (log.newest < 4 && System.currentTimeMillis() < deadline) Thread.sleep(20)
+        val said = log.after(0).take(4).map { "${it.level} ${it.text}" }
+        assertEquals("w CameraDevice-JV-0: Device error received, code 4", said[0])
+        assertEquals("W the system log ended: read again, its new lines, in 0 s", said[1])
+        assertEquals(said[0], said[2])
+        assertEquals(listOf(false, true), asked.take(2))
+    }
 }
