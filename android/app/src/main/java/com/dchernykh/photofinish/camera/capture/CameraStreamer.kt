@@ -417,7 +417,11 @@ class CameraStreamer(
                         // The preview's surface gone -- the screen leaving -- failed it, not the lenses, the
                         // second camera's as much as the first's: the screen's stop closes the cameras, and its
                         // start opens them on a surface of its own.
-                        if (mine != generation || shown?.isValid == false) return
+                        if (mine != generation) return
+                        if (shown?.isValid == false) {
+                            log.info(null, "camera ${camera.id}: its session failed, the preview gone with the screen")
+                            return
+                        }
                         val asked = format?.let { "${it.resolution} at ${it.fps} fps" }.orEmpty()
                         lost("the camera cannot give these lenses $asked together", CameraFailure.NotConfigured)
                     }
