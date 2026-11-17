@@ -16,6 +16,12 @@
   phone is worth a look".
 - Priority as for the app: the Xiaomi 17 Ultra, then the Xiaomi Mi 11 Ultra.
 
+Maintainer, 2026-11-17, after the Xiaomi 17 Ultra, asked for its four lenses at 2560x1440 and
+60 fps, gave no frame and its camera failed (its log, `specs/008-phone-log`): "when more than two
+cameras are chosen, warn that more may not be supported; Main and Telephoto are advised -- the
+telephoto for the detail of who crossed the line first, the main because it has the best sensor
+as a rule."
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - The referee ticks lenses on the laptop and the phone streams each (Priority: P1)
@@ -76,6 +82,10 @@ switch to the other at the same moment and back to both.
 
 - A lens that does not give the size or the rate chosen -- often the front camera, or several
   lenses at once -- streams at the nearest it gives, and the phone says what it streams.
+- A phone that says it streams lenses together and cannot: the Xiaomi 17 Ultra, asked for its
+  four lenses at 2560x1440 and 60 fps, gave the encoders no frame, both its cameras failed in
+  1.5 s and its camera service started again; opened again, the cameras gave no frame at all.
+  The lenses are left out from the last of the code until the rest stream.
 - The Wi-Fi carries every lens: about 10 Mbit/s each at 1080p and 60 fps, 16 at 1440p.
 - Several sensors and encoders heat the phone over hours: in the sun it may lower its frame rate.
 - A code of the earlier kind, an address alone, still pairs: the main lens.
@@ -93,7 +103,10 @@ switch to the other at the same moment and back to both.
   followed by the lens when more than one is ticked; the next free id; the port typed for the
   first lens and the next free ports for the others; the path typed for the first and
   `live/<id>` for the others. The session's format does not change: to PhotoFinish each is a
-  phone's camera like any other.
+  phone's camera like any other. More than two lenses ticked, the dialog says a phone may not
+  stream them at once -- Android promises two -- and advises Main and Telephoto: the telephoto
+  shows who crossed first in detail, the main lens has the phone's best sensor as a rule; the
+  choice stays the referee's.
 - **FR-002**: The QR code holds the address alone for Main alone, else one line per lens,
   `<lens> <address>`, the lens one of `main`, `ultrawide`, `telephoto`, `front`
   ([contract](../003-phone-camera-app/contracts/phone-stream.md)). The text shown says the same:
@@ -109,15 +122,19 @@ switch to the other at the same moment and back to both.
   clock exchange; the lenses of one camera in one capture session; the camera on the other side
   opened beside it only when the phone says it can run both at once, and closed alone when it is
   lost, the first streaming on. Each camera streams at the
-  size and rate chosen, or the nearest its lenses give.
+  size and rate chosen, or the nearest its lenses give; the phone is asked whether a camera runs
+  its lenses at that size and rate. Cameras that fail, or give a lens no frame for 5 s, within
+  10 s of their lenses' start are opened again with the last lens of the code left out -- one
+  lens an open, never the first --, said on the phone and to the laptop, until the referee starts
+  again; cameras lost later are opened again with all their lenses.
 - **FR-006**: The preview shows the first lens streamed.
 - **FR-007**: The window's One camera mode shows the chosen camera alone, over the whole video
   area; Ctrl+1 to Ctrl+9 show camera 1 to 9 alone, Ctrl+0 all of them side by side, Ctrl+Up and
   Ctrl+Down the previous and the next camera; the keys work while a number is typed. A hidden
   camera is not decoded.
 - **FR-008**: Every part is covered by automated tests: the dialog's cameras and code, the
-  window's mode and keys (Qt tests), the app's pairing, lens classification and session plan (JVM
-  unit tests, Kover).
+  window's mode and keys (Qt tests), the app's pairing, lens classification, session plan and
+  the lenses left out after a failure (JVM unit tests, Kover).
 
 ### Key Entities
 
@@ -143,4 +160,7 @@ switch to the other at the same moment and back to both.
   camera's own picture is the main lens, the other lenses not on this phone.
 - Two cameras open at once only where Android 11 or later lists the pair as concurrent; elsewhere
   the second is left out and said.
+- Android promises two physical lenses of a logical camera at once, and a camera beside another
+  only up to 1920x1440, with no frame rate; beyond that, what a phone runs is its own, found by
+  trying -- its answer beforehand weighs the rate from Android 15, and may still be wrong.
 - The lenses' clocks are the phone's: every lens is in step with the others without Mark event.

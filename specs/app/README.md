@@ -106,10 +106,15 @@ video over its cable.
 PhotoFinish Camera streams several of the phone's lenses at once (`specs/004-phone-lenses`):
 the dialog's lens boxes -- Main, ticked, Ultra-wide, Telephoto, Front -- make a camera of each,
 named after its lens, on a port of its own, and the QR code holds a line per lens (an address
-alone for Main alone). The phone finds its lenses by their focal lengths among its back camera's
+alone for Main alone). More than two ticked, the dialog says a phone may not stream them at
+once -- Android promises two -- and advises Main and Telephoto. The phone finds its lenses by their focal lengths among its back camera's
 physical cameras, lists them on its screen, streams those of one camera in one capture session
 and the other camera beside it where the phone runs both; a lens it lacks, or cannot stream with
-the others, is said on the phone. Each lens has its own encoder, connection and clock exchange, so
+the others, is said on the phone. It asks the phone whether a camera runs its lenses at the size
+and rate chosen; cameras that fail anyway, or give a lens no frame for 5 s, within 10 s of the
+start are opened again with the last lens of the code left out, said on the phone and to the
+laptop, until the referee starts again -- the Xiaomi 17 Ultra said yes to its four lenses at
+2560x1440 and 60 fps and gave no frame. Each lens has its own encoder, connection and clock exchange, so
 each is in step on its own. Tried on the emulator: two lenses of one camera and the other camera,
 30 fps each, every frame with its moment. Each lens adds its bitrate to the Wi-Fi and heat to the
 phone.
