@@ -23,6 +23,7 @@ _RETRY_S = 0.1
 # The answer is longer than the request: rationed, no stranger can make this computer
 # send much elsewhere -- 1.5 kB a second at most -- while hundreds of phones fit.
 ANSWERS_PER_S = 50
+DATAGRAM_BYTES = 2048  # a log message of the phone's, 1,200 bytes at most, whole
 
 
 def answer(request: bytes, t2: int, t3: int) -> bytes | None:
@@ -39,7 +40,8 @@ def answer(request: bytes, t2: int, t3: int) -> bytes | None:
 class ClockResponder:
     """Answers the exchange on UDP ``port`` with ``micros``, on a thread of its own,
     until closed: any sender, as a venue's Wi-Fi may hand out public addresses, but
-    ANSWERS_PER_S at most."""
+    ANSWERS_PER_S at most. A datagram that is no exchange goes to ``others``, whose
+    answer is sent back: the phone's log (specs/008-phone-log)."""
 
     def __init__(
         self,
@@ -47,8 +49,9 @@ class ClockResponder:
         micros: Callable[[], int],
         host: str = "",
         monotonic: Callable[[], float] = time.monotonic,
+        others: Callable[[bytes], bytes | None] | None = None,
     ) -> None:
-        self.micros, self.monotonic = micros, monotonic
+        self.micros, self.monotonic, self.others = micros, monotonic, others
         self._second, self._answered = 0.0, 0
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
@@ -70,9 +73,9 @@ class ClockResponder:
     def _serve(self) -> None:
         while not self._closed.is_set():
             try:
-                request, sender = self.socket.recvfrom(64)
+                request, sender = self.socket.recvfrom(DATAGRAM_BYTES)
                 t2 = self.micros()
-                reply = answer(request, t2, self.micros())
+                reply = answer(request, t2, self.micros()) or self._other(request)
                 if reply is not None and self.may_answer():
                     self.socket.sendto(reply, sender)
             except TimeoutError:
@@ -82,6 +85,16 @@ class ClockResponder:
                 # network gone: tried again after a pause, not in a busy loop.
                 if self._closed.wait(_RETRY_S):
                     return
+
+    def _other(self, datagram: bytes) -> bytes | None:
+        """``others``'s answer; whatever it raises costs this datagram alone, never
+        the clock exchange the frames' moments come from."""
+        if self.others is None:
+            return None
+        try:
+            return self.others(datagram)
+        except Exception:  # the log costs the video nothing (008, FR-006)
+            return None
 
     def may_answer(self) -> bool:
         """Another answer this second: ANSWERS_PER_S at most."""

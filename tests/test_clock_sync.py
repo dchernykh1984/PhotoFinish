@@ -47,6 +47,32 @@ def test_the_responder_answers_on_its_port_with_its_clock() -> None:
     assert not responder._thread.is_alive()
 
 
+def test_the_phone_s_log_on_the_same_port_is_handed_on_and_answered() -> None:
+    # specs/008: a datagram that is no exchange -- the phone's log -- goes to the
+    # recorder's log, whose answer goes back; a log that fails costs the clock nothing.
+    heard: list[bytes] = []
+
+    def others(datagram: bytes) -> bytes | None:
+        heard.append(datagram)
+        if datagram == b"boom":
+            raise ValueError("a log that fails")
+        return b"PFLG 1 0123456789abcdef 3\n"
+
+    responder = ClockResponder(0, lambda: 0, host="127.0.0.1", others=others)
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as phone:
+            phone.settimeout(5)
+            log = b"PFLG 1 0123456789abcdef 1\n" + b"1 0 I - " + b"x" * 1_000 + b"\n"
+            phone.sendto(log, ("127.0.0.1", responder.port))
+            assert phone.recvfrom(64)[0] == b"PFLG 1 0123456789abcdef 3\n"
+            phone.sendto(b"boom", ("127.0.0.1", responder.port))
+            phone.sendto(request(5), ("127.0.0.1", responder.port))
+            assert phone.recvfrom(64)[0][:4] == b"PFTS"  # the exchange answered still
+        assert heard[0] == log  # whole
+    finally:
+        responder.close()
+
+
 def test_a_port_taken_by_another_program_is_said_and_nothing_left_open() -> None:
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as other:
         other.bind(("127.0.0.1", 0))

@@ -7,6 +7,7 @@ import itertools
 import json
 import os
 import shutil
+import socket
 import subprocess
 import sys
 import time
@@ -238,6 +239,32 @@ def test_the_heartbeat_says_how_far_behind_its_clock_the_newest_frame_is(
     cameras(monkeypatch, Camera(folder, START, 3, stop_after=2))
     assert run("cam1", clock=Fixed(START + 10_000)) == 0  # type: ignore[arg-type]
     assert heartbeat(folder)["behind_ms"] == 10_000 - 66
+
+
+def test_a_phone_s_log_is_kept_beside_its_clock_its_last_word_in_the_heartbeat(
+    folder: Path,
+) -> None:
+    # specs/008: the phone's log comes on the port of its clock exchange.
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as free:
+        free.bind(("127.0.0.1", 0))
+        port = free.getsockname()[1]
+    settings = {"port": port, "path": "live/cam1"}
+    camera = {"id": "cam1", "connection": "rtmp", "lens": "main", "settings": settings}
+    folder.mkdir(parents=True)
+    beat = Heartbeat(folder, "rtmp")
+    recording = recorder._Recording(folder, camera, beat, SteadyClock(), time.sleep)
+    recording._answer_the_clock()
+    assert recording.responder is not None
+    try:
+        assert recording.responder.others == recording.phone_log.heard
+        error = b"1 1794918339001 E - camera error 4: the camera device failed\n"
+        recording.phone_log.heard(b"PFLG 1 0123456789abcdef 1\n" + error)
+        beat.beat(state="connecting")
+        said = heartbeat(folder)["phone_said"]
+        assert said["text"] == "camera error 4: the camera device failed"
+        assert (folder / "phone.log").exists()
+    finally:
+        recording.responder.close()
 
 
 def test_the_heartbeat_names_the_program_the_recorder_runs(
@@ -728,8 +755,9 @@ class Responder:
 
     made: ClassVar[list[Responder]] = []  # each test sets its own list
 
-    def __init__(self, port: int, micros: Any) -> None:
+    def __init__(self, port: int, micros: Any, **more: Any) -> None:
         self.port, self.micros, self.closed = port, micros, False
+        self.others = more.get("others")  # the phone's log (specs/008)
         self.made.append(self)
 
     def close(self) -> None:
@@ -777,7 +805,7 @@ def test_a_phone_whose_exchange_port_is_taken_is_still_recorded(
 ) -> None:
     phone_session()
 
-    def taken(port: int, micros: Any) -> None:
+    def taken(port: int, micros: Any, **more: Any) -> None:
         raise OSError(errno.EADDRINUSE, "Address already in use")
 
     monkeypatch.setattr(recorder, "ClockResponder", taken)
@@ -794,7 +822,7 @@ def test_a_port_taken_at_the_start_is_tried_again_as_the_phone_connects_again(
     monkeypatch.setattr(recorder, "CLOCK_RETRY_S", 0.0)  # the reconnect comes sooner
     tries: list[int] = []
 
-    def taken_once(port: int, micros: Any) -> Responder:
+    def taken_once(port: int, micros: Any, **more: Any) -> Responder:
         tries.append(port)
         if len(tries) == 1:  # the recorder before this one still lets go of it
             raise OSError(errno.EADDRINUSE, "Address already in use")
@@ -816,7 +844,7 @@ def test_a_port_taken_is_tried_again_while_the_phone_streams_and_said_meanwhile(
     monkeypatch.setattr(recorder, "CLOCK_RETRY_S", 0.0)  # every frame, for the test
     tries: list[int] = []
 
-    def taken_twice(port: int, micros: Any) -> Responder:
+    def taken_twice(port: int, micros: Any, **more: Any) -> Responder:
         tries.append(port)
         if len(tries) <= 2:
             raise OSError(errno.EADDRINUSE, "Address already in use")
@@ -869,7 +897,7 @@ def test_a_port_taken_is_tried_again_and_said_while_the_phone_is_waited_for(
     monkeypatch.setattr(recorder, "CLOCK_RETRY_S", 0.0)
     tries: list[int] = []
 
-    def taken_once(port: int, micros: Any) -> Responder:
+    def taken_once(port: int, micros: Any, **more: Any) -> Responder:
         tries.append(port)
         if len(tries) <= 2:  # at the open, and at the first wait
             raise OSError(errno.EADDRINUSE, "Address already in use")
@@ -896,7 +924,7 @@ def test_a_taken_port_is_said_through_low_disk_and_after(
 ) -> None:
     phone_session()
 
-    def taken(port: int, micros: Any) -> None:
+    def taken(port: int, micros: Any, **more: Any) -> None:
         raise OSError(errno.EADDRINUSE, "Address already in use")
 
     monkeypatch.setattr(recorder, "ClockResponder", taken)
