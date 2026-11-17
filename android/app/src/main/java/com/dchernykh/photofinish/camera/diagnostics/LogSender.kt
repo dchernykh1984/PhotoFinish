@@ -55,7 +55,8 @@ class LogSender(
                 val until = nowMs() + ROUND_MS
                 while (running && nowMs() < until) hear()
             } catch (error: Exception) {
-                log.warning(null, "the log could not be sent: ${Crashes.describe(error)}")
+                // A note of the log's about itself, as the system log's are: never the phone's last word.
+                log.system(PhoneLog.SYSTEM_WARNING, "the log could not be sent: ${Crashes.describe(error)}")
                 Thread.sleep(ROUND_MS)
             }
         }

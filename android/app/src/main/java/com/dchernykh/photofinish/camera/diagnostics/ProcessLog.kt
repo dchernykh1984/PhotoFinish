@@ -45,10 +45,14 @@ object ProcessLog {
                         read(line)?.let { (level, text) -> log.system(level, text) }
                     }
                 } catch (error: Exception) {
-                    log.warning(null, "the system log cannot be read: ${Crashes.describe(error)}")
+                    log.system(PhoneLog.SYSTEM_WARNING, "the system log cannot be read: ${Crashes.describe(error)}")
                     return@Thread
                 }
-                log.warning(null, "the system log ended: read again, its new lines, in ${pauseMs / MS_PER_S} s")
+                // The log's notes about itself go as the system log's lines: never the phone's last word.
+                log.system(
+                    PhoneLog.SYSTEM_WARNING,
+                    "the system log ended: read again, its new lines, in ${pauseMs / MS_PER_S} s",
+                )
                 again = true
                 Thread.sleep(pauseMs)
             }
