@@ -111,10 +111,11 @@ once -- Android promises two -- and advises Main and Telephoto. The phone finds 
 physical cameras, lists them on its screen, streams those of one camera in one capture session
 and the other camera beside it where the phone runs both; a lens it lacks, or cannot stream with
 the others, is said on the phone. It asks the phone whether a camera runs its lenses at the size
-and rate chosen; cameras that fail anyway, or give a lens no frame for 5 s, within 10 s of the
-start are opened again with a lens left out -- the last of the code that gave no frame, else the
-code's last --, said on the phone and to the laptop, until the referee starts again -- the
-Xiaomi 17 Ultra said yes to its four lenses at 2560x1440 and 60 fps and gave no frame. Each lens has its own encoder, connection and clock exchange, so
+chosen, and from Android 15 the rate; cameras that fail anyway, or give a lens no frame for 5 s,
+within 10 s of the start are opened again with a lens left out -- of the camera that failed, the
+one that gave no frame first --, said on the phone and to the laptop, until the referee starts
+again; once the lenses streamed a while, a failure leaves none out. The Xiaomi 17 Ultra said yes
+to its four lenses at 2560x1440 and 60 fps and gave no frame. Each lens has its own encoder, connection and clock exchange, so
 each is in step on its own. Tried on the emulator: two lenses of one camera and the other camera,
 30 fps each, every frame with its moment. Each lens adds its bitrate to the Wi-Fi and heat to the
 phone.
