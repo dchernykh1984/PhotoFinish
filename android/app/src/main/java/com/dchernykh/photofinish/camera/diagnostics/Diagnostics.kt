@@ -46,8 +46,8 @@ object Diagnostics {
 
     private fun priority(level: Char): Int =
         when (level) {
-            PhoneLog.ERROR -> Log.ERROR
-            PhoneLog.WARNING -> Log.WARN
+            PhoneLog.ERROR, PhoneLog.SYSTEM_ERROR -> Log.ERROR
+            PhoneLog.WARNING, PhoneLog.SYSTEM_WARNING -> Log.WARN
             else -> Log.INFO
         }
 }

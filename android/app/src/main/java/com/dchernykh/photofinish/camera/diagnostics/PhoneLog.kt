@@ -13,9 +13,11 @@ class LogLine(
 )
 
 /**
- * What the app meets, for the laptop (specs/008-phone-log): numbered lines, the last [capacity] kept for
- * recorders that have not answered yet, [perSecond] a second at most -- how many were left out said -- each
- * on one line and cut to [MAX_BYTES]. Any thread adds; the sender reads.
+ * What the app meets, for the laptop (specs/008-phone-log): numbered lines, each on one line and cut to
+ * [MAX_BYTES]; the last [capacity] kept for recorders that have not answered yet. The app's own lines are
+ * kept whole; the phone's system log's ([system]), which a driver may fill a line a frame, [perSecond] a
+ * second at most -- how many were left out said -- and the first to go when the log is full. Any thread
+ * adds; the sender reads.
  */
 class PhoneLog(
     private val capacity: Int = CAPACITY,
@@ -52,11 +54,18 @@ class PhoneLog(
         text: String,
     ) = add(ERROR, lens, text)
 
-    /** A line of [level] -- [INFO], [WARNING] or [ERROR] -- of [lens], or of the phone as a whole. */
+    /** The app's own line of [level] -- [INFO], [WARNING] or [ERROR] -- of [lens], or of the phone as a whole. */
     @Synchronized
     fun add(
         level: Char,
         lens: String?,
+        text: String,
+    ) = keep(clockMs(), level, lens, text)
+
+    /** A line of the phone's system log, of [level] -- [SYSTEM_WARNING] or [SYSTEM_ERROR]: [perSecond] a second. */
+    @Synchronized
+    fun system(
+        level: Char,
         text: String,
     ) {
         val now = clockMs()
@@ -64,7 +73,12 @@ class PhoneLog(
             second = Math.floorDiv(now, SECOND_MS)
             inSecond = 0
             if (leftOut > 0) {
-                keep(now, WARNING, null, "$leftOut lines left out: more than $perSecond a second")
+                keep(
+                    now,
+                    SYSTEM_WARNING,
+                    null,
+                    "$leftOut lines of the system log left out: more than $perSecond a second",
+                )
                 leftOut = 0
                 inSecond++
             }
@@ -74,7 +88,7 @@ class PhoneLog(
             return
         }
         inSecond++
-        keep(now, level, lens, text)
+        keep(now, level, null, text)
     }
 
     /** The lines after the one numbered [seq] that are still kept, oldest first. */
@@ -89,7 +103,11 @@ class PhoneLog(
     ) {
         val line = LogLine(next++, now, level, lens, cut(text))
         lines.addLast(line)
-        while (lines.size > capacity) lines.removeFirst()
+        if (lines.size > capacity) {
+            // The system log's oldest line goes first: the app's own say why a phone gives no video.
+            val oldest = lines.indexOfFirst { it.level == SYSTEM_WARNING || it.level == SYSTEM_ERROR }
+            lines.removeAt(if (oldest >= 0) oldest else 0)
+        }
         mirror(line)
     }
 
@@ -97,6 +115,10 @@ class PhoneLog(
         const val INFO = 'I'
         const val WARNING = 'W'
         const val ERROR = 'E'
+
+        /** The phone's system log's warnings and errors, as the app reads them (contract). */
+        const val SYSTEM_WARNING = 'w'
+        const val SYSTEM_ERROR = 'e'
 
         /** A line's text at most, in UTF-8: a message holds a few, and the network takes it whole. */
         const val MAX_BYTES = 400

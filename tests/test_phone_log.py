@@ -130,6 +130,15 @@ def test_what_is_no_log_message_gets_no_answer(log: PhoneLog, datagram: bytes) -
     assert log.heard(datagram) is None
 
 
+def test_the_system_log_s_lines_are_kept_as_they_came(
+    log: PhoneLog, tmp_path: Path
+) -> None:
+    log.heard(message(1, (1, "w", "-", "HWUI: Unknown dataspace 0")))
+    assert kept(tmp_path)[-1] == "w - #1 HWUI: Unknown dataspace 0"
+    again = PhoneLog(tmp_path)  # a recorder started again finds them too
+    assert again.kept == 1
+
+
 def test_a_line_that_cannot_be_read_is_passed_over(
     log: PhoneLog, tmp_path: Path
 ) -> None:
@@ -147,6 +156,7 @@ def test_the_last_warning_or_error_of_the_camera_s_lens_or_the_phone_is_its_word
             (1, "E", "-", "camera error 4"),
             (2, "W", "main", "connection lost"),  # another lens's
             (3, "I", "-", "the camera gives frames"),  # no warning
+            (4, "e", "-", "mapper: unsupported metadata"),  # the system log's
         )
     )
     assert log.said == {
