@@ -1,5 +1,69 @@
 # Changelog
 
+## [0.9.0](https://github.com/dchernykh1984/PhotoFinish/compare/v0.8.0...v0.9.0) (2026-11-17)
+
+
+### Features
+
+* **window:** advise Main and Telephoto when more than two of a phone's lenses are ticked, as Android promises two at once ([dfd9f1c](https://github.com/dchernykh1984/PhotoFinish/commit/dfd9f1c959ab132333c2cf64e7695ac005bf19cc))
+
+
+### Bug Fixes
+
+* list a phone's telephoto before its ultra-wide, so a phone leaving lenses out keeps the two the dialog advises ([e03f047](https://github.com/dchernykh1984/PhotoFinish/commit/e03f04795d647210b2686e105af69ec2a61d212c))
+* **phone:** ask the camera whether it runs the lenses at the chosen frame rate, the rate given with the session, not at their size alone ([6b1ca15](https://github.com/dchernykh1984/PhotoFinish/commit/6b1ca15c972b27f3d3437570ddb1233fd08a06d2))
+* **phone:** build the session's request on Android 15 alone, not ask the camera for one thrown away before ([ae57276](https://github.com/dchernykh1984/PhotoFinish/commit/ae57276cf3c7622e9282df9ae455abb9ee0ff013))
+* **phone:** give the session the frame rate from Android 15 alone, which weighs it, phones before making their sessions as they did ([2379994](https://github.com/dchernykh1984/PhotoFinish/commit/23799948dc6e7d446064940df946beadc41a0eca))
+* **phone:** keep every lens once they streamed a while, a camera failing soon after a reopen mid-race its service settling, not the lenses ([2e43d14](https://github.com/dchernykh1984/PhotoFinish/commit/2e43d1469da9dd1a46fac2e8f9451026665d63d0))
+* **phone:** keep the lenses left out when the cameras start again for the same lenses and format, the screen back from another app ([6670b0f](https://github.com/dchernykh1984/PhotoFinish/commit/6670b0f9ae81a12be6fb53d453134544df73b916))
+* **phone:** leave a session failed by the preview's surface going away to the screen's stop, not open the cameras again on a dead surface ([c858a5e](https://github.com/dchernykh1984/PhotoFinish/commit/c858a5ec35a9ecb71df7a3bc6b78fad28bbc4b87))
+* **phone:** leave no lens of the second camera out when the screen leaving fails its session, as the first camera's ([ad74fe2](https://github.com/dchernykh1984/PhotoFinish/commit/ad74fe28f832c36eb9f40e9e8c87ed7fcf1b7ed2))
+* **phone:** leave no lens out for a camera failing with the screen away, whatever says so, not only its session ([e8b2357](https://github.com/dchernykh1984/PhotoFinish/commit/e8b235775eb44a1855e6e7ade6455777fa6d680e))
+* **phone:** leave no lens out for a camera that fails before its lenses start, its service perhaps starting again ([f84c0c4](https://github.com/dchernykh1984/PhotoFinish/commit/f84c0c425722f848b6a1f2870ac54c0d9782bfd8))
+* **phone:** leave no lens out when the preview's surface going away fails the session, the screen leaving, not the lenses ([fc07ed1](https://github.com/dchernykh1984/PhotoFinish/commit/fc07ed17562f4af8e6cebe121b93354e68e17d1a))
+* **phone:** leave no lens out when too many cameras are open, another app's as likely as ours ([225f908](https://github.com/dchernykh1984/PhotoFinish/commit/225f908fc035c8d7c7a45eb77d5de029cba0ccf0))
+* **phone:** leave out a lens of the camera that failed, not another camera's streaming fine ([1fba948](https://github.com/dchernykh1984/PhotoFinish/commit/1fba9485427ec34b696c9c1a901b951460eb6204))
+* **phone:** leave out a lens that gave no frame before one that streams, not the code's last whatever it gave ([920802d](https://github.com/dchernykh1984/PhotoFinish/commit/920802dd14649ee0016ad15e5818bfe0c563453e))
+* **phone:** leave out no streaming lens for a camera failing beside the first lens waited for, which could leave none streaming ([5822edb](https://github.com/dchernykh1984/PhotoFinish/commit/5822edbb350c4f502596a30a4b13b3a62d201ad3))
+* **phone:** leave out one lens of a camera failing alone, the one that gave no frame first, not every lens of it for good ([a154921](https://github.com/dchernykh1984/PhotoFinish/commit/a1549217b0c2e58c750f3c948363a3a8f6673997))
+* **phone:** leave out only a lens that gave no frame, never one streaming for a silent first lens, which could leave none streaming ([27d52a5](https://github.com/dchernykh1984/PhotoFinish/commit/27d52a5596584ed29baa78f6ef90e10c785951ac))
+* **phone:** leave the code's last lens out when the cameras fail in their first seconds, not open the same lenses again for ever ([1ef4ae5](https://github.com/dchernykh1984/PhotoFinish/commit/1ef4ae5c63fffb235579769803d6e75cb9d238b1))
+* **phone:** let the lenses settle without one waited for, not count a camera lost mid-race after against them ([1b7b918](https://github.com/dchernykh1984/PhotoFinish/commit/1b7b9180d305273fc62779e02a9eef8ce2f26d4e))
+* **phone:** never leave out the first lens streamed, nor one streamed alone, when the other camera fails alone, its choice the first camera's ([17b0755](https://github.com/dchernykh1984/PhotoFinish/commit/17b07550966b793d16fd60cdc00bf3684f380589))
+* **phone:** open again cameras that ran their lenses together when a reopen mid-race stalls or cannot make its session, not leave them waiting ([083d96f](https://github.com/dchernykh1984/PhotoFinish/commit/083d96f004e728b933c10e5f494157e3d2a5553b))
+* **phone:** open the back camera again when it stalls after the front was left out in the same open, its lenses no longer the same ([f8894cb](https://github.com/dchernykh1984/PhotoFinish/commit/f8894cbf0c05a0bda766e63c506f7055d5ca4076))
+* **phone:** open the cameras again a lens fewer when a session the phone said it runs cannot be made, not leave them streaming nothing ([b552d5c](https://github.com/dchernykh1984/PhotoFinish/commit/b552d5c6264f54a37a75dee84182ff39d6959ce7))
+* **phone:** open the cameras again for the other lenses of a camera failing alone early, not leave them closed for the race ([76f5131](https://github.com/dchernykh1984/PhotoFinish/commit/76f5131783958951b4cdf6ddbb8da337c587315c))
+* **phone:** say a lens left out after the cameras failed with it as that, not as one the phone refused beforehand ([c371def](https://github.com/dchernykh1984/PhotoFinish/commit/c371def9ecb2eda43c8cd3205c758e068b3f9c1a))
+* **phone:** say a lens that gave no frame on the phone's screen and to the laptop when it is waited for, not in the log alone ([9020850](https://github.com/dchernykh1984/PhotoFinish/commit/9020850de304d1c9bf83787261182a323384ff16))
+* **phone:** say in the phone's log a lens left out from now on after its camera failed alone, as after the cameras failing together ([1eb6212](https://github.com/dchernykh1984/PhotoFinish/commit/1eb621225a11fd1cc7beaa7970a4dedb3c774fb2))
+* **phone:** say in the phone's log a session failed by the preview gone with the screen, not pass it over without a word ([7bab96c](https://github.com/dchernykh1984/PhotoFinish/commit/7bab96cdd41b04aa6fc3a087fda1501d883562dc))
+* **phone:** say once that the camera cannot make a session of one lens, not open it again every 2 s to fail the same way ([3d03a43](https://github.com/dchernykh1984/PhotoFinish/commit/3d03a43bfbe4f215bba1e27a90f0c8f065e2cb5a))
+* **phone:** say once that the camera cannot make the session when no lens is left out, settled or paid, not make the same again every 2 s ([261b563](https://github.com/dchernykh1984/PhotoFinish/commit/261b5639bce603392eb8c445bf84dbdc93ecf49f))
+* **phone:** settle the lenses 10 s after every lens of every camera gave a frame, one slow to its first or a camera started later counted from its own ([0d9f117](https://github.com/dchernykh1984/PhotoFinish/commit/0d9f117d8112824bd2f8f5b363ef442da81c2c4a))
+* **phone:** settle the lenses also when a camera closes alone and those left all gave frames, set going once an open ([a5fad7a](https://github.com/dchernykh1984/PhotoFinish/commit/a5fad7a32b4ad58e9ad1c86f9d11d1e18f0562bb))
+* **phone:** share the phone's room for kept frames among the lenses streamed, not those left out too ([d82636b](https://github.com/dchernykh1984/PhotoFinish/commit/d82636b75f2a9998014cb3ce9a3cb713aa156e32))
+* **phone:** take a camera that gives a lens no frame in 5 s for failed, opened again a lens fewer, not left waiting for ever ([7c6f0e7](https://github.com/dchernykh1984/PhotoFinish/commit/7c6f0e70e7ce8f6ed14aa990d8c13f12aaf71817))
+* **phone:** take lenses lost after streaming a while for settled whatever lost them, another app's call included, not a camera's late error alone ([c5e66c7](https://github.com/dchernykh1984/PhotoFinish/commit/c5e66c74ba8baaa40c923e48c65c0d78dac9325f))
+* **phone:** take the lenses for settled once each gave frames for 10 s, whatever closes the cameras after, the screen away included ([7d2bef9](https://github.com/dchernykh1984/PhotoFinish/commit/7d2bef9e880009fd64ba9910bab94066a2f3b8ed))
+* **phone:** wait for a lens silent after a reopen mid-race, not cut the lenses streaming every 7 s for as long as it is ([a8452ea](https://github.com/dchernykh1984/PhotoFinish/commit/a8452eaacabe9d06b03ea7ba2aa3bfb9ad9a113e))
+* **phone:** wait for a lens that gave no frame when none can be left out, said in the log, not make the camera again every 7 s ([bf38493](https://github.com/dchernykh1984/PhotoFinish/commit/bf38493ced5bf760599d68261222e923d3e2a732))
+* **phone:** wait for the other camera's silent lens with none to leave out, not close it for the race ([dbefd88](https://github.com/dchernykh1984/PhotoFinish/commit/dbefd88d36c9adc0bfec4d74681793e3552b03f9))
+
+
+### Documentation
+
+* describe the lenses left out after a failure and the dialog's advice in the lens spec, the program's description and the android-app skill ([cf54722](https://github.com/dchernykh1984/PhotoFinish/commit/cf5472205210e9fc1cf65c2dd027e0eb3361da71))
+* describe this cycle's changes to the lenses left out in the lens spec ([3884c74](https://github.com/dchernykh1984/PhotoFinish/commit/3884c744b717d05c9e85cf8063c7ac2a5e8bf65a))
+* describe this cycle's changes to the lenses left out in the lens spec and the program's description ([0959893](https://github.com/dchernykh1984/PhotoFinish/commit/095989395fe37b32bf9983fcd569ed90c55fc7a0))
+* describe this cycle's changes to the lenses left out in the lens spec and the program's description ([0f7884e](https://github.com/dchernykh1984/PhotoFinish/commit/0f7884e5b587ed713a5d8f7928511337d95b1c17))
+* describe this cycle's changes to the lenses left out in the lens spec and the program's description ([7d63564](https://github.com/dchernykh1984/PhotoFinish/commit/7d63564234a6ccb4954bcafc7c4cf098794f5651))
+* describe this cycle's changes to the lenses left out in the lens spec and the program's description ([7721e7d](https://github.com/dchernykh1984/PhotoFinish/commit/7721e7d387c3175c3637da61deb5297504e46617))
+* describe this cycle's changes to the lenses left out in the lens spec, the program's description and the android-app skill ([399845c](https://github.com/dchernykh1984/PhotoFinish/commit/399845cb48428cd689097c202cbf765ef95dc242))
+* list the lenses left out after a failure and the dialog's advice in the lens feature's tasks ([d9635b7](https://github.com/dchernykh1984/PhotoFinish/commit/d9635b784865b9bcbec9a5a89e4478e57cbeeabb))
+* **phone:** say the frame store's room is shared by the lenses planned, one dropped later keeping its share ([88caa58](https://github.com/dchernykh1984/PhotoFinish/commit/88caa58734a5398a6270cce80c8514b07e5547ff))
+* **phone:** say why the camera's answer weighs the session's frame rate, the app targeting Android 15 or later ([2cb0458](https://github.com/dchernykh1984/PhotoFinish/commit/2cb04582904178f5350ba9b244e867fa33e070d9))
+
 ## [0.8.0](https://github.com/dchernykh1984/PhotoFinish/compare/v0.7.0...v0.8.0) (2026-11-17)
 
 
