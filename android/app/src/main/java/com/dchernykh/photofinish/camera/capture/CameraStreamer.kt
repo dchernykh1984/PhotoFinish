@@ -398,6 +398,8 @@ class CameraStreamer(
         private const val OPEN_AGAIN_MS = 2_000L
         private const val KEPT = "kept"
 
+        // The screen's words, the laptop's last word of the phone too: the error told whole, for whoever looks
+        // into it, is logged beside them where it is caught (specs/008-phone-log, FR-001).
         private fun failed(error: Exception) = StreamerStatus.Failed(error.message ?: error.javaClass.simpleName)
 
         /** What a camera's error code means, as Android names it. */
