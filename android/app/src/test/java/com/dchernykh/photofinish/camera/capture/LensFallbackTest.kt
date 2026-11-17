@@ -93,15 +93,6 @@ class LensFallbackTest {
     }
 
     @Test
-    fun `lenses that streamed a while keep their place through the hiccups of a camera opened again mid-race`() {
-        val fallback = LensFallback()
-        assertNull(fallback.failed(1, four, four, error(3_600_000))) // the camera service started again mid-race
-        assertNull(fallback.failed(2, four, four, error(3_000))) // and, still settling, failed the open after
-        assertEquals(emptyList<Lens>(), fallback.failedAlone(2, listOf(Lens.FRONT), error(3_000)))
-        assertEquals(emptySet<Lens>(), fallback.leftOut)
-    }
-
-    @Test
     fun `a session the camera could not make, no lens left out, is said, not made again to fail the same way`() {
         val fallback = LensFallback()
         val main = listOf(Lens.MAIN)
@@ -111,19 +102,11 @@ class LensFallbackTest {
         fallback.failed(2, streamed, streamed, CameraFailure.NotConfigured)
         assertEquals(true, fallback.madeAgain(2, CameraFailure.NotConfigured))
         // Settled, a session that cannot be made leaves none out: said, not made again for ever.
-        fallback.failed(3, streamed, streamed, error(60_000))
+        fallback.settle()
         fallback.failed(4, streamed, streamed, CameraFailure.NotConfigured)
         assertEquals(false, fallback.madeAgain(4, CameraFailure.NotConfigured))
         assertEquals(true, fallback.madeAgain(5, error(1_500))) // a camera lost: opened again, as ever
         assertEquals(true, fallback.madeAgain(6, null))
-    }
-
-    @Test
-    fun `lenses that streamed a while keep their place whatever lost the camera then, another app included`() {
-        val fallback = LensFallback()
-        assertNull(fallback.failed(1, four, four, CameraFailure.Taken(3_600_000))) // a call took the camera an hour in
-        assertNull(fallback.failed(2, four, four, error(2_000))) // the open after it, the service settling
-        assertEquals(emptySet<Lens>(), fallback.leftOut)
     }
 
     @Test
@@ -145,6 +128,18 @@ class LensFallbackTest {
         val stalled = CameraFailure.NoFrame(back, 5_000)
         assertNull(fallback.failed(1, back, back, stalled)) // the open paid already
         assertEquals(true, fallback.madeAgain(1, stalled)) // but its lenses are not the same: tried again
+    }
+
+    @Test
+    fun `lenses that streamed a while keep their place, whatever fails or closes the cameras after`() {
+        val fallback = LensFallback()
+        assertEquals(Lens.FRONT, fallback.failed(1, four, four, error(1_500))) // before: the lenses' doing
+        fallback.settle() // every lens's frames for 10 s
+        assertNull(fallback.failed(2, four - Lens.FRONT, four - Lens.FRONT, error(3_600_000))) // the service again
+        assertNull(fallback.failed(3, four - Lens.FRONT, four - Lens.FRONT, error(2_000))) // the open after, settling
+        assertNull(fallback.failed(4, four - Lens.FRONT, four - Lens.FRONT, CameraFailure.Taken(1_000))) // a call
+        assertEquals(emptyList<Lens>(), fallback.failedAlone(5, listOf(Lens.TELEPHOTO), error(2_000))) // screen back
+        assertEquals(setOf(Lens.FRONT), fallback.leftOut)
     }
 
     @Test
