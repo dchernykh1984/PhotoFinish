@@ -149,16 +149,32 @@ def test_two_phones_given_one_code_each_go_on_where_they_were(
     assert lines == ["I - #1 one 1", "I - #1 other 1", "I - #2 one 2", "I - #2 other 2"]
 
 
+def test_two_phones_given_one_code_go_on_where_they_were_after_a_restart_too(
+    log: PhoneLog, tmp_path: Path
+) -> None:
+    # Their lines in turns: each turn begins with its run's mark, so a recorder
+    # started again knows whose each line is.
+    log.heard(message(1, (1, "I", "-", "one 1")))
+    log.heard(message(1, (1, "I", "-", "other 1"), run=LATER))
+    log.heard(message(2, (2, "I", "-", "one 2"), (3, "I", "-", "one 3")))
+    again = PhoneLog(tmp_path)
+    assert again.runs == {LATER: 1, RUN: 3}
+    assert again.heard(message(2, (2, "I", "-", "other 2"), run=LATER)) == (
+        f"PFLG 1 {LATER} 2\n".encode()
+    )
+    assert [line for line in kept(tmp_path) if "other" in line][-1] == "I - #2 other 2"
+
+
 def test_a_recorder_started_again_goes_on_where_its_file_is(tmp_path: Path) -> None:
     PhoneLog(tmp_path).heard(message(1, (1, "I", "-", "one"), (2, "I", "-", "two")))
     again = PhoneLog(tmp_path)
-    assert (again.run, again.kept) == (RUN, 2)
+    assert (again.run, again.runs) == (RUN, {RUN: 2})
     assert again.heard(message(2, (2, "I", "-", "two"), (3, "I", "-", "three"))) == (
         f"PFLG 1 {RUN} 3\n".encode()
     )
     assert [line for line in kept(tmp_path) if "#2" in line] == ["I - #2 two"]
     fresh = PhoneLog(tmp_path / "none")
-    assert (fresh.run, fresh.kept) == (None, 0)
+    assert (fresh.run, fresh.runs) == (None, {})
 
 
 def test_a_recorder_started_again_finds_its_run_far_back_in_its_file(
@@ -170,7 +186,7 @@ def test_a_recorder_started_again_finds_its_run_far_back_in_its_file(
     for n in range(2, 1_002):
         log.heard(message(n, (n, "w", "-", "mapper: unsupported metadata " + "x" * 80)))
     again = PhoneLog(tmp_path)
-    assert (again.run, again.kept) == (RUN, 1_001)
+    assert (again.run, again.runs) == (RUN, {RUN: 1_001})
     again.heard(message(1_002, (1_002, "W", "main", "connection lost")))
     assert "were not heard" not in (tmp_path / phone_log.FILE).read_text()
 
@@ -208,7 +224,7 @@ def test_the_system_log_s_lines_are_kept_as_they_came(
     log.heard(message(1, (1, "w", "-", "HWUI: Unknown dataspace 0")))
     assert kept(tmp_path)[-1] == "w - #1 HWUI: Unknown dataspace 0"
     again = PhoneLog(tmp_path)  # a recorder started again finds them too
-    assert again.kept == 1
+    assert again.runs == {RUN: 1}
 
 
 def test_a_line_whose_time_is_no_time_here_is_kept_all_the_same(
