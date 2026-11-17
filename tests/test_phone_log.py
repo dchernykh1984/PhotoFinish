@@ -165,6 +165,25 @@ def test_two_phones_given_one_code_go_on_where_they_were_after_a_restart_too(
     assert [line for line in kept(tmp_path) if "other" in line][-1] == "I - #2 other 2"
 
 
+def test_a_recorder_reads_its_file_at_the_first_message_not_at_its_start(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A file of 10 MB read before the recorder's first frame would hold it back.
+    found: list[Path] = []
+    real = phone_log._where
+
+    def where(path: Path) -> tuple[str | None, dict[str, int]]:
+        found.append(path)
+        return real(path)
+
+    monkeypatch.setattr(phone_log, "_where", where)
+    log = PhoneLog(tmp_path)
+    assert found == []
+    log.heard(message(1, (1, "I", "-", "one")))
+    log.heard(message(2, (2, "I", "-", "two")))
+    assert found == [tmp_path / phone_log.FILE]  # once
+
+
 def test_a_recorder_started_again_goes_on_where_its_file_is(tmp_path: Path) -> None:
     PhoneLog(tmp_path).heard(message(1, (1, "I", "-", "one"), (2, "I", "-", "two")))
     again = PhoneLog(tmp_path)
