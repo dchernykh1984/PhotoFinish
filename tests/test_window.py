@@ -589,6 +589,43 @@ def test_a_lens_left_out_still_says_what_else_keeps_it_from_recording(
     )
 
 
+def test_a_camera_that_does_not_record_says_what_its_phone_said_last(
+    base: Path, make_window: Callable[[], mw.MainWindow], spawned: list[str]
+) -> None:
+    # specs/008: the phone's own words, not only that the connection broke.
+    phone: dict[str, Any] = {"connection": "rtmp", "phone": "cam2-0123abcd"}
+    main = {**phone, "id": "cam2", "name": "Mi main", "lens": "main"}
+    main["settings"] = {"port": 1999, "path": "live/cam2"}
+    tele = {**phone, "id": "cam3", "name": "Mi tele", "lens": "telephoto"}
+    tele["settings"] = {"port": 2000, "path": "live/cam3"}
+    session.save({**session.DEFAULTS, "cameras": [main, tele]})
+    now = time.time_ns() // 1_000_000
+    said = {
+        "level": "E",
+        "lens": "-",
+        "text": "camera error 4: the camera device failed",
+    }
+    beating(
+        base,
+        "cam2",
+        state="reconnecting",
+        detail="[Errno 5] Input/output error",
+        phone_said={**said, "at_ms": now, "heard_ms": now},
+    )
+    beating(base, "cam3", phone_said={**said, "at_ms": now, "heard_ms": now})
+    win = make_window()
+    win.poll()
+    assert win.cameras["cam2"].item.text() == (
+        "Mi main: reconnecting: [Errno 5] Input/output error; "
+        "the phone: camera error 4: the camera device failed"
+    )
+    assert win.cameras["cam3"].item.text() == "Mi tele: recording, 70 frames"
+    old = now - 120_000  # a minute and more ago: no longer the phone's word
+    beating(base, "cam2", state="connecting", phone_said={**said, "heard_ms": old})
+    win.poll()
+    assert win.cameras["cam2"].item.text() == "Mi main: connecting"
+
+
 def test_one_camera_alone_and_the_keys_that_switch_between_cameras(
     recording: Path, make_window: Callable[[], mw.MainWindow]
 ) -> None:
