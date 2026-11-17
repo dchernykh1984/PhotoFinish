@@ -82,6 +82,7 @@ from app.recorder.launcher import (
     heartbeat,
     recording,
 )
+from app.recorder.phone_log import last_word
 from app.video_index import FileIndex, Frame, VideoIndex
 from app.widgets.camera_dialog import CameraDialog
 from app.widgets.camera_view import CameraView
@@ -1556,6 +1557,11 @@ class MainWindow(QMainWindow):
             state = describe(info)
         else:
             state = "starting" if watchdog.wanted else "not recording"
+        said = last_word(
+            (info or {}).get("phone_said"), QDateTime.currentMSecsSinceEpoch()
+        )
+        if said and not recording(info):  # why the phone gives nothing (008, FR-005)
+            state += f"; {said}"
         if camera.index.unreadable:
             state += f"; segments that cannot be read: {len(camera.index.unreadable)}"
         clash = cameras.port_clash(camera.settings, self.session["cameras"])
