@@ -275,8 +275,16 @@ def test_the_last_warning_or_error_of_the_camera_s_lens_or_the_phone_is_its_word
     )
     assert last_word({}, START) == ""
     assert last_word("x", START) == ""
-    log.heard(message(5, (5, "I", "-", "the camera gives frames")))
-    assert log.said == {}  # over: the phone is well again
+    reopened = (
+        5,
+        "I",
+        "-",
+        "camera 0: main at 2560x1440, 60 fps",
+    )  # the camera's retry
+    log.heard(message(5, reopened))
+    assert log.said["text"] == "camera error 4"  # a retry's own line: no failure over
+    log.heard(message(6, (6, "W", "-", "connection lost: refused; connecting again")))
+    assert log.said["text"] == "connection lost: refused; connecting again"
     (tmp_path / "one").mkdir()
     one_lens = PhoneLog(tmp_path / "one")  # a phone of one camera: any lens's
     one_lens.heard(message(1, (1, "W", "main", "connection lost")))
