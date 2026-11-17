@@ -118,11 +118,12 @@ class CameraStreamer(
         // shortcut: a camera opened again drops what its lenses kept, as their streams start anew; keep the
         // stores across an open if a camera lost in the middle of a network break is seen to cost frames.
         kept.deleteRecursively() // what a killed app kept, too: never sent
-        share = FrameStore.SHARE_BYTES / targets.size.coerceAtLeast(1)
         val failedWith = fallback.leftOut
         val plan =
             plan(lenses, targets.filter { it.lens !in failedWith })
                 ?: return onStatus(null, StreamerStatus.Failed("no back camera"))
+        // The room shared by the lenses streamed: one left out leaves the others its share.
+        share = FrameStore.SHARE_BYTES / plan.cameras.sumOf { it.lenses.size }.coerceAtLeast(1)
         failedWith.forEach { onStatus(it, StreamerStatus.Left(LeftOut.NOT_WITH_THE_OTHERS)) }
         plan.left.forEach { (lens, why) -> onStatus(lens, StreamerStatus.Left(why)) }
         leftOut = (failedWith + plan.left.keys).map { it.code }
