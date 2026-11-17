@@ -33,7 +33,7 @@ class ProcessLogTest {
         val deadline = System.currentTimeMillis() + 5_000
         while (log.newest == 0L && System.currentTimeMillis() < deadline) Thread.sleep(20)
         val said = log.after(0).single()
-        assertEquals('W', said.level)
+        assertEquals('w', said.level)
         assertTrue(said.text, said.text.startsWith("the system log cannot be read: "))
     }
 
@@ -47,7 +47,7 @@ class ProcessLogTest {
         while (log.newest < 4 && System.currentTimeMillis() < deadline) Thread.sleep(20)
         val said = log.after(0).take(4).map { "${it.level} ${it.text}" }
         assertEquals("w CameraDevice-JV-0: Device error received, code 4", said[0])
-        assertEquals("W the system log ended: read again, its new lines, in 0 s", said[1])
+        assertEquals("w the system log ended: read again, its new lines, in 0 s", said[1]) // no last word
         assertEquals(said[0], said[2])
         assertEquals(listOf(false, true), asked.take(2))
     }
