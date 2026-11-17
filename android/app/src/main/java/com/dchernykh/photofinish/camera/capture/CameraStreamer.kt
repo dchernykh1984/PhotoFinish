@@ -71,6 +71,9 @@ class CameraStreamer(
     /** The lenses the cameras failed with since the referee's start, left out of each open: the cameras' thread's. */
     private val fallback = LensFallback()
 
+    /** The lenses asked for, in the code's order: the order lenses are left out by. */
+    private var order: List<Lens> = emptyList()
+
     /** The lenses asked for and not streamed, as the status tells the laptop; read from the uplinks' threads. */
     @Volatile private var leftOut: List<String> = emptyList()
 
@@ -118,6 +121,7 @@ class CameraStreamer(
         // shortcut: a camera opened again drops what its lenses kept, as their streams start anew; keep the
         // stores across an open if a camera lost in the middle of a network break is seen to cost frames.
         kept.deleteRecursively() // what a killed app kept, too: never sent
+        order = targets.map { it.lens }
         val failedWith = fallback.leftOut
         val plan =
             plan(lenses, targets.filter { it.lens !in failedWith })
@@ -129,7 +133,7 @@ class CameraStreamer(
         leftOut = (failedWith + plan.left.keys).map { it.code }
         // A failure of the lenses' own -- early, by its kind -- leaves one out of the next open (LensFallback).
         val again = { reason: String, failure: CameraFailure?, own: List<Lens> ->
-            failedEarly(mine, targets, reason, failure, own)
+            failedEarly(mine, reason, failure, own)
             fallback.madeAgain(mine, failure).also { if (it) openAgain(preview, format, targets, reason) }
         }
         try {
@@ -163,20 +167,21 @@ class CameraStreamer(
 
     /**
      * The camera of [own] lenses failed, of open [open], for [reason]: the lens the open leaves out from now on,
-     * if any, said -- the lenses streaming taken in [targets]' order, before they are closed.
+     * if any, said -- the lenses streaming taken in the code's order, before they are closed.
      */
     private fun failedEarly(
         open: Int,
-        targets: List<LensTarget>,
         reason: String,
         failure: CameraFailure?,
         own: List<Lens>,
     ) {
-        val streaming = opened.flatMap { it.lenses }.toSet()
-        val streamed = targets.map { it.lens }.filter { it in streaming }
         val left = fallback.failed(open, streamed, own, failure) ?: return
         log.warning(left.code, "left out from now on: the cameras failed with it ($reason)")
     }
+
+    /** The lenses the open cameras stream, in the code's order. */
+    private val streamed: List<Lens>
+        get() = opened.flatMap { it.lenses }.toSet().let { streaming -> order.filter { it in streaming } }
 
     /**
      * A lens of open [open] gave its first frame: once every lens of every camera has, the lenses run together --
@@ -367,6 +372,7 @@ class CameraStreamer(
             failure: CameraFailure?,
         ) {
             val lenses = lenses
+            val streamed = streamed // before this camera closes
             if (preview != null) {
                 when {
                     again(reason, failure, lenses) -> Unit
@@ -383,7 +389,7 @@ class CameraStreamer(
                 return
             }
             close() // first: no word of its uplinks comes after the one said here
-            fallback.failedAlone(mine, lenses, failure)?.let {
+            fallback.failedAlone(mine, streamed, lenses, failure)?.let {
                 log.warning(it.code, "left out from now on: its camera failed with it ($reason)")
             }
             lenses.forEach { onStatus(it, StreamerStatus.Failed("$reason; left out")) }

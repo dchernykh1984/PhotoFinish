@@ -32,7 +32,7 @@ class LensFallbackTest {
     fun `a camera failing before its lenses started leaves none out, its service starting again perhaps`() {
         val fallback = LensFallback()
         assertNull(fallback.failed(1, four, four, error(null)))
-        assertNull(fallback.failedAlone(2, listOf(Lens.FRONT), error(null)))
+        assertNull(fallback.failedAlone(2, four, listOf(Lens.FRONT), error(null)))
         assertEquals(emptySet<Lens>(), fallback.leftOut)
     }
 
@@ -62,7 +62,7 @@ class LensFallbackTest {
         assertEquals(Lens.FRONT, fallback.failed(1, four, four, CameraFailure.NotConfigured))
         assertEquals(
             Lens.TELEPHOTO,
-            fallback.failedAlone(2, listOf(Lens.TELEPHOTO), CameraFailure.NotConfigured),
+            fallback.failedAlone(2, four, listOf(Lens.TELEPHOTO), CameraFailure.NotConfigured),
         )
     }
 
@@ -126,7 +126,7 @@ class LensFallbackTest {
     @Test
     fun `the back camera stalled, the front left out first in the same open, is made again without it`() {
         val fallback = LensFallback()
-        fallback.failedAlone(1, listOf(Lens.FRONT), CameraFailure.NoFrame(listOf(Lens.FRONT), 5_000))
+        fallback.failedAlone(1, four, listOf(Lens.FRONT), CameraFailure.NoFrame(listOf(Lens.FRONT), 5_000))
         val back = listOf(Lens.MAIN, Lens.ULTRAWIDE, Lens.TELEPHOTO)
         val stalled = CameraFailure.NoFrame(back, 5_000)
         assertNull(fallback.failed(1, back, back, stalled)) // the open paid already
@@ -141,7 +141,7 @@ class LensFallbackTest {
         assertNull(fallback.failed(2, four - Lens.FRONT, four - Lens.FRONT, error(3_600_000))) // the service again
         assertNull(fallback.failed(3, four - Lens.FRONT, four - Lens.FRONT, error(2_000))) // the open after, settling
         assertNull(fallback.failed(4, four - Lens.FRONT, four - Lens.FRONT, CameraFailure.Taken(1_000))) // a call
-        assertNull(fallback.failedAlone(5, listOf(Lens.TELEPHOTO), error(2_000))) // screen back
+        assertNull(fallback.failedAlone(5, four - Lens.FRONT, listOf(Lens.TELEPHOTO), error(2_000))) // screen back
         assertEquals(setOf(Lens.FRONT), fallback.leftOut)
     }
 
@@ -149,8 +149,22 @@ class LensFallbackTest {
     fun `the other camera failing alone leaves one lens out, the one that gave no frame before one that did`() {
         val fallback = LensFallback()
         val other = listOf(Lens.MAIN, Lens.TELEPHOTO) // the back beside the front, the code's first
-        assertEquals(Lens.MAIN, fallback.failedAlone(1, other, CameraFailure.NoFrame(listOf(Lens.MAIN), 5_000)))
+        val streamed = listOf(Lens.FRONT) + other
+        assertEquals(
+            Lens.MAIN,
+            fallback.failedAlone(1, streamed, other, CameraFailure.NoFrame(listOf(Lens.MAIN), 5_000)),
+        )
         assertEquals(setOf(Lens.MAIN), fallback.leftOut) // the telephoto, which streamed, tried again
+    }
+
+    @Test
+    fun `the other camera failing alone never leaves out the first lens streamed, nor a lens streamed alone`() {
+        val fallback = LensFallback()
+        // The first camera's encoders would not start: the other camera streams the only lens.
+        assertNull(fallback.failedAlone(1, listOf(Lens.TELEPHOTO), listOf(Lens.TELEPHOTO), error(1_500)))
+        val streamed = listOf(Lens.TELEPHOTO, Lens.FRONT)
+        assertEquals(Lens.FRONT, fallback.failedAlone(2, streamed, streamed, error(1_500))) // never the first
+        assertEquals(setOf(Lens.FRONT), fallback.leftOut)
     }
 
     @Test
@@ -171,14 +185,14 @@ class LensFallbackTest {
         // Too many cameras open: another app's as likely as ours, which the phone said it runs together.
         val many = CameraFailure.Error(CameraDevice.StateCallback.ERROR_MAX_CAMERAS_IN_USE, 1_000)
         assertNull(fallback.failed(5, four, four, many))
-        assertNull(fallback.failedAlone(4, listOf(Lens.FRONT), error(60_000)))
+        assertNull(fallback.failedAlone(4, four, listOf(Lens.FRONT), error(60_000)))
         assertEquals(emptySet<Lens>(), fallback.leftOut)
     }
 
     @Test
     fun `the front failing alone early stays left out, the back failing in the same open costing nothing more`() {
         val fallback = LensFallback()
-        assertEquals(Lens.FRONT, fallback.failedAlone(1, listOf(Lens.FRONT), error(1_500)))
+        assertEquals(Lens.FRONT, fallback.failedAlone(1, four, listOf(Lens.FRONT), error(1_500)))
         assertNull(fallback.failed(1, four - Lens.FRONT, four - Lens.FRONT, error(1_510)))
         assertEquals(setOf(Lens.FRONT), fallback.leftOut)
         val back = four - Lens.FRONT
