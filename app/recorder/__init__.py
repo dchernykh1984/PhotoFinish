@@ -167,9 +167,12 @@ class Heartbeat:
 
     def beat(self, **changes: Any) -> None:
         changes = {**self.extra(), **changes}
+        # The phone's last word is written with the next beat, a second at most: its
+        # times change with each message of its log, and a write at each would hold
+        # up the frames this beat is written among (008, FR-006).
         news = any(
             key in changes and self.info[key] != changes[key]
-            for key in ("state", "detail", "clock", "phone_said")
+            for key in ("state", "detail", "clock")
         )
         self.info.update(changes)
         now = time.monotonic()
