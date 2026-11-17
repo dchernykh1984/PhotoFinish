@@ -78,8 +78,8 @@ of a camera that does not record, and not in one that records.
 
 - **FR-001**: PhotoFinish Camera keeps a log of what it meets: its start (version, phone, Android),
   each camera and lens it opens at what size and rate, every status its screen shows of the
-  cameras and of each lens -- once, when it changes, and one said again within a minute counted
-  and told with its next time --, the camera's error codes with their meaning, the exceptions it catches with where they were thrown, the warnings and errors its own
+  cameras and of each lens -- once, when it changes, one said again within a minute counted and
+  told with its next time, and where a lens comes to rest told within 5 s --, the camera's error codes with their meaning, the exceptions it catches with where they were thrown, the warnings and errors its own
   process writes to the system log (the camera and encoder services' words to it), and an error
   that ended the app, from its next start.
 - **FR-002**: The log is sent to the recorder of each lens the app is paired with, on the port its
@@ -95,7 +95,7 @@ of a camera that does not record, and not in one that records.
   exchange is never held back by the file. Over 10 MB the file is kept as `phone.log.1`
   and a new one begun.
 - **FR-005**: The recorder's heartbeat holds the last error or warning of the camera's lens, or of
-  the phone as a whole, with when it came; the window shows it after the camera's state while the
+  the phone as a whole -- none once a later line of it says otherwise --, with when it came; the window shows it after the camera's state while the
   camera does not record and it is under a minute old.
 - **FR-006**: The log costs the video nothing: a recorder that cannot write it, or a message it
   cannot read, records on.

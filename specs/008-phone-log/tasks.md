@@ -32,3 +32,11 @@
 - [x] T013 `StatusLog.kt`: a status said again within a minute counted
 - [x] T014 `LogSender.kt`: one message a round to a recorder that never answered; the recorders of
   the kept code, no activity held
+
+## Review cycle 2
+
+- [x] T015 `phone_log.py`: each turn of another run marked; every run's last line found at a start;
+  the last word ended by the next line; `clock_sync.py`: the log's answers a budget of their own
+- [x] T016 `StatusLog.kt`: where each lens came to rest told; its memory of words kept to 64
+- [x] T017 `ProcessLog.kt`: the system log read again when it ends; `LogSender.kt`: recorders by the
+  code's host and port; `LensStream.kt`: its log given
