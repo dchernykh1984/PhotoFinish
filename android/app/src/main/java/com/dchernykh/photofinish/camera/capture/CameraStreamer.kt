@@ -369,7 +369,7 @@ class CameraStreamer(
                     override fun onConfigureFailed(failed: CameraCaptureSession) {
                         if (mine != generation) return
                         val asked = format?.let { "${it.resolution} at ${it.fps} fps" }.orEmpty()
-                        say(StreamerStatus.Failed("the camera cannot give these lenses $asked together"))
+                        lost("the camera cannot give these lenses $asked together", CameraFailure.NotConfigured)
                     }
                 }
             try {
