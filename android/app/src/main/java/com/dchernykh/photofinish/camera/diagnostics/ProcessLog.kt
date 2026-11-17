@@ -17,8 +17,8 @@ object ProcessLog {
         val (level, tag, text) = LINE.find(line)?.destructured ?: return null
         val kept =
             when (level) {
-                "W" -> PhoneLog.WARNING
-                "E", "F", "A" -> PhoneLog.ERROR
+                "W" -> PhoneLog.SYSTEM_WARNING
+                "E", "F", "A" -> PhoneLog.SYSTEM_ERROR
                 else -> return null
             }
         return kept to "$tag: $text"
@@ -40,7 +40,7 @@ object ProcessLog {
                         .redirectErrorStream(true)
                         .start()
                 process.inputStream.bufferedReader().forEachLine { line ->
-                    read(line)?.let { (level, text) -> log.add(level, null, text) }
+                    read(line)?.let { (level, text) -> log.system(level, text) }
                 }
             } catch (error: Exception) {
                 log.warning(null, "the system log cannot be read: ${Crashes.describe(error)}")

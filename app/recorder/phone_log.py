@@ -23,9 +23,10 @@ FILE = "phone.log"
 KEEP_BYTES = 10 * 1024 * 1024  # then kept as phone.log.1, and a new one begun
 SAID_MS = 60_000  # a phone's last word shown on a camera's line this long
 _RUN = re.compile(r"[0-9a-f]{16}")
-_LINE = re.compile(r"(\d+) (\d+) ([IWE]) (\S+) (.*)")
+# The app's own levels, I W E; its phone's system log's, w e (contract).
+_LINE = re.compile(r"(\d+) (\d+) ([IWEwe]) (\S+) (.*)")
 _MARK = re.compile(r"--- run ([0-9a-f]{16}) from line (\d+)")
-_SEQ = re.compile(r"\S+ \S+ [IWE] \S+ #(\d+) ")
+_SEQ = re.compile(r"\S+ \S+ [IWEwe] \S+ #(\d+) ")
 _TAIL_BYTES = 64 * 1024
 
 
@@ -79,7 +80,8 @@ class PhoneLog:
                 break  # one before it was lost on the way: the phone sends it again
             written.append(f"{_clock_text(at_ms)} {level} {lens} #{seq} {text}")
             kept = seq
-            if level != "I" and (lens == "-" or self.lens in (None, lens)):
+            # The app's own warnings and errors; its system log's are a driver's.
+            if level in "WE" and (lens == "-" or self.lens in (None, lens)):
                 said = {"level": level, "lens": lens, "text": text}
                 said |= {"at_ms": at_ms, "heard_ms": self.clock()}
         if written and self._write(written):

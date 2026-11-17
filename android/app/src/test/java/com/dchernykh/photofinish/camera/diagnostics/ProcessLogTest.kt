@@ -9,10 +9,10 @@ class ProcessLogTest {
     @Test
     fun `the system log's warnings and errors are read, with their tag`() {
         val device = "CameraDevice-JV-0: Device error received, code 4"
-        assertEquals('W' to device, ProcessLog.read("1794918339.123  1234  1301 W $device"))
+        assertEquals('w' to device, ProcessLog.read("1794918339.123  1234  1301 W $device"))
         val codec = "MediaCodec: Codec reported err 0x80001001, actionCode 0, while in state 6"
-        assertEquals('E' to codec, ProcessLog.read("1794918339.456  1234  1350 E $codec"))
-        assertEquals('E', ProcessLog.read("1794918339.456  1234  1350 F libc    : Fatal signal 6")?.first)
+        assertEquals('e' to codec, ProcessLog.read("1794918339.456  1234  1350 E $codec"))
+        assertEquals('e', ProcessLog.read("1794918339.456  1234  1350 F libc    : Fatal signal 6")?.first)
         assertEquals(
             "libc: Fatal signal 6",
             ProcessLog.read("1794918339.456  1234  1350 F libc    : Fatal signal 6")?.second,
