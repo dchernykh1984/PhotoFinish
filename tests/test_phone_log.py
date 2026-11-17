@@ -211,6 +211,18 @@ def test_the_system_log_s_lines_are_kept_as_they_came(
     assert again.kept == 1
 
 
+def test_a_line_whose_time_is_no_time_here_is_kept_all_the_same(
+    log: PhoneLog, tmp_path: Path
+) -> None:
+    far = (
+        b"PFLG 1 " + RUN.encode() + b" 1 0\n1 99999999999999999999 E - camera error 4\n"
+    )
+    assert log.heard(far) == f"PFLG 1 {RUN} 1\n".encode()
+    assert (tmp_path / phone_log.FILE).read_text().splitlines()[-1] == (
+        "99999999999999999999 ms E - #1 camera error 4"
+    )
+
+
 def test_a_line_that_cannot_be_read_is_passed_over(
     log: PhoneLog, tmp_path: Path
 ) -> None:
