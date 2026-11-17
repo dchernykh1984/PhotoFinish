@@ -1,5 +1,7 @@
 package com.dchernykh.photofinish.camera.diagnostics
 
+import java.util.Locale
+
 /**
  * The app's own part of the system log, warnings and errors (specs/008-phone-log): what the camera and the
  * encoder services answer the app, said in its process, without a call site for each. Android gives an app
@@ -33,39 +35,49 @@ object ProcessLog {
     fun follow(
         log: PhoneLog,
         pid: Int,
-        command: (Boolean) -> List<String> = { again -> logcat(pid, again) },
+        command: (String?) -> List<String> = { since -> logcat(pid, since) },
         pauseMs: Long = PAUSE_MS,
     ) {
         Thread({
-            var again = false
+            var since: String? = null // where the next reading begins: after the newest line read
             while (true) {
+                var lines = 0
                 try {
-                    val process = ProcessBuilder(command(again)).redirectErrorStream(true).start()
+                    val process = ProcessBuilder(command(since)).redirectErrorStream(true).start()
                     process.inputStream.bufferedReader().forEachLine { line ->
+                        lines++
+                        STAMP.find(line)?.let { since = after(it.groupValues[1]) }
                         read(line)?.let { (level, text) -> log.system(level, text) }
                     }
                 } catch (error: Exception) {
                     log.system(PhoneLog.SYSTEM_WARNING, "the system log cannot be read: ${Crashes.describe(error)}")
                     return@Thread
                 }
-                // The log's notes about itself go as the system log's lines: never the phone's last word.
-                log.system(
-                    PhoneLog.SYSTEM_WARNING,
-                    "the system log ended: read again, its new lines, in ${pauseMs / MS_PER_S} s",
-                )
-                again = true
+                // The log's notes about itself go as the system log's lines: never the phone's last word. One
+                // that ends at once, nothing read, would end so every time: said once, not read again.
+                if (lines == 0) {
+                    log.system(PhoneLog.SYSTEM_WARNING, "the system log ends at once: not read again")
+                    return@Thread
+                }
+                log.system(PhoneLog.SYSTEM_WARNING, "the system log ended: read again in ${pauseMs / MS_PER_S} s")
                 Thread.sleep(pauseMs)
             }
         }, "process-log").apply { isDaemon = true }.start()
     }
 
-    /** `logcat` of [pid]'s warnings and errors, the app's own tag left out: from its start, or its newest line. */
+    /** `logcat` of [pid]'s warnings and errors, the app's own tag left out: from its start, or [since] a time. */
     private fun logcat(
         pid: Int,
-        again: Boolean,
+        since: String?,
     ): List<String> =
-        listOf("logcat", "-v", "epoch", "--pid=$pid") + (if (again) listOf("-T", "1") else emptyList()) +
+        listOf("logcat", "-v", "epoch", "--pid=$pid") + (since?.let { listOf("-T", it) } ?: emptyList()) +
             listOf("*:W", "$TAG:S")
+
+    /** The time a millisecond after [stamp], a line's epoch seconds: none of the lines read before read again. */
+    private fun after(stamp: String): String = String.format(Locale.ROOT, "%.3f", stamp.toDouble() + MS_IN_S)
+
+    private val STAMP = Regex("""^\s*(\d+\.\d+)\s""")
+    private const val MS_IN_S = 0.001
 
     private const val PAUSE_MS = 5_000L
     private const val MS_PER_S = 1_000L

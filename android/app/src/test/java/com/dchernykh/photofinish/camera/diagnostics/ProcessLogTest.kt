@@ -38,17 +38,28 @@ class ProcessLogTest {
     }
 
     @Test
-    fun `a system log that ends is said, and read again for its new lines`() {
+    fun `a system log that ends is said, and read again from after its newest line`() {
         val log = PhoneLog()
-        val asked = mutableListOf<Boolean>()
+        val asked = mutableListOf<String?>()
         val line = "1794918339.123  1234  1301 W CameraDevice-JV-0: Device error received, code 4"
-        ProcessLog.follow(log, 1, { again -> listOf("echo", line).also { asked += again } }, pauseMs = 50)
+        ProcessLog.follow(log, 1, { since -> listOf("echo", line).also { asked += since } }, pauseMs = 50)
         val deadline = System.currentTimeMillis() + 5_000
-        while (log.newest < 4 && System.currentTimeMillis() < deadline) Thread.sleep(20)
-        val said = log.after(0).take(4).map { "${it.level} ${it.text}" }
+        while (log.newest < 3 && System.currentTimeMillis() < deadline) Thread.sleep(20)
+        val said = log.after(0).take(2).map { "${it.level} ${it.text}" }
         assertEquals("w CameraDevice-JV-0: Device error received, code 4", said[0])
-        assertEquals("w the system log ended: read again, its new lines, in 0 s", said[1]) // no last word
-        assertEquals(said[0], said[2])
-        assertEquals(listOf(false, true), asked.take(2))
+        assertEquals("w the system log ended: read again in 0 s", said[1]) // never the phone's last word
+        assertEquals(listOf(null, "1794918339.124"), asked.take(2)) // none of the lines read again
+    }
+
+    @Test
+    fun `a system log that ends at once, nothing read, is said once and not read again`() {
+        val log = PhoneLog()
+        var asked = 0
+        ProcessLog.follow(log, 1, { listOf("true").also { asked++ } }, pauseMs = 10)
+        val deadline = System.currentTimeMillis() + 5_000
+        while (log.newest == 0L && System.currentTimeMillis() < deadline) Thread.sleep(20)
+        Thread.sleep(200)
+        assertEquals(listOf("the system log ends at once: not read again"), log.after(0).map { it.text })
+        assertEquals(1, asked)
     }
 }
