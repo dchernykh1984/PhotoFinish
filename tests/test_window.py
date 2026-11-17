@@ -634,6 +634,23 @@ def test_a_camera_that_does_not_record_says_what_its_phone_said_last(
     )
 
 
+def test_a_recorder_that_runs_no_more_tells_no_word_of_its_phone(
+    base: Path, make_window: Callable[[], mw.MainWindow], spawned: list[str]
+) -> None:
+    # Yesterday's recorder.json holds its phone's last word: not today's reason.
+    session.save({**session.DEFAULTS, "cameras": [CAMERA]})
+    day_ago = time.time_ns() // 1_000_000 - 86_400_000
+    said = {"text": "connection lost", "at_ms": day_ago}
+    beating(
+        base,
+        state="stopped",
+        phone_said={**said, "phone_ms": day_ago, "heard_ms": day_ago},
+    )
+    win = make_window()
+    win.poll()
+    assert "the phone" not in win.camera_list.item(0).text()
+
+
 def test_one_camera_alone_and_the_keys_that_switch_between_cameras(
     recording: Path, make_window: Callable[[], mw.MainWindow]
 ) -> None:
