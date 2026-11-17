@@ -380,11 +380,11 @@ class CameraStreamer(
                     }
 
                     override fun onConfigureFailed(failed: CameraCaptureSession) {
-                        if (mine != generation) return
+                        // The preview's surface gone -- the screen leaving -- failed it, not the lenses: the
+                        // screen's stop closes the cameras, and its start opens them on a surface of its own.
+                        if (mine != generation || preview?.isValid == false) return
                         val asked = format?.let { "${it.resolution} at ${it.fps} fps" }.orEmpty()
-                        // The preview's surface gone -- the screen leaving -- failed it, not the lenses.
-                        val failure = CameraFailure.NotConfigured.takeIf { preview?.isValid != false }
-                        lost("the camera cannot give these lenses $asked together", failure)
+                        lost("the camera cannot give these lenses $asked together", CameraFailure.NotConfigured)
                     }
                 }
             try {
