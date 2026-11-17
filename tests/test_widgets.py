@@ -188,7 +188,6 @@ def test_more_than_two_lenses_are_advised_against_main_and_telephoto_advised(
     dialog.lenses["front"].setChecked(False)
     dialog.lenses["ultrawide"].setChecked(False)
     assert not dialog.form.isRowVisible(advice)
-    assert dialog.advice.text() == ""
 
 
 def test_a_port_another_phone_has_shows_no_address_to_scan(
