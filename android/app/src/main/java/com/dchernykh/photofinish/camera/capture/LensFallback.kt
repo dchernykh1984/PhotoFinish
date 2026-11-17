@@ -113,6 +113,16 @@ class LensFallback {
             }
 
     /**
+     * The lenses that gave no frame, waited for after [failure] when open [open] left none out: they may come yet,
+     * the others streaming on, as before the watch -- either camera's, the other not closed for the race --; none
+     * after another failure, or once a lens is left out.
+     */
+    fun waitedFor(
+        open: Int,
+        failure: CameraFailure?,
+    ): List<Lens> = if (failure is CameraFailure.NoFrame && open != paid) failure.silent else emptyList()
+
+    /**
      * The other camera of open [open] -- the front beside the back -- failed alone and was closed, its [lenses]
      * left out of this open: one of them left out from now on, as the first camera's path does -- the last that
      * gave no frame, else its last, never the first of [streamed], the open's in the code's order --, the

@@ -374,7 +374,8 @@ class CameraStreamer(
          * A camera lost: the one with the preview opens everything again in a moment; another --
          * the front beside the back -- is closed alone, its lenses said left out, so the first
          * streams on rather than stopping with it each time it fails. A [failure] of the lenses'
-         * own in their first seconds leaves a lens out from then on (LensFallback).
+         * own in their first seconds leaves a lens out from then on (LensFallback); a lens that gave
+         * no frame, none left out, is waited for, its camera kept.
          */
         private fun lost(
             reason: String,
@@ -398,8 +399,10 @@ class CameraStreamer(
                 }
                 return
             }
-            close() // first: no word of its uplinks comes after the one said here
             val left = fallback.failedAlone(mine, streamed, lenses, failure)
+            val silent = fallback.waitedFor(mine, failure)
+            if (silent.isNotEmpty()) return silent.forEach { onStatus(it, StreamerStatus.Failed(reason)) }
+            close() // first: no word of its uplinks comes after the one said here
             left?.let { log.warning(it.code, "left out from now on: its camera failed with it ($reason)") }
             lenses.forEach { onStatus(it, StreamerStatus.Failed("$reason; left out")) }
             leaveOut(lenses) // told to the laptop
