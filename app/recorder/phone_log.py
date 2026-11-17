@@ -87,7 +87,8 @@ class PhoneLog:
             if level in "WE" and (lens == "-" or self.lens in (None, lens)):
                 said = {"level": level, "lens": lens, "text": text}
                 said |= {"at_ms": at_ms, "heard_ms": self.clock()}
-        if written and self._write(written):
+        before = start - 1 if known is None else known
+        if written and self._write(written, run, before):
             self.run, self.kept, self.said = run, kept, said
             self.runs.pop(run, None)
             self.runs[run] = kept
@@ -111,14 +112,15 @@ class PhoneLog:
     def _mark(self, text: str) -> str:
         return f"--- {text}, {_clock_text(self.clock())}"
 
-    def _write(self, lines: list[str]) -> bool:
-        """``lines`` added to the file, a new file begun past KEEP_BYTES; False when
-        they could not be written: not answered, sent again (FR-006)."""
+    def _write(self, lines: list[str], run: str, kept: int) -> bool:
+        """``lines`` of ``run`` added to the file, ``kept`` its newest line before them;
+        a new file begun past KEEP_BYTES, saying whose lines follow; False when they
+        could not be written: not answered, sent again (FR-006)."""
         try:
             if self.path.exists() and self.path.stat().st_size > KEEP_BYTES:
                 self.path.replace(self.path.with_name(FILE + ".1"))
-                if not lines[0].startswith("--- run "):  # the new file says whose
-                    lines = [f"--- run {self.run} from line {self.kept + 1}", *lines]
+                if not any(line.startswith("--- run ") for line in lines):
+                    lines = [f"--- run {run} from line {kept + 1}", *lines]
             with self.path.open("a", encoding="utf-8") as f:
                 f.write("".join(f"{line}\n" for line in lines))
         except OSError:
