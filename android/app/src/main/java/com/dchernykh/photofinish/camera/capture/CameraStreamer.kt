@@ -354,7 +354,14 @@ class CameraStreamer(
             if (preview != null) {
                 when {
                     again(reason, failure, lenses) -> Unit
-                    failure is CameraFailure.NoFrame -> log.warning(null, reason) // waited for: it may come yet
+                    // Waited for, as it may come yet: said on the screen and to the laptop, the lens's own word.
+                    failure is CameraFailure.NoFrame ->
+                        failure.silent.forEach {
+                            onStatus(
+                                it,
+                                StreamerStatus.Failed(reason),
+                            )
+                        }
                     else -> say(StreamerStatus.Failed(reason))
                 }
                 return
