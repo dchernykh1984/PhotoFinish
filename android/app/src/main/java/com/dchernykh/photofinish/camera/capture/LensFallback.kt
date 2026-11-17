@@ -11,6 +11,9 @@ sealed interface CameraFailure {
         val sinceStartMs: Long?,
     ) : CameraFailure
 
+    /** A camera that could not run the session of its lenses, which the phone said beforehand it runs. */
+    data object NotConfigured : CameraFailure
+
     /** A camera that gave its [silent] lenses no frame, [sinceStartMs] after they started. */
     data class NoFrame(
         val silent: List<Lens>,
@@ -91,6 +94,7 @@ class LensFallback {
                 is CameraFailure.Error ->
                     failure.code in LENSES_ERRORS && failure.sinceStartMs != null && failure.sinceStartMs < EARLY_MS
                 is CameraFailure.NoFrame -> failure.sinceStartMs < EARLY_MS
+                CameraFailure.NotConfigured -> true
             }
     }
 }

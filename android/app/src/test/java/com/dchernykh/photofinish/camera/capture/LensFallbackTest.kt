@@ -45,6 +45,16 @@ class LensFallbackTest {
     }
 
     @Test
+    fun `a session the camera said it runs and then could not leaves the last lens out`() {
+        val fallback = LensFallback()
+        assertEquals(Lens.FRONT, fallback.failed(1, four, CameraFailure.NotConfigured))
+        assertEquals(
+            listOf(Lens.TELEPHOTO),
+            fallback.failedAlone(2, listOf(Lens.TELEPHOTO), CameraFailure.NotConfigured),
+        )
+    }
+
+    @Test
     fun `the code's order says which lens goes`() {
         val fallback = LensFallback()
         assertEquals(Lens.MAIN, fallback.failed(1, listOf(Lens.FRONT, Lens.MAIN), error(2_000)))
