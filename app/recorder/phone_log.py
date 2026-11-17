@@ -21,7 +21,7 @@ TAG = b"PFLG"
 VERSION = "1"
 FILE = "phone.log"
 KEEP_BYTES = 10 * 1024 * 1024  # then kept as phone.log.1, and a new one begun
-SAID_MS = 60_000  # a phone's last word shown on a camera's line this long
+SAID_MS = 60_000  # a phone's last word older than this is shown with its age
 RUNS_KEPT = 4  # the runs a recorder goes on with: phones given one code, apps restarted
 _RUN = re.compile(r"[0-9a-f]{16}")
 # The app's own levels, I W E; its phone's system log's, w e (contract).
@@ -146,13 +146,16 @@ class PhoneLog:
 
 def last_word(said: object, now_ms: int) -> str:
     """The phone's last warning or error a heartbeat holds, as a camera's line says it
-    while the camera does not record; "" when there is none under SAID_MS old."""
+    while the camera does not record: until the phone's next line says otherwise, a
+    failure it says once going on -- how long ago it was said, past SAID_MS; "" when
+    there is none."""
     if not isinstance(said, dict):
         return ""
     heard, text = said.get("heard_ms"), said.get("text")
     if not isinstance(heard, int) or not isinstance(text, str) or not text:
         return ""
-    return f"the phone: {text}" if 0 <= now_ms - heard <= SAID_MS else ""
+    ago = (now_ms - heard) // 60_000
+    return f"the phone: {text}" if ago < 1 else f"the phone, {ago} min ago: {text}"
 
 
 def _read(
