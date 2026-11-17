@@ -5,6 +5,7 @@ import android.os.Build
 import android.os.Process
 import android.util.Log
 import com.dchernykh.photofinish.camera.BuildConfig
+import com.dchernykh.photofinish.camera.Settings
 import java.io.File
 
 /**
@@ -19,19 +20,16 @@ object Diagnostics {
         PhoneLog(mirror = { Log.println(priority(it.level), ProcessLog.TAG, "${it.lens ?: "-"} ${it.text}") })
     }
 
-    /** Where the log goes: the recorders of the newest activity's pairing code. */
-    @Volatile private var destinations: () -> List<Pair<String, Int>> = { emptyList() }
-
     private var sender: LogSender? = null
 
-    /** Started, once; [to] the recorders the log is sent to from now on, a lens's host and port each. */
+    /**
+     * Started, once: the log sent to the recorders of the pairing code the app keeps, read each round from the
+     * settings of [context]'s application -- no activity is held, whatever becomes of it.
+     */
     @Synchronized
-    fun start(
-        context: Context,
-        to: () -> List<Pair<String, Int>>,
-    ) {
-        destinations = to
+    fun start(context: Context) {
         if (sender != null) return
+        val settings = Settings(context.applicationContext)
         val crash = File(context.filesDir, CRASH_FILE)
         Crashes.tell(crash, log)
         Crashes.keep(crash)
@@ -41,7 +39,7 @@ object Diagnostics {
                 "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})",
         )
         ProcessLog.follow(log, Process.myPid())
-        sender = LogSender(log, { destinations() }).also { it.start() }
+        sender = LogSender(log, { LogSender.recordersOf(settings.address) }).also { it.start() }
     }
 
     private fun priority(level: Char): Int =

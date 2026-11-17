@@ -1,5 +1,6 @@
 package com.dchernykh.photofinish.camera.diagnostics
 
+import com.dchernykh.photofinish.camera.pairing.Pairing
 import java.io.Closeable
 import java.io.IOException
 import java.net.DatagramPacket
@@ -147,17 +148,25 @@ class LogSender(
         }
     }
 
-    private companion object {
-        const val NANOS_PER_MS = 1_000_000L
-        const val ROUND_MS = 500L
-        const val LISTEN_MS = 100
-        const val WINDOW = 8
-        const val QUIET_MS = 10_000L
-        const val SLOW_MS = 5_000L
-        const val ANSWER_BYTES = 128
+    companion object {
+        /** The recorders a pairing [code] names, a lens's host and port each: where the log goes. */
+        fun recordersOf(code: String): List<Pair<String, Int>> =
+            Pairing
+                .parse(code)
+                .targets
+                .map { it.address.host to it.address.port }
+                .distinct()
+
+        private const val NANOS_PER_MS = 1_000_000L
+        private const val ROUND_MS = 500L
+        private const val LISTEN_MS = 100
+        private const val WINDOW = 8
+        private const val QUIET_MS = 10_000L
+        private const val SLOW_MS = 5_000L
+        private const val ANSWER_BYTES = 128
 
         /** [host] and [port] as an address to send to; null when the name does not resolve yet. */
-        fun address(
+        private fun address(
             host: String,
             port: Int,
         ): InetSocketAddress? = InetSocketAddress(host, port).takeUnless { it.isUnresolved }
