@@ -250,6 +250,9 @@ class CameraStreamer(
         /** When the lenses started, on the clock of [SystemClock.elapsedRealtime]: null before. */
         private var startedMs: Long? = null
 
+        /** The request the session was made with (Android 15): its frames asked by it, not by one built anew. */
+        private var asked: CaptureRequest.Builder? = null
+
         /** How long ago the lenses started; null before. */
         private val sinceStart: Long? get() = startedMs?.let { SystemClock.elapsedRealtime() - it }
 
@@ -401,7 +404,7 @@ class CameraStreamer(
                     // beforehand. Earlier, sessions are made as they were: a phone that streamed them streams on.
                     val parameters =
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
-                            request(camera, format, streams.isNotEmpty()).build()
+                            request(camera, format, streams.isNotEmpty()).also { asked = it }.build()
                         } else {
                             null // not asked of the camera for nothing
                         }
@@ -436,7 +439,10 @@ class CameraStreamer(
         ) {
             if (format?.range == null) return
             try {
-                val request = request(camera, format, streams.isNotEmpty()).apply { targets.forEach { addTarget(it) } }
+                val request =
+                    (asked ?: request(camera, format, streams.isNotEmpty())).apply {
+                        targets.forEach { addTarget(it) }
+                    }
                 configured.setRepeatingRequest(request.build(), null, handler)
                 startedMs = SystemClock.elapsedRealtime()
                 if (streams.isNotEmpty()) handler.postDelayed({ checkFrames() }, NO_FRAME_MS)
