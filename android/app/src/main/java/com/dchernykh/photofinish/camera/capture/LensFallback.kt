@@ -2,6 +2,7 @@ package com.dchernykh.photofinish.camera.capture
 
 import android.hardware.camera2.CameraDevice
 import com.dchernykh.photofinish.camera.pairing.Lens
+import com.dchernykh.photofinish.camera.pairing.LensTarget
 
 /** How the cameras of an open failed, as [LensFallback] weighs it: none for another app taking them. */
 sealed interface CameraFailure {
@@ -40,6 +41,24 @@ class LensFallback {
 
     /** The lenses left out so far, in the order they were. */
     val leftOut: Set<Lens> get() = left.toSet()
+
+    /** What the last start asked for: the cameras started again for the same keep what was left out. */
+    private var asked: Pair<StreamFormat, List<LensTarget>>? = null
+
+    /**
+     * The cameras started for [targets] at [format]: the lenses left out forgotten when either is not the last
+     * start's -- the referee's choice, a stop in between asking for the preview alone --, kept when the same come
+     * again: the preview's surface made again, the screen back from another app.
+     */
+    fun start(
+        format: StreamFormat,
+        targets: List<LensTarget>,
+    ) {
+        if (asked == format to targets) return
+        asked = format to targets
+        left.clear()
+        paid = null
+    }
 
     /**
      * The cameras of open [open] failed, [streamed] in the code's order: the lens left out from now on, or null

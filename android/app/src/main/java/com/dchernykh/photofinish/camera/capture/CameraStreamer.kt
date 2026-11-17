@@ -68,8 +68,8 @@ class CameraStreamer(
     private val executor = Executor { handler.post(it) }
     private val opened = mutableListOf<OpenCamera>()
 
-    /** The lenses the cameras failed with since the last [start], left out of each open: the cameras' thread's. */
-    private var fallback = LensFallback()
+    /** The lenses the cameras failed with since the referee's start, left out of each open: the cameras' thread's. */
+    private val fallback = LensFallback()
 
     /** The lenses asked for and not streamed, as the status tells the laptop; read from the uplinks' threads. */
     @Volatile private var leftOut: List<String> = emptyList()
@@ -88,7 +88,7 @@ class CameraStreamer(
         targets: List<LensTarget>,
     ) {
         handler.post {
-            fallback = LensFallback() // a start of the referee's tries every lens again
+            fallback.start(format, targets) // a start of the referee's tries every lens again
             open(preview, format, targets)
         }
     }

@@ -2,6 +2,8 @@ package com.dchernykh.photofinish.camera.capture
 
 import android.hardware.camera2.CameraDevice
 import com.dchernykh.photofinish.camera.pairing.Lens
+import com.dchernykh.photofinish.camera.pairing.LensTarget
+import com.dchernykh.photofinish.camera.pairing.RtmpAddress
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -52,6 +54,23 @@ class LensFallbackTest {
             listOf(Lens.TELEPHOTO),
             fallback.failedAlone(2, listOf(Lens.TELEPHOTO), CameraFailure.NotConfigured),
         )
+    }
+
+    @Test
+    fun `the lenses left out are kept while the same are asked at the same format, the screen back from another app`() {
+        val fullHd = StreamFormat(Resolution(1920, 1080), 60, FpsRange(60, 60), 16_000_000)
+        val targets = four.map { LensTarget(it, RtmpAddress("10.0.0.5", 1935, "live", it.code)) }
+        val fallback = LensFallback()
+        fallback.start(fullHd, targets)
+        fallback.failed(1, four, error(1_500))
+        fallback.start(fullHd, targets) // the preview's surface made again
+        assertEquals(setOf(Lens.FRONT), fallback.leftOut)
+        fallback.start(fullHd, emptyList()) // the referee stopped: the preview alone
+        fallback.start(fullHd, targets) // and started again: every lens tried
+        assertEquals(emptySet<Lens>(), fallback.leftOut)
+        fallback.failed(2, four, error(1_500))
+        fallback.start(fullHd.copy(fps = 30, range = FpsRange(30, 30)), targets) // another rate chosen
+        assertEquals(emptySet<Lens>(), fallback.leftOut)
     }
 
     @Test
