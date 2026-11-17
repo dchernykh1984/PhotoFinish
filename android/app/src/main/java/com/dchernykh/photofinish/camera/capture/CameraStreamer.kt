@@ -22,6 +22,7 @@ import com.dchernykh.photofinish.camera.status.PhoneStatusReader
 import com.dchernykh.photofinish.camera.stream.FrameStore
 import com.dchernykh.photofinish.camera.stream.UplinkStatus
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executor
 
 /** What the camera side says to the screen: of the cameras as a whole, or of one lens. */
@@ -244,6 +245,9 @@ class CameraStreamer(
         /** The lenses it streams. */
         val lenses: List<Lens> get() = streams.map { it.lens }
 
+        /** The lenses whose encoder has given a frame: the encoders' threads add, the cameras' reads. */
+        private val framed = ConcurrentHashMap.newKeySet<Lens>()
+
         /** Closed: its uplinks' words after it are the stopped streams', and dropped. */
         @Volatile private var closed = false
         private var targets: List<Surface> = emptyList()
@@ -288,7 +292,10 @@ class CameraStreamer(
                             report = { status ->
                                 if (mine == generation && !closed) onStatus(lens, StreamerStatus.Link(status))
                             },
-                            onFirstFrame = { stream, ptsUs -> clockOfFrames(stream, ptsUs, mine) },
+                            onFirstFrame = { stream, ptsUs ->
+                                framed += stream.lens
+                                clockOfFrames(stream, ptsUs, mine)
+                            },
                             status = { dropped -> phone.read().copy(dropped = dropped, left = leftOut).line() },
                             store = FrameStore(File(kept, lens.code), share),
                             log = log,
@@ -404,6 +411,7 @@ class CameraStreamer(
                     }
                 configured.setRepeatingRequest(request.build(), null, handler)
                 startedMs = SystemClock.elapsedRealtime()
+                if (streams.isNotEmpty()) handler.postDelayed({ checkFrames() }, NO_FRAME_MS)
                 // The camera gives frames: a failure said before, a camera lost and opened again, is over;
                 // the camera with the preview says so for the cameras as a whole, the others' lenses by their links.
                 previewStatus(preview, targets)?.let { onStatus(null, it) }
@@ -411,6 +419,18 @@ class CameraStreamer(
                 log.error(null, "starting camera ${camera.id}'s frames: ${Crashes.describe(error)}")
                 say(failed(error))
             }
+        }
+
+        /**
+         * A camera that has given a lens no frame [NO_FRAME_MS] after they started -- the Xiaomi 17 Ultra's
+         * stalled with four lenses, saying nothing -- failed, the lenses' doing: lost, as one that says so is.
+         */
+        private fun checkFrames() {
+            if (mine != generation || closed) return
+            val silent = streams.map { it.lens }.filter { it !in framed }
+            if (silent.isEmpty()) return
+            val which = silent.joinToString { it.code }
+            lost("the camera gave $which no frame in ${NO_FRAME_MS / MS_PER_S} s", ofTheLenses = true)
         }
 
         /**
@@ -439,6 +459,8 @@ class CameraStreamer(
 
     companion object {
         private const val OPEN_AGAIN_MS = 2_000L
+        private const val NO_FRAME_MS = 5_000L
+        private const val MS_PER_S = 1_000L
 
         /** A camera's errors of the lenses asked of it, not of another app or the phone's policy. */
         private val LENSES_ERRORS =
