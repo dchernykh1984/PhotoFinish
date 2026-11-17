@@ -97,4 +97,10 @@ class StatusLogTest {
             it.isAccessible = true
             (it.get(statuses) as Map<*, *>).size
         }
+
+    @Test
+    fun `a lens left out after the cameras failed with it says so, not that the phone refused it beforehand`() {
+        statuses.heard(Lens.FRONT, StreamerStatus.Left(LeftOut.FAILED_WITH_THE_OTHERS))
+        assertEquals("W front left out: the cameras failed with it beside the others", said().last())
+    }
 }

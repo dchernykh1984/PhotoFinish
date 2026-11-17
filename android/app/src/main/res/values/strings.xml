@@ -27,6 +27,7 @@
     <string name="lens_status">%1$s: %2$s</string>
     <string name="left_missing">not on this phone</string>
     <string name="left_together">this phone cannot stream it with the others</string>
+    <string name="left_failed">the camera failed with it beside the others</string>
     <string name="unread">Not read: %1$s</string>
     <string name="starting">starting</string>
 </resources>

@@ -27,6 +27,7 @@
     <string name="lens_status">%1$s: %2$s</string>
     <string name="left_missing">бұл телефонда жоқ</string>
     <string name="left_together">бұл телефон оны басқалармен бірге түсірмейді</string>
+    <string name="left_failed">оны басқалармен бірге түсіргенде камера істен шықты</string>
     <string name="unread">Оқылмады: %1$s</string>
     <string name="starting">іске қосылуда</string>
 </resources>

@@ -125,8 +125,8 @@ fun <T> previewStatus(
         else -> StreamerStatus.Failed(NO_PREVIEW)
     }
 
-/** Why a lens asked for is not streamed. */
-enum class LeftOut { NOT_ON_THIS_PHONE, NOT_WITH_THE_OTHERS }
+/** Why a lens asked for is not streamed: the phone lacks it, says it cannot, or failed with it (LensFallback). */
+enum class LeftOut { NOT_ON_THIS_PHONE, NOT_WITH_THE_OTHERS, FAILED_WITH_THE_OTHERS }
 
 /** The cameras to open for the lenses asked, and the lenses left out (FR-005). */
 data class SessionPlan(

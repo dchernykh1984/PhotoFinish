@@ -124,7 +124,7 @@ class CameraStreamer(
                 ?: return onStatus(null, StreamerStatus.Failed("no back camera"))
         // The room shared by the lenses streamed: one left out leaves the others its share.
         share = FrameStore.SHARE_BYTES / plan.cameras.sumOf { it.lenses.size }.coerceAtLeast(1)
-        failedWith.forEach { onStatus(it, StreamerStatus.Left(LeftOut.NOT_WITH_THE_OTHERS)) }
+        failedWith.forEach { onStatus(it, StreamerStatus.Left(LeftOut.FAILED_WITH_THE_OTHERS)) }
         plan.left.forEach { (lens, why) -> onStatus(lens, StreamerStatus.Left(why)) }
         leftOut = (failedWith + plan.left.keys).map { it.code }
         // A failure of the lenses' own -- early, by its kind -- leaves one out of the next open (LensFallback).
