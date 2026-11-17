@@ -29,6 +29,7 @@ import numpy as np
 from app import cameras, session
 from app.paths import app_path
 from app.recorder.clock_sync import ClockResponder
+from app.recorder.phone_log import PhoneLog
 from app.recorder.segments import SegmentWriter, recover
 from app.recorder.sources import (
     LEAP_MS,
@@ -157,13 +158,18 @@ class Heartbeat:
             "behind_ms": 0,
             # The program it runs: a window of another replaces it (specs/007).
             "version": version(),
+            # The phone's last warning or error of this camera's lens (specs/008).
+            "phone_said": {},
         }
         self._written = 0.0
+        # What is written with every beat besides: the phone's log's last word.
+        self.extra: Callable[[], dict[str, Any]] = dict
 
     def beat(self, **changes: Any) -> None:
+        changes = {**self.extra(), **changes}
         news = any(
             key in changes and self.info[key] != changes[key]
-            for key in ("state", "detail", "clock")
+            for key in ("state", "detail", "clock", "phone_said")
         )
         self.info.update(changes)
         now = time.monotonic()
@@ -258,6 +264,10 @@ class _Recording:
         self.backoff = Backoff()
         self.responder: ClockResponder | None = None
         self.phone = camera.get("connection") == "rtmp"  # a phone answers the clock
+        # What the phone meets, sent beside its clock exchange (specs/008-phone-log).
+        lens = camera.get("lens")
+        self.phone_log = PhoneLog(folder, lens if isinstance(lens, str) else None)
+        beat.extra = lambda: {"phone_said": self.phone_log.said}
         self.clock_tried = -CLOCK_RETRY_S  # time.monotonic() of the last try
         self.port_taken = ""  # why the exchange is left out: its port, taken
         self.placed = Placed()  # a phone's frames placed elsewhere than their moments
@@ -275,7 +285,9 @@ class _Recording:
         self.clock_tried = now
         port = self.camera["settings"].get("port", cameras.RTMP_PORT)
         try:
-            self.responder = ClockResponder(port, self.clock.micros)
+            self.responder = ClockResponder(
+                port, self.clock.micros, others=self.phone_log.heard
+            )
             self.port_taken = ""
         except OSError as error:
             self.port_taken = (
