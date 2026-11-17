@@ -40,3 +40,12 @@
 - [x] T016 `StatusLog.kt`: where each lens came to rest told; its memory of words kept to 64
 - [x] T017 `ProcessLog.kt`: the system log read again when it ends; `LogSender.kt`: recorders by the
   code's host and port; `LensStream.kt`: its log given
+
+## Review cycle 3
+
+- [x] T018 `phone_log.py`: the last word kept till the phone says otherwise, its age past a minute;
+  `clock_sync.py`: a reset of Windows' no pause; the log's thread only with a log; `__init__.py`: a
+  phone log for phones alone
+- [x] T019 The log's notes about itself as the system log's; `ProcessLog.kt`: read again from after
+  its newest line, never again when it ends at once; `LogSender.kt`: a quiet recorder's name found
+  again; `Diagnostics.kt`: the lenses logged once
