@@ -77,11 +77,13 @@ class LogSender(
         address: InetSocketAddress,
     ) {
         val from = lines.firstOrNull()?.seq ?: return
+        var prev = from - 1 // the round's first message: the recorder knows it by this
         var left = lines
         repeat(WINDOW) {
             if (left.isNotEmpty()) {
-                val (bytes, count) = LogMessages.message(log.run, from, left)
+                val (bytes, count) = LogMessages.message(log.run, from, prev, left)
                 send(bytes, address)
+                prev = left[count - 1].seq
                 left = left.drop(count)
             }
         }

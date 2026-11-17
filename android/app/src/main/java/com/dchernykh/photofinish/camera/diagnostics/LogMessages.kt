@@ -2,9 +2,11 @@ package com.dchernykh.photofinish.camera.diagnostics
 
 /**
  * The log's messages to a recorder and its answers, on the port of the clock exchange (specs/008-phone-log,
- * contract): text, `PFLG 1 <run> <from>` -- the line the phone's round of messages began with, the oldest it
- * still had that the recorder had not answered -- and a line a line, `<seq> <ms> <level> <lens> <text>`, `-`
- * for the phone as a whole; the answer `PFLG 1 <run> <seq>`, the newest line the recorder kept.
+ * contract): text, `PFLG 1 <run> <from> <prev>` -- the line the phone's round of messages began with, the
+ * oldest it still had that the recorder had not answered, and the line it sent just before this message's
+ * first, `from - 1` in the round's first message -- and a line a line, `<seq> <ms> <level> <lens> <text>`, `-`
+ * for the phone as a whole. Lines the phone no longer keeps leave gaps in the numbers. The answer
+ * `PFLG 1 <run> <seq>`, the newest line the recorder kept.
  */
 object LogMessages {
     /** A message at most: one the network takes whole, unsplit. */
@@ -16,14 +18,15 @@ object LogMessages {
 
     /**
      * A message of [run]'s [lines] from the first, as many as [MAX_BYTES] holds -- one at least -- and how many;
-     * [from] the line the round began with.
+     * [from] the line the round began with, [prev] the line sent just before the first of [lines].
      */
     fun message(
         run: String,
         from: Long,
+        prev: Long,
         lines: List<LogLine>,
     ): Pair<ByteArray, Int> {
-        val text = StringBuilder("$TAG $VERSION $run $from\n")
+        val text = StringBuilder("$TAG $VERSION $run $from $prev\n")
         var size = text.length
         var count = 0
         for (line in lines) {

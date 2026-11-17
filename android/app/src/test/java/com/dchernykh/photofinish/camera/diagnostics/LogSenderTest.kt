@@ -15,8 +15,9 @@ private class FakeRecorder {
     val socket = DatagramSocket(0, InetAddress.getLoopbackAddress()).apply { soTimeout = 200 }
     val port: Int get() = socket.localPort
 
-    /** The line the last round began with, as its messages said. */
+    /** The line the last round began with, as its messages said, and each message's line before its first. */
     var from = 0L
+    val prevs = mutableListOf<Long>()
 
     /** The lines of the messages received now, by their numbers. */
     fun received(): List<Long> {
@@ -30,7 +31,9 @@ private class FakeRecorder {
                 return seqs
             }
             val lines = String(buffer, 0, packet.length, Charsets.UTF_8).trim().lines()
-            from = lines.first().substringAfterLast(' ').toLong()
+            val head = lines.first().split(' ')
+            from = head[3].toLong()
+            prevs += head[4].toLong()
             seqs += lines.drop(1).map { it.substringBefore(' ').toLong() }
             last = packet
         }
@@ -113,6 +116,21 @@ class LogSenderTest {
         sender.round()
         assertEquals((1L..20L).toList(), recorder.received())
         assertEquals(1L, recorder.from)
+        assertEquals(listOf(0L, 3L, 6L, 9L, 12L, 15L, 18L), recorder.prevs) // each after the one before
+    }
+
+    @Test
+    fun `lines the phone let go of between kept ones leave gaps the messages carry`() {
+        val small = PhoneLog(capacity = 4, clockMs = { 1_000_000L + now })
+        val sender = LogSender(small, { listOf("127.0.0.1" to recorder.port) }, nowMs = { now }).also { opened += it }
+        small.info(null, "start")
+        small.system('e', "driver: one")
+        small.error(null, "camera error 4")
+        small.system('e', "driver: two")
+        small.info(null, "connecting") // full: the system log's oldest goes, from between
+        sender.round()
+        assertEquals(listOf(1L, 3L, 4L, 5L), recorder.received())
+        assertEquals(listOf(0L), recorder.prevs)
     }
 
     @Test
