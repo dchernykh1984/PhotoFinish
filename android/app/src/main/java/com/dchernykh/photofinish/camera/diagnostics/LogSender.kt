@@ -75,13 +75,14 @@ class LogSender(
         recorders.keys.retainAll(wanted)
         for (named in wanted) {
             val recorder = recorders.getOrPut(named) { Recorder(now) }
-            // A name that does not resolve now keeps what its recorder answered: tried again next round.
-            // Found once and kept -- a name not looked up twice a second -- but found again while its recorder
-            // is quiet: a laptop's address may change, the video and the clock exchange following it.
+            if (log.newest <= recorder.answered || !due(recorder, now)) continue
+            recorder.sentMs = now // a try, found or not: a name nowhere looked up as seldom as a quiet one is sent to
+            // A name that does not resolve now keeps what its recorder answered: tried again when next due.
+            // Found once and kept -- a name not looked up twice a second -- but found again, when due, while
+            // its recorder is quiet: a laptop's address may change, the video and the clock exchange following.
             val known = recorder.address.takeUnless { recorder.quiet(now) }
             val address = known ?: resolve(named.first, named.second)?.also { recorder.address = it }
-            if (address != null && log.newest > recorder.answered && due(recorder, now)) {
-                recorder.sentMs = now
+            if (address != null) {
                 // A recorder that never answered may be an older PhotoFinish's, to which a message is a
                 // datagram too long (Windows pauses its clock exchange for each): one a round.
                 send(log.after(recorder.answered), address, if (recorder.heardMs == null) 1 else WINDOW)

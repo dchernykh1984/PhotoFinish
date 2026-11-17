@@ -226,4 +226,31 @@ class LogSenderTest {
         sender.round()
         assertEquals(listOf(1L), recorder.received())
     }
+
+    @Test
+    fun `a quiet recorder's name is looked up only when it is due a message`() {
+        var looked = 0
+        val sender = sender { listOf("laptop.local" to 1935) }
+        sender.resolve = { _, _ -> null.also { looked++ } } // not found: quiet from the start
+        log.info(null, "line")
+        repeat(40) {
+            // twenty seconds, two rounds a second
+            sender.round()
+            now += 500
+        }
+        assertEquals(21 + 1, looked) // found nowhere: each round for ten seconds, then every five
+        val answered = sender { listOf("127.0.0.1" to recorder.port) }
+        var asked = 0
+        answered.resolve = { host, port -> InetSocketAddress(host, port).also { asked++ } }
+        answered.round()
+        recorder.received()
+        recorder.answer(log.run, 1)
+        answered.hear()
+        now += 10_500 // quiet once more, and nothing new to send
+        repeat(20) {
+            answered.round()
+            now += 500
+        }
+        assertEquals(1, asked) // nothing due: no look-up
+    }
 }
