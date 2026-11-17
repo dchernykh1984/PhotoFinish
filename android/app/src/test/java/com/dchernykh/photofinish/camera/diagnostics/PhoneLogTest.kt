@@ -52,6 +52,14 @@ class PhoneLogTest {
     }
 
     @Test
+    fun `how many were left out is said even when the system log says nothing more`() {
+        val log = log(perSecond = 2)
+        repeat(5) { log.system('e', "driver: $it") } // the camera died: no line after
+        now += 1_000
+        assertEquals("3 lines of the system log left out: more than 2 a second", log.after(0).last().text)
+    }
+
+    @Test
     fun `a full log lets the system log's oldest line go before the app's own`() {
         val log = log(capacity = 3)
         log.error(null, "the camera failed")
