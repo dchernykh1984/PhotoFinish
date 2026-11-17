@@ -110,7 +110,8 @@ of a camera that does not record, and not in one that records.
 - **SC-001**: On the emulator, the app's start and the camera it opened are in `phone.log` within
   2 s of starting.
 - **SC-002**: With the recorder stopped for 20 s while the app runs, the lines of those 20 s reach
-  `phone.log` within 5 s of the recorder starting again, none twice.
+  `phone.log` within 10 s of the recorder starting again, none twice: a recorder silent for 10 s
+  is sent to every 5 s (FR-002), then the lines it missed at full pace.
 - **SC-003**: Nothing of the recording changes: the same frames recorded with the log as without.
 
 ## Assumptions
