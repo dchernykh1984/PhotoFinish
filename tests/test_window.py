@@ -610,9 +610,13 @@ def test_a_camera_that_does_not_record_says_what_its_phone_said_last(
         "cam2",
         state="reconnecting",
         detail="[Errno 5] Input/output error",
-        phone_said={**said, "at_ms": now, "heard_ms": now},
+        phone_said={**said, "at_ms": now, "phone_ms": now, "heard_ms": now},
     )
-    beating(base, "cam3", phone_said={**said, "at_ms": now, "heard_ms": now})
+    beating(
+        base,
+        "cam3",
+        phone_said={**said, "at_ms": now, "phone_ms": now, "heard_ms": now},
+    )
     win = make_window()
     win.poll()
     assert win.cameras["cam2"].item.text() == (
@@ -621,7 +625,8 @@ def test_a_camera_that_does_not_record_says_what_its_phone_said_last(
     )
     assert win.cameras["cam3"].item.text() == "Mi tele: recording, 70 frames"
     old = now - 120_000  # said two minutes ago, and nothing since: still its word
-    beating(base, "cam2", state="connecting", phone_said={**said, "heard_ms": old})
+    old_word = {**said, "at_ms": old, "phone_ms": old, "heard_ms": old}
+    beating(base, "cam2", state="connecting", phone_said=old_word)
     win.poll()
     assert win.cameras["cam2"].item.text() == (
         "Mi main: connecting; "

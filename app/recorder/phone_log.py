@@ -22,6 +22,8 @@ VERSION = "1"
 FILE = "phone.log"
 KEEP_BYTES = 10 * 1024 * 1024  # then kept as phone.log.1, and a new one begun
 SAID_MS = 60_000  # a phone's last word older than this is shown with its age
+MINUTE_MS = 60_000
+TIMES = ("at_ms", "phone_ms", "heard_ms")  # a last word's: said, the phone's now, heard
 RUNS_KEPT = 4  # the runs a recorder goes on with: phones given one code, apps restarted
 _RUN = re.compile(r"[0-9a-f]{16}")
 # The app's own levels, I W E; its phone's system log's, w e (contract).
@@ -51,7 +53,8 @@ class PhoneLog:
         # started again finds both in its file.
         self.run, self.runs = _where(self.path)
         # The phone's newest warning or error of this lens, or of the phone as a whole,
-        # and when it came by this computer's clock: for the window (FR-005).
+        # for the window (FR-005): when the phone said it, and the phone's newest time
+        # and when this computer heard it -- how long ago, whatever either's clock says.
         self.said: dict[str, Any] = {}
 
     def heard(self, message: bytes) -> bytes | None:
@@ -83,7 +86,11 @@ class PhoneLog:
                 continue  # sent again: kept already
             written.append(f"{_clock_text(at_ms)} {level} {lens} #{seq} {text}")
             kept = seq
-            said = self._word(said, level, lens, text, at_ms)
+            said = self._word(said, run, level, lens, text, at_ms)
+        if said.get("run") == run and lines:  # the phone's time now, as near as known
+            newest = max(at_ms for _, at_ms, _, _, _ in lines)
+            said = {**said, "phone_ms": max(newest, said["at_ms"])}
+            said["heard_ms"] = self.clock()
         before = start - 1 if known is None else known
         if written and self._write(written, run, before):
             self.run, self.said = run, said
@@ -94,7 +101,13 @@ class PhoneLog:
         return f"PFLG {VERSION} {run} {self.runs.get(run, 0)}\n".encode("ascii")
 
     def _word(
-        self, said: dict[str, Any], level: str, lens: str, text: str, at_ms: int
+        self,
+        said: dict[str, Any],
+        run: str,
+        level: str,
+        lens: str,
+        text: str,
+        at_ms: int,
     ) -> dict[str, Any]:
         """The phone's last word after a line: the app's own newest warning or error of
         this lens or of the phone, till another comes -- a retry's own lines say no
@@ -103,8 +116,7 @@ class PhoneLog:
         mine = lens == "-" or self.lens in (None, lens)
         if level not in "WE" or not mine:
             return said
-        heard = {"text": text, "at_ms": at_ms, "heard_ms": self.clock()}
-        return {"level": level, "lens": lens, **heard}
+        return {"level": level, "lens": lens, "text": text, "at_ms": at_ms, "run": run}
 
     def _begun(self, run: str, start: int, known: int | None) -> list[str]:
         """The marks of ``run`` begun at ``start``: not heard before -- the app started
@@ -145,16 +157,23 @@ class PhoneLog:
 
 def last_word(said: object, now_ms: int) -> str:
     """The phone's last warning or error a heartbeat holds, as a camera's line says it
-    while the camera does not record: until the phone's next line says otherwise, a
-    failure it says once going on -- how long ago it was said, past SAID_MS; "" when
-    there is none."""
+    while the camera does not record: till its next warning or error, a failure it
+    says once going on -- how long ago it was said, past SAID_MS; "" when there is
+    none."""
     if not isinstance(said, dict):
         return ""
-    heard, text = said.get("heard_ms"), said.get("text")
-    if not isinstance(heard, int) or not isinstance(text, str) or not text:
+    text = said.get("text")
+    times = [t for t in (said.get(key) for key in TIMES) if isinstance(t, int)]
+    if not isinstance(text, str) or not text or len(times) != len(TIMES):
         return ""
-    ago = (now_ms - heard) // 60_000
-    return f"the phone: {text}" if ago < 1 else f"the phone, {ago} min ago: {text}"
+    at, phone, heard = times
+    # The phone's own clock tells how old the word was when the newest line came,
+    # this computer's how long since: a backlog's old word is old, whatever the
+    # two clocks say.
+    ago = max(phone - at, 0) + max(now_ms - heard, 0)
+    if ago < SAID_MS:
+        return f"the phone: {text}"
+    return f"the phone, {ago // MINUTE_MS} min ago: {text}"
 
 
 def _read(

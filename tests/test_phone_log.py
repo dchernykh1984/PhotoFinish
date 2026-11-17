@@ -227,6 +227,21 @@ def test_the_system_log_s_lines_are_kept_as_they_came(
     assert again.runs == {RUN: 1}
 
 
+def test_a_word_from_the_phone_s_backlog_is_said_as_old_as_it_is(
+    tmp_path: Path,
+) -> None:
+    # The recorder down for 40 minutes: the phone sends what it kept, an error of
+    # then among it -- by the phone's own clock, whatever this computer's says.
+    log = PhoneLog(tmp_path, clock=lambda: 5_000)  # this computer's clock: far off
+    then, now = START, START + 40 * 60_000
+    backlog = f"PFLG 1 {RUN} 1 0\n1 {then} E - camera error 4\n2 {now} I - connecting\n"
+    log.heard(backlog.encode())
+    assert last_word(log.said, 5_000) == "the phone, 40 min ago: camera error 4"
+    assert (
+        last_word(log.said, 5_000 + 60_000) == "the phone, 41 min ago: camera error 4"
+    )
+
+
 def test_a_line_whose_time_is_no_time_here_is_kept_all_the_same(
     log: PhoneLog, tmp_path: Path
 ) -> None:
@@ -264,9 +279,11 @@ def test_the_last_warning_or_error_of_the_camera_s_lens_or_the_phone_is_its_word
         "lens": "-",
         "text": "camera error 4",
         "at_ms": START + 2,
+        "run": RUN,
+        "phone_ms": START + 4,  # the newest line the phone sent with it
         "heard_ms": START + 10_000,
     }
-    assert last_word(log.said, START + 10_000 + phone_log.SAID_MS - 1) == (
+    assert last_word(log.said, START + 10_000 + phone_log.SAID_MS - 3) == (
         "the phone: camera error 4"
     )
     # A failure said once goes on: still shown, with how long ago it was said.
