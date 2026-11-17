@@ -98,13 +98,13 @@ class LogSender(
     ) {
         val from = lines.firstOrNull()?.seq ?: return
         var prev = from - 1 // the round's first message: the recorder knows it by this
-        var left = lines
+        var next = 0 // the first line not sent yet: views of the lines, not copies of them
         repeat(most) {
-            if (left.isNotEmpty()) {
-                val (bytes, count) = LogMessages.message(log.run, from, prev, left)
+            if (next < lines.size) {
+                val (bytes, count) = LogMessages.message(log.run, from, prev, lines.subList(next, lines.size))
                 send(bytes, address)
-                prev = left[count - 1].seq
-                left = left.drop(count)
+                next += count
+                prev = lines[next - 1].seq
             }
         }
     }
