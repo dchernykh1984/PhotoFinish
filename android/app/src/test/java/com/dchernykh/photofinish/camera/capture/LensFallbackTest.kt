@@ -110,6 +110,14 @@ class LensFallbackTest {
     }
 
     @Test
+    fun `lenses that streamed a while keep their place whatever lost the camera then, another app included`() {
+        val fallback = LensFallback()
+        assertNull(fallback.failed(1, four, four, CameraFailure.Taken(3_600_000))) // a call took the camera an hour in
+        assertNull(fallback.failed(2, four, four, error(2_000))) // the open after it, the service settling
+        assertEquals(emptySet<Lens>(), fallback.leftOut)
+    }
+
+    @Test
     fun `the code's order says which lens goes`() {
         val fallback = LensFallback()
         val frontFirst = listOf(Lens.FRONT, Lens.MAIN)
@@ -120,7 +128,8 @@ class LensFallbackTest {
     fun `cameras lost after streaming a while, taken by another app, or refused by its policy keep their lenses`() {
         val fallback = LensFallback()
         assertNull(fallback.failed(1, four, four, error(LensFallback.EARLY_MS)))
-        assertNull(fallback.failed(2, four, four, null)) // another app took the camera
+        assertNull(fallback.failed(2, four, four, CameraFailure.Taken(1_000))) // another app took the camera
+        assertNull(fallback.failed(6, four, four, null)) // the cameras would not open
         val disabled = CameraFailure.Error(CameraDevice.StateCallback.ERROR_CAMERA_DISABLED, 1_000)
         assertNull(fallback.failed(3, four, four, disabled))
         // Too many cameras open: another app's as likely as ours, which the phone said it runs together.
