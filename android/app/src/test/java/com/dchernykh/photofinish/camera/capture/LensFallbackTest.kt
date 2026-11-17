@@ -102,6 +102,14 @@ class LensFallbackTest {
     }
 
     @Test
+    fun `a lens streamed alone has none to leave out, the preview alone neither`() {
+        val fallback = LensFallback()
+        assertEquals(false, fallback.canLeaveOut(listOf(Lens.MAIN)))
+        assertEquals(false, fallback.canLeaveOut(emptyList()))
+        assertEquals(true, fallback.canLeaveOut(listOf(Lens.MAIN, Lens.TELEPHOTO)))
+    }
+
+    @Test
     fun `the code's order says which lens goes`() {
         val fallback = LensFallback()
         val frontFirst = listOf(Lens.FRONT, Lens.MAIN)
