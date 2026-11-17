@@ -188,7 +188,7 @@ class CameraStreamer(
 
     /** The lenses the open cameras stream, in the code's order. */
     private val streamed: List<Lens>
-        get() = opened.flatMap { it.lenses }.toSet().let { streaming -> order.filter { it in streaming } }
+        get() = opened.flatMap { it.ownLenses }.toSet().let { streaming -> order.filter { it in streaming } }
 
     /**
      * Whether open [open]'s lenses now run together -- every lens of every camera still open has given a frame,
@@ -279,11 +279,11 @@ class CameraStreamer(
         /** How long ago the lenses started; null before. */
         private val sinceStart: Long? get() = startedMs?.let { SystemClock.elapsedRealtime() - it }
 
-        /** The lenses it streams. */
-        val lenses: List<Lens> get() = streams.map { it.lens }
+        /** The lenses it streams: its own, not the phone's. */
+        val ownLenses: List<Lens> get() = streams.map { it.lens }
 
         /** Each of its lenses has given a frame: none of a camera closed. */
-        val allFramed: Boolean get() = lenses.all { it in framed }
+        val allFramed: Boolean get() = ownLenses.all { it in framed }
 
         /** The lenses whose encoder has given a frame: the encoders' threads add, the cameras' reads. */
         private val framed = ConcurrentHashMap.newKeySet<Lens>()
@@ -387,27 +387,27 @@ class CameraStreamer(
             if (shown?.isValid == false) {
                 return log.info(null, "camera ${device?.id ?: "?"}: $reason, the preview gone with the screen")
             }
-            val lenses = lenses
+            val own = ownLenses
             val streamed = streamed // before this camera closes
             if (preview != null) {
                 val said = StreamerStatus.Failed(reason)
                 when {
-                    again(reason, failure, lenses) -> Unit
+                    again(reason, failure, own) -> Unit
                     // Waited for, as it may come yet: said on the screen and to the laptop, the lens's own word.
                     failure is CameraFailure.NoFrame -> failure.silent.forEach { onStatus(it, said) }
                     else -> say(said)
                 }
                 return
             }
-            val left = fallback.failedAlone(mine, streamed, lenses, failure)
+            val left = fallback.failedAlone(mine, streamed, own, failure)
             val silent = fallback.waitedFor(mine, failure)
             if (silent.isNotEmpty()) return silent.forEach { onStatus(it, StreamerStatus.Failed(reason)) }
             close() // first: no word of its uplinks comes after the one said here
             left?.let { log.warning(it.code, "left out from now on: its camera failed with it ($reason)") }
-            lenses.forEach { onStatus(it, StreamerStatus.Failed("$reason; left out")) }
-            leaveOut(lenses) // told to the laptop
+            own.forEach { onStatus(it, StreamerStatus.Failed("$reason; left out")) }
+            leaveOut(own) // told to the laptop
             // Its other lenses come back in an open without the one left out; else the first camera streams on.
-            if (left != null && lenses.size > 1) again(reason, failure, lenses) else checkSettled(mine)
+            if (left != null && own.size > 1) again(reason, failure, own) else checkSettled(mine)
         }
 
         // The list form serves Android 8, where a camera streams one lens; a camera gone meanwhile
@@ -424,8 +424,8 @@ class CameraStreamer(
 
                     override fun onConfigureFailed(failed: CameraCaptureSession) {
                         if (mine != generation) return
-                        val asked = format?.let { "${it.resolution} at ${it.fps} fps" }.orEmpty()
-                        lost("the camera cannot give these lenses $asked together", CameraFailure.NotConfigured)
+                        val chosen = format?.let { "${it.resolution} at ${it.fps} fps" }.orEmpty()
+                        lost("the camera cannot give these lenses $chosen together", CameraFailure.NotConfigured)
                     }
                 }
             try {
@@ -493,7 +493,7 @@ class CameraStreamer(
         private fun checkFrames() {
             val since = sinceStart ?: return
             if (mine != generation || closed) return
-            val silent = lenses.filter { it !in framed }
+            val silent = ownLenses.filter { it !in framed }
             if (silent.isEmpty()) return
             val reason = "the camera gave ${silent.joinToString { it.code }} no frame in ${NO_FRAME_MS / MS_PER_S} s"
             lost(reason, CameraFailure.NoFrame(silent, since))
