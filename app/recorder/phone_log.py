@@ -228,7 +228,8 @@ def _where(path: Path) -> tuple[str | None, dict[str, int]]:
     its last runs, each line the run's whose mark is the last before it -- KEEP_BYTES
     of them at most; (None, {}) when it holds none, or cannot be read."""
     try:
-        lines = path.read_bytes().decode("utf-8", errors="replace").splitlines()
+        # Split as written, a line a "\n": a phone's line may hold other breaks.
+        lines = path.read_bytes().decode("utf-8", errors="replace").split("\n")
     except OSError:
         return None, {}
     run: str | None = None
