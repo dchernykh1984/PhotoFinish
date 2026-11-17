@@ -349,7 +349,9 @@ class CameraStreamer(
             if (preview != null) return again(reason, failure)
             val lenses = streams.map { it.lens }
             close() // first: no word of its uplinks comes after the one said here
-            fallback.failedAlone(mine, lenses, failure)
+            fallback.failedAlone(mine, lenses, failure).forEach {
+                log.warning(it.code, "left out from now on: its camera failed with it ($reason)")
+            }
             lenses.forEach { onStatus(it, StreamerStatus.Failed("$reason; left out")) }
             leaveOut(lenses) // told to the laptop
         }
