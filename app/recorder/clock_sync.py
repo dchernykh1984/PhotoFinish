@@ -73,10 +73,11 @@ class ClockResponder:
             target=self._serve, name="clock-responder", daemon=True
         )
         self._thread.start()
-        self._worker = threading.Thread(
-            target=self._work, name="phone-log", daemon=True
-        )
+        self._worker = None
         if others is not None:
+            self._worker = threading.Thread(
+                target=self._work, args=(others,), name="phone-log", daemon=True
+            )
             self._worker.start()
 
     @property
@@ -106,27 +107,22 @@ class ClockResponder:
                 if self._closed.wait(_RETRY_S):
                     return
 
-    def _work(self) -> None:
-        """The datagrams that are no exchange, to ``others``, its answers sent back."""
+    def _work(self, others: Callable[[bytes], bytes | None]) -> None:
+        """The datagrams that are no exchange, to ``others``, its answers sent back;
+        whatever it raises costs that datagram alone, never the clock exchange the
+        frames' moments come from."""
         while not self._closed.is_set():
             try:
                 datagram, sender = self._waiting.get(timeout=0.5)
             except queue.Empty:
                 continue
-            reply = self._other(datagram)
+            try:
+                reply = others(datagram)
+            except Exception:  # the log costs the video nothing (008, FR-006)
+                reply = None
             if reply is not None and self.may_answer("log"):
                 with contextlib.suppress(OSError):  # closed meanwhile, or no route
                     self.socket.sendto(reply, sender)
-
-    def _other(self, datagram: bytes) -> bytes | None:
-        """``others``'s answer; whatever it raises costs this datagram alone, never
-        the clock exchange the frames' moments come from."""
-        if self.others is None:
-            return None
-        try:
-            return self.others(datagram)
-        except Exception:  # the log costs the video nothing (008, FR-006)
-            return None
 
     def may_answer(self, of: str = "clock") -> bool:
         """Another answer this second: ANSWERS_PER_S at most of each kind -- answers to
@@ -143,5 +139,5 @@ class ClockResponder:
         self._closed.set()
         self.socket.close()
         self._thread.join(timeout=2)
-        if self._worker.is_alive():
+        if self._worker is not None:
             self._worker.join(timeout=2)
