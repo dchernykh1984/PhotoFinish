@@ -128,8 +128,8 @@ class CameraStreamer(
         plan.left.forEach { (lens, why) -> onStatus(lens, StreamerStatus.Left(why)) }
         leftOut = (failedWith + plan.left.keys).map { it.code }
         // A failure of the lenses' own -- early, by its kind -- leaves one out of the next open (LensFallback).
-        val again = { reason: String, failure: CameraFailure? ->
-            failedEarly(mine, targets, reason, failure)
+        val again = { reason: String, failure: CameraFailure?, own: List<Lens> ->
+            failedEarly(mine, targets, reason, failure, own)
             openAgain(preview, format, targets, reason)
         }
         try {
@@ -157,22 +157,24 @@ class CameraStreamer(
             // A camera the phone's camera service lost a moment ago is unknown to it until it is back: tried
             // again, as one lost while streaming is (specs/007, FR-010).
             log.error(null, "opening the cameras: ${Crashes.describe(error)}")
-            again(error.message ?: error.javaClass.simpleName, null)
+            again(error.message ?: error.javaClass.simpleName, null, emptyList())
         }
     }
 
     /**
-     * The cameras of open [open] failed, for [reason]: the lens it leaves out from now on, if any, said -- the
-     * lenses streaming taken in [targets]' order, before they are closed.
+     * The camera of [own] lenses failed, of open [open], for [reason]: the lens the open leaves out from now on,
+     * if any, said -- the lenses streaming taken in [targets]' order, before they are closed.
      */
     private fun failedEarly(
         open: Int,
         targets: List<LensTarget>,
         reason: String,
         failure: CameraFailure?,
+        own: List<Lens>,
     ) {
         val streaming = opened.flatMap { it.lenses }.toSet()
-        val left = fallback.failed(open, targets.map { it.lens }.filter { it in streaming }, failure) ?: return
+        val streamed = targets.map { it.lens }.filter { it in streaming }
+        val left = fallback.failed(open, streamed, own, failure) ?: return
         log.warning(left.code, "left out from now on: the cameras failed with it ($reason)")
     }
 
@@ -235,8 +237,8 @@ class CameraStreamer(
     private inner class OpenCamera(
         private val preview: Surface?,
         private val mine: Int,
-        /** Opens everything again after a loss: with the failure, when the lenses' own may be its cause. */
-        private val again: (String, CameraFailure?) -> Unit,
+        /** Opens everything again after a loss: with the failure -- the lenses' own, perhaps -- and its lenses. */
+        private val again: (String, CameraFailure?, List<Lens>) -> Unit,
     ) : CameraDevice.StateCallback() {
         private val streams = mutableListOf<LensStream>()
         private var format: StreamFormat? = null
@@ -330,11 +332,8 @@ class CameraStreamer(
             error: Int,
         ) {
             camera.close()
-            if (mine ==
-                generation
-            ) {
-                lost("camera error $error: ${meaning(error)}", CameraFailure.Error(error, sinceStart))
-            }
+            val failure = CameraFailure.Error(error, sinceStart)
+            if (mine == generation) lost("camera error $error: ${meaning(error)}", failure)
         }
 
         /**
@@ -347,8 +346,8 @@ class CameraStreamer(
             reason: String,
             failure: CameraFailure?,
         ) {
-            if (preview != null) return again(reason, failure)
-            val lenses = streams.map { it.lens }
+            val lenses = lenses
+            if (preview != null) return again(reason, failure, lenses)
             close() // first: no word of its uplinks comes after the one said here
             fallback.failedAlone(mine, lenses, failure).forEach {
                 log.warning(it.code, "left out from now on: its camera failed with it ($reason)")
@@ -430,7 +429,7 @@ class CameraStreamer(
          */
         private fun checkFrames() {
             if (mine != generation || closed) return
-            val silent = streams.map { it.lens }.filter { it !in framed }
+            val silent = lenses.filter { it !in framed }
             if (silent.isEmpty()) return
             val reason = "the camera gave ${silent.joinToString { it.code }} no frame in ${NO_FRAME_MS / MS_PER_S} s"
             lost(reason, CameraFailure.NoFrame(silent, sinceStart ?: 0L))
