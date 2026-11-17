@@ -15,9 +15,22 @@ import java.io.File
  */
 object Diagnostics {
     private const val CRASH_FILE = "crash.txt"
+    private const val SETTLE_EVERY_MS = 1_000L
 
     val log: PhoneLog by lazy {
         PhoneLog(mirror = { Log.println(priority(it.level), ProcessLog.TAG, "${it.lens ?: "-"} ${it.text}") })
+    }
+
+    /** What the screen shows, into the log: the lens a status came to rest in told every second. */
+    val statuses: StatusLog by lazy {
+        StatusLog(log).also { statuses ->
+            Thread({
+                while (true) {
+                    Thread.sleep(SETTLE_EVERY_MS)
+                    statuses.settle()
+                }
+            }, "status-log").apply { isDaemon = true }.start()
+        }
     }
 
     private var sender: LogSender? = null

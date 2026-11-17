@@ -8,7 +8,6 @@ import com.dchernykh.photofinish.camera.capture.CameraFormats
 import com.dchernykh.photofinish.camera.capture.CameraStreamer
 import com.dchernykh.photofinish.camera.capture.PhoneLenses
 import com.dchernykh.photofinish.camera.diagnostics.Diagnostics
-import com.dchernykh.photofinish.camera.diagnostics.StatusLog
 import com.dchernykh.photofinish.camera.status.PhoneStatusReader
 import com.dchernykh.photofinish.camera.ui.CameraScreen
 import com.dchernykh.photofinish.camera.ui.ScreenState
@@ -44,7 +43,7 @@ class MainActivity : ComponentActivity() {
                 "${lens.code}: camera ${info.cameraId}$physical, ${info.focalMm.roundToInt()} mm"
             }
         log.info(null, "lenses: ${found.ifEmpty { "none" }}")
-        val statuses = StatusLog(log)
+        val statuses = Diagnostics.statuses
         streamer =
             CameraStreamer(this, lenses, PhoneStatusReader(this), log) { lens, status ->
                 statuses.heard(lens, status)

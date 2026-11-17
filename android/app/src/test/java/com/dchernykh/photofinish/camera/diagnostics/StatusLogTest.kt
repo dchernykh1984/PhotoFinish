@@ -63,4 +63,21 @@ class StatusLogTest {
             said(),
         )
     }
+
+    @Test
+    fun `the log ends with where a lens came to rest, a word said again within a minute told then`() {
+        statuses.heard(Lens.MAIN, StreamerStatus.Link(UplinkStatus.Streaming(30.0, 6.0, 1.0)))
+        now += 10_000
+        statuses.heard(Lens.MAIN, StreamerStatus.Link(UplinkStatus.Reconnecting("Broken pipe")))
+        now += 2_000
+        statuses.heard(Lens.MAIN, StreamerStatus.Link(UplinkStatus.Streaming(30.0, 6.0, 1.0))) // within the minute
+        now += 4_000
+        statuses.settle()
+        assertEquals("W main connection lost: Broken pipe; connecting again", said().last()) // not at rest yet
+        now += 1_000
+        statuses.settle()
+        assertEquals("I main streaming at 30.0 fps, 6.0 Mbit/s (1 times more in the minute before)", said().last())
+        statuses.settle()
+        assertEquals(3, said().size) // told once
+    }
 }

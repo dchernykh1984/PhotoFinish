@@ -11,7 +11,8 @@ import java.util.Locale
  * FR-001): a stream's rates each second are not news, its start and its losses are. A word said again
  * within [QUIET_MS] -- a connection made and lost every few seconds while a recorder is down, a camera
  * failing and opened again -- is counted, and told with the next time it is said: the log keeps the start
- * and the first error, not a thousand times the same.
+ * and the first error, not a thousand times the same. What a lens has said for [SETTLE_MS] and its log
+ * does not say yet is told ([settle]): the log always ends with where a lens came to rest.
  */
 class StatusLog(
     private val log: PhoneLog,
@@ -23,7 +24,20 @@ class StatusLog(
         var again = 0
     }
 
-    private val last = HashMap<Lens?, String>()
+    private class Now(
+        val level: Char,
+        val text: String,
+        val kind: String,
+        val sinceMs: Long,
+    )
+
+    /** What each lens says now, and since when. */
+    private val now = HashMap<Lens?, Now>()
+
+    /** What each lens's last line in the log said. */
+    private val logged = HashMap<Lens?, String>()
+
+    /** When each lens's word was last logged, and how often said since. */
     private val said = HashMap<Pair<Lens?, String>, Said>()
 
     /** [status], said of [lens] -- of the cameras as a whole for null -- the cameras' and the uplinks' threads. */
@@ -33,27 +47,52 @@ class StatusLog(
         status: StreamerStatus,
     ) {
         val (level, text, kind) = said(status)
-        if (last[lens] == kind) return
-        last[lens] = kind
-        val now = nowMs()
+        val at = nowMs()
+        if (now[lens]?.kind == kind) return // the same going on -- a stream's rates: no news
+        now[lens] = Now(level, text, kind, at)
         val before = said[lens to kind]
-        if (before != null && now - before.atMs < QUIET_MS) {
-            before.again++
+        if (logged[lens] == kind || before != null && at - before.atMs < QUIET_MS) {
+            before?.let { it.again++ } // said again: counted, told with its next time
             return
         }
+        tell(lens, level, text, kind, at)
+    }
+
+    /** What each lens has said for [SETTLE_MS] and the log does not say yet, told; called every second. */
+    @Synchronized
+    fun settle() {
+        val at = nowMs()
+        for ((lens, word) in now) {
+            if (logged[lens] != word.kind &&
+                at - word.sinceMs >= SETTLE_MS
+            ) {
+                tell(lens, word.level, word.text, word.kind, at)
+            }
+        }
+    }
+
+    private fun tell(
+        lens: Lens?,
+        level: Char,
+        text: String,
+        kind: String,
+        at: Long,
+    ) {
         val more =
-            before
+            said[lens to kind]
                 ?.again
                 ?.takeIf { it > 0 }
                 ?.let { " ($it times more in the minute before)" }
                 .orEmpty()
-        said[lens to kind] = Said(now)
+        said[lens to kind] = Said(at)
+        logged[lens] = kind
         log.add(level, lens?.code, text + more)
     }
 
     private companion object {
         const val RATES = "streaming at %.1f fps, %.1f Mbit/s"
         const val QUIET_MS = 60_000L
+        const val SETTLE_MS = 5_000L
         const val NANOS_PER_MS = 1_000_000L
 
         /** How grave [status] is, its words, and what makes it news: its words but a stream's rates. */
