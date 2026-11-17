@@ -171,12 +171,21 @@ class CameraStreamer(
         reason: String,
         failure: CameraFailure?,
         own: List<Lens>,
-    ): Lens? {
+    ) {
         val streaming = opened.flatMap { it.lenses }.toSet()
         val streamed = targets.map { it.lens }.filter { it in streaming }
-        return fallback.failed(open, streamed, own, failure)?.also {
-            log.warning(it.code, "left out from now on: the cameras failed with it ($reason)")
-        }
+        val left = fallback.failed(open, streamed, own, failure) ?: return
+        log.warning(left.code, "left out from now on: the cameras failed with it ($reason)")
+    }
+
+    /**
+     * A lens of open [open] gave its first frame: once every lens of every camera has, the lenses run together --
+     * settled [LensFallback.EARLY_MS] on, if nothing failed meanwhile, whatever fails after it. A lens slow to its
+     * first frame, or a second camera started after the first, counted from its own.
+     */
+    private fun allFramed(open: Int) {
+        if (open != generation || !opened.all { it.allFramed }) return
+        handler.postDelayed({ if (open == generation) fallback.settle() }, LensFallback.EARLY_MS)
     }
 
     /**
@@ -259,6 +268,9 @@ class CameraStreamer(
         /** The lenses it streams. */
         val lenses: List<Lens> get() = streams.map { it.lens }
 
+        /** Each of its lenses has given a frame: none of a camera closed. */
+        val allFramed: Boolean get() = lenses.all { it in framed }
+
         /** The lenses whose encoder has given a frame: the encoders' threads add, the cameras' reads. */
         private val framed = ConcurrentHashMap.newKeySet<Lens>()
 
@@ -308,6 +320,7 @@ class CameraStreamer(
                             },
                             onFirstFrame = { stream, ptsUs ->
                                 framed += stream.lens
+                                handler.post { allFramed(mine) }
                                 clockOfFrames(stream, ptsUs, mine)
                             },
                             status = { dropped -> phone.read().copy(dropped = dropped, left = leftOut).line() },
@@ -446,11 +459,6 @@ class CameraStreamer(
                 configured.setRepeatingRequest(request.build(), null, handler)
                 startedMs = SystemClock.elapsedRealtime()
                 if (streams.isNotEmpty()) handler.postDelayed({ checkFrames() }, NO_FRAME_MS)
-                // Every lens's frames for a while: the lenses run together, whatever fails from now on.
-                handler.postDelayed(
-                    { if (mine == generation && !closed && lenses.all { it in framed }) fallback.settle() },
-                    LensFallback.EARLY_MS,
-                )
                 // The camera gives frames: a failure said before, a camera lost and opened again, is over;
                 // the camera with the preview says so for the cameras as a whole, the others' lenses by their links.
                 previewStatus(preview, targets)?.let { onStatus(null, it) }
@@ -465,11 +473,12 @@ class CameraStreamer(
          * stalled with four lenses, saying nothing -- failed, the lenses' doing: lost, as one that says so is.
          */
         private fun checkFrames() {
+            val since = sinceStart ?: return
             if (mine != generation || closed) return
             val silent = lenses.filter { it !in framed }
             if (silent.isEmpty()) return
             val reason = "the camera gave ${silent.joinToString { it.code }} no frame in ${NO_FRAME_MS / MS_PER_S} s"
-            lost(reason, CameraFailure.NoFrame(silent, sinceStart ?: 0L))
+            lost(reason, CameraFailure.NoFrame(silent, since))
         }
 
         /**
