@@ -114,7 +114,8 @@ the others, is said on the phone. It asks the phone whether a camera runs its le
 chosen, and from Android 15 the rate; cameras that fail anyway, or give a lens no frame for 5 s,
 within 10 s of the start are opened again with a lens left out -- of the camera that failed, one
 that gave no frame before one that streams --, said on the phone and to the laptop, until the
-referee starts again; once every lens gave its frames for 10 s, a failure leaves none out. The Xiaomi 17 Ultra said yes
+referee starts again; once every lens of every camera gave frames for 10 s, a failure leaves none
+out, and the cameras are opened again as any lost mid-race. The Xiaomi 17 Ultra said yes
 to its four lenses at 2560x1440 and 60 fps and gave no frame. Each lens has its own encoder, connection and clock exchange, so
 each is in step on its own. Tried on the emulator: two lenses of one camera and the other camera,
 30 fps each, every frame with its moment. Each lens adds its bitrate to the Wi-Fi and heat to the

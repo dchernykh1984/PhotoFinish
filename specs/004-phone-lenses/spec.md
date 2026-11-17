@@ -129,11 +129,13 @@ switch to the other at the same moment and back to both.
   gave no frame, else its last, else the code's last; one lens an open, never the first --, said
   on the phone, as the cameras failing with it, and to the laptop, until the referee starts
   again; a start for the same lenses and format, the screen back from another app, keeps them
-  out. Cameras that fail before their lenses start, are taken by another app, or fail once every
-  lens gave its frames for 10 s -- lost later for whatever reason, closed and opened again for
-  the same, or soon after a reopen mid-race -- are opened again with all their lenses. With no
-  lens left out by either camera, a session the camera cannot make is said once, not made again,
-  and a lens that gives no frame is waited for, said on the phone and to the laptop.
+  out; a camera failing alone, the front beside the back, leaves one of its lenses out so. Cameras
+  that fail before their lenses start, are taken by another app, or fail once every lens of every
+  camera gave frames for 10 s -- lost later for whatever reason, closed and opened again for the
+  same, or soon after a reopen mid-race -- are opened again with all their lenses. With no lens
+  left out by either camera, lenses that never ran together and a session the camera cannot make
+  are said once, not made again, and a lens that gives no frame is waited for, said on the phone
+  and to the laptop.
 - **FR-006**: The preview shows the first lens streamed.
 - **FR-007**: The window's One camera mode shows the chosen camera alone, over the whole video
   area; Ctrl+1 to Ctrl+9 show camera 1 to 9 alone, Ctrl+0 all of them side by side, Ctrl+Up and
