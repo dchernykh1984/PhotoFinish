@@ -58,18 +58,21 @@ process writes to the system log -- goes, a line a line, to the recorder of each
 pairing code, streaming or not. A message is UTF-8 text, 1,200 bytes at most:
 
 ```
-PFLG 1 <run> <from>
+PFLG 1 <run> <from> <prev>
 <seq> <ms> <level> <lens> <text>
 ...
 ```
 
 `run` is 16 hex digits, new at each start of the app; `from` the line the phone's round of
 messages began with -- the one after the newest the recorder answered, or the oldest the phone
-still keeps. A line: its number in the run, from 1; the phone's Unix milliseconds; its level,
-`I`, `W`, `E` for the app's own lines, `w`, `e` for its system log's; the lens's code, `-` for the
-phone as a whole; its text, on one line, 400 bytes at most. The recorder keeps a line once the one
-before it is kept, passes over one it has, and answers `PFLG 1 <run> <seq>`, the newest line it
-kept; a run it has not heard begins at `from`. The phone sends from the line after the newest
+still keeps; `prev` the line the phone sent just before this message's first, `from - 1` in a
+round's first message. A line: its number in the run, from 1; the phone's Unix milliseconds; its
+level, `I`, `W`, `E` for the app's own lines, `w`, `e` for its system log's; the lens's code, `-`
+for the phone as a whole; its text, on one line, 400 bytes at most. Lines the phone let go of leave
+gaps in the numbers. The recorder keeps a message's lines it does not have when the message follows
+what it kept (`prev` at most its newest), or begins a round; a round's first message begins a run
+it has not heard, and says when the phone no longer keeps the lines after its newest. It answers
+`PFLG 1 <run> <seq>`, the newest line it kept. The phone sends from the line after the newest
 answered, 8 messages at most twice a second, every 5 s to a recorder that has answered nothing
 for 10 s. It keeps its last 1,000 lines, the system log's going first, and the system log's at most
 20 a second, how many were left out said.

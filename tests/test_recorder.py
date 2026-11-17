@@ -258,7 +258,7 @@ def test_a_phone_s_log_is_kept_beside_its_clock_its_last_word_in_the_heartbeat(
     try:
         assert recording.responder.others == recording.phone_log.heard
         error = b"1 1794918339001 E - camera error 4: the camera device failed\n"
-        recording.phone_log.heard(b"PFLG 1 0123456789abcdef 1\n" + error)
+        recording.phone_log.heard(b"PFLG 1 0123456789abcdef 1 0\n" + error)
         beat.beat(state="connecting")
         said = heartbeat(folder)["phone_said"]
         assert said["text"] == "camera error 4: the camera device failed"

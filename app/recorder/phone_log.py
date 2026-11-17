@@ -2,7 +2,7 @@
 
 PhotoFinish Camera sends what it meets -- its start, the cameras it opens, their error
 codes, the exceptions it catches, its own part of the system log -- over UDP to the port
-its clock exchange is answered on, a line a line: ``PFLG 1 <run> <from>``, then
+its clock exchange is answered on, a line a line: ``PFLG 1 <run> <from> <prev>``, then
 ``<seq> <ms> <level> <lens> <text>`` lines. The recorder keeps them in ``phone.log`` in
 the camera's folder, in the phone's order and each once, and answers ``PFLG 1 <run>
 <seq>``, the newest it kept, so the phone sends again what was lost on the way
@@ -51,32 +51,32 @@ class PhoneLog:
         self.said: dict[str, Any] = {}
 
     def heard(self, message: bytes) -> bytes | None:
-        """The answer to ``message``, its lines kept; None when it is no log message."""
+        """The answer to ``message``, its lines kept; None when it is no log message.
+        A round's first message (``prev`` the line before ``from``) begins a run not
+        heard, and says when the phone no longer keeps the lines after the newest
+        kept; another follows the message before it, which, lost on the way, the
+        phone sends again. Gaps between a message's lines are lines the phone let go
+        of: passed over."""
         read = _read(message)
         if read is None:
             return None
-        run, start, lines = read
+        run, start, prev, lines = read
+        known = self.kept if run == self.run else None
+        first = prev == start - 1
         written: list[str] = []
-        kept = self.kept if run == self.run else None
-        if kept is None or start > kept + 1:
-            # A run not heard -- the app started again, or this recorder did -- or lines
-            # the phone could no longer keep: begun at the oldest it still has for us.
-            if kept is not None:
-                written.append(
-                    self._mark(f"{start - kept - 1} lines lost on the phone")
-                )
-            elif start > 1:
-                written.append(self._mark(f"lines 1 to {start - 1} were not heard"))
-            written.append(
-                f"--- run {run} from line {start}, heard {_clock_text(self.clock())}"
-            )
+        if known is None or (first and start > known + 1):
+            if not first:  # a run not heard begins with its round's first message
+                return f"PFLG {VERSION} {run} 0\n".encode("ascii")
+            written = self._begun(run, start, known)
             kept = start - 1
+        elif prev > known:
+            return f"PFLG {VERSION} {run} {known}\n".encode("ascii")
+        else:
+            kept = known
         said = self.said
         for seq, at_ms, level, lens, text in lines:
             if seq <= kept:
                 continue  # sent again: kept already
-            if seq > kept + 1:
-                break  # one before it was lost on the way: the phone sends it again
             written.append(f"{_clock_text(at_ms)} {level} {lens} #{seq} {text}")
             kept = seq
             # The app's own warnings and errors; its system log's are a driver's.
@@ -86,6 +86,19 @@ class PhoneLog:
         if written and self._write(written):
             self.run, self.kept, self.said = run, kept, said
         return f"PFLG {VERSION} {self.run} {self.kept}\n".encode("ascii")
+
+    def _begun(self, run: str, start: int, known: int | None) -> list[str]:
+        """The marks of ``run`` begun at ``start``: not heard before -- the app started
+        again, or this recorder -- or the phone no longer keeping the lines after
+        ``known``, the newest kept."""
+        marks = []
+        if known is not None:
+            gone = start - known - 1
+            marks.append(self._mark(f"{gone} lines no longer kept on the phone"))
+        elif start > 1:
+            marks.append(self._mark(f"lines 1 to {start - 1} were not heard"))
+        when = _clock_text(self.clock())
+        return [*marks, f"--- run {run} from line {start}, heard {when}"]
 
     def _mark(self, text: str) -> str:
         return f"--- {text}, {_clock_text(self.clock())}"
@@ -118,8 +131,9 @@ def last_word(said: object, now_ms: int) -> str:
 
 def _read(
     message: bytes,
-) -> tuple[str, int, list[tuple[int, int, str, str, str]]] | None:
-    """A log message's run, the line it begins from, and its lines; None for none."""
+) -> tuple[str, int, int, list[tuple[int, int, str, str, str]]] | None:
+    """A log message's run, the line its round began from, the line sent just before
+    its first, and its lines; None for none."""
     if not message.startswith(TAG):
         return None
     try:
@@ -127,9 +141,9 @@ def _read(
     except UnicodeDecodeError:
         return None
     parts = head.split(" ")
-    if len(parts) != 4 or parts[1] != VERSION or not _RUN.fullmatch(parts[2]):
+    if len(parts) != 5 or parts[1] != VERSION or not _RUN.fullmatch(parts[2]):
         return None
-    if not parts[3].isdigit() or int(parts[3]) < 1:
+    if not (parts[3].isdigit() and parts[4].isdigit()) or int(parts[3]) < 1:
         return None
     lines = []
     for line in rest:
@@ -138,7 +152,7 @@ def _read(
             continue
         seq, at_ms, level, lens, text = found.groups()
         lines.append((int(seq), int(at_ms), level, lens, text))
-    return parts[2], int(parts[3]), lines
+    return parts[2], int(parts[3]), int(parts[4]), lines
 
 
 def _where(path: Path) -> tuple[str | None, int]:

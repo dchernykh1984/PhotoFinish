@@ -62,6 +62,8 @@ class PhoneLogTest {
         assertEquals(listOf("the camera failed", "driver: three", "driver: four"), log.after(0).map { it.text })
         repeat(3) { log.info(null, "own $it") }
         assertEquals(listOf("own 0", "own 1", "own 2"), log.after(0).map { it.text }) // none of the system's left
+        log.system('e', "driver: five") // the newest is kept: the oldest of the app's goes
+        assertEquals(listOf("own 1", "own 2", "driver: five"), log.after(0).map { it.text })
     }
 
     @Test

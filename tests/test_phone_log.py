@@ -14,12 +14,20 @@ LATER = "fedcba9876543210"  # the app started again
 START = 1_794_918_339_000
 
 
-def message(start: int, *lines: tuple[int, str, str, str], run: str = RUN) -> bytes:
-    """A message of ``run``'s lines from ``start``: (seq, level, lens, text) each."""
+def message(
+    start: int,
+    *lines: tuple[int, str, str, str],
+    run: str = RUN,
+    prev: int | None = None,
+) -> bytes:
+    """A message of ``run``'s lines, its round begun at ``start``: (seq, level, lens,
+    text) each; ``prev`` the line sent before its first, ``start - 1`` for the round's
+    first message."""
     body = "".join(
         f"{seq} {START + seq} {lvl} {lens} {text}\n" for seq, lvl, lens, text in lines
     )
-    return f"PFLG 1 {run} {start}\n{body}".encode()
+    before = start - 1 if prev is None else prev
+    return f"PFLG 1 {run} {start} {before}\n{body}".encode()
 
 
 def kept(folder: Path) -> list[str]:
@@ -63,7 +71,8 @@ def test_a_line_sent_again_is_kept_once_and_one_after_a_lost_message_waits(
         f"PFLG 1 {RUN} 3\n".encode()
     )
     # A round's second message, its first lost on the way: not kept, sent again.
-    assert log.heard(message(4, (6, "I", "-", "six"))) == f"PFLG 1 {RUN} 3\n".encode()
+    lost = message(4, (6, "I", "-", "six"), prev=5)
+    assert log.heard(lost) == f"PFLG 1 {RUN} 3\n".encode()
     assert [line for line in kept(tmp_path) if "#" in line] == [
         "I - #1 one",
         "I - #2 two",
@@ -77,10 +86,42 @@ def test_lines_the_phone_could_no_longer_keep_are_said_lost(
     log.heard(message(1, (1, "I", "-", "one")))
     assert log.heard(message(5, (5, "W", "-", "five"))) == f"PFLG 1 {RUN} 5\n".encode()
     assert kept(tmp_path)[-3:] == [
-        "--- 3 lines lost on the phone",
+        "--- 3 lines no longer kept on the phone",
         f"--- run {RUN} from line 5",
         "W - #5 five",
     ]
+
+
+def test_gaps_between_a_message_s_lines_are_lines_the_phone_let_go_of(
+    log: PhoneLog, tmp_path: Path
+) -> None:
+    # A full phone lets its system log's oldest lines go from between the app's own.
+    assert (
+        log.heard(
+            message(
+                1, (1, "I", "-", "start"), (3, "E", "-", "error"), (4, "I", "-", "on")
+            )
+        )
+        == f"PFLG 1 {RUN} 4\n".encode()
+    )
+    later = message(1, (6, "I", "-", "six"), prev=4)  # a round's second, after a gap
+    assert log.heard(later) == f"PFLG 1 {RUN} 6\n".encode()
+    assert [line for line in kept(tmp_path) if "#" in line] == [
+        "I - #1 start",
+        "E - #3 error",
+        "I - #4 on",
+        "I - #6 six",
+    ]
+
+
+def test_a_run_not_heard_begins_with_its_round_s_first_message(
+    log: PhoneLog, tmp_path: Path
+) -> None:
+    # The round's first was lost: its second cannot begin the run -- lines before it
+    # would never come -- and the phone sends the round again.
+    second = message(1, (4, "I", "-", "four"), prev=3)
+    assert log.heard(second) == f"PFLG 1 {RUN} 0\n".encode()
+    assert not (tmp_path / phone_log.FILE).exists()
 
 
 def test_the_app_started_again_is_a_run_of_its_own(
@@ -137,6 +178,8 @@ def test_a_run_first_heard_late_says_what_was_not_heard(
         b"PFLG 2 0123456789abcdef 1\n",
         b"PFLG 1 xyz 1\n",
         b"PFLG 1 0123456789abcdef 0\n",
+        b"PFLG 1 0123456789abcdef 0 0\n",
+        b"PFLG 1 0123456789abcdef 1 x\n",
         b"PFLG 1 0123456789abcdef 1\n\xff\xfe",
     ],
 )

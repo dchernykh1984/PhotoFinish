@@ -14,10 +14,10 @@ class LogMessagesTest {
 
     @Test
     fun `a message is its run and a line a line`() {
-        val (bytes, count) = LogMessages.message("0123456789abcdef", 5, listOf(line(7), line(8, "started", null)))
+        val (bytes, count) = LogMessages.message("0123456789abcdef", 5, 6, listOf(line(7), line(8, "started", null)))
         assertEquals(2, count)
         assertEquals(
-            "PFLG 1 0123456789abcdef 5\n" +
+            "PFLG 1 0123456789abcdef 5 6\n" +
                 "7 1794918339007 E main camera error 4: the camera device failed\n" +
                 "8 1794918339008 E - started\n",
             String(bytes, Charsets.UTF_8),
@@ -27,10 +27,10 @@ class LogMessagesTest {
     @Test
     fun `a message holds what the network takes whole, the rest left for the next`() {
         val lines = (1L..20L).map { line(it, "x".repeat(PhoneLog.MAX_BYTES)) }
-        val (bytes, count) = LogMessages.message("0123456789abcdef", 1, lines)
+        val (bytes, count) = LogMessages.message("0123456789abcdef", 1, 0, lines)
         assertTrue(bytes.size <= LogMessages.MAX_BYTES)
         assertEquals(2, count)
-        val (_, one) = LogMessages.message("0123456789abcdef", 1, lines.take(1))
+        val (_, one) = LogMessages.message("0123456789abcdef", 1, 0, lines.take(1))
         assertEquals(1, one)
     }
 
