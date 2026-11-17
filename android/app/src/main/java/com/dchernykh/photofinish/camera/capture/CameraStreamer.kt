@@ -393,9 +393,11 @@ class CameraStreamer(
                     // lenses, from Android 15, which weighs it: a set it cannot run at that rate said no to
                     // beforehand. Earlier, sessions are made as they were: a phone that streamed them streams on.
                     val parameters =
-                        request(camera, format, streams.isNotEmpty())
-                            .build()
-                            .takeIf { Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM }
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+                            request(camera, format, streams.isNotEmpty()).build()
+                        } else {
+                            null // not asked of the camera for nothing
+                        }
                     val (outputs, dropped) = SessionOutputs.choose(camera, preview, streams, executor, parameters)
                     dropped.forEach {
                         streams.remove(it)
