@@ -159,8 +159,9 @@ class PhoneLog(
         val line = LogLine(next++, now, level, lens, cut(text))
         lines.addLast(line)
         if (lines.size > capacity) {
-            // The system log's oldest line goes first -- the app's own say why a phone gives no video -- but not
-            // the line just come: a gap in the numbers, which the recorder passes over (contract).
+            // The system log's oldest line goes first -- the app's own say why a phone gives no video --, but not
+            // the line just come: the log holds the lines answered as well, and one full of the app's lines would
+            // never keep a system line again. A line gone from between leaves a gap the recorder passes over.
             val oldest = lines.indexOfFirst { it.level == SYSTEM_WARNING || it.level == SYSTEM_ERROR }
             lines.removeAt(if (oldest in 0 until lines.lastIndex) oldest else 0)
         }
