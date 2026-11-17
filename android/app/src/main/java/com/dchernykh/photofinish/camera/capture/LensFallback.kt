@@ -92,7 +92,7 @@ class LensFallback {
         streamed: List<Lens>,
         own: List<Lens>,
         failure: CameraFailure?,
-    ): Lens? = leaveOut(open, failure, streamed.drop(1), own)
+    ): Lens? = choose(open, failure, streamed.drop(1), own)
 
     /**
      * Whether the cameras of open [open] are made again after [failure]: not after a session the camera could not
@@ -109,20 +109,20 @@ class LensFallback {
      * The other camera of open [open] -- the front beside the back -- failed alone and was closed, its [lenses]
      * left out of this open: one of them left out from now on, as the first camera's path does -- the last that
      * gave no frame, else its last, never the first of [streamed], the open's in the code's order --, the
-     * others tried again in the next open. The lens left out, or null.
+     * others tried again in the next open, made for them. The lens left out, or null.
      */
     fun failedAlone(
         open: Int,
         streamed: List<Lens>,
         lenses: List<Lens>,
         failure: CameraFailure?,
-    ): Lens? = leaveOut(open, failure, streamed.drop(1).filter { it in lenses }, lenses)
+    ): Lens? = choose(open, failure, streamed.drop(1).filter { it in lenses }, lenses)
 
     /**
      * One of [candidates] left out of open [open] after [failure] when it counts and the open has paid none: the
      * last that gave no frame, else the last of [own], else the last.
      */
-    private fun leaveOut(
+    private fun choose(
         open: Int,
         failure: CameraFailure?,
         candidates: List<Lens>,

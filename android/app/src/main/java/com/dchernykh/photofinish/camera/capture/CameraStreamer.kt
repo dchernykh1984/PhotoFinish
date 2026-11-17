@@ -383,27 +383,22 @@ class CameraStreamer(
             val lenses = lenses
             val streamed = streamed // before this camera closes
             if (preview != null) {
+                val said = StreamerStatus.Failed(reason)
                 when {
                     again(reason, failure, lenses) -> Unit
                     // Waited for, as it may come yet: said on the screen and to the laptop, the lens's own word.
-                    failure is CameraFailure.NoFrame ->
-                        failure.silent.forEach {
-                            onStatus(
-                                it,
-                                StreamerStatus.Failed(reason),
-                            )
-                        }
-                    else -> say(StreamerStatus.Failed(reason))
+                    failure is CameraFailure.NoFrame -> failure.silent.forEach { onStatus(it, said) }
+                    else -> say(said)
                 }
                 return
             }
             close() // first: no word of its uplinks comes after the one said here
-            fallback.failedAlone(mine, streamed, lenses, failure)?.let {
-                log.warning(it.code, "left out from now on: its camera failed with it ($reason)")
-            }
+            val left = fallback.failedAlone(mine, streamed, lenses, failure)
+            left?.let { log.warning(it.code, "left out from now on: its camera failed with it ($reason)") }
             lenses.forEach { onStatus(it, StreamerStatus.Failed("$reason; left out")) }
             leaveOut(lenses) // told to the laptop
-            checkSettled(mine) // the lenses left may all give frames now
+            // Its other lenses come back in an open without the one left out; else the first camera streams on.
+            if (left != null && lenses.size > 1) again(reason, failure, lenses) else checkSettled(mine)
         }
 
         // The list form serves Android 8, where a camera streams one lens; a camera gone meanwhile
