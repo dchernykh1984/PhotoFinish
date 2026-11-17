@@ -2,6 +2,7 @@ package com.dchernykh.photofinish.camera.capture
 
 import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraDevice
+import android.hardware.camera2.CaptureRequest
 import android.hardware.camera2.params.OutputConfiguration
 import android.hardware.camera2.params.SessionConfiguration
 import android.os.Build
@@ -16,16 +17,19 @@ internal object SessionOutputs {
      * The outputs to configure, and the lenses dropped to get there (specs/004-phone-lenses,
      * FR-005): the preview on the first lens, then the camera's own picture as the preview, then
      * no preview -- the first set the camera says it supports (Android 10), dropping lenses from the
-     * last while it supports none. Where the camera cannot say, the fullest set is tried; where it
-     * supports none at all, the first lens alone, with the preview.
+     * last while it supports none, asked with the session's [parameters] -- its rate, which a camera
+     * answering for them (Android 15) weighs. Where the camera cannot say, the fullest set is tried;
+     * where it supports none at all, the first lens alone, with the preview.
      */
     fun choose(
         camera: CameraDevice,
         preview: Surface?,
         streams: List<LensStream>,
         executor: Executor,
+        parameters: CaptureRequest,
     ): Pair<List<OutputConfiguration>, List<LensStream>> {
-        val (chosen, dropped) = firstSupported(streams, { options(preview, it) }) { supports(camera, it, executor) }
+        val (chosen, dropped) =
+            firstSupported(streams, { options(preview, it) }) { supports(camera, it, executor, parameters) }
         return chosen.orEmpty() to dropped
     }
 
@@ -53,9 +57,13 @@ internal object SessionOutputs {
         camera: CameraDevice,
         outputs: List<OutputConfiguration>,
         executor: Executor,
+        parameters: CaptureRequest,
     ): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return true
-        val asked = SessionConfiguration(SessionConfiguration.SESSION_REGULAR, outputs, executor, Unused)
+        val asked =
+            SessionConfiguration(SessionConfiguration.SESSION_REGULAR, outputs, executor, Unused).apply {
+                sessionParameters = parameters
+            }
         return try {
             camera.isSessionConfigurationSupported(asked)
         } catch (_: UnsupportedOperationException) {
