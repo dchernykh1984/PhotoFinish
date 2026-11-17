@@ -102,11 +102,35 @@ class LensFallbackTest {
     }
 
     @Test
-    fun `a lens streamed alone has none to leave out, the preview alone neither`() {
+    fun `a session the camera could not make, no lens left out, is said, not made again to fail the same way`() {
         val fallback = LensFallback()
-        assertEquals(false, fallback.canLeaveOut(listOf(Lens.MAIN)))
-        assertEquals(false, fallback.canLeaveOut(emptyList()))
-        assertEquals(true, fallback.canLeaveOut(listOf(Lens.MAIN, Lens.TELEPHOTO)))
+        val main = listOf(Lens.MAIN)
+        assertEquals(
+            false,
+            fallback.madeAgain(
+                CameraFailure.NotConfigured,
+                fallback.failed(1, main, main, CameraFailure.NotConfigured),
+            ),
+        )
+        val streamed = listOf(Lens.MAIN, Lens.TELEPHOTO)
+        assertEquals(
+            true,
+            fallback.madeAgain(
+                CameraFailure.NotConfigured,
+                fallback.failed(2, streamed, streamed, CameraFailure.NotConfigured),
+            ),
+        )
+        // Settled, a session that cannot be made leaves none out: said, not made again for ever.
+        fallback.failed(3, streamed, streamed, error(60_000))
+        assertEquals(
+            false,
+            fallback.madeAgain(
+                CameraFailure.NotConfigured,
+                fallback.failed(4, streamed, streamed, CameraFailure.NotConfigured),
+            ),
+        )
+        assertEquals(true, fallback.madeAgain(error(1_500), null)) // a camera lost: opened again, as ever
+        assertEquals(true, fallback.madeAgain(null, null))
     }
 
     @Test

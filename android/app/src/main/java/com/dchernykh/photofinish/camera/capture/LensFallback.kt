@@ -95,7 +95,7 @@ class LensFallback {
         own: List<Lens>,
         failure: CameraFailure?,
     ): Lens? {
-        if (!counts(failure) || open == paid || !canLeaveOut(streamed)) return null
+        if (!counts(failure) || open == paid || streamed.size < 2) return null
         paid = open
         val silent = (failure as? CameraFailure.NoFrame)?.silent.orEmpty()
         val rest = streamed.drop(1) // the first lens streams on
@@ -104,10 +104,13 @@ class LensFallback {
     }
 
     /**
-     * Whether a lens of [streamed] can be left out: not the first, streamed alone, nor the preview alone. A session
-     * the camera cannot make with none to leave out is said, not made again the same way to fail the same way.
+     * Whether the cameras are made again after [failure], [left] the lens it left out: not after a session the
+     * camera could not make with none left out -- made the same way, it would fail the same way --, said instead.
      */
-    fun canLeaveOut(streamed: List<Lens>): Boolean = streamed.size > 1
+    fun madeAgain(
+        failure: CameraFailure?,
+        left: Lens?,
+    ): Boolean = left != null || failure != CameraFailure.NotConfigured
 
     /**
      * The other camera of open [open] -- the front beside the back -- failed alone and was closed: its [lenses],
