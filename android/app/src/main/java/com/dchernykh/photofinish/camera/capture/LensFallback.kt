@@ -61,18 +61,22 @@ class LensFallback {
     }
 
     /**
-     * The cameras of open [open] failed, [streamed] in the code's order: the lens left out from now on, or null
-     * -- a failure not the lenses', or late, one this open paid for already, or a lens streamed alone.
+     * The camera of [own] lenses failed, of open [open] streaming [streamed] in the code's order: the lens left
+     * out from now on, or null -- a failure not the lenses', or late, one this open paid for already, or a lens
+     * streamed alone. Its own go first, those that gave no frame before the others; another camera's when it
+     * streams the first lens alone, their load lightened.
      */
     fun failed(
         open: Int,
         streamed: List<Lens>,
+        own: List<Lens>,
         failure: CameraFailure?,
     ): Lens? {
         if (!early(failure) || open == paid || streamed.size < 2) return null
         paid = open
         val silent = (failure as? CameraFailure.NoFrame)?.silent.orEmpty()
-        val lens = streamed.drop(1).lastOrNull { it in silent } ?: streamed.last()
+        val rest = streamed.drop(1) // the first lens streams on
+        val lens = rest.lastOrNull { it in silent } ?: rest.lastOrNull { it in own } ?: rest.last()
         return lens.also { left += it }
     }
 
