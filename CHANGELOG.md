@@ -1,5 +1,69 @@
 # Changelog
 
+## [0.8.0](https://github.com/dchernykh1984/PhotoFinish/compare/v0.7.0...v0.8.0) (2026-11-17)
+
+
+### Features
+
+* **phone:** send what the app meets to the laptop -- its start, cameras, errors, its own system log -- beside the clock exchange ([2cfe34b](https://github.com/dchernykh1984/PhotoFinish/commit/2cfe34b57be24c87b849930ea75a19fc93fa79b3))
+* **recorder:** keep a phone's log in phone.log beside its recording, answering each line, and its last word in the heartbeat ([a0d990d](https://github.com/dchernykh1984/PhotoFinish/commit/a0d990df5c141507a1bcd40ab8bb07838b2027fd))
+* **window:** say what a phone said last in the line of its camera that does not record ([b3ec2e1](https://github.com/dchernykh1984/PhotoFinish/commit/b3ec2e1ddcf0f16a10adc88db359ff6d0fdf076a))
+
+
+### Bug Fixes
+
+* **phone:** ask who sent an answer only once one came, and let nothing the log meets end the app ([a07065c](https://github.com/dchernykh1984/PhotoFinish/commit/a07065cf3a5fefba702d2e62a5d564f8008ba7ae))
+* **phone:** count a line the app says again within a minute, a camera opened again every 2 s, told with its next time ([2786c76](https://github.com/dchernykh1984/PhotoFinish/commit/2786c768ea9c2634ea4fc4b07fdabf5075174a9e))
+* **phone:** count a status said again within a minute, so a reconnecting phone keeps its start and first error in the log ([f4e74a8](https://github.com/dchernykh1984/PhotoFinish/commit/f4e74a860100b63848c9abf50a4b4b2e2722f49c))
+* **phone:** end the log with where each lens came to rest, telling a status said again within a minute once it settles ([f5ff2b4](https://github.com/dchernykh1984/PhotoFinish/commit/f5ff2b4dd981a6ceadf4969be9ccfa349546f7bc))
+* **phone:** keep each recorder by the host and port its code names, a name that does not resolve now losing nothing it answered ([0b34af6](https://github.com/dchernykh1984/PhotoFinish/commit/0b34af64ccf99e046b595d0a72b75344c03e80c5))
+* **phone:** keep the phone's system log apart from the app's own lines -- limited, gone first, never its last word ([f01ac68](https://github.com/dchernykh1984/PhotoFinish/commit/f01ac68348d6feda3b08c0d389449fcb1d2d1875))
+* **phone:** keep the status log's memory of words to the last 64, as failures' words may each differ ([cec25f7](https://github.com/dchernykh1984/PhotoFinish/commit/cec25f7e290e56e89d7afd0e02a58768bc758eab))
+* **phone:** log the phone's lenses once with the app's start, not again as an activity is made, ending its last word ([bb8d7a9](https://github.com/dchernykh1984/PhotoFinish/commit/bb8d7a90bfc21d0ee85efdca3ee92cfde81818de))
+* **phone:** look a recorder's name up again while it is quiet, as a laptop's address may change ([9aca974](https://github.com/dchernykh1984/PhotoFinish/commit/9aca97460521faac09a99a3715a75e48ef1b6c19))
+* **phone:** look a recorder's name up only when it is due a message, a name found nowhere as seldom as a quiet one ([97b3103](https://github.com/dchernykh1984/PhotoFinish/commit/97b3103273cee6cb961b86a85cea18ebb83cc798))
+* **phone:** read a system log read before again however quiet it was when it ended, giving up only on one never read ([8c50107](https://github.com/dchernykh1984/PhotoFinish/commit/8c501075040579bfc74c13236ec18362be50c775))
+* **phone:** read an ended system log again from after its newest line, and one that ends at once never again ([62a869c](https://github.com/dchernykh1984/PhotoFinish/commit/62a869c332d693a801651452ffaa38af19778072))
+* **phone:** read the system log again when it ends, saying so, so no warnings are not taken for none read ([fcc5943](https://github.com/dchernykh1984/PhotoFinish/commit/fcc594393ffa85f1c0cc96e268bc81399767f097))
+* **phone:** say how many of the system log's lines were left out once their second is over, whatever comes next ([dbaa0bc](https://github.com/dchernykh1984/PhotoFinish/commit/dbaa0bcfb274c56be1e40e99331f9ba69f17a10c))
+* **phone:** send one log message a round to a recorder that never answered, as an older one's clock exchange pays for each ([4422b85](https://github.com/dchernykh1984/PhotoFinish/commit/4422b85d355b3fe6a494a11a614318ce35de8af6))
+* **phone:** send the log to the recorders of the pairing code the app keeps, holding no activity that has ended ([57e04b6](https://github.com/dchernykh1984/PhotoFinish/commit/57e04b63371a4087f878117b3e7cd74950c728ef))
+* **phone:** send the log's notes about itself as the system log's lines, so they are never the phone's last word ([118b877](https://github.com/dchernykh1984/PhotoFinish/commit/118b877b84deeccc47c18bbab3a52e71810c9204))
+* **phone:** take a recorder for quiet after ten seconds of lines it did not answer, not of nothing sent to it ([314c414](https://github.com/dchernykh1984/PhotoFinish/commit/314c41454ff59a32d8bb91027c61088069e51b54))
+* **phone:** take a system log as read only for lines of the log, not logcat's own refusal, which would end it every time ([e2f8d5a](https://github.com/dchernykh1984/PhotoFinish/commit/e2f8d5a5d7cb71afbd8d0be4789904b44fde7cd0))
+* **phone:** tell in each log message the line sent before it, so a recorder passes over the lines the phone let go of ([c2e6cb2](https://github.com/dchernykh1984/PhotoFinish/commit/c2e6cb23d25c16e5ad54962d1f22be098331918d))
+* **phone:** write back to the system log the app's own lines alone, not those read from it ([4a6c484](https://github.com/dchernykh1984/PhotoFinish/commit/4a6c4844e745c95e4835e9bc5a70bca60e93f563))
+* **recorder:** answer the clock exchange on, unpaused, after Windows tells of an answer that found no one ([2fea4cf](https://github.com/dchernykh1984/PhotoFinish/commit/2fea4cfa9d72e9159bf66414479422e96d5a99a2))
+* **recorder:** begin a new phone.log with the run its first lines are of, not the run before ([382cdf7](https://github.com/dchernykh1984/PhotoFinish/commit/382cdf73f68806bbb1e1b633ba9401b2b99a781d))
+* **recorder:** end a phone's last word with its next line of that lens, so a phone well again shows no old warning ([b3814ee](https://github.com/dchernykh1984/PhotoFinish/commit/b3814ee7c306d16f2525e53e836f9adcdb7b7b8c))
+* **recorder:** find the phone's run however far back in phone.log its mark is, at a recorder's start ([7a9411c](https://github.com/dchernykh1984/PhotoFinish/commit/7a9411cdb60ea2f781e0738be5092cd32ee60664))
+* **recorder:** give answers to a phone's log a budget of their own, so they spend none of its clock exchange's ([49c43fd](https://github.com/dchernykh1984/PhotoFinish/commit/49c43fd91140cf9052ac1dd72cec1cf68f659dd6))
+* **recorder:** go on with each of the last runs heard, so two phones given one code do not write each other's lines again ([45d405f](https://github.com/dchernykh1984/PhotoFinish/commit/45d405fec3c65cce9a6e9bdb53befc7586ec81b2))
+* **recorder:** keep a phone's last word till its next warning or error, its retry's own lines not ending it ([4bcac76](https://github.com/dchernykh1984/PhotoFinish/commit/4bcac768473ec730a479139f2ceaedbe4477be13))
+* **recorder:** keep a phone's line whose time is none of this computer's, instead of answering nothing for its run ([d803281](https://github.com/dchernykh1984/PhotoFinish/commit/d8032815ff32481a43d4d8adcfb3bcdf6ad8e3f8))
+* **recorder:** mark in phone.log each turn of another run's lines, so a recorder started again knows every run's last line ([318e6a1](https://github.com/dchernykh1984/PhotoFinish/commit/318e6a1e3202814c605d3b37d45e37e63b00542a))
+* **recorder:** read phone.log back a line a newline, as it is written, a phone's line holding other breaks ([46bcda1](https://github.com/dchernykh1984/PhotoFinish/commit/46bcda1889a628260834886c6c67d02c36d3d819))
+* **recorder:** read where phone.log is at the phone's first message, on the log's thread, not before the first frame ([7535fd3](https://github.com/dchernykh1984/PhotoFinish/commit/7535fd3a677d6fc64bb6f80d371823d8f6eb6370))
+* **recorder:** write a phone's last word with the heartbeat's next second, not at once among the frames for each message ([5d66cc6](https://github.com/dchernykh1984/PhotoFinish/commit/5d66cc6bf7ffaf8b0a02ba7c6ea3340b7334c9c7))
+* **recorder:** write a phone's log on a thread of its own, so its file holds no clock exchange back ([00b6dfc](https://github.com/dchernykh1984/PhotoFinish/commit/00b6dfc567a1729526cff061ed14817d38941507))
+* **window:** keep a phone's last word on its camera's line while it says nothing new, saying how long ago it came ([13f61b5](https://github.com/dchernykh1984/PhotoFinish/commit/13f61b5a57c1315373716c59cad3dd0b3197334c))
+* **window:** leave the phone's last word off the line of a lens it leaves out, which says so already ([4868bfe](https://github.com/dchernykh1984/PhotoFinish/commit/4868bfea59c1b5d00ff9b1c45a12d1795ca06505))
+* **window:** tell a phone's last word as old as the phone's own clock says it is, one from its backlog too ([8d3e971](https://github.com/dchernykh1984/PhotoFinish/commit/8d3e9713fa232297ac44beef4b0759065bd0746a))
+* **window:** tell a phone's last word only from a recorder that runs, not from one stopped or gone ([13ba843](https://github.com/dchernykh1984/PhotoFinish/commit/13ba843a154102d92eccf91efdced7ea0fe4b244))
+
+
+### Documentation
+
+* describe the phone's log in the contract, the program's description, the guides and the android-app skill ([e2b23a2](https://github.com/dchernykh1984/PhotoFinish/commit/e2b23a2e727968e1b9fdbfe40480fad57dd593b5))
+* describe this cycle's changes to the phone's log in its spec ([fa5fb0c](https://github.com/dchernykh1984/PhotoFinish/commit/fa5fb0c5343f176af40ee9043940b8e38a38597e))
+* describe this cycle's changes to the phone's log in its spec ([5222cbb](https://github.com/dchernykh1984/PhotoFinish/commit/5222cbb64048411600ea9b9bd5501bd6040590ef))
+* describe this cycle's changes to the phone's log in its spec ([45cfc62](https://github.com/dchernykh1984/PhotoFinish/commit/45cfc62b407708b381413e9d583bd9ae171d135a))
+* describe this cycle's changes to the phone's log in its spec ([3639b46](https://github.com/dchernykh1984/PhotoFinish/commit/3639b4620781e4557e1c72fc915162d2d6e92dc7))
+* describe this cycle's changes to the phone's log in its spec, the contract and the program's description ([2c70aaf](https://github.com/dchernykh1984/PhotoFinish/commit/2c70aaf5f790d2e799ebd967194be5d056a4fd15))
+* give a recorder started again 10 s for the phone's missed lines in the spec, as a silent one is sent to every 5 s ([3e81a43](https://github.com/dchernykh1984/PhotoFinish/commit/3e81a435fb44a57dc7e2706631d8b9639a232c3c))
+* **phone:** say why a system line may push out an app line, and why a caught error is logged beside its status ([9e053cc](https://github.com/dchernykh1984/PhotoFinish/commit/9e053cc0fd03ec5199b21c35e15197b8f44aa72a))
+* specify the phone's log, sent to the laptop beside its clock exchange ([c591258](https://github.com/dchernykh1984/PhotoFinish/commit/c5912583cd526d717f542f86ec73513c69ca6ae6))
+
 ## [0.7.0](https://github.com/dchernykh1984/PhotoFinish/compare/v0.6.0...v0.7.0) (2026-11-12)
 
 
