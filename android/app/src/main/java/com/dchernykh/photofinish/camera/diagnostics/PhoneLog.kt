@@ -23,7 +23,10 @@ class PhoneLog(
     private val capacity: Int = CAPACITY,
     private val perSecond: Int = PER_SECOND,
     private val clockMs: () -> Long = System::currentTimeMillis,
-    /** Each line kept, written on as well: to the system log, for a phone on a cable. */
+    /**
+     * Each of the app's own lines kept, written on as well: to the system log, for a phone on a cable -- not
+     * the system log's own, read from it.
+     */
     private val mirror: (LogLine) -> Unit = {},
 ) {
     /** This run of the app, in every message: a recorder knows the app was started again. */
@@ -109,7 +112,7 @@ class PhoneLog(
             val oldest = lines.indexOfFirst { it.level == SYSTEM_WARNING || it.level == SYSTEM_ERROR }
             lines.removeAt(if (oldest in 0 until lines.lastIndex) oldest else 0)
         }
-        mirror(line)
+        if (level != SYSTEM_WARNING && level != SYSTEM_ERROR) mirror(line)
     }
 
     companion object {

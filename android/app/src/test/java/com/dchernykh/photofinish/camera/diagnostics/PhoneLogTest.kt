@@ -82,6 +82,7 @@ class PhoneLogTest {
         val mirrored = mutableListOf<String>()
         val log = log(mirror = { mirrored += it.text })
         log.info("main", "camera 0 opened")
+        log.system('w', "HWUI: Unknown dataspace 0") // read from the system log: not written there again
         assertEquals(listOf("camera 0 opened"), mirrored)
         assertEquals(16, log.run.length)
         assertNotEquals(log.run, log().run)
