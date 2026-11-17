@@ -368,7 +368,10 @@ class CameraStreamer(
                 }
             try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                    val (outputs, dropped) = SessionOutputs.choose(camera, preview, streams, executor)
+                    // The rate asked goes with the session, and with the question whether the camera runs these
+                    // lenses: a camera that weighs it (Android 15) can say no to a set it cannot run at that rate.
+                    val parameters = request(camera, format, streams.isNotEmpty()).build()
+                    val (outputs, dropped) = SessionOutputs.choose(camera, preview, streams, executor, parameters)
                     dropped.forEach {
                         streams.remove(it)
                         it.stop()
@@ -377,7 +380,9 @@ class CameraStreamer(
                     leaveOut(dropped.map { it.lens })
                     targets = outputs.flatMap { it.surfaces }
                     camera.createCaptureSession(
-                        SessionConfiguration(SessionConfiguration.SESSION_REGULAR, outputs, executor, callback),
+                        SessionConfiguration(SessionConfiguration.SESSION_REGULAR, outputs, executor, callback).apply {
+                            sessionParameters = parameters
+                        },
                     )
                 } else {
                     targets = listOfNotNull(preview) + streams.map { it.surface }
@@ -395,20 +400,9 @@ class CameraStreamer(
             configured: CameraCaptureSession,
             camera: CameraDevice,
         ) {
-            val range = format?.range ?: return
+            if (format?.range == null) return
             try {
-                val streaming = streams.isNotEmpty()
-                val template = if (streaming) CameraDevice.TEMPLATE_RECORD else CameraDevice.TEMPLATE_PREVIEW
-                val request =
-                    camera.createCaptureRequest(template).apply {
-                        targets.forEach { addTarget(it) }
-                        set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, Range(range.lower, range.upper))
-                        // Electronic stabilisation warps the picture: not for a finish line.
-                        set(
-                            CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE,
-                            CameraMetadata.CONTROL_VIDEO_STABILIZATION_MODE_OFF,
-                        )
-                    }
+                val request = request(camera, format, streams.isNotEmpty()).apply { targets.forEach { addTarget(it) } }
                 configured.setRepeatingRequest(request.build(), null, handler)
                 startedMs = SystemClock.elapsedRealtime()
                 if (streams.isNotEmpty()) handler.postDelayed({ checkFrames() }, NO_FRAME_MS)
@@ -474,6 +468,23 @@ class CameraStreamer(
         // The screen's words, the laptop's last word of the phone too: the error told whole, for whoever looks
         // into it, is logged beside them where it is caught (specs/008-phone-log, FR-001).
         private fun failed(error: Exception) = StreamerStatus.Failed(error.message ?: error.javaClass.simpleName)
+
+        /** The request [camera] streams [format] by -- its lenses' when [streaming] --: at its rate, unstabilised. */
+        private fun request(
+            camera: CameraDevice,
+            format: StreamFormat?,
+            streaming: Boolean,
+        ): CaptureRequest.Builder {
+            val template = if (streaming) CameraDevice.TEMPLATE_RECORD else CameraDevice.TEMPLATE_PREVIEW
+            return camera.createCaptureRequest(template).apply {
+                format?.range?.let { set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, Range(it.lower, it.upper)) }
+                // Electronic stabilisation warps the picture: not for a finish line.
+                set(
+                    CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE,
+                    CameraMetadata.CONTROL_VIDEO_STABILIZATION_MODE_OFF,
+                )
+            }
+        }
 
         /** What a camera's error code means, as Android names it. */
         private fun meaning(error: Int): String =
