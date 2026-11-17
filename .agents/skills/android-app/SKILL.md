@@ -92,10 +92,11 @@ the front with the back -- only up to 1920x1440, with no frame rate; more is the
 by trying. The Xiaomi 17 Ultra said yes to its four lenses at 2560x1440 and 60 fps, gave the
 encoders no frame (`GraphicBufferSource: released unpopulated slots` in `phone.log`), and both
 cameras failed with error 4 in 1.5 s, its camera service starting again (`unknown device 0`);
-opened again, they gave no frame at all. The app asks with the frame rate now, and leaves the
-code's last lens out of cameras that fail, or give a lens no frame for 5 s, within 10 s of the
-start (`left out from now on` in `phone.log`); the add-camera dialog advises Main and Telephoto
-past two lenses.
+opened again, they gave no frame at all. The app asks with the frame rate now, and leaves a lens
+out of cameras that fail, give a lens no frame for 5 s, within 10 s of the start, or cannot make
+the session they said they run -- the last that gave no frame, else the code's last
+(`left out from now on` in `phone.log`); the add-camera dialog advises Main and Telephoto past
+two lenses.
 
 ## A break, on the emulator
 
