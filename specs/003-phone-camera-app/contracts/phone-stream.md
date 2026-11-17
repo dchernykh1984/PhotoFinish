@@ -50,6 +50,30 @@ of more than 50 ms is taken at once, and an exchange whose offset the delays can
 (the recorder's clock changed) clears the ones before it. A request of another length or tag
 gets no answer, and the recorder answers 50 requests a second at most, from any sender.
 
+## The phone's log (UDP, the same port, `specs/008-phone-log`)
+
+What the app meets -- its start, the cameras it opens, every status its screen shows once a
+change, the camera's error codes, the exceptions it catches, the warnings and errors its own
+process writes to the system log -- goes, a line a line, to the recorder of each lens of the
+pairing code, streaming or not. A message is UTF-8 text, 1,200 bytes at most:
+
+```
+PFLG 1 <run> <from>
+<seq> <ms> <level> <lens> <text>
+...
+```
+
+`run` is 16 hex digits, new at each start of the app; `from` the line the phone's round of
+messages began with -- the one after the newest the recorder answered, or the oldest the phone
+still keeps. A line: its number in the run, from 1; the phone's Unix milliseconds; its level,
+`I`, `W`, `E` for the app's own lines, `w`, `e` for its system log's; the lens's code, `-` for the
+phone as a whole; its text, on one line, 400 bytes at most. The recorder keeps a line once the one
+before it is kept, passes over one it has, and answers `PFLG 1 <run> <seq>`, the newest line it
+kept; a run it has not heard begins at `from`. The phone sends from the line after the newest
+answered, 8 messages at most twice a second, every 5 s to a recorder that has answered nothing
+for 10 s. It keeps its last 1,000 lines, the system log's going first, and the system log's at most
+20 a second, how many were left out said.
+
 ## The frame moment (H.264 SEI)
 
 Each frame of a connection made once the app has an offset begins with an SEI NAL unit (type 6)

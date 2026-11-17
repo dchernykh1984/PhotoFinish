@@ -71,6 +71,15 @@ recorder is down and at most the 0.1 s before it.
   how many seconds behind live it is, from 2 s on. Tried on the emulator: the recorder killed for
   10 s and started again, or frozen for 10 s: no frame missing, none listed twice. Stop on the
   phone drops what it kept.
+- PhotoFinish Camera sends what it meets to the recorder of each lens it is paired with, on the
+  port of its clock exchange, streaming or not (`specs/008-phone-log`): its start, the cameras and
+  sizes it opens, every status its screen shows, the camera's error codes, the exceptions it
+  catches with where they were thrown, the warnings and errors of its own process's system log
+  (the camera's and the encoder's words to it), and an error that ended the app, from its next
+  start. The recorder keeps them in `video/<camera>/phone.log`, in the phone's order and each once,
+  with the phone's time; a lens camera that does not record shows after its state the phone's last
+  warning or error of its lens, or of the phone as a whole, for a minute. Lines sent while the
+  recorder is down come once it is back.
 - A segment is shown once it is closed, about a second after its first frame: the newest frame
   is on screen within 2 s of its capture for cameras with a keyframe at least every second.
 - Below 2 GB free the camera list says so; a full disk stops the recorder, which keeps what it

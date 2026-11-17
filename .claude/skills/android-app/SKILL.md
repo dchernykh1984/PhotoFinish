@@ -1,6 +1,6 @@
 ---
 name: android-app
-description: Building, trying and releasing PhotoFinish Camera, the phone app under android/ - the Gradle gate, a recorder and the app streaming together on the emulator or a phone, reading the moments the frames carry, and the signing key. Use when changing anything under android/, the clock exchange or the frame moments, or when a phone streams badly.
+description: Building, trying and releasing PhotoFinish Camera, the phone app under android/ - the Gradle gate, a recorder and the app streaming together on the emulator or a phone, reading the moments the frames carry and the phone's log (phone.log), and the signing key. Use when changing anything under android/, the clock exchange or the frame moments, or when a phone streams badly.
 ---
 
 # PhotoFinish Camera
@@ -139,6 +139,28 @@ frames arrive some tens of milliseconds after their moment. Arriving before it
 means the camera stamps frames late: the emulator's camera stamps each frame a
 frame's time after it took it (checked with a temporary log of
 `onCaptureStarted`'s timestamp against `SystemClock.elapsedRealtimeNanos()`).
+
+## What the phone says
+
+PhotoFinish Camera sends its log to each lens's recorder (`specs/008-phone-log`), and the
+recorder keeps it in `video/<camera id>/phone.log` -- the first place to look when a phone gives
+no video, the maintainer's too: their released app's folder is
+`~/data/distribs/sport_projects` (read it, never write there).
+
+```
+2026-11-17 18:13:00.346 I - #7 camera 1: main at 1280x720, 30 fps
+2026-11-17 18:13:43.683 W main #878 connection lost: Broken pipe; connecting again
+2026-11-17 18:13:02.032 w - #37 10 lines of the system log left out: more than 20 a second
+```
+
+`I`, `W`, `E` are the app's own lines -- its start, the cameras and sizes it opens, every status
+its screen shows, the camera's error codes with their meaning, the exceptions it caught with
+where they were thrown; `w`, `e` its own process's part of the system log, the camera's and the
+encoder's words to it, at most 20 a second. An error that ended the app is the first line of its
+next run. `--- run` lines mark a start of the app, or lines that were not heard or were lost.
+The emulator's graphics driver fills the `e` lines (`mapper.ranchu`, a frame each); a phone's may
+too. What the camera service writes in its own process -- a driver failing -- an app cannot
+read: that still needs the phone on a cable, `adb logcat`.
 
 ## What the tandem tests taught
 
