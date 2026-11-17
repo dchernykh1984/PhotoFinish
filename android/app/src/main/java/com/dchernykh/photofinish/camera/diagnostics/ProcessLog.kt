@@ -45,8 +45,10 @@ object ProcessLog {
                 try {
                     val process = ProcessBuilder(command(since)).redirectErrorStream(true).start()
                     process.inputStream.bufferedReader().forEachLine { line ->
-                        lines++
-                        STAMP.find(line)?.let { since = after(it.groupValues[1]) }
+                        STAMP.find(line)?.let {
+                            lines++ // a line of the log: not logcat's own error, which ends it at once
+                            since = after(it.groupValues[1])
+                        }
                         read(line)?.let { (level, text) -> log.system(level, text) }
                     }
                 } catch (error: Exception) {
