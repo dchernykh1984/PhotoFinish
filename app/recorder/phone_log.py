@@ -185,7 +185,12 @@ def _where(path: Path) -> tuple[str | None, int]:
 
 
 def _clock_text(ms: int) -> str:
-    """``ms`` as this computer's local time, to the millisecond."""
-    return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ms / 1000)) + (
-        f".{ms % 1000:03d}"
-    )
+    """``ms`` as this computer's local time, to the millisecond; as it came when no
+    time of this computer's is so far -- a phone's clock gone wrong: its line kept all
+    the same, or none after it would be."""
+    try:
+        return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ms / 1000)) + (
+            f".{ms % 1000:03d}"
+        )
+    except OverflowError, OSError, ValueError:
+        return f"{ms} ms"
