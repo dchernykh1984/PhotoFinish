@@ -96,9 +96,13 @@ class ClockResponder:
                     self.socket.sendto(reply, sender)
             except TimeoutError:
                 continue
+            except ConnectionResetError:
+                # Windows: an earlier answer -- the phone's log's too -- found no one.
+                # One reset for each answer sent: no pause, the exchange answered on.
+                continue
             except OSError:
-                # Closed; or Windows saying an earlier answer found no one, or a
-                # network gone: tried again after a pause, not in a busy loop.
+                # Closed, or a network gone: tried again after a pause, not in a busy
+                # loop.
                 if self._closed.wait(_RETRY_S):
                     return
 
