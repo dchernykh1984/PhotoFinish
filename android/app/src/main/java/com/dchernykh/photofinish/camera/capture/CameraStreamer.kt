@@ -285,7 +285,7 @@ class CameraStreamer(
         val ownLenses: List<Lens> get() = streams.map { it.lens }
 
         /** Each of its lenses has given a frame, or is waited for (LensFallback.waitsFor): none of a camera closed. */
-        val allFramed: Boolean get() = ownLenses.all { it in framed || fallback.waitsFor(it) }
+        val allFramed: Boolean get() = ownLenses.all { it in framed || fallback.waitsFor(mine, it) }
 
         /** The lenses whose encoder has given a frame: the encoders' threads add, the cameras' reads. */
         private val framed = ConcurrentHashMap.newKeySet<Lens>()

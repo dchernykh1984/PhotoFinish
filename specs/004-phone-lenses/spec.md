@@ -126,9 +126,9 @@ switch to the other at the same moment and back to both.
   size and rate chosen, or the nearest its lenses give; the phone is asked whether a camera runs
   its lenses at that size -- and, from Android 15, that rate. Cameras that fail, or give a lens no
   frame for 5 s, within 10 s of their lenses' start, or cannot make the session the phone said
-  they run, are opened again with a lens left out -- the last that gave no frame, never one that
-  streams for it; else, of the camera that failed, its last, else the code's last; one lens an
-  open, never the first --, said
+  they run, are opened again with a lens left out -- the last that gave no frame, or that is
+  waited for, never one that streams for it; else, of the camera that failed, its last, else the
+  code's last; one lens an open, never the first --, said
   on the phone, as the cameras failing with it, and to the laptop, until the referee starts
   again; a start for the same lenses and format, the screen back from another app, keeps them
   out; a camera failing alone, the front beside the back, leaves one of its lenses out so, its

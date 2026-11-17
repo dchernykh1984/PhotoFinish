@@ -190,12 +190,25 @@ class LensFallbackTest {
         fallback.start(fullHd, targets)
         val firstSilent = CameraFailure.NoFrame(listOf(Lens.MAIN), 5_000)
         assertNull(fallback.failed(1, two, two, firstSilent)) // none left out for the first
-        assertEquals(false, fallback.waitsFor(Lens.MAIN))
+        assertEquals(false, fallback.waitsFor(1, Lens.MAIN))
         assertEquals(listOf(Lens.MAIN), fallback.waitedFor(1, firstSilent))
-        assertEquals(true, fallback.waitsFor(Lens.MAIN)) // the telephoto settles without it
-        assertEquals(false, fallback.waitsFor(Lens.TELEPHOTO))
+        assertEquals(true, fallback.waitsFor(1, Lens.MAIN)) // the telephoto settles without it
+        assertEquals(false, fallback.waitsFor(1, Lens.TELEPHOTO))
+        assertEquals(false, fallback.waitsFor(2, Lens.MAIN)) // the next open watches it anew
         fallback.start(fullHd, emptyList()) // the referee stopped: every lens tried again
-        assertEquals(false, fallback.waitsFor(Lens.MAIN))
+        assertEquals(false, fallback.waitsFor(1, Lens.MAIN))
+    }
+
+    @Test
+    fun `a camera failing beside the first lens waited for leaves out none that streams, not leaving none streaming`() {
+        val fallback = LensFallback()
+        val two = listOf(Lens.MAIN, Lens.TELEPHOTO)
+        val firstSilent = CameraFailure.NoFrame(listOf(Lens.MAIN), 5_000)
+        assertNull(fallback.failed(1, two, two, firstSilent))
+        fallback.waitedFor(1, firstSilent)
+        assertNull(fallback.failed(1, two, two, error(7_000))) // the telephoto, streaming, kept
+        assertEquals(true, fallback.madeAgain(1, error(7_000))) // both made again
+        assertEquals(Lens.TELEPHOTO, fallback.failed(2, two, two, error(1_500))) // none waited for in the next yet
     }
 
     @Test
