@@ -101,10 +101,10 @@ class LensFallbackTest {
         val streamed = listOf(Lens.MAIN, Lens.TELEPHOTO)
         fallback.failed(2, streamed, streamed, CameraFailure.NotConfigured)
         assertEquals(true, fallback.madeAgain(2, CameraFailure.NotConfigured))
-        // Settled, a session that cannot be made leaves none out: said, not made again for ever.
+        // Settled, the lenses ran together: a session not made now is the camera service settling, made again.
         fallback.settle()
         fallback.failed(4, streamed, streamed, CameraFailure.NotConfigured)
-        assertEquals(false, fallback.madeAgain(4, CameraFailure.NotConfigured))
+        assertEquals(true, fallback.madeAgain(4, CameraFailure.NotConfigured))
         assertEquals(true, fallback.madeAgain(5, error(1_500))) // a camera lost: opened again, as ever
         assertEquals(true, fallback.madeAgain(6, null))
     }
@@ -118,6 +118,9 @@ class LensFallbackTest {
         val two = listOf(Lens.MAIN, Lens.TELEPHOTO)
         fallback.failed(2, two, two, stalled)
         assertEquals(true, fallback.madeAgain(2, stalled))
+        fallback.settle() // they ran together: a stall after a reopen mid-race is the camera's, made again
+        fallback.failed(3, two, two, stalled)
+        assertEquals(true, fallback.madeAgain(3, stalled))
     }
 
     @Test
