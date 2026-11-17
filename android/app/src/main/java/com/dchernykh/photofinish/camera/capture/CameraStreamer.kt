@@ -354,7 +354,7 @@ class CameraStreamer(
 
         override fun onDisconnected(camera: CameraDevice) {
             camera.close()
-            if (mine == generation) lost("the camera was taken by another app", CameraFailure.Taken(sinceStart))
+            if (mine == generation) lost("the camera was taken by another app", CameraFailure.Taken)
         }
 
         override fun onError(

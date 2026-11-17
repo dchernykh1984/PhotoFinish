@@ -140,7 +140,7 @@ class LensFallbackTest {
         fallback.settle() // every lens's frames for 10 s
         assertNull(fallback.failed(2, four - Lens.FRONT, four - Lens.FRONT, error(3_600_000))) // the service again
         assertNull(fallback.failed(3, four - Lens.FRONT, four - Lens.FRONT, error(2_000))) // the open after, settling
-        assertNull(fallback.failed(4, four - Lens.FRONT, four - Lens.FRONT, CameraFailure.Taken(1_000))) // a call
+        assertNull(fallback.failed(4, four - Lens.FRONT, four - Lens.FRONT, CameraFailure.Taken)) // a call
         assertNull(fallback.failedAlone(5, four - Lens.FRONT, listOf(Lens.TELEPHOTO), error(2_000))) // screen back
         assertEquals(setOf(Lens.FRONT), fallback.leftOut)
     }
@@ -178,7 +178,7 @@ class LensFallbackTest {
     fun `cameras lost after streaming a while, taken by another app, or refused by its policy keep their lenses`() {
         val fallback = LensFallback()
         assertNull(fallback.failed(1, four, four, error(LensFallback.EARLY_MS)))
-        assertNull(fallback.failed(2, four, four, CameraFailure.Taken(1_000))) // another app took the camera
+        assertNull(fallback.failed(2, four, four, CameraFailure.Taken)) // another app took the camera
         assertNull(fallback.failed(6, four, four, null)) // the cameras would not open
         val disabled = CameraFailure.Error(CameraDevice.StateCallback.ERROR_CAMERA_DISABLED, 1_000)
         assertNull(fallback.failed(3, four, four, disabled))
