@@ -142,6 +142,18 @@ class LensFallbackTest {
     }
 
     @Test
+    fun `a lens that gave no frame with none to leave out is waited for, not the camera made again every 7 s`() {
+        val fallback = LensFallback()
+        val stalled = CameraFailure.NoFrame(listOf(Lens.MAIN), 5_000)
+        assertEquals(
+            false,
+            fallback.madeAgain(stalled, fallback.failed(1, listOf(Lens.MAIN), listOf(Lens.MAIN), stalled)),
+        )
+        val two = listOf(Lens.MAIN, Lens.TELEPHOTO)
+        assertEquals(true, fallback.madeAgain(stalled, fallback.failed(2, two, two, stalled)))
+    }
+
+    @Test
     fun `the code's order says which lens goes`() {
         val fallback = LensFallback()
         val frontFirst = listOf(Lens.FRONT, Lens.MAIN)

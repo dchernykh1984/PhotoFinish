@@ -352,7 +352,11 @@ class CameraStreamer(
         ) {
             val lenses = lenses
             if (preview != null) {
-                if (!again(reason, failure, lenses)) say(StreamerStatus.Failed(reason))
+                when {
+                    again(reason, failure, lenses) -> Unit
+                    failure is CameraFailure.NoFrame -> log.warning(null, reason) // waited for: it may come yet
+                    else -> say(StreamerStatus.Failed(reason))
+                }
                 return
             }
             close() // first: no word of its uplinks comes after the one said here

@@ -105,12 +105,13 @@ class LensFallback {
 
     /**
      * Whether the cameras are made again after [failure], [left] the lens it left out: not after a session the
-     * camera could not make with none left out -- made the same way, it would fail the same way --, said instead.
+     * camera could not make, or lenses that gave no frame, with none left out -- made the same way, they would
+     * fail the same way --; said instead, a stalled lens waited for.
      */
     fun madeAgain(
         failure: CameraFailure?,
         left: Lens?,
-    ): Boolean = left != null || failure != CameraFailure.NotConfigured
+    ): Boolean = left != null || failure != CameraFailure.NotConfigured && failure !is CameraFailure.NoFrame
 
     /**
      * The other camera of open [open] -- the front beside the back -- failed alone and was closed: its [lenses],
