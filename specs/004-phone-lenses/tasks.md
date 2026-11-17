@@ -32,4 +32,20 @@
 - [x] T013 Skills `android-app` and `trying-a-camera`, both copies: trying several lenses.
 - [x] T014 By hand: the emulator in tandem -- two lenses and the other camera, three recorders,
   30 fps each, every frame with its moment (2026-11-11).
-- [ ] T015 By hand: the Xiaomi 17 Ultra, then the Mi 11 Ultra.
+- [ ] T015 By hand: the Xiaomi 17 Ultra, then the Mi 11 Ultra. On 2026-11-17 the Xiaomi 17
+  Ultra's four lenses at 2560x1440 and 60 fps gave no frame, its camera failing: the phase below.
+
+## Phase 5: Lenses the cameras fail with, and the dialog's advice (2026-11-17, PR #30)
+
+- [x] T016 [US1] `LensFallback.kt`, with its JVM tests: which failures are the lenses', which lens
+  goes -- of the camera that failed, the silent first, never the first --, one an open, settled
+  once every lens gave frames for 10 s, whether the cameras are made again (FR-005).
+- [x] T017 [US1] `CameraStreamer`: the failures told to the fallback, the no-frame check, the
+  lenses left out of each open and said why, the settling, the room shared (FR-005).
+- [x] T018 [US1] `SessionOutputs`, `CameraStreamer`: the frame rate in the session and in the
+  question to the camera, from Android 15 (FR-005).
+- [x] T019 [US1] The dialog's advice past two lenses, Main and Telephoto; its Qt test (FR-001).
+- [x] T020 The spec, `specs/app/README.md`, the android-app skill.
+- [x] T021 By hand: the emulator in tandem -- three lenses streamed with the rate in the session.
+- [ ] T022 By hand: the Xiaomi 17 Ultra with four lenses, the lenses left out until the rest
+  stream, each said in `phone.log`.
