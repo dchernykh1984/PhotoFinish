@@ -50,8 +50,8 @@ class LensFallback {
     private var paid: Int? = null
 
     /**
-     * The lenses streamed a while since the start -- a camera failed late --: one failing early after it is a camera
-     * opened again mid-race, its service still settling, not the lenses'.
+     * The lenses streamed a while since the start ([settle]): a camera failing early after it is one opened again
+     * mid-race, its service still settling, not the lenses'.
      */
     private var settled = false
 
@@ -77,11 +77,16 @@ class LensFallback {
         settled = false
     }
 
-    /** [failure] the lenses', early, before they streamed a while; one late, of whatever kind, tells they did. */
-    private fun counts(failure: CameraFailure?): Boolean {
-        if ((failure?.sinceStartMs ?: 0L) >= EARLY_MS) settled = true
-        return !settled && early(failure)
+    /**
+     * The lenses gave their frames for [EARLY_MS] since they started: whatever fails from now on -- or closes, the
+     * screen away, and comes back for the same -- is a camera lost, not the lenses', until the referee starts again.
+     */
+    fun settle() {
+        settled = true
     }
+
+    /** [failure] the lenses', early, before they streamed a while. */
+    private fun counts(failure: CameraFailure?): Boolean = !settled && early(failure)
 
     /**
      * The camera of [own] lenses failed, of open [open] streaming [streamed] in the code's order: the lens left

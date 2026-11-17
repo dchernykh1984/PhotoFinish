@@ -433,6 +433,11 @@ class CameraStreamer(
                 configured.setRepeatingRequest(request.build(), null, handler)
                 startedMs = SystemClock.elapsedRealtime()
                 if (streams.isNotEmpty()) handler.postDelayed({ checkFrames() }, NO_FRAME_MS)
+                // Every lens's frames for a while: the lenses run together, whatever fails from now on.
+                handler.postDelayed(
+                    { if (mine == generation && !closed && lenses.all { it in framed }) fallback.settle() },
+                    LensFallback.EARLY_MS,
+                )
                 // The camera gives frames: a failure said before, a camera lost and opened again, is over;
                 // the camera with the preview says so for the cameras as a whole, the others' lenses by their links.
                 previewStatus(preview, targets)?.let { onStatus(null, it) }
