@@ -168,6 +168,19 @@ def test_a_phone_with_several_lenses_is_a_camera_each_on_a_port_of_its_own(
     assert not alone.buttons.button(alone.buttons.StandardButton.Ok).isEnabled()
 
 
+def test_a_phones_lenses_go_main_and_telephoto_first_the_phone_leaving_out_the_last(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(cameras, "this_computer", lambda: "10.0.0.5")
+    dialog = CameraDialog(None, "cam1", [], [], ["cam2", "cam3", "cam4"])
+    for box in dialog.lenses.values():
+        box.setChecked(True)
+    # The code's order: a phone that cannot stream four drops the front first, the
+    # ultra-wide next, and keeps the two the dialog advises (004, FR-005).
+    lenses = [c["lens"] for c in dialog.cameras()]
+    assert lenses == ["main", "telephoto", "ultrawide", "front"]
+
+
 def test_more_than_two_lenses_are_advised_against_main_and_telephoto_advised(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

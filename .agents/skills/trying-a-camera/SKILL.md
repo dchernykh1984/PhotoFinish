@@ -30,7 +30,7 @@ A phone on a tripod runs PhotoFinish Camera, our own app (`android/`, the
 
 ## A phone's other lenses
 
-Tick them in the add-camera dialog (Ultra-wide, Telephoto, Front): each is a
+Tick them in the add-camera dialog (Telephoto, Ultra-wide, Front): each is a
 camera of its own, and PhotoFinish Camera streams them all from the one code.
 The app lists, under its controls, the lenses the phone gives apps, with their
 35 mm-equivalent focal lengths; a lens missing there the phone hides from apps

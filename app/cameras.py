@@ -87,11 +87,13 @@ def rtmp_url(settings: dict[str, Any], host: str) -> str:
 
 
 # PhotoFinish Camera's lenses, as its pairing code names them (004, FR-002), with
-# their names on screen: the one list of them.
+# their names on screen: the one list of them. In the code's order: a phone that
+# cannot stream them all leaves them out from the last (004, FR-005), so Main and
+# Telephoto, the two the dialog advises, are kept the longest.
 LENSES = {
     "main": "Main",
-    "ultrawide": "Ultra-wide",
     "telephoto": "Telephoto",
+    "ultrawide": "Ultra-wide",
     "front": "Front",
 }
 
