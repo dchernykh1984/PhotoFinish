@@ -123,13 +123,15 @@ switch to the other at the same moment and back to both.
   opened beside it only when the phone says it can run both at once, and closed alone when it is
   lost, the first streaming on. Each camera streams at the
   size and rate chosen, or the nearest its lenses give; the phone is asked whether a camera runs
-  its lenses at that size and rate. Cameras that fail, or give a lens no frame for 5 s, within
-  10 s of their lenses' start, or cannot make the session the phone said they run, are opened
-  again with a lens left out -- the last of the code that gave no frame, else the code's last;
-  one lens an open, never the first --, said on the phone and to the laptop, until the referee
-  starts again; a start for the same lenses and format, the screen back from another app, keeps
-  them out. Cameras that fail before their lenses start, are taken by another app or are lost
-  later are opened again with all their lenses.
+  its lenses at that size -- and, from Android 15, that rate. Cameras that fail, or give a lens no
+  frame for 5 s, within 10 s of their lenses' start, or cannot make the session the phone said
+  they run, are opened again with a lens left out -- of the camera that failed, the last that
+  gave no frame, else its last, else the code's last; one lens an open, never the first --, said
+  on the phone and to the laptop, until the referee starts again; a start for the same lenses and
+  format, the screen back from another app, keeps them out. Cameras that fail before their lenses
+  start, are taken by another app, or fail once the lenses streamed a while -- later, or soon
+  after a reopen mid-race -- are opened again with all their lenses; a session of one lens the
+  camera cannot make is said once, not made again.
 - **FR-006**: The preview shows the first lens streamed.
 - **FR-007**: The window's One camera mode shows the chosen camera alone, over the whole video
   area; Ctrl+1 to Ctrl+9 show camera 1 to 9 alone, Ctrl+0 all of them side by side, Ctrl+Up and
