@@ -65,6 +65,9 @@ internal object SessionOutputs {
                 parameters?.let { sessionParameters = it }
             }
         return try {
+            // An app targeting Android 15 or later -- this one does -- has its question passed on to the camera's
+            // CameraDeviceSetup where the camera has one, which weighs the session parameters as well (Android's
+            // reference for CameraDevice.isSessionConfigurationSupported); elsewhere they are passed over.
             camera.isSessionConfigurationSupported(asked)
         } catch (_: UnsupportedOperationException) {
             true // the camera cannot say: tried
