@@ -509,7 +509,18 @@ def test_a_lens_the_phone_leaves_out_is_said_amber_and_the_banner_stays_green(
     now = time.time_ns() // 1_000_000
     status = {"battery": "80", "left": "front", "at_ms": now, "heard_ms": now}
     beating(base, "cam2", phone=status)
-    beating(base, "cam3", state="connecting", detail="waiting for the phone")
+    now_said = {"at_ms": now, "phone_ms": now, "heard_ms": now}
+    left = {
+        "text": "left out: the phone cannot stream it beside the others",
+        **now_said,
+    }
+    beating(
+        base,
+        "cam3",
+        state="connecting",
+        detail="waiting for the phone",
+        phone_said=left,
+    )
     win = make_window()
     win.poll()
     banner = win.recording_banner
