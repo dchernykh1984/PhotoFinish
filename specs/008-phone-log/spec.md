@@ -78,18 +78,21 @@ of a camera that does not record, and not in one that records.
 
 - **FR-001**: PhotoFinish Camera keeps a log of what it meets: its start (version, phone, Android),
   each camera and lens it opens at what size and rate, every status its screen shows of the
-  cameras and of each lens -- once, when it changes --, the camera's error codes with their
-  meaning, the exceptions it catches with where they were thrown, the warnings and errors its own
+  cameras and of each lens -- once, when it changes, and one said again within a minute counted
+  and told with its next time --, the camera's error codes with their meaning, the exceptions it catches with where they were thrown, the warnings and errors its own
   process writes to the system log (the camera and encoder services' words to it), and an error
   that ended the app, from its next start.
 - **FR-002**: The log is sent to the recorder of each lens the app is paired with, on the port its
   clock exchange uses (contract), whether it streams or not; each recorder answers with the newest
   line it has kept, and the phone sends again what was not answered.
-- **FR-003**: The phone keeps its last 1,000 lines for recorders that did not answer; at most 20
-  lines a second, and the number left out said; a line is at most 400 bytes.
+- **FR-003**: The phone keeps its last 1,000 lines for recorders that did not answer, the system
+  log's going first; at most 20 of the system log's lines a second, the number left out said once
+  their second is over; a line is at most 400 bytes.
 - **FR-004**: The recorder keeps the phone's lines in `phone.log` in the camera's folder, in the
-  order the phone wrote them, each with the phone's time, its level and its lens; a new start of
-  the app and lines lost on the phone said there. Over 10 MB the file is kept as `phone.log.1`
+  order the phone wrote them, each once, with the phone's time, its level and its lens -- the last
+  few runs each going on where it was, two phones given one code too; a new start of the app and
+  lines the phone no longer kept said there. It writes them on a thread of its own: the clock
+  exchange is never held back by the file. Over 10 MB the file is kept as `phone.log.1`
   and a new one begun.
 - **FR-005**: The recorder's heartbeat holds the last error or warning of the camera's lens, or of
   the phone as a whole, with when it came; the window shows it after the camera's state while the
