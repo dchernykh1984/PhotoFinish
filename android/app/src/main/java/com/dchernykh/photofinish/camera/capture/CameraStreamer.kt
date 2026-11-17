@@ -67,6 +67,9 @@ class CameraStreamer(
     private val executor = Executor { handler.post(it) }
     private val opened = mutableListOf<OpenCamera>()
 
+    /** The lenses the cameras failed with since the last [start], left out of each open: the cameras' thread's. */
+    private var fallback = LensFallback()
+
     /** The lenses asked for and not streamed, as the status tells the laptop; read from the uplinks' threads. */
     @Volatile private var leftOut: List<String> = emptyList()
 
@@ -83,7 +86,10 @@ class CameraStreamer(
         format: StreamFormat,
         targets: List<LensTarget>,
     ) {
-        handler.post { open(preview, format, targets) }
+        handler.post {
+            fallback = LensFallback() // a start of the referee's tries every lens again
+            open(preview, format, targets)
+        }
     }
 
     fun stop() {
@@ -112,10 +118,18 @@ class CameraStreamer(
         // stores across an open if a camera lost in the middle of a network break is seen to cost frames.
         kept.deleteRecursively() // what a killed app kept, too: never sent
         share = FrameStore.SHARE_BYTES / targets.size.coerceAtLeast(1)
-        val plan = plan(lenses, targets) ?: return onStatus(null, StreamerStatus.Failed("no back camera"))
+        val failedWith = fallback.leftOut
+        val plan =
+            plan(lenses, targets.filter { it.lens !in failedWith })
+                ?: return onStatus(null, StreamerStatus.Failed("no back camera"))
+        failedWith.forEach { onStatus(it, StreamerStatus.Left(LeftOut.NOT_WITH_THE_OTHERS)) }
         plan.left.forEach { (lens, why) -> onStatus(lens, StreamerStatus.Left(why)) }
-        leftOut = plan.left.keys.map { it.code }
-        val again = { reason: String -> openAgain(preview, format, targets, reason) }
+        leftOut = (failedWith + plan.left.keys).map { it.code }
+        // A failure of the lenses' own -- early, by its kind -- leaves one out of the next open (LensFallback).
+        val again = { reason: String, sinceStartMs: Long? ->
+            sinceStartMs?.let { failedEarly(mine, targets, it) }
+            openAgain(preview, format, targets, reason)
+        }
         try {
             val shown =
                 startInTurn(plan.cameras) { camera, withPreview ->
@@ -141,8 +155,22 @@ class CameraStreamer(
             // A camera the phone's camera service lost a moment ago is unknown to it until it is back: tried
             // again, as one lost while streaming is (specs/007, FR-010).
             log.error(null, "opening the cameras: ${Crashes.describe(error)}")
-            again(error.message ?: error.javaClass.simpleName)
+            again(error.message ?: error.javaClass.simpleName, null)
         }
+    }
+
+    /**
+     * The cameras of open [open] failed [sinceStartMs] after its lenses started: the lens it leaves out from now
+     * on, if any, said -- the lenses streaming taken in [targets]' order, before they are closed.
+     */
+    private fun failedEarly(
+        open: Int,
+        targets: List<LensTarget>,
+        sinceStartMs: Long,
+    ) {
+        val streaming = opened.flatMap { it.lenses }.toSet()
+        val left = fallback.failed(open, targets.map { it.lens }.filter { it in streaming }, sinceStartMs) ?: return
+        log.warning(left.code, "left out from now on: the cameras failed $sinceStartMs ms after the lenses started")
     }
 
     /**
@@ -204,10 +232,17 @@ class CameraStreamer(
     private inner class OpenCamera(
         private val preview: Surface?,
         private val mine: Int,
-        private val again: (String) -> Unit,
+        /** Opens everything again after a loss: with how long after the lenses started, when theirs. */
+        private val again: (String, Long?) -> Unit,
     ) : CameraDevice.StateCallback() {
         private val streams = mutableListOf<LensStream>()
         private var format: StreamFormat? = null
+
+        /** When the lenses started, on the clock of [SystemClock.elapsedRealtime]: null before. */
+        private var startedMs: Long? = null
+
+        /** The lenses it streams. */
+        val lenses: List<Lens> get() = streams.map { it.lens }
 
         /** Closed: its uplinks' words after it are the stopped streams', and dropped. */
         @Volatile private var closed = false
@@ -275,7 +310,7 @@ class CameraStreamer(
 
         override fun onDisconnected(camera: CameraDevice) {
             camera.close()
-            if (mine == generation) lost("the camera was taken by another app")
+            if (mine == generation) lost("the camera was taken by another app", ofTheLenses = false)
         }
 
         override fun onError(
@@ -283,18 +318,25 @@ class CameraStreamer(
             error: Int,
         ) {
             camera.close()
-            if (mine == generation) lost("camera error $error: ${meaning(error)}")
+            if (mine == generation) lost("camera error $error: ${meaning(error)}", error in LENSES_ERRORS)
         }
 
         /**
          * A camera lost: the one with the preview opens everything again in a moment; another --
          * the front beside the back -- is closed alone, its lenses said left out, so the first
-         * streams on rather than stopping with it each time it fails.
+         * streams on rather than stopping with it each time it fails. A failure [ofTheLenses] --
+         * the camera failed, not taken by another app -- in their first seconds leaves a lens out
+         * from then on (LensFallback).
          */
-        private fun lost(reason: String) {
-            if (preview != null) return again(reason)
+        private fun lost(
+            reason: String,
+            ofTheLenses: Boolean,
+        ) {
+            val sinceStart = (startedMs?.let { SystemClock.elapsedRealtime() - it } ?: 0L).takeIf { ofTheLenses }
+            if (preview != null) return again(reason, sinceStart)
             val lenses = streams.map { it.lens }
             close() // first: no word of its uplinks comes after the one said here
+            sinceStart?.let { fallback.failedAlone(mine, lenses, it) }
             lenses.forEach { onStatus(it, StreamerStatus.Failed("$reason; left out")) }
             leaveOut(lenses) // told to the laptop
         }
@@ -361,6 +403,7 @@ class CameraStreamer(
                         )
                     }
                 configured.setRepeatingRequest(request.build(), null, handler)
+                startedMs = SystemClock.elapsedRealtime()
                 // The camera gives frames: a failure said before, a camera lost and opened again, is over;
                 // the camera with the preview says so for the cameras as a whole, the others' lenses by their links.
                 previewStatus(preview, targets)?.let { onStatus(null, it) }
@@ -396,6 +439,14 @@ class CameraStreamer(
 
     companion object {
         private const val OPEN_AGAIN_MS = 2_000L
+
+        /** A camera's errors of the lenses asked of it, not of another app or the phone's policy. */
+        private val LENSES_ERRORS =
+            setOf(
+                CameraDevice.StateCallback.ERROR_MAX_CAMERAS_IN_USE,
+                CameraDevice.StateCallback.ERROR_CAMERA_DEVICE,
+                CameraDevice.StateCallback.ERROR_CAMERA_SERVICE,
+            )
         private const val KEPT = "kept"
 
         // The screen's words, the laptop's last word of the phone too: the error told whole, for whoever looks
