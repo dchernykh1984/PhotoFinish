@@ -266,10 +266,13 @@ def test_the_last_warning_or_error_of_the_camera_s_lens_or_the_phone_is_its_word
         "at_ms": START + 2,
         "heard_ms": START + 10_000,
     }
-    assert last_word(log.said, START + 10_000 + phone_log.SAID_MS) == (
+    assert last_word(log.said, START + 10_000 + phone_log.SAID_MS - 1) == (
         "the phone: camera error 4"
     )
-    assert last_word(log.said, START + 10_001 + phone_log.SAID_MS) == ""  # old
+    # A failure said once goes on: still shown, with how long ago it was said.
+    assert last_word(log.said, START + 10_000 + 5 * phone_log.SAID_MS) == (
+        "the phone, 5 min ago: camera error 4"
+    )
     assert last_word({}, START) == ""
     assert last_word("x", START) == ""
     log.heard(message(5, (5, "I", "-", "the camera gives frames")))

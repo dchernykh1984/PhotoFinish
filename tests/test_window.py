@@ -620,10 +620,13 @@ def test_a_camera_that_does_not_record_says_what_its_phone_said_last(
         "the phone: camera error 4: the camera device failed"
     )
     assert win.cameras["cam3"].item.text() == "Mi tele: recording, 70 frames"
-    old = now - 120_000  # a minute and more ago: no longer the phone's word
+    old = now - 120_000  # said two minutes ago, and nothing since: still its word
     beating(base, "cam2", state="connecting", phone_said={**said, "heard_ms": old})
     win.poll()
-    assert win.cameras["cam2"].item.text() == "Mi main: connecting"
+    assert win.cameras["cam2"].item.text() == (
+        "Mi main: connecting; "
+        "the phone, 2 min ago: camera error 4: the camera device failed"
+    )
 
 
 def test_one_camera_alone_and_the_keys_that_switch_between_cameras(
