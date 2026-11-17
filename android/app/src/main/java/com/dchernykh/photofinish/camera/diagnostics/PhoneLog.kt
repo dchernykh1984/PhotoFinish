@@ -45,19 +45,23 @@ class PhoneLog(
     fun info(
         lens: String?,
         text: String,
-    ) = add(INFO, lens, text)
+    ) = once(INFO, lens, text)
 
     fun warning(
         lens: String?,
         text: String,
-    ) = add(WARNING, lens, text)
+    ) = once(WARNING, lens, text)
 
     fun error(
         lens: String?,
         text: String,
-    ) = add(ERROR, lens, text)
+    ) = once(ERROR, lens, text)
 
-    /** The app's own line of [level] -- [INFO], [WARNING] or [ERROR] -- of [lens], or of the phone as a whole. */
+    /**
+     * The app's own line of [level] -- [INFO], [WARNING] or [ERROR] -- of [lens], or of the phone as a whole, kept
+     * as it comes: its caller counts what it says again itself ([StatusLog], whose line of where a lens came to
+     * rest may say what it said a moment before).
+     */
     @Synchronized
     fun add(
         level: Char,
@@ -68,6 +72,45 @@ class PhoneLog(
         tell(now)
         keep(now, level, lens, text)
     }
+
+    /**
+     * [add], but the same line again within [AGAIN_MS] -- a camera failing and opened again every 2 s -- counted,
+     * and told with its next time: the log keeps what happened, not a thousand times the same.
+     */
+    @Synchronized
+    private fun once(
+        level: Char,
+        lens: String?,
+        text: String,
+    ) {
+        val now = clockMs()
+        tell(now)
+        val key = Triple(level, lens, text)
+        val before = said[key]
+        if (before != null && now - before.atMs < AGAIN_MS) {
+            before.again++
+            return
+        }
+        val more =
+            before
+                ?.again
+                ?.takeIf { it > 0 }
+                ?.let { " ($it times more in the minute before)" }
+                .orEmpty()
+        said.remove(key)
+        said[key] = Said(now)
+        if (said.size > SAID_KEPT) said.remove(said.keys.first())
+        keep(now, level, lens, text + more)
+    }
+
+    private class Said(
+        val atMs: Long,
+    ) {
+        var again = 0
+    }
+
+    /** The app's own lines lately kept, the newest last: one said again within [AGAIN_MS] is counted. */
+    private val said = LinkedHashMap<Triple<Char, String?, String>, Said>()
 
     /** A line of the phone's system log, of [level] -- [SYSTEM_WARNING] or [SYSTEM_ERROR]: [perSecond] a second. */
     @Synchronized
@@ -137,6 +180,8 @@ class PhoneLog(
         const val MAX_BYTES = 400
 
         private const val CAPACITY = 1_000
+        private const val AGAIN_MS = 60_000L
+        private const val SAID_KEPT = 64
         private const val PER_SECOND = 20
         private const val SECOND_MS = 1_000L
         private const val RUN_BYTES = 8

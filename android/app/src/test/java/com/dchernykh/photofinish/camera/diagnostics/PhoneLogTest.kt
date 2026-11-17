@@ -95,4 +95,26 @@ class PhoneLogTest {
         assertEquals(16, log.run.length)
         assertNotEquals(log.run, log().run)
     }
+
+    @Test
+    fun `the same line again within a minute is counted, and told with its next time`() {
+        val log = log()
+        repeat(90) {
+            // a camera failing and opened again every 2 s, three minutes
+            log.info(null, "camera 1: main at 2560x1440, 60 fps")
+            log.error(null, "opening the cameras: CameraAccessException: CAMERA_ERROR (3)")
+            now += 2_000
+        }
+        assertEquals(
+            listOf(
+                "camera 1: main at 2560x1440, 60 fps",
+                "opening the cameras: CameraAccessException: CAMERA_ERROR (3)",
+                "camera 1: main at 2560x1440, 60 fps (29 times more in the minute before)",
+                "opening the cameras: CameraAccessException: CAMERA_ERROR (3) (29 times more in the minute before)",
+                "camera 1: main at 2560x1440, 60 fps (29 times more in the minute before)",
+                "opening the cameras: CameraAccessException: CAMERA_ERROR (3) (29 times more in the minute before)",
+            ),
+            log.after(0).map { it.text },
+        )
+    }
 }
