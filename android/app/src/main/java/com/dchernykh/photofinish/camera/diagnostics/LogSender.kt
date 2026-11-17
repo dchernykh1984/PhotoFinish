@@ -27,10 +27,13 @@ class LogSender(
         var answered = 0L
         var heardMs: Long? = null
         var sentMs: Long? = null
+
+        /** Where its host was found; a name looked up again only when it was not found. */
+        var address: InetSocketAddress? = null
     }
 
-    /** The recorders by address; the sender's thread alone keeps them. */
-    private val recorders = HashMap<InetSocketAddress, Recorder>()
+    /** The recorders by the host and port the code names; the sender's thread alone keeps them. */
+    private val recorders = HashMap<Pair<String, Int>, Recorder>()
 
     @Volatile private var running = false
 
@@ -61,11 +64,13 @@ class LogSender(
     /** One round: each recorder due sent the lines it has not answered, [WINDOW] messages at most. */
     fun round() {
         val now = nowMs()
-        val wanted = destinations().mapNotNull { (host, port) -> address(host, port) }.toSet()
+        val wanted = destinations().toSet()
         recorders.keys.retainAll(wanted)
-        for (address in wanted) {
-            val recorder = recorders.getOrPut(address) { Recorder(now) }
-            if (log.newest > recorder.answered && due(recorder, now)) {
+        for (named in wanted) {
+            val recorder = recorders.getOrPut(named) { Recorder(now) }
+            // A name that does not resolve now keeps what its recorder answered: tried again next round.
+            val address = recorder.address ?: address(named.first, named.second)?.also { recorder.address = it }
+            if (address != null && log.newest > recorder.answered && due(recorder, now)) {
                 recorder.sentMs = now
                 // A recorder that never answered may be an older PhotoFinish's, to which a message is a
                 // datagram too long (Windows pauses its clock exchange for each): one a round.
@@ -99,7 +104,7 @@ class LogSender(
         val packet = DatagramPacket(buffer, buffer.size)
         if (!receive(packet)) return // a packet that came from nowhere has no sender to ask about
         val seq = LogMessages.answered(buffer, packet.length, log.run)
-        val recorder = recorders[packet.socketAddress as? InetSocketAddress]
+        val recorder = recorders.values.firstOrNull { it.address == packet.socketAddress }
         if (seq == null || recorder == null) return
         recorder.answered = maxOf(recorder.answered, seq)
         recorder.heardMs = nowMs()
@@ -121,7 +126,7 @@ class LogSender(
     internal fun answered(
         host: String,
         port: Int,
-    ): Long? = address(host, port)?.let { recorders[it]?.answered }
+    ): Long? = recorders[host to port]?.answered
 
     override fun close() {
         running = false

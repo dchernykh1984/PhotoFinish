@@ -201,4 +201,12 @@ class LogSenderTest {
         assertEquals(listOf("10.0.0.5" to 1935), LogSender.recordersOf("rtmp://10.0.0.5/live/phone"))
         assertEquals(emptyList<Pair<String, Int>>(), LogSender.recordersOf(""))
     }
+
+    @Test
+    fun `a recorder whose name does not resolve now is kept, with what it answered`() {
+        val sender = sender { listOf("no-such-host.invalid" to 1) }
+        log.info(null, "line")
+        sender.round() // not found: nothing sent, the recorder not forgotten
+        assertEquals(0L, sender.answered("no-such-host.invalid", 1))
+    }
 }
