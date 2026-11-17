@@ -32,7 +32,7 @@ ChronometerPython issue #49.
 | `app/output_list.py` | The output file, its state and its journal. |
 | `app/input_follow.py` | The chronometer's file followed into the output. |
 | `app/cameras.py` | Connections and what a camera's settings must be. |
-| `app/recorder/` | The recorder process: sources, segments, test camera, launcher; the phone's clock exchange (`clock_sync.py`) and frame moments (`frame_time.py`). |
+| `app/recorder/` | The recorder process: sources, segments, test camera, launcher; the phone's clock exchange (`clock_sync.py`), frame moments (`frame_time.py`) and log (`phone_log.py`, kept in `video/<camera id>/phone.log`). |
 | `android/` | PhotoFinish Camera, the phone app: Kotlin, its own Gradle build (see the `android-app` skill). |
 | `app/video_index.py`, `app/decoder.py` | Recorded frames found by time; one decoded. |
 | `app/interpolation.py` | The finish line and the caliper reading. |
@@ -57,7 +57,8 @@ their original spelling. Finder may launch a macOS app with `/` as its working
 directory.
 
 Next to the program: `data/session.json` (the session), `video/<camera id>/`
-(each camera's segments, frame times, gaps and its recorder's heartbeat),
+(each camera's segments, frame times, gaps, its recorder's heartbeat and a
+phone's log),
 `temp/` (a copy of the output after each change) and `models/` (the detection
 models downloaded). The output file the referee
 chooses has `<output>.state.json` and `<output>.journal.txt` beside it. `data/`,
