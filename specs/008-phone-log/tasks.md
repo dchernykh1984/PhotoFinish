@@ -57,3 +57,11 @@
 - [x] T021 `main_window.py`: the last word from a running recorder alone, not on a lens left out
 - [x] T022 `LogSender.kt`: a name looked up when due; `ProcessLog.kt`: read only by lines of the
   log; the round's lines walked by index
+
+## Review cycle 5
+
+- [x] T023 `ProcessLog.kt`: a system log read before read again however quiet it was when it ended
+- [x] T024 `__init__.py`: the phone's last word written with the heartbeat's next second;
+  `phone_log.py`: the file read back a line a newline
+- [x] T025 `PhoneLog.kt`: the app's own line said again within a minute counted; `LogSender.kt`: a
+  recorder quiet after lines it did not answer, not after nothing sent

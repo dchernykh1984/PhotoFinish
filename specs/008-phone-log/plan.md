@@ -36,7 +36,7 @@ app/main_window.py                      the phone's last word in a camera's line
   phone could no longer keep said lost. A recorder started again finds where it was from the file's
   last lines.
 - **A recorder that answers nothing** -- an older PhotoFinish -- is sent to every 5 s after 10 s
-  without an answer.
+  of lines sent without an answer; one with nothing sent to it a while is not quiet.
 - **The app's own system log**: `logcat --pid` of the app's process at warning and above, the
   app's own tag left out: the camera's and the encoder's words to the app, without a call site for
   each.

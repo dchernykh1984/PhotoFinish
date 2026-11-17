@@ -74,9 +74,10 @@ gaps in the numbers. The recorder keeps a message's lines it does not have when 
 what it kept (`prev` at most its newest), or begins a round; a round's first message begins a run
 it has not heard, and says when the phone no longer keeps the lines after its newest. It answers
 `PFLG 1 <run> <seq>`, the newest line it kept. The phone sends from the line after the newest
-answered, 8 messages at most twice a second, every 5 s to a recorder that has answered nothing
-for 10 s. It keeps its last 1,000 lines, the system log's going first, and the system log's at most
-20 a second, how many were left out said.
+answered, 8 messages at most twice a second, every 5 s to a recorder that has answered none of the
+lines sent to it for 10 s. It keeps its last 1,000 lines, the system log's going first, and the
+system log's at most 20 a second, how many were left out said; a line of the app's said again
+within a minute is counted, and told with its next time.
 
 ## The frame moment (H.264 SEI)
 
