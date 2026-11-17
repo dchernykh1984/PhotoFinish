@@ -148,5 +148,8 @@ def test_any_sender_is_answered_but_only_so_often() -> None:
         assert answered == clock_sync.ANSWERS_PER_S - 1  # the rest of this second's
         now["s"] += 1
         assert responder.may_answer()  # the next second's
+        spent = sum(responder.may_answer("log") for _ in range(200))
+        assert spent == clock_sync.ANSWERS_PER_S  # the log's, its own
+        assert responder.may_answer()  # the exchange's spent none of them
     finally:
         responder.close()
