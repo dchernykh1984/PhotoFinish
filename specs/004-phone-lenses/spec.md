@@ -136,9 +136,9 @@ switch to the other at the same moment and back to both.
   same, or soon after a reopen mid-race -- are opened again with all their lenses. A camera that
   fails with the screen away, its preview gone, leaves no lens out: the screen's return opens the
   cameras again. With no lens left out by either camera, a session the camera cannot make is said
-  once, not made again, while the lenses never ran together; and a lens that gives no frame is
-  waited for -- the others streaming on, once the lenses ran together too --, said on the phone
-  and to the laptop.
+  once, not made again, while the lenses never ran together; and a lens of either camera that
+  gives no frame is waited for -- its camera kept, the others streaming on, once the lenses ran
+  together too --, said on the phone and to the laptop.
 - **FR-006**: The preview shows the first lens streamed.
 - **FR-007**: The window's One camera mode shows the chosen camera alone, over the whole video
   area; Ctrl+1 to Ctrl+9 show camera 1 to 9 alone, Ctrl+0 all of them side by side, Ctrl+Up and

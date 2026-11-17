@@ -159,6 +159,23 @@ class LensFallbackTest {
     }
 
     @Test
+    fun `the other camera's silent lens with none to leave out is waited for, not closed for the race`() {
+        val streamed = listOf(Lens.MAIN, Lens.FRONT)
+        val stalled = CameraFailure.NoFrame(listOf(Lens.FRONT), 5_000)
+        val fallback = LensFallback()
+        fallback.settle() // they ran together; opened again mid-race, the front slow to its first frame
+        assertNull(fallback.failedAlone(1, streamed, listOf(Lens.FRONT), stalled))
+        assertEquals(listOf(Lens.FRONT), fallback.waitedFor(1, stalled))
+        assertEquals(emptyList<Lens>(), fallback.waitedFor(1, error(1_500))) // an error: closed alone, as ever
+        val first = LensFallback() // the front the only lens streamed: none to leave out
+        assertNull(first.failedAlone(1, listOf(Lens.FRONT), listOf(Lens.FRONT), stalled))
+        assertEquals(listOf(Lens.FRONT), first.waitedFor(1, stalled))
+        val early = LensFallback() // before they ran together: left out, not waited for
+        assertEquals(Lens.FRONT, early.failedAlone(1, streamed, listOf(Lens.FRONT), stalled))
+        assertEquals(emptyList<Lens>(), early.waitedFor(1, stalled))
+    }
+
+    @Test
     fun `the other camera failing alone never leaves out the first lens streamed, nor a lens streamed alone`() {
         val fallback = LensFallback()
         // The first camera's encoders would not start: the other camera streams the only lens.
