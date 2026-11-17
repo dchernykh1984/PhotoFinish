@@ -96,14 +96,13 @@ class PhoneLog:
     def _word(
         self, said: dict[str, Any], level: str, lens: str, text: str, at_ms: int
     ) -> dict[str, Any]:
-        """The phone's last word after a line: the app's own newest of this lens or of
-        the phone, when it is a warning or an error; a line after it -- streaming
-        again -- says it is over. The system log's lines are a driver's, not why."""
+        """The phone's last word after a line: the app's own newest warning or error of
+        this lens or of the phone, till another comes -- a retry's own lines say no
+        failure is over, and a camera that records again shows none (FR-005). The
+        system log's lines are a driver's, not why."""
         mine = lens == "-" or self.lens in (None, lens)
-        if level not in "IWE" or not mine:
+        if level not in "WE" or not mine:
             return said
-        if level == "I":
-            return {}
         heard = {"text": text, "at_ms": at_ms, "heard_ms": self.clock()}
         return {"level": level, "lens": lens, **heard}
 
