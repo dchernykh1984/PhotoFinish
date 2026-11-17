@@ -27,7 +27,6 @@ _RUN = re.compile(r"[0-9a-f]{16}")
 _LINE = re.compile(r"(\d+) (\d+) ([IWEwe]) (\S+) (.*)")
 _MARK = re.compile(r"--- run ([0-9a-f]{16}) from line (\d+)")
 _SEQ = re.compile(r"\S+ \S+ [IWEwe] \S+ #(\d+) ")
-_TAIL_BYTES = 64 * 1024
 
 
 def _now_ms() -> int:
@@ -143,16 +142,15 @@ def _read(
 
 
 def _where(path: Path) -> tuple[str | None, int]:
-    """The run and the newest line ``path`` holds, from its last lines: (None, 0) when
-    it holds none, or cannot be read."""
+    """The run and the newest line ``path`` holds, from its last lines back to the
+    run's mark -- KEEP_BYTES of them at most: (None, 0) when it holds none, or cannot
+    be read."""
     try:
-        with path.open("rb") as f:
-            f.seek(max(path.stat().st_size - _TAIL_BYTES, 0))
-            tail = f.read().decode("utf-8", errors="replace").splitlines()
+        lines = path.read_bytes().decode("utf-8", errors="replace").splitlines()
     except OSError:
         return None, 0
     newest = None
-    for line in reversed(tail):
+    for line in reversed(lines):
         seq = _SEQ.match(line)
         if seq is not None and newest is None:
             newest = int(seq.group(1))

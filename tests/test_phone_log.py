@@ -105,6 +105,20 @@ def test_a_recorder_started_again_goes_on_where_its_file_is(tmp_path: Path) -> N
     assert (fresh.run, fresh.kept) == (None, 0)
 
 
+def test_a_recorder_started_again_finds_its_run_far_back_in_its_file(
+    tmp_path: Path,
+) -> None:
+    # On the emulator: a run's mark 120 kB back, a recorder killed and started again.
+    log = PhoneLog(tmp_path)
+    log.heard(message(1, (1, "I", "-", "PhotoFinish Camera 0.8.0")))
+    for n in range(2, 1_002):
+        log.heard(message(n, (n, "w", "-", "mapper: unsupported metadata " + "x" * 80)))
+    again = PhoneLog(tmp_path)
+    assert (again.run, again.kept) == (RUN, 1_001)
+    again.heard(message(1_002, (1_002, "W", "main", "connection lost")))
+    assert "were not heard" not in (tmp_path / phone_log.FILE).read_text()
+
+
 def test_a_run_first_heard_late_says_what_was_not_heard(
     log: PhoneLog, tmp_path: Path
 ) -> None:
