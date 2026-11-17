@@ -129,8 +129,8 @@ class CameraStreamer(
         leftOut = (failedWith + plan.left.keys).map { it.code }
         // A failure of the lenses' own -- early, by its kind -- leaves one out of the next open (LensFallback).
         val again = { reason: String, failure: CameraFailure?, own: List<Lens> ->
-            val left = failedEarly(mine, targets, reason, failure, own)
-            fallback.madeAgain(failure, left).also { if (it) openAgain(preview, format, targets, reason) }
+            failedEarly(mine, targets, reason, failure, own)
+            fallback.madeAgain(mine, failure).also { if (it) openAgain(preview, format, targets, reason) }
         }
         try {
             val shown =
