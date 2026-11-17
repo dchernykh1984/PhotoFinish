@@ -262,6 +262,19 @@ def test_lines_that_cannot_be_written_are_not_answered_and_cost_nothing(
     assert log.said == {}
 
 
+def test_a_new_file_begun_for_a_new_run_says_that_run_s(
+    log: PhoneLog, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(phone_log, "KEEP_BYTES", 100)
+    log.heard(message(1, *[(n, "I", "-", "x" * 40) for n in range(1, 4)]))
+    log.heard(message(5, (5, "I", "-", "five"), run=LATER))  # its first lines not heard
+    assert kept(tmp_path) == [
+        "--- lines 1 to 4 were not heard",
+        f"--- run {LATER} from line 5",
+        "I - #5 five",
+    ]
+
+
 def test_a_long_file_is_kept_aside_and_a_new_one_says_whose(
     log: PhoneLog, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
