@@ -68,6 +68,9 @@ class CameraStreamer(
     private val executor = Executor { handler.post(it) }
     private val opened = mutableListOf<OpenCamera>()
 
+    /** The screen's preview the cameras were opened for: gone, the screen is leaving, whichever camera says so. */
+    private var shown: Surface? = null
+
     /** The lenses the cameras failed with since the referee's start, left out of each open: the cameras' thread's. */
     private val fallback = LensFallback()
 
@@ -121,6 +124,7 @@ class CameraStreamer(
     ) {
         close()
         val mine = ++generation
+        shown = preview
         // shortcut: a camera opened again drops what its lenses kept, as their streams start anew; keep the
         // stores across an open if a camera lost in the middle of a network break is seen to cost frames.
         kept.deleteRecursively() // what a killed app kept, too: never sent
@@ -415,9 +419,10 @@ class CameraStreamer(
                     }
 
                     override fun onConfigureFailed(failed: CameraCaptureSession) {
-                        // The preview's surface gone -- the screen leaving -- failed it, not the lenses: the
-                        // screen's stop closes the cameras, and its start opens them on a surface of its own.
-                        if (mine != generation || preview?.isValid == false) return
+                        // The preview's surface gone -- the screen leaving -- failed it, not the lenses, the
+                        // second camera's as much as the first's: the screen's stop closes the cameras, and its
+                        // start opens them on a surface of its own.
+                        if (mine != generation || shown?.isValid == false) return
                         val asked = format?.let { "${it.resolution} at ${it.fps} fps" }.orEmpty()
                         lost("the camera cannot give these lenses $asked together", CameraFailure.NotConfigured)
                     }
