@@ -7,9 +7,12 @@ import androidx.activity.compose.setContent
 import com.dchernykh.photofinish.camera.capture.CameraFormats
 import com.dchernykh.photofinish.camera.capture.CameraStreamer
 import com.dchernykh.photofinish.camera.capture.PhoneLenses
+import com.dchernykh.photofinish.camera.diagnostics.Diagnostics
+import com.dchernykh.photofinish.camera.diagnostics.StatusLog
 import com.dchernykh.photofinish.camera.status.PhoneStatusReader
 import com.dchernykh.photofinish.camera.ui.CameraScreen
 import com.dchernykh.photofinish.camera.ui.ScreenState
+import kotlin.math.roundToInt
 
 class MainActivity : ComponentActivity() {
     private lateinit var streamer: CameraStreamer
@@ -31,8 +34,20 @@ class MainActivity : ComponentActivity() {
             intent.getStringExtra(EXTRA_ADDRESS)?.let { state.enterAddress(it.replace('|', '\n')) }
             state.autostart = intent.getBooleanExtra(EXTRA_AUTOSTART, false)
         }
+        // What the app meets goes to the recorders of the lenses the code names, streaming or not
+        // (specs/008-phone-log): the laptop sees why a phone gives no video.
+        Diagnostics.start(this) { state.pairing.targets.map { it.address.host to it.address.port } }
+        val log = Diagnostics.log
+        val found =
+            lenses.found.entries.joinToString { (lens, info) ->
+                val physical = info.physicalId?.let { "/$it" }.orEmpty()
+                "${lens.code}: camera ${info.cameraId}$physical, ${info.focalMm.roundToInt()} mm"
+            }
+        log.info(null, "lenses: ${found.ifEmpty { "none" }}")
+        val statuses = StatusLog(log)
         streamer =
-            CameraStreamer(this, lenses, PhoneStatusReader(this)) { lens, status ->
+            CameraStreamer(this, lenses, PhoneStatusReader(this), log) { lens, status ->
+                statuses.heard(lens, status)
                 runOnUiThread { state.hear(lens, status) }
             }
         setContent { CameraScreen(state, streamer) }

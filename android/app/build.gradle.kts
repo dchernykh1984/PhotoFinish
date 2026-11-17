@@ -114,6 +114,7 @@ kover {
                     "com.dchernykh.photofinish.camera.capture.SessionOutputs*",
                     "com.dchernykh.photofinish.camera.status.PhoneStatusReader*",
                     "com.dchernykh.photofinish.camera.Settings*",
+                    "com.dchernykh.photofinish.camera.diagnostics.Diagnostics*",
                 )
             }
         }
