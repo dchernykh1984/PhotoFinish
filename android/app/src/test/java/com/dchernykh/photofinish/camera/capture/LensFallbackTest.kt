@@ -105,32 +105,17 @@ class LensFallbackTest {
     fun `a session the camera could not make, no lens left out, is said, not made again to fail the same way`() {
         val fallback = LensFallback()
         val main = listOf(Lens.MAIN)
-        assertEquals(
-            false,
-            fallback.madeAgain(
-                CameraFailure.NotConfigured,
-                fallback.failed(1, main, main, CameraFailure.NotConfigured),
-            ),
-        )
+        fallback.failed(1, main, main, CameraFailure.NotConfigured)
+        assertEquals(false, fallback.madeAgain(1, CameraFailure.NotConfigured))
         val streamed = listOf(Lens.MAIN, Lens.TELEPHOTO)
-        assertEquals(
-            true,
-            fallback.madeAgain(
-                CameraFailure.NotConfigured,
-                fallback.failed(2, streamed, streamed, CameraFailure.NotConfigured),
-            ),
-        )
+        fallback.failed(2, streamed, streamed, CameraFailure.NotConfigured)
+        assertEquals(true, fallback.madeAgain(2, CameraFailure.NotConfigured))
         // Settled, a session that cannot be made leaves none out: said, not made again for ever.
         fallback.failed(3, streamed, streamed, error(60_000))
-        assertEquals(
-            false,
-            fallback.madeAgain(
-                CameraFailure.NotConfigured,
-                fallback.failed(4, streamed, streamed, CameraFailure.NotConfigured),
-            ),
-        )
-        assertEquals(true, fallback.madeAgain(error(1_500), null)) // a camera lost: opened again, as ever
-        assertEquals(true, fallback.madeAgain(null, null))
+        fallback.failed(4, streamed, streamed, CameraFailure.NotConfigured)
+        assertEquals(false, fallback.madeAgain(4, CameraFailure.NotConfigured))
+        assertEquals(true, fallback.madeAgain(5, error(1_500))) // a camera lost: opened again, as ever
+        assertEquals(true, fallback.madeAgain(6, null))
     }
 
     @Test
@@ -145,12 +130,21 @@ class LensFallbackTest {
     fun `a lens that gave no frame with none to leave out is waited for, not the camera made again every 7 s`() {
         val fallback = LensFallback()
         val stalled = CameraFailure.NoFrame(listOf(Lens.MAIN), 5_000)
-        assertEquals(
-            false,
-            fallback.madeAgain(stalled, fallback.failed(1, listOf(Lens.MAIN), listOf(Lens.MAIN), stalled)),
-        )
+        fallback.failed(1, listOf(Lens.MAIN), listOf(Lens.MAIN), stalled)
+        assertEquals(false, fallback.madeAgain(1, stalled))
         val two = listOf(Lens.MAIN, Lens.TELEPHOTO)
-        assertEquals(true, fallback.madeAgain(stalled, fallback.failed(2, two, two, stalled)))
+        fallback.failed(2, two, two, stalled)
+        assertEquals(true, fallback.madeAgain(2, stalled))
+    }
+
+    @Test
+    fun `the back camera stalled, the front left out first in the same open, is made again without it`() {
+        val fallback = LensFallback()
+        fallback.failedAlone(1, listOf(Lens.FRONT), CameraFailure.NoFrame(listOf(Lens.FRONT), 5_000))
+        val back = listOf(Lens.MAIN, Lens.ULTRAWIDE, Lens.TELEPHOTO)
+        val stalled = CameraFailure.NoFrame(back, 5_000)
+        assertNull(fallback.failed(1, back, back, stalled)) // the open paid already
+        assertEquals(true, fallback.madeAgain(1, stalled)) // but its lenses are not the same: tried again
     }
 
     @Test
