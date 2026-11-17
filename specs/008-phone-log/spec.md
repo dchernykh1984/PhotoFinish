@@ -95,9 +95,10 @@ of a camera that does not record, and not in one that records.
   exchange is never held back by the file. Over 10 MB the file is kept as `phone.log.1`
   and a new one begun.
 - **FR-005**: The recorder's heartbeat holds the last error or warning of the camera's lens, or of
-  the phone as a whole -- none once a later line of it says otherwise --, with when it came; the log's
-  notes about itself are none of it; the window shows it after the camera's state while the
-  camera does not record -- how long ago it came, past a minute: a failure said once goes on.
+  the phone as a whole -- till another comes; the retry's own lines end none --, with how long ago
+  the phone said it, by the phone's own clock; the log's notes about itself are none of it; the window shows it after the camera's state while the
+  camera does not record and its recorder runs, but on a lens the phone leaves out -- how long ago
+  it came, past a minute: a failure said once goes on.
 - **FR-006**: The log costs the video nothing: a recorder that cannot write it, or a message it
   cannot read, records on.
 - **FR-007**: Covered by automated tests: the log kept, cut and limited, the messages written and

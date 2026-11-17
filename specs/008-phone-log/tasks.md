@@ -49,3 +49,11 @@
 - [x] T019 The log's notes about itself as the system log's; `ProcessLog.kt`: read again from after
   its newest line, never again when it ends at once; `LogSender.kt`: a quiet recorder's name found
   again; `Diagnostics.kt`: the lenses logged once
+
+## Review cycle 4
+
+- [x] T020 `phone_log.py`: the last word kept till the next warning or error, its age by the
+  phone's clock; the file read at the first message
+- [x] T021 `main_window.py`: the last word from a running recorder alone, not on a lens left out
+- [x] T022 `LogSender.kt`: a name looked up when due; `ProcessLog.kt`: read only by lines of the
+  log; the round's lines walked by index
