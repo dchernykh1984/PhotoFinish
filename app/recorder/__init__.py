@@ -264,10 +264,13 @@ class _Recording:
         self.backoff = Backoff()
         self.responder: ClockResponder | None = None
         self.phone = camera.get("connection") == "rtmp"  # a phone answers the clock
-        # What the phone meets, sent beside its clock exchange (specs/008-phone-log).
-        lens = camera.get("lens")
-        self.phone_log = PhoneLog(folder, lens if isinstance(lens, str) else None)
-        beat.extra = lambda: {"phone_said": self.phone_log.said}
+        # What a phone meets, sent beside its clock exchange (specs/008-phone-log).
+        self.phone_log: PhoneLog | None = None
+        if self.phone:
+            lens = camera.get("lens")
+            phone_log = PhoneLog(folder, lens if isinstance(lens, str) else None)
+            beat.extra = lambda: {"phone_said": phone_log.said}
+            self.phone_log = phone_log
         self.clock_tried = -CLOCK_RETRY_S  # time.monotonic() of the last try
         self.port_taken = ""  # why the exchange is left out: its port, taken
         self.placed = Placed()  # a phone's frames placed elsewhere than their moments
@@ -285,9 +288,8 @@ class _Recording:
         self.clock_tried = now
         port = self.camera["settings"].get("port", cameras.RTMP_PORT)
         try:
-            self.responder = ClockResponder(
-                port, self.clock.micros, others=self.phone_log.heard
-            )
+            heard = None if self.phone_log is None else self.phone_log.heard
+            self.responder = ClockResponder(port, self.clock.micros, others=heard)
             self.port_taken = ""
         except OSError as error:
             self.port_taken = (

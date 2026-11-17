@@ -255,6 +255,7 @@ def test_a_phone_s_log_is_kept_beside_its_clock_its_last_word_in_the_heartbeat(
     recording = recorder._Recording(folder, camera, beat, SteadyClock(), time.sleep)
     recording._answer_the_clock()
     assert recording.responder is not None
+    assert recording.phone_log is not None
     try:
         assert recording.responder.others == recording.phone_log.heard
         error = b"1 1794918339001 E - camera error 4: the camera device failed\n"
@@ -265,6 +266,15 @@ def test_a_phone_s_log_is_kept_beside_its_clock_its_last_word_in_the_heartbeat(
         assert (folder / "phone.log").exists()
     finally:
         recording.responder.close()
+
+
+def test_a_camera_that_is_no_phone_keeps_no_phone_log(folder: Path) -> None:
+    folder.mkdir(parents=True)
+    camera = {"id": "cam1", "connection": "test", "settings": {"fps": 30}}
+    beat = Heartbeat(folder, "test")
+    recording = recorder._Recording(folder, camera, beat, SteadyClock(), time.sleep)
+    assert recording.phone_log is None
+    assert beat.extra() == {}
 
 
 def test_the_heartbeat_names_the_program_the_recorder_runs(
