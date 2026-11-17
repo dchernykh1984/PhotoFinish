@@ -95,15 +95,22 @@ class LensFallback {
     ): Lens? = choose(open, failure, streamed.drop(1), own)
 
     /**
-     * Whether the cameras of open [open] are made again after [failure]: not after a session the camera could not
-     * make, or lenses that gave no frame, when the open left none out and the lenses never ran together -- made
-     * the same way, they would fail the same way --; said instead, a stalled lens waited for. A lens left out by
-     * either camera makes another open; lenses that ran together, a camera lost mid-race, are made again as ever.
+     * Whether the cameras of open [open] are made again after [failure]. A lens left out by either camera makes
+     * another open without it. Else a lens that gave no frame is waited for, the lenses that give frames streaming
+     * on, as before the watch -- made again, they would be cut every few seconds for as long as it stays silent --;
+     * and a session the camera could not make is said, not made again, while the lenses never ran together -- made
+     * the same way, it would fail the same way --, made again once they did, as a camera lost mid-race is.
      */
     fun madeAgain(
         open: Int,
         failure: CameraFailure?,
-    ): Boolean = open == paid || settled || failure != CameraFailure.NotConfigured && failure !is CameraFailure.NoFrame
+    ): Boolean =
+        open == paid ||
+            when (failure) {
+                is CameraFailure.NoFrame -> false
+                CameraFailure.NotConfigured -> settled
+                else -> true
+            }
 
     /**
      * The other camera of open [open] -- the front beside the back -- failed alone and was closed, its [lenses]
