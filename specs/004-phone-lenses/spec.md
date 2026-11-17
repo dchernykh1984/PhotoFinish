@@ -129,7 +129,8 @@ switch to the other at the same moment and back to both.
   gave no frame, else its last, else the code's last; one lens an open, never the first --, said
   on the phone, as the cameras failing with it, and to the laptop, until the referee starts
   again; a start for the same lenses and format, the screen back from another app, keeps them
-  out; a camera failing alone, the front beside the back, leaves one of its lenses out so. Cameras
+  out; a camera failing alone, the front beside the back, leaves one of its lenses out so, its
+  others brought back by opening the cameras again. Cameras
   that fail before their lenses start, are taken by another app, or fail once every lens of every
   camera gave frames for 10 s -- lost later for whatever reason, closed and opened again for the
   same, or soon after a reopen mid-race -- are opened again with all their lenses. With no lens
