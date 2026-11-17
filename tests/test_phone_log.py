@@ -134,6 +134,21 @@ def test_the_app_started_again_is_a_run_of_its_own(
     assert kept(tmp_path)[-2:] == [f"--- run {LATER} from line 1", "I - #1 again"]
 
 
+def test_two_phones_given_one_code_each_go_on_where_they_were(
+    log: PhoneLog, tmp_path: Path
+) -> None:
+    for n in (1, 2):
+        assert log.heard(message(n, (n, "I", "-", f"one {n}"))) == (
+            f"PFLG 1 {RUN} {n}\n".encode()
+        )
+        assert log.heard(message(n, (n, "I", "-", f"other {n}"), run=LATER)) == (
+            f"PFLG 1 {LATER} {n}\n".encode()
+        )
+    log.heard(message(1, (1, "I", "-", "one 1"), (2, "I", "-", "one 2")))  # again
+    lines = [line for line in kept(tmp_path) if "#" in line]
+    assert lines == ["I - #1 one 1", "I - #1 other 1", "I - #2 one 2", "I - #2 other 2"]
+
+
 def test_a_recorder_started_again_goes_on_where_its_file_is(tmp_path: Path) -> None:
     PhoneLog(tmp_path).heard(message(1, (1, "I", "-", "one"), (2, "I", "-", "two")))
     again = PhoneLog(tmp_path)
@@ -240,7 +255,10 @@ def test_lines_that_cannot_be_written_are_not_answered_and_cost_nothing(
 ) -> None:
     (tmp_path / phone_log.FILE).mkdir()  # a folder where the file would be
     log = PhoneLog(tmp_path)
-    assert log.heard(message(1, (1, "E", "-", "camera error 4"))) == b"PFLG 1 None 0\n"
+    assert (
+        log.heard(message(1, (1, "E", "-", "camera error 4")))
+        == f"PFLG 1 {RUN} 0\n".encode()
+    )
     assert log.said == {}
 
 

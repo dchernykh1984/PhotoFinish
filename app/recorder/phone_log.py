@@ -22,6 +22,7 @@ VERSION = "1"
 FILE = "phone.log"
 KEEP_BYTES = 10 * 1024 * 1024  # then kept as phone.log.1, and a new one begun
 SAID_MS = 60_000  # a phone's last word shown on a camera's line this long
+RUNS_KEPT = 4  # the runs a recorder goes on with: phones given one code, apps restarted
 _RUN = re.compile(r"[0-9a-f]{16}")
 # The app's own levels, I W E; its phone's system log's, w e (contract).
 _LINE = re.compile(r"(\d+) (\d+) ([IWEwe]) (\S+) (.*)")
@@ -46,6 +47,9 @@ class PhoneLog:
         self.path, self.lens, self.clock = folder / FILE, lens, clock
         # Where the file is: a recorder started again goes on from its last line.
         self.run, self.kept = _where(self.path)
+        # The newest line kept of each run lately heard, the newest run last: two
+        # phones given one code each go on where they were, not again from the start.
+        self.runs: dict[str, int] = {} if self.run is None else {self.run: self.kept}
         # The phone's newest warning or error of this lens, or of the phone as a whole,
         # and when it came by this computer's clock: for the window (FR-005).
         self.said: dict[str, Any] = {}
@@ -61,7 +65,7 @@ class PhoneLog:
         if read is None:
             return None
         run, start, prev, lines = read
-        known = self.kept if run == self.run else None
+        known = self.runs.get(run)
         first = prev == start - 1
         written: list[str] = []
         if known is None or (first and start > known + 1):
@@ -85,7 +89,11 @@ class PhoneLog:
                 said |= {"at_ms": at_ms, "heard_ms": self.clock()}
         if written and self._write(written):
             self.run, self.kept, self.said = run, kept, said
-        return f"PFLG {VERSION} {self.run} {self.kept}\n".encode("ascii")
+            self.runs.pop(run, None)
+            self.runs[run] = kept
+            while len(self.runs) > RUNS_KEPT:
+                del self.runs[next(iter(self.runs))]
+        return f"PFLG {VERSION} {run} {self.runs.get(run, 0)}\n".encode("ascii")
 
     def _begun(self, run: str, start: int, known: int | None) -> list[str]:
         """The marks of ``run`` begun at ``start``: not heard before -- the app started
