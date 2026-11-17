@@ -372,10 +372,12 @@ class CameraStreamer(
                         if (mine != generation) return
                         val asked = format?.let { "${it.resolution} at ${it.fps} fps" }.orEmpty()
                         val reason = "the camera cannot give these lenses $asked together"
-                        if (fallback.canLeaveOut(opened.flatMap { it.lenses })) {
-                            lost(reason, CameraFailure.NotConfigured)
-                        } else {
-                            say(StreamerStatus.Failed(reason)) // none to leave out: made again, it would fail again
+                        when {
+                            // The preview's surface gone -- the screen leaving -- failed it, not the lenses.
+                            preview?.isValid == false -> lost(reason, null)
+                            fallback.canLeaveOut(opened.flatMap { it.lenses }) ->
+                                lost(reason, CameraFailure.NotConfigured)
+                            else -> say(StreamerStatus.Failed(reason)) // none to leave out: it would fail again
                         }
                     }
                 }
