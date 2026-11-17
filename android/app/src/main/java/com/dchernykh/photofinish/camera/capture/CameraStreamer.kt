@@ -383,7 +383,7 @@ class CameraStreamer(
                 return
             }
             close() // first: no word of its uplinks comes after the one said here
-            fallback.failedAlone(mine, lenses, failure).forEach {
+            fallback.failedAlone(mine, lenses, failure)?.let {
                 log.warning(it.code, "left out from now on: its camera failed with it ($reason)")
             }
             lenses.forEach { onStatus(it, StreamerStatus.Failed("$reason; left out")) }
