@@ -8,6 +8,7 @@ import org.junit.Test
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
+import java.net.InetSocketAddress
 import java.net.SocketTimeoutException
 
 /** A recorder's end of the log: what it was sent, and its answers. */
@@ -208,5 +209,21 @@ class LogSenderTest {
         log.info(null, "line")
         sender.round() // not found: nothing sent, the recorder not forgotten
         assertEquals(0L, sender.answered("no-such-host.invalid", 1))
+    }
+
+    @Test
+    fun `a name is found again while its recorder is quiet, as a laptop's address may change`() {
+        val loopback = InetAddress.getLoopbackAddress()
+        val gone = DatagramSocket(0, loopback).let { it.localPort.also { _ -> it.close() } }
+        var found = InetSocketAddress(loopback, gone)
+        val sender = sender { listOf("laptop.local" to 1935) }
+        sender.resolve = { _, _ -> found }
+        log.info(null, "line")
+        sender.round() // to where the laptop was: no one there
+        assertEquals(emptyList<Long>(), recorder.received())
+        found = InetSocketAddress(loopback, recorder.port) // where it is now
+        now += 10_500 // quiet: found again
+        sender.round()
+        assertEquals(listOf(1L), recorder.received())
     }
 }

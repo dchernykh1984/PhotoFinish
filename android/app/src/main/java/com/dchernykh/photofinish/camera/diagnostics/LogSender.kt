@@ -28,9 +28,15 @@ class LogSender(
         var heardMs: Long? = null
         var sentMs: Long? = null
 
-        /** Where its host was found; a name looked up again only when it was not found. */
+        /** Where its host was found; a name looked up again only when it was not found, or it is quiet. */
         var address: InetSocketAddress? = null
+
+        /** Nothing answered for [QUIET_MS]: an older PhotoFinish, or one gone elsewhere. */
+        fun quiet(now: Long): Boolean = now - (heardMs ?: since) > QUIET_MS
     }
+
+    /** How a recorder's host and port are found; a test's stands in for a name's look-up. */
+    internal var resolve: (String, Int) -> InetSocketAddress? = { host, port -> address(host, port) }
 
     /** The recorders by the host and port the code names; the sender's thread alone keeps them. */
     private val recorders = HashMap<Pair<String, Int>, Recorder>()
@@ -70,7 +76,10 @@ class LogSender(
         for (named in wanted) {
             val recorder = recorders.getOrPut(named) { Recorder(now) }
             // A name that does not resolve now keeps what its recorder answered: tried again next round.
-            val address = recorder.address ?: address(named.first, named.second)?.also { recorder.address = it }
+            // Found once and kept -- a name not looked up twice a second -- but found again while its recorder
+            // is quiet: a laptop's address may change, the video and the clock exchange following it.
+            val known = recorder.address.takeUnless { recorder.quiet(now) }
+            val address = known ?: resolve(named.first, named.second)?.also { recorder.address = it }
             if (address != null && log.newest > recorder.answered && due(recorder, now)) {
                 recorder.sentMs = now
                 // A recorder that never answered may be an older PhotoFinish's, to which a message is a
@@ -139,8 +148,7 @@ class LogSender(
         now: Long,
     ): Boolean {
         val sent = recorder.sentMs ?: return true
-        val quiet = now - (recorder.heardMs ?: recorder.since) > QUIET_MS
-        return !quiet || now - sent >= SLOW_MS
+        return !recorder.quiet(now) || now - sent >= SLOW_MS
     }
 
     private fun send(
