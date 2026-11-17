@@ -56,8 +56,9 @@ object ProcessLog {
                     return@Thread
                 }
                 // The log's notes about itself go as the system log's lines: never the phone's last word. One
-                // that ends at once, nothing read, would end so every time: said once, not read again.
-                if (lines == 0) {
+                // that ends at once, nothing of it ever read, would end so every time: said once, not read
+                // again; one read before ended in a quiet while -- its reader killed -- is read again.
+                if (lines == 0 && since == null) {
                     log.system(PhoneLog.SYSTEM_WARNING, "the system log ends at once: not read again")
                     return@Thread
                 }

@@ -63,4 +63,16 @@ class ProcessLogTest {
         assertEquals(listOf("the system log ends at once: not read again"), log.after(0).map { it.text })
         assertEquals(1, asked)
     }
+
+    @Test
+    fun `a system log read before is read again however quiet it was when it ended`() {
+        val log = PhoneLog()
+        var asked = 0
+        val line = "1794918339.123  1234  1301 W CameraDevice-JV-0: Device error received, code 4"
+        val reading = { _: String? -> (if (asked++ == 0) listOf("echo", line) else listOf("true")) }
+        ProcessLog.follow(log, 1, reading, pauseMs = 10)
+        val deadline = System.currentTimeMillis() + 5_000
+        while (asked < 4 && System.currentTimeMillis() < deadline) Thread.sleep(20)
+        assertTrue(asked >= 4) // a quiet reading after one that read: read again
+    }
 }
