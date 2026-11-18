@@ -46,8 +46,10 @@ sealed interface CameraFailure {
  * The cameras failing together -- the front's and the back's at once -- are one failure: an open leaves one
  * lens out at most. Cameras lost later, having streamed a while, or taken by another app, are opened again
  * with all their lenses -- but a lens that stops again within [AGAIN_MS] of its last stop goes, the cameras
- * opened again not bringing it back; the first, which never goes, is waited for, the others streaming on.
+ * opened again not bringing it back; the first, which never goes, is waited for while another lens streams that
+ * opening them again would cut.
  */
+@Suppress("TooManyFunctions") // the rules of FR-005, each a question of a few lines
 class LensFallback {
     private val left = linkedSetOf<Lens>()
 
@@ -79,6 +81,9 @@ class LensFallback {
     /** The last stop that came within [AGAIN_MS] of its lens's one before: the lens's own doing. */
     private var stoppedAgain: CameraFailure.Stalled? = null
 
+    /** The first lens's stop come again while another lens streamed: waited for, the cameras not made again for it. */
+    private var waitFor: CameraFailure.Stalled? = null
+
     /**
      * The cameras started for [targets] at [format]: the lenses left out forgotten when either is not the last
      * start's -- the referee's choice, a stop in between asking for the preview alone --, kept when the same come
@@ -98,6 +103,7 @@ class LensFallback {
         settledAtMs = Long.MAX_VALUE
         stops.clear()
         stoppedAgain = null
+        waitFor = null
     }
 
     /**
@@ -150,7 +156,8 @@ class LensFallback {
      * on, as before the watch -- made again, they would be cut every few seconds for as long as it stays silent --;
      * and a session the camera could not make is said, not made again, while the lenses never ran together -- made
      * the same way, it would fail the same way --, made again once they did, as a camera lost mid-race is. A lens
-     * that stopped is made again, but the first stopping again too soon: waited for, as one that gave no frame.
+     * that stopped is made again, but the first stopping again too soon while another lens streams: waited for, as
+     * one that gave no frame -- alone, it is made again each time, as nothing streams that it would cut.
      */
     fun madeAgain(
         open: Int,
@@ -159,7 +166,7 @@ class LensFallback {
         open == paid ||
             when (failure) {
                 is CameraFailure.NoFrame -> false
-                is CameraFailure.Stalled -> failure != stoppedAgain
+                is CameraFailure.Stalled -> failure != waitFor
                 CameraFailure.NotConfigured -> settled
                 else -> true
             }
@@ -177,7 +184,7 @@ class LensFallback {
             when {
                 open == paid -> emptyList()
                 failure is CameraFailure.NoFrame -> failure.silent
-                failure is CameraFailure.Stalled && failure == stoppedAgain -> listOf(failure.lens)
+                failure is CameraFailure.Stalled && failure == waitFor -> listOf(failure.lens)
                 else -> emptyList()
             }
         if (silent.isEmpty()) return silent
@@ -212,9 +219,9 @@ class LensFallback {
     /**
      * One of [candidates] left out of open [open] after [failure] when it counts and the open has paid none: after
      * a lens gave no frame, the last of those, never one that streams -- left out, it could leave none streaming --;
-     * a lens that stopped giving frames, itself -- the first stopping again too soon, none --; with a lens waited
-     * for in the open, the last waited for, so; else the last of [own], else the last: the first stopping early
-     * lightens the load as an error does.
+     * a lens that stopped giving frames, itself -- the first stopping again too soon, none, waited for while another
+     * streams --; with a lens waited for in the open, the last waited for, so; else the last of [own], else the
+     * last: the first stopping early lightens the load as an error does.
      */
     private fun choose(
         open: Int,
@@ -228,12 +235,21 @@ class LensFallback {
             when {
                 failure is CameraFailure.NoFrame -> candidates.lastOrNull { it in failure.silent }
                 failure is CameraFailure.Stalled && failure.lens in candidates -> failure.lens
-                failure is CameraFailure.Stalled && failure == stoppedAgain -> null
+                failure is CameraFailure.Stalled && failure == stoppedAgain -> waitForFirst(failure, candidates)
                 open == waitingIn -> candidates.lastOrNull { it in waiting }
                 else -> candidates.lastOrNull { it in own } ?: candidates.lastOrNull()
             } ?: return null
         paid = open
         return lens.also { left += it }
+    }
+
+    /** The first lens [failure] stopped again too soon: none left out -- waited for while [others] stream. */
+    private fun waitForFirst(
+        failure: CameraFailure.Stalled,
+        others: List<Lens>,
+    ): Lens? {
+        if (others.isNotEmpty()) waitFor = failure
+        return null
     }
 
     companion object {
