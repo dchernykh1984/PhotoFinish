@@ -181,6 +181,26 @@ def test_a_phones_lenses_go_main_and_telephoto_first_the_phone_leaving_out_the_l
     assert lenses == ["main", "telephoto", "ultrawide", "front"]
 
 
+def test_the_front_beside_a_back_lens_is_advised_at_1920x1440_or_less(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Android promises a camera beside another up to 1920x1440 only, at no set rate:
+    # the size is chosen on the phone, so the dialog says it whatever the size.
+    monkeypatch.setattr(cameras, "this_computer", lambda: "10.0.0.5")
+    dialog = CameraDialog(None, "cam1", [], [], ["cam2", "cam3", "cam4"])
+    advice = dialog._rows["advice"]
+    dialog.lenses["front"].setChecked(True)  # Main and Front
+    assert dialog.form.isRowVisible(advice)
+    assert "1920x1440" in dialog.advice.text()
+    assert "Main and Telephoto" not in dialog.advice.text()  # two lenses: promised
+    assert dialog.buttons.button(dialog.buttons.StandardButton.Ok).isEnabled()
+    dialog.lenses["main"].setChecked(False)  # the front alone: no camera beside it
+    assert not dialog.form.isRowVisible(advice)
+    dialog.lenses["telephoto"].setChecked(True)  # any back lens beside it
+    assert dialog.form.isRowVisible(advice)
+    assert "1920x1440" in dialog.advice.text()
+
+
 def test_more_than_two_lenses_are_advised_against_main_and_telephoto_advised(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -194,6 +214,7 @@ def test_more_than_two_lenses_are_advised_against_main_and_telephoto_advised(
     dialog.lenses["front"].setChecked(True)  # the Xiaomi 17 Ultra's four: none streamed
     assert dialog.form.isRowVisible(advice)
     assert "Main and Telephoto are advised" in dialog.advice.text()
+    assert "1920x1440" in dialog.advice.text()  # the front among them: both said
     assert ok.isEnabled()  # the referee's choice: said, not refused
     dialog.connection.setCurrentIndex(dialog.connection.findData("test"))
     assert not dialog.form.isRowVisible(advice)  # lenses are a phone's
