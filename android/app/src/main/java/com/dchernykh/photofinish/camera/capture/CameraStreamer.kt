@@ -257,7 +257,7 @@ class CameraStreamer(
             // away, does: its frames go with their moments.
             when {
                 clock != null -> stream.startClock(clock)
-                !stream.ended -> onStatus(stream.lens, StreamerStatus.NoClock) // the screen away too, as it sends
+                !stream.stopped -> onStatus(stream.lens, StreamerStatus.NoClock) // the screen away too, as it sends
             }
         }
     }
