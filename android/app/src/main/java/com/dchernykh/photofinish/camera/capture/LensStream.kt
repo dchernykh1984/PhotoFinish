@@ -52,6 +52,9 @@ internal class LensStream private constructor(
 
     val lens: Lens get() = planned.target.lens
 
+    /** Its clock exchange runs: a feed after the first needs the frames' clock told no more. */
+    val clocked: Boolean get() = sync.get() != null
+
     /**
      * The clock exchange with the lens's recorder, on [clock], unless one runs or the stream ended; the
      * uplink tells by it how long a connection's first frame was kept.
