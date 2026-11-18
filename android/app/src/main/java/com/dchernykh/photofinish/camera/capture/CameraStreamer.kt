@@ -302,7 +302,7 @@ class CameraStreamer(
         /** The lenses it streams: its own, not the phone's. */
         val ownLenses: List<Lens> get() = streams.map { it.lens }
 
-        /** How long the oldest frame its lenses keep unsent has been kept, ms. */
+        /** How much the frames its lenses keep unsent span, ms, the most of them. */
         val keptMs: Long get() = streams.maxOfOrNull { it.keptMs } ?: 0L
 
         /** Each of its lenses has given a frame, or is waited for (LensFallback.waitsFor): none of a camera closed. */

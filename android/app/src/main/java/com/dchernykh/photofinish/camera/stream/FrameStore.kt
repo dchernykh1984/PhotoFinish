@@ -169,6 +169,19 @@ class FrameStore(
         }
     }
 
+    /**
+     * How much the frames kept and not sent yet span, ms: from the next to send to the newest kept, on their own
+     * clock -- known with or without the frames' clock told, a lens with none keeping as much as any.
+     */
+    fun behindMs(): Long {
+        lock.withLock {
+            val run = cursorRun ?: runs.firstOrNull()
+            val entry = run?.frames?.getOrNull(cursorFrame) ?: run?.let { following(runs, it) }?.frames?.first()
+            val newest = runs.lastOrNull()?.frames?.lastOrNull()
+            return if (entry == null || newest == null) 0 else maxOf((newest.ptsUs - entry.ptsUs) / 1000, 0)
+        }
+    }
+
     /** Everything kept removed, and nothing kept from now on: the stream has ended (FR-004). */
     fun clear() {
         lock.withLock {
