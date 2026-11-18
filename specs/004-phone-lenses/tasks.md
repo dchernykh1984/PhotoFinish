@@ -55,14 +55,16 @@
 
 - [x] T023 [US1] `LensFallback.kt`, with its JVM tests: a lens that gave frames and then none --
   early, itself left out, the first lightening the load as an error does; later, every lens kept;
-  again within a minute, left out, the first waited for beside others, alone opened again; a lens
-  waited for that gives frames watched again; timed by its last frame (FR-005).
+  again within a minute, left out, the first waited for beside others and tried again a minute on,
+  alone opened again; the other camera's lens stopping later waited for; a lens waited for that
+  gives frames watched again; timed by its last frame (FR-005).
 - [x] T024 [US1] `CameraStreamer`, `LensStream`: each lens's last frame, watched each second; 3 s
   without one is its camera lost (FR-005).
 - [x] T025 [US1] The dialog's advice for the Front beside a back lens, 1920x1440 or less; its Qt
   test (FR-001).
 - [x] T026 [US1] `CameraStreamer`, `CameraScreen`: the screen leaving closes the cameras at once,
-  the lenses' streams sending what they kept (FR-005).
+  waited for, the lenses' streams sending what they kept and saying so; a surface made again opens
+  them again (FR-005).
 - [x] T027 By hand: the emulator, one lens -- Home: the cameras closed in `phone.log`, no failure,
   the frames kept sent; back: streaming again; 2.5 min without a lens taken for stopped. A lens
   that stops could not be made there: its image gives no root to stop the camera's service.

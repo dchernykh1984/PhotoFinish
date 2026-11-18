@@ -148,12 +148,16 @@ switch to the other at the same moment and back to both.
   same, or soon after a reopen mid-race -- are opened again with all their lenses. A lens that
   stops again within a minute of its last stop, the cameras opened again not bringing it back, is
   left out so, whenever it stops -- the same stop heard by both cameras is one; the first, never
-  left out, is waited for while another lens streams that a reopen would cut, alone opened again
-  each time; a lens waited for that gives frames again is watched again. A stop is timed by the
+  left out, is waited for while another lens streams that a reopen would cut, and tried again a
+  minute after it stopped, alone opened again each time; a lens of the other camera stopping
+  later, none left out, is waited for, not closed: the first camera's lenses are not cut for it; a
+  lens waited for that gives frames again is watched again. A stop is timed by the
   lens's last frame: one before the lenses first ran together is early, the watch seeing it
   seconds after. The screen
-  leaving closes the cameras at once, before they fail with its preview, leaving no lens out; the
-  lenses' streams send what they kept, and the screen's return opens the cameras again. With no
+  leaving closes the cameras at once, before they fail with its preview -- the screen waits for
+  the close, a second at most --, leaving no lens out; the lenses' streams send what they kept
+  until it comes back, and say so in the phone's log; its return drops what is left, as any reopen
+  does, and opens the cameras again. With no
   lens left out by either camera, a session the camera cannot make is said
   once, not made again, while the lenses never ran together; and a lens of either camera that
   gives no frame is waited for -- its camera kept, the others streaming on, once the lenses ran
