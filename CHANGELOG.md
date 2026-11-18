@@ -1,5 +1,83 @@
 # Changelog
 
+## [0.10.0](https://github.com/dchernykh1984/PhotoFinish/compare/v0.9.0...v0.10.0) (2026-11-18)
+
+
+### Features
+
+* **phone:** open the cameras again when a lens stops giving frames for 3 s, its camera saying nothing, not leave it silent for the race ([bbb8f95](https://github.com/dchernykh1984/PhotoFinish/commit/bbb8f95a4e0be5677abcd92803e1ade49856aee9))
+* **window:** advise the front beside a back lens at 1920x1440 or less, all Android promises the two at once ([812965c](https://github.com/dchernykh1984/PhotoFinish/commit/812965c735c0ca15ac2386a8278561973989b970))
+
+
+### Bug Fixes
+
+* **phone:** close the cameras as soon as the screen leaves, its preview about to go, not keep them open idle until it is back ([0ecc200](https://github.com/dchernykh1984/PhotoFinish/commit/0ecc2008012251bc357fd5cbf327b411072badea))
+* **phone:** close the cameras when the screen is off view with its surface kept, as when it goes, not leave them running in the background ([70b57bc](https://github.com/dchernykh1984/PhotoFinish/commit/70b57bccd14a20ee2d87034efcac7fca1a9b3d7b))
+* **phone:** count a stop's 30 s for the kept frames from the oldest stop, not put it off further for a lens stopping later ([e803eff](https://github.com/dchernykh1984/PhotoFinish/commit/e803effc80f28a352f2dad11b9b16917bd38e46e))
+* **phone:** count the first lens's minute from its new wait when it comes back and stops again, not from the last wait's start ([69984b3](https://github.com/dchernykh1984/PhotoFinish/commit/69984b33b498602f4f3cc5fc24e2b94c6b50c2e4))
+* **phone:** double the wait before each retry of the first lens, half an hour at most, not cut every lens each minute for one that stays broken ([ac7fccf](https://github.com/dchernykh1984/PhotoFinish/commit/ac7fccf5a10a5ec3de492704c20ae7cac9e86b56))
+* **phone:** forget the first lens's retries once it streams a minute in an open, not leave it half an hour hours after a bad start ([4b4c52d](https://github.com/dchernykh1984/PhotoFinish/commit/4b4c52d412f1af783284d062f016c5dd1ec8eaf6))
+* **phone:** forget the first lens's retries only after a minute of frames without a gap, not on one frame of a lens that sputters ([86fc2b4](https://github.com/dchernykh1984/PhotoFinish/commit/86fc2b4db12796f9ca58cfc45e13f8e0171f3852))
+* **phone:** keep the first lens's wait apart from other lenses coming back and say how long it waited, not restart its minute or call every wait a minute ([da5ee14](https://github.com/dchernykh1984/PhotoFinish/commit/da5ee14810b3051ec8f4600427d991fb5bdf5390))
+* **phone:** leave a lens out of an early failure once the lens waited for is back, not leave none out for a wait that ended ([50376af](https://github.com/dchernykh1984/PhotoFinish/commit/50376af7182fb13ffe6b0d6135e1793ff4f752a9))
+* **phone:** leave out a lens that stops again within a minute of its last stop, the first waited for, not open the cameras again for it every few seconds ([27f4ddc](https://github.com/dchernykh1984/PhotoFinish/commit/27f4ddcf330a616b9f9f433a37bcc8a230abed14))
+* **phone:** leave out a lens waited for that comes back and stops within a minute, not cut every lens for it ([4f34b63](https://github.com/dchernykh1984/PhotoFinish/commit/4f34b637751da3fb176741b8c349c324d918cbba))
+* **phone:** leave out no other lens when the first lens stops giving frames, never one that streams for it ([605ec26](https://github.com/dchernykh1984/PhotoFinish/commit/605ec26c671087f2618a5c58fbaea9d651537a6c))
+* **phone:** leave the lenses sending what they kept while the surface is gone, not stop them should the screen recompose meanwhile ([ebb305b](https://github.com/dchernykh1984/PhotoFinish/commit/ebb305b71ddc5108ba499a33a2410fc1fcb1dda9))
+* **phone:** leave the screen once until the next open, not start the minute for what the lenses kept over each time it is told ([7b944fe](https://github.com/dchernykh1984/PhotoFinish/commit/7b944fe7859dc7b87ad40255aac2d62b6d1eaf1e))
+* **phone:** lighten the load when the first lens stops early, as for an error, not keep every lens to give the first up when it stops again ([c74f83f](https://github.com/dchernykh1984/PhotoFinish/commit/c74f83ffb2b694d170bef5c866e38048ebeab793))
+* **phone:** open the cameras again each time the first lens streamed alone stops, not wait for it with nothing streaming ([5ea4cd1](https://github.com/dchernykh1984/PhotoFinish/commit/5ea4cd12df613fe8ad69a614d1c535e770f4e0aa))
+* **phone:** open the cameras again for each preview surface made again, not leave them closed when its going and coming fall in one frame ([5d703bc](https://github.com/dchernykh1984/PhotoFinish/commit/5d703bc74384baa1bf5bffdf2698ac5e8ce6d0f6))
+* **phone:** open the cameras again only for a preview surface made again, not cut every lens when the same one changes at its size ([3bdaef1](https://github.com/dchernykh1984/PhotoFinish/commit/3bdaef11b4088c18aa55456a0f52e1a5c09b95b9))
+* **phone:** put a lens's stop off for the frames kept 30 s at most, not leave it silent for good on a slow Wi-Fi, and read their age only when asked ([eb8d1fd](https://github.com/dchernykh1984/PhotoFinish/commit/eb8d1fdaa5f00476eef46d196c2acd9da9614206))
+* **phone:** put the first lens's retry off while frames kept wait to be sent, not drop them with the cameras opened again ([ba35010](https://github.com/dchernykh1984/PhotoFinish/commit/ba35010b67a716f1610bf36d4a70dfa7ec8fbd43))
+* **phone:** put the other camera's stop off for every camera's kept frames when it has several lenses, its lens left out opening all again ([e46f69f](https://github.com/dchernykh1984/PhotoFinish/commit/e46f69f5b70f09ccfc378651ae2f9379ce22a3bf))
+* **phone:** put the other camera's stop off for its own frames kept, not for the first camera's, which closing it alone keeps ([64bc4ea](https://github.com/dchernykh1984/PhotoFinish/commit/64bc4ea135e2c252363fec03220d9bc337998645))
+* **phone:** say a lens's frames have no clock while it sends what it kept with the screen away, not only in its open ([b39a7b0](https://github.com/dchernykh1984/PhotoFinish/commit/b39a7b0c17eb92d255c185be7f3bfaf9a52835cf))
+* **phone:** say how long a stopped lens was silent, not 3 s for a stop put off for the frames kept ([1ec4c62](https://github.com/dchernykh1984/PhotoFinish/commit/1ec4c627d1d637ed927d3095f2a3da2d1d675ffd))
+* **phone:** say the first lens was waited for a minute when it is tried again, not that it stopped again when it was silent ([ce71736](https://github.com/dchernykh1984/PhotoFinish/commit/ce71736691fd23b5c08069cf125b01d821b1943f))
+* **phone:** say the screen left only with cameras open, not log closing cameras that never were ([a80b4e4](https://github.com/dchernykh1984/PhotoFinish/commit/a80b4e47d60fa37680f12315a81cdba8f1822e31))
+* **phone:** say the uplinks' words while the screen is away, not drop how the frames kept were sent ([8665562](https://github.com/dchernykh1984/PhotoFinish/commit/8665562c008b3f1671ac3dcce23af24ca9fe8249))
+* **phone:** start the clock exchange of a lens whose first frame came as the screen left, not send what it kept without moments ([a5d540f](https://github.com/dchernykh1984/PhotoFinish/commit/a5d540f5d98e42adacce42ce07bc3a6a0320c453))
+* **phone:** stop nothing from the screen's effect once it is off view, its surface about to go, not drop what the lenses kept before the cameras close ([ce7fcad](https://github.com/dchernykh1984/PhotoFinish/commit/ce7fcad3839dff8fbb87303b405811a84d14d47e))
+* **phone:** stop the lenses with the screen away once no frame is left unsent, a minute at most, not drop the last frame or wait for good ([c8f6488](https://github.com/dchernykh1984/PhotoFinish/commit/c8f6488ffb2412972c7d2626bc5e6483717fe73e))
+* **phone:** stop the lenses' streams once what they kept is sent with the screen away, not hold the encoders for as long as it stays away ([98a9cb4](https://github.com/dchernykh1984/PhotoFinish/commit/98a9cb48be9d300144dc8e8495b7ff28389f4f40))
+* **phone:** take a frame sent and not confirmed a second past the newest confirmed for unsent, not stop the lenses on what a dead connection swallowed ([a4dc500](https://github.com/dchernykh1984/PhotoFinish/commit/a4dc50002bff2cbe474ec211e757d5a3fc4e42cd))
+* **phone:** take a lens for stopped only once the frames kept are sent, not drop every lens's frames to open the cameras again for it ([60ab3cf](https://github.com/dchernykh1984/PhotoFinish/commit/60ab3cf44e90a7ddf454645099a0e9b17c63a381))
+* **phone:** take a lens's stop heard by both cameras' paths for one stop, not for a stop come again ([da5e137](https://github.com/dchernykh1984/PhotoFinish/commit/da5e1374e25ff7dfb3f0d3051615b55258737e50))
+* **phone:** take the recorder's late acknowledgements while the uplink is idle, not keep the lenses a minute with the screen away for want of them ([9f87a2d](https://github.com/dchernykh1984/PhotoFinish/commit/9f87a2d376c34e2b42e80f4c001932b5739d4ddb))
+* **phone:** tell a camera stopping every lens at once by its last lens, not cost its first one when it comes again ([9fab346](https://github.com/dchernykh1984/PhotoFinish/commit/9fab34617637274ce5432033b3ee9d7a9a2e9b8f))
+* **phone:** tell a lens failing in the tick the first lens's retry falls due first, not reopen past its early failure ([81a813c](https://github.com/dchernykh1984/PhotoFinish/commit/81a813ca71c9152c748b057efad9d78fa8aa4674))
+* **phone:** time a lens's stop by its last frame, one before the lenses first settled their doing, not by when the watch saw it ([7867b84](https://github.com/dchernykh1984/PhotoFinish/commit/7867b84f0e252fa590ece6004bedd00777147cca))
+* **phone:** try the first lens again 30 s past its minute whatever the frames kept, not leave it silent for good on a slow Wi-Fi ([9873047](https://github.com/dchernykh1984/PhotoFinish/commit/9873047111405544649fca9d442637e38cf15d81))
+* **phone:** try the first lens again a minute after it was waited for, stopping again beside others, not leave it silent for the race ([fbec9c2](https://github.com/dchernykh1984/PhotoFinish/commit/fbec9c2906adad0e373917eca4cff2b3cfd58f30))
+* **phone:** try the first lens again a minute on however it came to be waited for, silent too, not only stopping again ([2823cb8](https://github.com/dchernykh1984/PhotoFinish/commit/2823cb87eba0a50e83df2d290724f45d9c96b108))
+* **phone:** try the first lens again only once no stop is put off, not pass a stop by uncounted with the reopen ([b4781ed](https://github.com/dchernykh1984/PhotoFinish/commit/b4781ed40249f13f51d68c186c30c8fd6306c97e))
+* **phone:** wait for the cameras' close when the screen leaves, a second at most, not let them write to a surface gone ([6fe0358](https://github.com/dchernykh1984/PhotoFinish/commit/6fe035810ea03a0ac99700dc511e4e519e2b5297))
+* **phone:** wait for the first lens stopping again only beside a lens that streams, not one waited for, which left nothing streaming ([9b74ef2](https://github.com/dchernykh1984/PhotoFinish/commit/9b74ef27073b5185d031cbbcc6aef481c13ccce1))
+* **phone:** wait for the other camera's lens that stops later, not close it for the open on a pause that may pass ([cbb726c](https://github.com/dchernykh1984/PhotoFinish/commit/cbb726ce5f07e979dbd167d47da06224484b1bfd))
+* **phone:** wait for the other camera's stopped lens only in an open that left none out, not keep a stale wait for one closed ([5fff67d](https://github.com/dchernykh1984/PhotoFinish/commit/5fff67d80da71dd2adec563eec114f2c9c30e132))
+* **phone:** watch again a lens waited for once it gives frames, not leave a stop of it unseen for the open ([1847751](https://github.com/dchernykh1984/PhotoFinish/commit/1847751cb95400847e30c18dc438688345fce853))
+* **phone:** weigh the frames kept by how much they span, not by the frames' clock, which a lens without one never told ([fd2b766](https://github.com/dchernykh1984/PhotoFinish/commit/fd2b7663ec5f92f30827ad8e1f1b6381a67a8cdd))
+* **recorder:** believe a phone's moment up to 5 s before its connection was taken, not before its first frame is read after a slow look-over ([6f0e9a7](https://github.com/dchernykh1984/PhotoFinish/commit/6f0e9a7472a528e14193aba1a9048b3a7ffc8d7d))
+* **recorder:** believe a phone's moments up to 30 s before its first frame is read, not place a busy Wi-Fi's late connection seconds wrong ([8d6b409](https://github.com/dchernykh1984/PhotoFinish/commit/8d6b409015abe1605239ed20660504ab0151a6dc))
+* **window:** say Android promises the front beside a back lens only on a phone that runs them together, not on every phone ([3a42374](https://github.com/dchernykh1984/PhotoFinish/commit/3a423746dcbac4e51159a54b27195e8a24927944))
+
+
+### Documentation
+
+* describe a lens that stops again within a minute, the first waited for, and a stop timed by its last frame in the lens spec, the program's description and the skill ([338cf68](https://github.com/dchernykh1984/PhotoFinish/commit/338cf683bb8d47fc269e439f4302c8ddaf6785eb))
+* describe a lens that stops, the front's advice, the screen leaving and the 30 s a phone's moment is believed in the specs, the program's description and the skills ([7070233](https://github.com/dchernykh1984/PhotoFinish/commit/707023352a9a439305ffab24d3005c13f6096ff5))
+* describe a stop's 30 s wait for the frames kept and a camera stopping every lens told by its last in the lens spec, the program's description and the skill ([a8c5325](https://github.com/dchernykh1984/PhotoFinish/commit/a8c5325a498866fef1735b84b2a86a308afcd71c))
+* describe the first lens tried again, the other camera's lens waited for and the screen leaving waited for in the lens spec, the program's description and the skill ([ecdbf32](https://github.com/dchernykh1984/PhotoFinish/commit/ecdbf3255ea441df4fee8e9f07ff1cf98d103e51))
+* describe the first lens's retries doubling and the lenses stopping once what they kept is sent with the screen away ([ede719a](https://github.com/dchernykh1984/PhotoFinish/commit/ede719a83961b6cad1eccb8362b59188ed0edf0e))
+* describe the first lens's stop lightening the load, waited for beside others, and a lens waited for watched again in the lens spec and the skill ([d1acd7d](https://github.com/dchernykh1984/PhotoFinish/commit/d1acd7dc2176384c24d22e2adea4987b981dbf60))
+* describe the moment judged from the connection's taking, the first lens's retry and the front's advice in the specs, the program's description and the skill ([a971b62](https://github.com/dchernykh1984/PhotoFinish/commit/a971b625410ad4fa8dbd5178a343c5d9ae8bf144))
+* describe the retry's 30 s past its minute and a returning lens's stop in the lens spec, the program's description and the skill ([c05d2de](https://github.com/dchernykh1984/PhotoFinish/commit/c05d2deb33a9f294a68580039b82b414c437d71c))
+* say a lens's stop waits for the frames kept to be sent and the second a recorder listens in the specs, the program's description and the skill ([be8f992](https://github.com/dchernykh1984/PhotoFinish/commit/be8f992b4cbb208d8792ba3c653456204ae17500))
+* say the lenses stop with the screen away once no frame is left unsent, a minute at most ([cf2d9dd](https://github.com/dchernykh1984/PhotoFinish/commit/cf2d9dd008c4c2fb94cffb3b7b349e08b3cc5502))
+* say the lenses stop with the screen away once nothing is left unconfirmed, and the first lens's retries forgotten once it streams a minute ([dd418ec](https://github.com/dchernykh1984/PhotoFinish/commit/dd418ec261e6be25a332e80250cd0cb795e0b52b))
+
 ## [0.9.0](https://github.com/dchernykh1984/PhotoFinish/compare/v0.8.0...v0.9.0) (2026-11-17)
 
 
