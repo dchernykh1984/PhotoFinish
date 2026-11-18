@@ -61,7 +61,6 @@ data class Watched(
  * opened again not bringing it back; the first, which never goes, is waited for while another lens streams that
  * opening them again would cut.
  */
-
 @Suppress("TooManyFunctions") // the rules of FR-005, each a question of a few lines
 class LensFallback {
     private val left = linkedSetOf<Lens>()
