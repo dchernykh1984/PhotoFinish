@@ -256,6 +256,27 @@ class UplinkTest {
     }
 
     @Test
+    fun `a clock in step since a connection began makes a new one when a camera feeds the lens again`() {
+        val unstamped = FakeSink()
+        val stamped = FakeSink()
+        val clock = AtomicReference<Sample?>(null)
+        val link = uplink(listOf(unstamped, stamped), waitForClockMs = 50, clock = clock)
+        link.stampWindowMs = 0 // the clock comes once the race is under way: left for the next connection
+        start(link)
+        awaitConnected()
+        link.offer(frame(0, keyframe = true))
+        unstamped.next()
+        clock.set(exchange(2_000_000))
+        link.offer(frame(100_000, keyframe = true)) // kept with its moment, sent without
+        unstamped.next()
+        link.stampWindowMs = 10_000
+        link.stampAgain() // its camera lost and opened again: the lens's frames start anew
+        link.offer(frame(3_000_000, keyframe = true))
+        awaitConnected()
+        assertEquals(3_000_000L + 2_000_000, momentOf(stamped.next().units[0])) // with its moment, as at a start
+    }
+
+    @Test
     fun `a connection with moments after one without sends none of that one's frames again`() {
         val first = FakeSink(failOn = 4)
         val second = FakeSink()

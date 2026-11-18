@@ -79,6 +79,7 @@ internal class LensStream private constructor(
 
     override fun feed() {
         frames.feed(uplink.captureClock?.invoke()) // its frames watched from the camera's next, its first told
+        uplink.stampAgain() // a connection without moments, its clock come since, made anew with them
         words.feed()
     }
 
