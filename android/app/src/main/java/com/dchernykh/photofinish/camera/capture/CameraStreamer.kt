@@ -109,9 +109,15 @@ class CameraStreamer(
         }
     }
 
-    /** The cameras closed, the lenses' streams kept: a start for the same feeds them again, another stops them. */
-    fun stop() {
-        handler.post { closeCameras() }
+    /**
+     * The cameras closed; the lenses' streams kept while some are still asked for ([keep]) -- a start for the same
+     * feeds them again, another stops them --, else stopped too, what they kept dropped: the referee's stop (FR-004).
+     */
+    fun stop(keep: Boolean) {
+        handler.post {
+            closeCameras()
+            if (!keep) keptStreams.stopAll()
+        }
     }
 
     /**
