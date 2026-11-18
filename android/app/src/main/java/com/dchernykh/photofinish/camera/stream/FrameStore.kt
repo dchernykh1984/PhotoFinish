@@ -168,8 +168,17 @@ class FrameStore(
         }
     }
 
-    /** A frame kept and not sent yet: one is as much as many when the stream is to stop. */
-    val unsent: Boolean get() = lock.withLock { nextEntry() != null }
+    /**
+     * A frame kept and not sent yet -- one as much as many -- or sent and not confirmed, [UNCONFIRMED_US] or more past
+     * the newest the server confirmed: a dead connection may have swallowed it, to be sent again from there. The
+     * acknowledgements' own window, under it, is not waited for, no frame coming after to bring them.
+     */
+    val unsent: Boolean
+        get() =
+            lock.withLock {
+                val read = lastReadUs
+                nextEntry() != null || read != null && read - (confirmedUs ?: Long.MIN_VALUE / 2) >= UNCONFIRMED_US
+            }
 
     /** The frame the uplink reads next, if one is kept; the caller holds the lock. */
     private fun nextEntry(): Entry? {
@@ -315,6 +324,9 @@ class FrameStore(
          * killed after it confirmed had not written yet.
          */
         const val CONFIRMED_MARGIN_US = 2_000_000L
+
+        /** Frames read and not confirmed this far past the newest confirmed: perhaps swallowed, not taken for sent. */
+        const val UNCONFIRMED_US = 1_000_000L
 
         /**
          * How far before the newest frame read it begins when the server confirms nothing: a send hangs 5 s before
