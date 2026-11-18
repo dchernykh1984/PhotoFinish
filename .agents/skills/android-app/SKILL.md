@@ -119,7 +119,7 @@ then none for 3 s, its camera saying nothing, has its camera opened again (`no f
 `phone.log`), what the lenses kept still sent; stopping again within a minute, it is left out,
 the first lens waited for beside others and tried again a minute on, then two, four, up to half
 an hour, opened again each time when it streams alone; the other camera lost later is opened
-again alone (`trying again in 2 s`, then 60, 120... in `phone.log`), the first camera's lenses
+again alone (`trying again in 2 s`, then `1 min`, `2 min`... in `phone.log`), the first camera's lenses
 streaming on. On 2026-11-18 the four left the ultra-wide out, and Main, Telephoto and Front
 streamed at 2560x1440 and 60 fps.
 
