@@ -558,6 +558,8 @@ class CameraStreamer(
                         targets.forEach { addTarget(it) }
                     }
                 configured.setRepeatingRequest(request.build(), null, handler)
+                // A stream fed again: the camera's first frame a keyframe, the frames of the camera before all out.
+                streams.forEach { it.keyframe() }
                 startedMs = SystemClock.elapsedRealtime()
                 if (streams.isNotEmpty()) handler.postDelayed({ watchFrames() }, WATCH_MS)
                 // The camera gives frames: a failure said before, a camera lost and opened again, is over;
