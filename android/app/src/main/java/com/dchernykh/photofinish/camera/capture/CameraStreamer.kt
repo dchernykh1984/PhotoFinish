@@ -412,7 +412,7 @@ class CameraStreamer(
             plan.lenses.forEach { planned ->
                 val lens = planned.target.lens
                 try {
-                    val fits = { kept: LensStream -> kept.planned.sameStream(planned) && kept.format == common }
+                    val fits = { old: LensStream -> old.planned.sameStream(planned) && old.format == common }
                     val stream = keptStreams.feed(lens, fits) { startStream(planned, common) }
                     stream.planned = planned // its physical camera as the session streams it now
                     streams += stream
