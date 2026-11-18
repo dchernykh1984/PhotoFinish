@@ -578,4 +578,21 @@ class LensFallbackTest {
         assertEquals(listOf(Lens.MAIN), fallback.waitedFor(1, again))
         assertNull(fallback.retry(1, Lens.MAIN, 75_000) { 0 }) // a new minute from here, not the old one's
     }
+
+    @Test
+    fun `the first lens tried again waits twice as long each time, half an hour at most, the others cut seldom`() {
+        val fallback = LensFallback()
+        val back = listOf(Lens.MAIN, Lens.TELEPHOTO)
+        var now = 0L
+        for (minutes in listOf(1L, 2L, 4L, 8L, 16L, 32L, 32L)) {
+            val silent = CameraFailure.NoFrame(listOf(Lens.MAIN), 5_000)
+            fallback.failed(1, back, back, silent)
+            fallback.waitedFor(1, silent)
+            assertNull(fallback.retry(1, Lens.MAIN, now) { 0 }) // the wait seen
+            val due = now + minutes * 60_000
+            assertNull(fallback.retry(1, Lens.MAIN, due - 1) { 0 })
+            assertEquals(Lens.MAIN, fallback.retry(1, Lens.MAIN, due) { 0 })
+            now = due + 1_000
+        }
+    }
 }
