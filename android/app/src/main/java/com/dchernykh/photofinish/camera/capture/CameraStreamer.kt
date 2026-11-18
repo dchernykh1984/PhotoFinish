@@ -366,19 +366,16 @@ class CameraStreamer(
         }
 
         /**
-         * The lenses' streams, at the size and rate [chosen] or the nearest they all give -- opened again, the one
-         * their streams kept have, while they all give it, the streams fed again ([KeptStreams]) --; false, said for
-         * each lens, when they give none. A camera opened for its preview alone takes [chosen]. A lens whose encoder
+         * The lenses' streams, at the size and rate [chosen] or the nearest they all give -- opened again, a stream
+         * kept at that format fed again ([KeptStreams]), one at another made anew --; false, said for each lens, when
+         * they give none. A camera opened for its preview alone takes [chosen]. A lens whose encoder
          * will not start -- the phone has no more of them -- is left out alone, said; false when none started and
          * there is no preview to show.
          */
         @Suppress("TooGenericExceptionCaught") // whatever an encoder throws costs its lens alone
         private fun startStreams(): Boolean {
             val lensesFormats = plan.lenses.map { CameraFormats(context, plan.cameraId, it.physicalId) }
-            // Their frames one size and rate throughout, on the connections that go on.
-            val before = plan.lenses.firstNotNullOfOrNull { keptStreams[it.target.lens]?.format }
-            val common =
-                if (plan.lenses.isEmpty()) chosen else CameraFormats.common(lensesFormats, before ?: chosen)
+            val common = if (plan.lenses.isEmpty()) chosen else CameraFormats.common(lensesFormats, chosen)
             if (common == null) {
                 plan.lenses.forEach { onStatus(it.target.lens, StreamerStatus.Failed("no size this lens streams")) }
                 return false

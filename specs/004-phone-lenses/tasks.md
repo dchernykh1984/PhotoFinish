@@ -75,8 +75,8 @@
 
 - [x] T029 [US1] `KeptStreams.kt`, with its JVM tests; `CameraStreamer`, `LensStream`: a lens's
   stream -- its encoder, uplink, frames kept and clock exchange -- kept across the cameras' opens
-  while the referee's choice lasts, a camera opened again feeding the same encoder at the format
-  it streamed at; one no camera feeds for 5 s stopped once all it kept is sent (FR-005;
+  while the referee's choice lasts, a camera opened again at the same format feeding the same
+  encoder; one no camera feeds for 5 s stopped once all it kept is sent (FR-005;
   `specs/007-store-and-forward`, FR-014).
 - [x] T030 [US1] `LensFallback.watch`, `retry`: a stop, and the first lens's retry, no longer put
   off for the frames kept (FR-005).
