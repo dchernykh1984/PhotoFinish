@@ -461,7 +461,7 @@ class LensFallbackTest {
         assertNull(fallback.watch(1, seen, 0, 65_000, 0, null)) // the other camera's watch tries none
         val retried = fallback.watch(1, seen, 0, 65_000, 0, Lens.MAIN)
         assertEquals(null, retried?.failure)
-        assertEquals(true, retried?.reason?.startsWith("main"))
+        assertEquals("main waited for a minute: tried again", retried?.reason) // silent from the start, not stopped
     }
 
     @Test

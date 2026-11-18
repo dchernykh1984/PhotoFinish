@@ -309,7 +309,7 @@ class LensFallback {
         val named = silent.joinToString { it.code }
         val noFrame = CameraFailure.NoFrame(silent, since)
         return when {
-            retried != null -> Watched("${retried.code} silent a minute after stopping again: tried again", null)
+            retried != null -> Watched("${retried.code} waited for a minute: tried again", null) // silent or stopped
             silent.isNotEmpty() -> Watched("the camera gave $named no frame in ${NO_FRAME_MS / MS_PER_S} s", noFrame)
             stopped != null ->
                 Watched("the camera gave ${stopped.lens.code} no frame for ${STALL_MS / MS_PER_S} s", stopped)
