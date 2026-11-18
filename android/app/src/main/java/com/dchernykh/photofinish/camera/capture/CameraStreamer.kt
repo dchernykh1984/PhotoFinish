@@ -474,7 +474,10 @@ class CameraStreamer(
             val first = plan.lenses.firstOrNull() ?: return checkSettled(mine)
             val inMs = fallback.aloneIn(first.target.lens, OPEN_AGAIN_MS)
             val said = StreamerStatus.Failed("$reason; trying again in ${LensFallback.inWords(inMs)}")
-            own.forEach { onStatus(it, said) }
+            // Its lenses' word, those it streamed or, none started, those it was opened for: told it comes again.
+            val told = own.ifEmpty { plan.lenses.map { it.target.lens } }
+            told.forEach { onStatus(it, said) }
+            leaveOut(told)
             handler.postDelayed({ if (mine == generation) openAlone() }, inMs)
             checkSettled(mine) // the first camera's lenses may run together without it
         }
