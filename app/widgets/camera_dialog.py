@@ -50,6 +50,11 @@ MANY_LENSES = (
     "may fail with more. Main and Telephoto are advised: the telephoto shows who "
     "crossed first in detail, the main lens has the phone's best sensor as a rule."
 )
+FRONT_BESIDE = (
+    "The front beside a back lens: Android promises the two at once only up to "
+    "1920x1440, at no set frame rate. Above that size, chosen on the phone, a phone "
+    "may still stream them, or fail and leave a lens out."
+)
 _ROWS = {  # the fields each connection shows
     "usb": ("device", "size", "fps"),
     "rtsp": ("url", "transport"),
@@ -129,7 +134,7 @@ class CameraDialog(QDialog):
         size_row.addWidget(self.width_box)
         size_row.addWidget(QLabel("x"))
         size_row.addWidget(self.height_box)
-        self.advice = QLabel(MANY_LENSES)  # said, the OK left to the referee
+        self.advice = QLabel()  # said, the OK left to the referee
         self.advice.setStyleSheet("color: #b07000")
         self.advice.setWordWrap(True)
         self.problems = QLabel()
@@ -227,6 +232,14 @@ class CameraDialog(QDialog):
     def _lenses(self) -> list[str]:
         return [lens for lens, box in self.lenses.items() if box.isChecked()]
 
+    def _advice(self) -> list[str]:
+        """What the lenses ticked are advised against, beyond what Android promises."""
+        lenses = self._lenses()
+        advised = [MANY_LENSES] if len(lenses) > MOST_LENSES else []
+        if "front" in lenses and len(lenses) > 1:
+            advised.append(FRONT_BESIDE)
+        return advised
+
     def _settings(self) -> dict[str, Any]:
         kind = self.kind()
         size = {"width": self.width_box.value(), "height": self.height_box.value()}
@@ -248,8 +261,9 @@ class CameraDialog(QDialog):
         shown = _ROWS[self.kind()]
         for key, row in self._rows.items():
             self.form.setRowVisible(row, key in shown)
-        many = self.kind() == "rtmp" and len(self._lenses()) > MOST_LENSES
-        self.form.setRowVisible(self._rows["advice"], many)
+        advised = self._advice() if self.kind() == "rtmp" else []
+        self.advice.setText("\n".join(advised))
+        self.form.setRowVisible(self._rows["advice"], bool(advised))
         clash = cameras.port_clash(self.camera(), self.others)
         if self.kind() == "rtmp":
             self._show_address(self._settings(), clash)
