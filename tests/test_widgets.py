@@ -192,6 +192,7 @@ def test_the_front_beside_a_back_lens_is_advised_at_1920x1440_or_less(
     dialog.lenses["front"].setChecked(True)  # Main and Front
     assert dialog.form.isRowVisible(advice)
     assert "1920x1440" in dialog.advice.text()
+    assert "says it runs them together" in dialog.advice.text()  # concurrent, or not
     assert "Main and Telephoto" not in dialog.advice.text()  # two lenses: promised
     assert dialog.buttons.button(dialog.buttons.StandardButton.Ok).isEnabled()
     dialog.lenses["main"].setChecked(False)  # the front alone: no camera beside it
