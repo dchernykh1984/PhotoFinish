@@ -251,10 +251,10 @@ class LensFallbackTest {
         assertEquals(Lens.TELEPHOTO, fallback.failed(1, back, back, telephoto)) // not the camera's last
         assertEquals(true, fallback.madeAgain(1, telephoto))
         assertEquals(emptyList<Lens>(), fallback.waitedFor(1, telephoto)) // it gave frames: not waited for
-        // The first lens never goes: its camera's last, as for an error -- the first streamed before.
+        // The first lens never goes, and none goes for it: left out, a lens that streams could leave none.
         val main = CameraFailure.Stalled(Lens.MAIN, 3_000)
-        assertEquals(Lens.ULTRAWIDE, fallback.failed(2, back - Lens.TELEPHOTO, back - Lens.TELEPHOTO, main))
-        assertEquals(true, fallback.madeAgain(2, main))
+        assertNull(fallback.failed(2, back - Lens.TELEPHOTO, back - Lens.TELEPHOTO, main))
+        assertEquals(true, fallback.madeAgain(2, main)) // made again with every lens
         val front = CameraFailure.Stalled(Lens.FRONT, 2_000)
         assertEquals(Lens.FRONT, fallback.failedAlone(3, listOf(Lens.MAIN, Lens.FRONT), listOf(Lens.FRONT), front))
     }

@@ -98,8 +98,9 @@ class LensFallback {
      * The camera of [own] lenses failed, of open [open] streaming [streamed] in the code's order: the lens left
      * out from now on, or null -- a failure not the lenses', or late, one this open paid for already, or a lens
      * streamed alone. After a lens gave no frame, the last of those goes, never one that streams for it: the
-     * first alone silent, none goes, waited for. A lens that stopped giving frames goes itself, the first aside.
-     * Else its own go first; another camera's when it streams the first lens alone, their load lightened.
+     * first alone silent, none goes, waited for. A lens that stopped giving frames goes itself, never one that
+     * streams for it: the first stopped, none goes. Else its own go first; another camera's when it streams the
+     * first lens alone, their load lightened.
      */
     fun failed(
         open: Int,
@@ -167,8 +168,8 @@ class LensFallback {
     /**
      * One of [candidates] left out of open [open] after [failure] when it counts and the open has paid none: after
      * a lens gave no frame, the last of those, never one that streams -- left out, it could leave none streaming --;
-     * a lens that stopped giving frames, itself; with a lens waited for in the open, the last waited for, so; else
-     * the last of [own], else the last.
+     * a lens that stopped giving frames, itself alone, so; with a lens waited for in the open, the last waited for,
+     * so; else the last of [own], else the last.
      */
     private fun choose(
         open: Int,
@@ -180,7 +181,7 @@ class LensFallback {
         val lens =
             when {
                 failure is CameraFailure.NoFrame -> candidates.lastOrNull { it in failure.silent }
-                failure is CameraFailure.Stalled && failure.lens in candidates -> failure.lens
+                failure is CameraFailure.Stalled -> failure.lens.takeIf { it in candidates }
                 open == waitingIn -> candidates.lastOrNull { it in waiting }
                 else -> candidates.lastOrNull { it in own } ?: candidates.lastOrNull()
             } ?: return null
