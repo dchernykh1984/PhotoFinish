@@ -111,13 +111,14 @@ class LensFallback {
     /**
      * The cameras started for [targets] at [format]: the lenses left out forgotten when either is not the last
      * start's -- the referee's choice, a stop in between asking for the preview alone --, kept when the same come
-     * again: the preview's surface made again, the screen back from another app.
+     * again: the preview's surface made again, the screen back from another app. Whether they were forgotten: the
+     * lenses' streams made anew too.
      */
     fun start(
         format: StreamFormat,
         targets: List<LensTarget>,
-    ) {
-        if (asked == format to targets) return
+    ): Boolean {
+        if (asked == format to targets) return false
         asked = format to targets
         left.clear()
         waiting.clear()
@@ -130,6 +131,7 @@ class LensFallback {
         stoppedAgain = null
         waitStop = null
         firstWaited = null
+        return true
     }
 
     /**
