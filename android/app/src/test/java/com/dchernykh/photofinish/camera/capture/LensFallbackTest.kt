@@ -364,4 +364,22 @@ class LensFallbackTest {
         val midRace = LensFallback().apply { settle(10_000) }
         assertNull(midRace.failed(2, back, back, CameraFailure.Stalled(Lens.TELEPHOTO, 3_000, 53_000)))
     }
+
+    @Test
+    fun `the first lens waited for after stopping again is tried again a minute on, waited for if it stops soon`() {
+        val fallback = LensFallback()
+        fallback.settle(0)
+        val withFront = listOf(Lens.MAIN, Lens.FRONT)
+        fallback.failed(1, withFront, listOf(Lens.MAIN), CameraFailure.Stalled(Lens.MAIN, 20_000, 200_000))
+        val again = CameraFailure.Stalled(Lens.MAIN, 3_000, 230_000)
+        assertNull(fallback.failed(2, withFront, listOf(Lens.MAIN), again))
+        assertEquals(listOf(Lens.MAIN), fallback.waitedFor(2, again))
+        assertNull(fallback.retry(2, 230_000 + LensFallback.AGAIN_MS - 1)) // not yet
+        assertEquals(Lens.MAIN, fallback.retry(2, 230_000 + LensFallback.AGAIN_MS))
+        assertEquals(false, fallback.waitsFor(2, Lens.MAIN))
+        assertNull(fallback.retry(2, 400_000)) // once a wait
+        val soon = CameraFailure.Stalled(Lens.MAIN, 4_000, 300_000) // stopping soon after it was tried again
+        assertNull(fallback.failed(3, withFront, listOf(Lens.MAIN), soon))
+        assertEquals(false, fallback.madeAgain(3, soon)) // waited for again, the front on
+    }
 }
