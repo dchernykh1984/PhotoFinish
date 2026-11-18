@@ -43,9 +43,11 @@ internal class LensStream private constructor(
     @Volatile var stopped = false
         private set
 
+    /** Its frames as each feed sees them. */
+    private val frames = FedFrames()
+
     /** When its encoder last gave a frame, on [SystemClock.elapsedRealtime]: 0 before the first since it was fed. */
-    @Volatile var lastFrameMs = 0L
-        private set
+    val lastFrameMs: Long get() = frames.lastFrameMs
 
     val lens: Lens get() = planned.target.lens
 
@@ -64,7 +66,7 @@ internal class LensStream private constructor(
 
     override fun feed() {
         fed = true
-        lastFrameMs = 0L // its frames watched from the camera's next: the first since tells the camera gives it
+        frames.feed(uplink.captureClock?.invoke()) // its frames watched from the camera's next, its first told
         requestKeyframe(codec) // the recorder decodes from it, whatever came before the gap
     }
 
@@ -147,11 +149,7 @@ internal class LensStream private constructor(
             val failed = { error: IllegalStateException ->
                 if (!stream.stopped) log.error(name, "its encoder stopped: ${Crashes.describe(error)}")
             }
-            val heard = {
-                val first = stream.lastFrameMs == 0L
-                stream.lastFrameMs = SystemClock.elapsedRealtime()
-                first
-            }
+            val heard = { ptsUs: Long -> stream.frames.heard(ptsUs, SystemClock.elapsedRealtime()) }
             stream.drainer =
                 Thread({ drain(codec, uplink, failed, heard) { onFirstFrame(stream, it) } }, "encoder-$name")
                     .apply { start() }
@@ -187,18 +185,18 @@ internal class LensStream private constructor(
 
         /**
          * The encoder's output, to the uplink: the stream's header, then the frames, until interrupted; [heard]
-         * hears of each frame, true for the first since a camera fed the stream, [onFirstFrame] of its time.
+         * hears of each frame's capture time, true for the first since a camera fed the stream, [onFirstFrame] of it.
          */
         private fun drain(
             codec: MediaCodec,
             link: Uplink,
             failed: (IllegalStateException) -> Unit,
-            heard: () -> Boolean,
+            heard: (Long) -> Boolean,
             onFirstFrame: (Long) -> Unit,
         ) {
             val info = MediaCodec.BufferInfo()
             val offer: (EncodedFrame) -> Unit = { frame ->
-                if (heard()) onFirstFrame(frame.ptsUs)
+                if (heard(frame.ptsUs)) onFirstFrame(frame.ptsUs)
                 link.offer(frame)
             }
             var more = true

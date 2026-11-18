@@ -80,3 +80,34 @@ internal class KeptStreams<S : KeptStream> {
         const val IDLE_MS = 5_000L
     }
 }
+
+/**
+ * A lens's frames as each feed of its stream sees them ([KeptStream.feed]): when the encoder last gave one of the
+ * feed's, and whether one is its first -- a frame the camera before took, drained late after the feed, is not: the
+ * new camera has given nothing yet.
+ */
+internal class FedFrames {
+    /** The frames' own clock when a camera last fed the stream, us: what was taken before is the camera's before. */
+    @Volatile private var fedAtUs = Long.MIN_VALUE
+
+    /** When the encoder last gave a frame of this feed, on its caller's clock: 0 before the first. */
+    @Volatile var lastFrameMs = 0L
+        private set
+
+    /** A camera feeds the stream from [nowUs] on the frames' own clock -- null, unknown: every frame its own. */
+    fun feed(nowUs: Long?) {
+        fedAtUs = nowUs ?: Long.MIN_VALUE // before the reset: a frame drained meanwhile is told apart
+        lastFrameMs = 0L
+    }
+
+    /** The encoder gave a frame taken at [ptsUs], at [nowMs]: whether it is the feed's first. */
+    fun heard(
+        ptsUs: Long,
+        nowMs: Long,
+    ): Boolean {
+        if (ptsUs < fedAtUs) return false
+        val first = lastFrameMs == 0L
+        lastFrameMs = nowMs
+        return first
+    }
+}
