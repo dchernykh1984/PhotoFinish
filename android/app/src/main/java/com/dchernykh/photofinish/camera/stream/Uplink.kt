@@ -202,8 +202,13 @@ class Uplink(
         var first: Long? = null
         val throughput = Throughput()
         while (running) {
-            // A connection starts on a keyframe.
-            val kept = store.next(POLL_MS)?.takeIf { first != null || it.keyframe } ?: continue
+            // A connection starts on a keyframe. Idle, the server's late acknowledgements are taken all the same:
+            // no frame after them, they say what it read of the last sent (FrameStore.unsent).
+            val kept = store.next(POLL_MS)?.takeIf { first != null || it.keyframe }
+            if (kept == null) {
+                confirm(connected)
+                continue
+            }
             if (first == null) stamped = kept.momentUs != null
             // A clock that comes at the start makes a new connection, from this frame; one that comes once the
             // race may be under way is left for the next, as a new one is a moment of frames sent again.
