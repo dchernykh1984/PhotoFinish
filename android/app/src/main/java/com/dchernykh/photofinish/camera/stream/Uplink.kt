@@ -197,7 +197,7 @@ class Uplink(
         connected.sendSequenceHeader(record ?: throw IOException("stopped"))
         requestKeyframe()
         var first: Long? = null
-        val throughput = Throughput()
+        val throughput = Throughput(nanos)
         while (running) {
             // A connection starts on a keyframe. Idle, the server's late acknowledgements are taken all the same:
             // no frame after them, they say what it read of the last sent (FrameStore.unsent).
@@ -290,23 +290,36 @@ class Uplink(
         }
     }
 
-    /** Frames and megabits per second, once a second. */
-    private class Throughput {
+    /** Frames and megabits per second, once a second, on the clock of [nanos]. */
+    internal class Throughput(
+        private val nanos: () -> Long,
+    ) {
         private var frames = 0
         private var bytes = 0L
-        private var since = System.nanoTime()
+        private var since = nanos()
+        private var last = since
 
-        /** Counts a frame of [size] bytes; once a second, the rates since the last time. */
+        /**
+         * Counts a frame of [size] bytes; once a second, the rates since the last time -- a second or more without a
+         * frame, its camera closed, counted anew from the next: the frames after it at their own rate.
+         */
         fun count(size: Int): Pair<Double, Double>? {
+            val now = nanos()
+            if (now - last >= REPORT_NS) {
+                frames = 0
+                bytes = 0
+                since = now
+            }
+            last = now
             frames++
             bytes += size
-            val elapsed = System.nanoTime() - since
+            val elapsed = now - since
             if (elapsed < REPORT_NS) return null
             val seconds = elapsed / 1e9
             val rates = frames / seconds to bytes * 8 / seconds / 1e6
             frames = 0
             bytes = 0
-            since = System.nanoTime()
+            since = now
             return rates
         }
     }

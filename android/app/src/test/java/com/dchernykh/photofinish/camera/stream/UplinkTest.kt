@@ -591,3 +591,21 @@ class UplinkTest {
         assertFalse(link.unsent)
     }
 }
+
+/** [Uplink.Throughput]: a lens's rates, once a second. */
+class ThroughputTest {
+    @Test
+    fun `the first rate after a pause, the camera closed a while, counts the frames after it alone`() {
+        var now = 0L
+        val throughput = Uplink.Throughput { now }
+        val rates = mutableListOf<Double>()
+        val count = { atNs: Long ->
+            now = atNs
+            throughput.count(1_000)?.let { rates += it.first }
+        }
+        repeat(32) { count(it * 33_333_333L) } // a second at 30 fps: told
+        repeat(32) { count(6_000_000_000L + it * 33_333_333L) } // 5 s without a frame, then a second more
+        assertEquals(2, rates.size)
+        assertTrue(rates.toString(), rates.all { it > 25 }) // not one frame over the 5 s pause
+    }
+}
