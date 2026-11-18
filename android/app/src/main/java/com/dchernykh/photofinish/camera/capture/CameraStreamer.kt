@@ -85,6 +85,9 @@ class CameraStreamer(
     /** Counts the opens: a callback of an earlier one says nothing. Read from the uplinks' threads too. */
     @Volatile private var generation = 0
 
+    /** The screen away ([away]) since the last open: the cameras' thread's. */
+    private var gone = false
+
     /** Where the lenses keep their frames until sent (specs/007), and each one's share of the room. */
     private val kept = File(context.filesDir, KEPT)
     private var share = FrameStore.SHARE_BYTES
@@ -115,11 +118,14 @@ class CameraStreamer(
         val closed = CountDownLatch(1)
         val posted =
             handler.post {
-                generation++ // an open put off for 2 s too (openAgain): none opens on the surface gone
-                if (opened.isNotEmpty()) log.info(null, "the screen left: the cameras closed until it is back")
-                opened.forEach { it.closeCamera() }
+                if (!gone) { // told again -- the surface going after the screen's stop --, its minute not started over
+                    gone = true
+                    generation++ // an open put off for 2 s too (openAgain): none opens on the surface gone
+                    if (opened.isNotEmpty()) log.info(null, "the screen left: the cameras closed until it is back")
+                    opened.forEach { it.closeCamera() }
+                    sendThenStop(generation, SystemClock.elapsedRealtime())
+                }
                 closed.countDown()
-                sendThenStop(generation, SystemClock.elapsedRealtime())
             }
         if (posted) closed.await(AWAY_WAIT_MS, TimeUnit.MILLISECONDS)
     }
@@ -161,6 +167,7 @@ class CameraStreamer(
         targets: List<LensTarget>,
     ) {
         close()
+        gone = false
         val mine = ++generation
         // shortcut: a camera opened again drops what its lenses kept, as their streams start anew; keep the
         // stores across an open if a camera lost in the middle of a network break is seen to cost frames.
