@@ -356,7 +356,8 @@ class LensFallback {
 
     /**
      * [lens], waited for in open [open], gave a frame lately -- its last at [lastFrameMs], [nowMs] now --: no longer
-     * waited for, its frames watched again as any lens's.
+     * waited for, its frames watched again as any lens's, its coming back kept as a stop: stopping again within
+     * [AGAIN_MS], it goes, not every lens cut for a lens that was silent.
      */
     fun heardFrom(
         open: Int,
@@ -366,6 +367,7 @@ class LensFallback {
     ) {
         if (!waitsFor(open, lens) || lastFrameMs == 0L || nowMs - lastFrameMs > STALL_MS) return
         waiting -= lens
+        stops[lens] = nowMs
     }
 
     companion object {

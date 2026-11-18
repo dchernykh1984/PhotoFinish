@@ -502,4 +502,17 @@ class LensFallbackTest {
         assertEquals(CameraFailure.Stalled(Lens.TELEPHOTO, 9_000, 9_000), told?.failure)
         assertEquals(true, fallback.waitsFor(1, Lens.MAIN)) // the retry not spent on it
     }
+
+    @Test
+    fun `a lens waited for that comes back and stops within a minute goes, not every lens cut for it`() {
+        val fallback = LensFallback()
+        fallback.settle(0)
+        val back = listOf(Lens.MAIN, Lens.TELEPHOTO)
+        val silent = CameraFailure.NoFrame(listOf(Lens.TELEPHOTO), 5_000)
+        fallback.failed(1, back, back, silent)
+        fallback.waitedFor(1, silent)
+        fallback.heardFrom(1, Lens.TELEPHOTO, 100_000, 100_100) // back at 100 s
+        val pause = CameraFailure.Stalled(Lens.TELEPHOTO, 101_000, 101_000) // and paused
+        assertEquals(Lens.TELEPHOTO, fallback.failed(1, back, back, pause))
+    }
 }
