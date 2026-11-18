@@ -89,7 +89,9 @@ internal class LensStream private constructor(
         requestKeyframe(codec) // the recorder decodes from it, whatever came before the gap
         synchronized(this) {
             fed = true
-            lastLink?.let(say) // its link's word now, not the one before the gap: it said nothing meanwhile
+            // Its link's word meanwhile -- connecting again, a recorder out of reach -- not the one before the gap;
+            // a link streaming says so itself once the camera's frames flow, not before.
+            lastLink?.takeIf { it !is UplinkStatus.Streaming }?.let(say)
         }
     }
 
