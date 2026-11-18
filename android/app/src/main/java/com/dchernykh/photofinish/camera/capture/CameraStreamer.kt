@@ -115,9 +115,9 @@ class CameraStreamer(
         val closed = CountDownLatch(1)
         val posted =
             handler.post {
-                generation++
+                generation++ // an open put off for 2 s too (openAgain): none opens on the surface gone
+                if (opened.isNotEmpty()) log.info(null, "the screen left: the cameras closed until it is back")
                 opened.forEach { it.closeCamera() }
-                log.info(null, "the screen left: the cameras closed until it is back")
                 closed.countDown()
             }
         if (posted) closed.await(AWAY_WAIT_MS, TimeUnit.MILLISECONDS)
