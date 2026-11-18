@@ -433,4 +433,34 @@ class LensFallbackTest {
         assertNull(third.retry(1, Lens.MAIN, 10_000, 0))
         assertNull(third.retry(1, Lens.MAIN, 10_000 + LensFallback.AGAIN_MS, 0)) // not the first's: no reopen for it
     }
+
+    @Test
+    fun `the watch tells a lens silent 5 s after the start, then a lens that stopped, one waited for no news`() {
+        val fallback = LensFallback()
+        val tele = Seen(Lens.TELEPHOTO, 0)
+        assertNull(fallback.watch(1, listOf(Seen(Lens.MAIN, 4_000), tele), 0, 4_999, 0, Lens.MAIN)) // not yet
+        val silent = fallback.watch(1, listOf(Seen(Lens.MAIN, 4_000), tele), 0, 5_000, 0, Lens.MAIN)
+        assertEquals(CameraFailure.NoFrame(listOf(Lens.TELEPHOTO), 5_000), silent?.failure)
+        assertEquals("the camera gave telephoto no frame in 5 s", silent?.reason)
+        fallback.waitedFor(1, silent?.failure) // none to leave out: waited for
+        assertNull(fallback.watch(1, listOf(Seen(Lens.MAIN, 5_500), tele), 0, 6_000, 0, Lens.MAIN))
+        val stopped = fallback.watch(1, listOf(Seen(Lens.MAIN, 6_000), tele), 0, 9_500, 0, Lens.MAIN)
+        assertEquals(CameraFailure.Stalled(Lens.MAIN, 6_000, 6_000), stopped?.failure)
+        assertEquals("the camera gave main no frame for 3 s", stopped?.reason)
+    }
+
+    @Test
+    fun `the watch tries the first lens waited for again a minute on, before anything else, its camera's alone`() {
+        val fallback = LensFallback()
+        val back = listOf(Lens.MAIN, Lens.TELEPHOTO)
+        val mainSilent = CameraFailure.NoFrame(listOf(Lens.MAIN), 5_000)
+        fallback.failed(1, back, back, mainSilent)
+        fallback.waitedFor(1, mainSilent)
+        val seen = listOf(Seen(Lens.MAIN, 0), Seen(Lens.TELEPHOTO, 64_000))
+        assertNull(fallback.watch(1, seen, 0, 5_000, 0, Lens.MAIN)) // the wait seen: its minute starts
+        assertNull(fallback.watch(1, seen, 0, 65_000, 0, null)) // the other camera's watch tries none
+        val retried = fallback.watch(1, seen, 0, 65_000, 0, Lens.MAIN)
+        assertEquals(null, retried?.failure)
+        assertEquals(true, retried?.reason?.startsWith("main"))
+    }
 }

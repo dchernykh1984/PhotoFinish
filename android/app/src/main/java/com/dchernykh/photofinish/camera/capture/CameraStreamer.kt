@@ -502,37 +502,18 @@ class CameraStreamer(
         }
 
         /**
-         * The lenses' frames, watched each second while the camera streams: a lens that gave none [NO_FRAME_MS] after
-         * they started -- the Xiaomi 17 Ultra's stalled with four lenses, saying nothing --, or gave frames and then
-         * none for [LensFallback.STALL_MS], its camera saying nothing, failed: lost, as a camera that says so is. A
-         * lens waited for is no news until it gives frames again; the watch goes on while the camera is kept.
+         * The lenses' frames, watched each second while the camera streams: what [LensFallback.watch] finds -- a lens
+         * that gave no frame, or stopped, saying nothing, the Xiaomi 17 Ultra's with four lenses -- is the camera lost,
+         * as one that says so is; the watch goes on while the camera is kept.
          */
         private fun watchFrames() {
             val started = startedMs ?: return
             if (mine != generation || closed) return
-            val now = SystemClock.elapsedRealtime()
-            val since = now - started
-            streams.forEach { fallback.heardFrom(mine, it.lens, it.lastFrameMs, now) } // one waited for, back
-            val watched = streams.filterNot { fallback.waitsFor(mine, it.lens) }
-            val silent = watched.filter { it.lastFrameMs == 0L }.map { it.lens }.takeIf { since >= NO_FRAME_MS }
+            val seen = streams.map { Seen(it.lens, it.lastFrameMs) }
             val kept = opened.maxOfOrNull { it.keptMs } ?: 0L // a reopen drops them: a stop put off meanwhile
-            val stopped =
-                watched.firstNotNullOfOrNull { LensFallback.stall(it.lens, it.lastFrameMs, started, now, kept) }
-            val retried = if (preview != null) fallback.retry(mine, streamed.firstOrNull(), now, kept) else null
-            when {
-                retried != null -> lost("${retried.code} silent a minute after stopping again: tried again", null)
-                !silent.isNullOrEmpty() -> {
-                    val named = silent.joinToString { it.code }
-                    val reason = "the camera gave $named no frame in ${NO_FRAME_MS / MS_PER_S} s"
-                    lost(reason, CameraFailure.NoFrame(silent, since))
-                }
-                stopped != null -> {
-                    lost(
-                        "the camera gave ${stopped.lens.code} no frame for ${LensFallback.STALL_MS / MS_PER_S} s",
-                        stopped,
-                    )
-                }
-            }
+            val first = if (preview != null) streamed.firstOrNull() else null // the retry is its camera's
+            val now = SystemClock.elapsedRealtime()
+            fallback.watch(mine, seen, started, now, kept, first)?.let { lost(it.reason, it.failure) }
             if (mine == generation && !closed) handler.postDelayed({ watchFrames() }, WATCH_MS)
         }
 
@@ -568,10 +549,8 @@ class CameraStreamer(
     companion object {
         private const val OPEN_AGAIN_MS = 2_000L
         private const val AWAY_WAIT_MS = 1_000L
-        private const val NO_FRAME_MS = 5_000L
 
         private const val WATCH_MS = 1_000L
-        private const val MS_PER_S = 1_000L
 
         private const val KEPT = "kept"
 
