@@ -54,6 +54,7 @@ sealed interface StreamerStatus {
  * back -- is opened beside the first where the phone runs both. Every call is posted to the
  * cameras' own thread.
  */
+@Suppress("TooManyFunctions") // the screen's calls and the cameras' steps on their thread, each a step of its own
 class CameraStreamer(
     private val context: Context,
     private val lenses: PhoneLenses,
@@ -67,9 +68,6 @@ class CameraStreamer(
     private val handler = Handler(thread.looper)
     private val executor = Executor { handler.post(it) }
     private val opened = mutableListOf<OpenCamera>()
-
-    /** The screen's preview the cameras were opened for: gone, the screen is leaving, whichever camera says so. */
-    private var shown: Surface? = null
 
     /** The lenses the cameras failed with since the referee's start, left out of each open: the cameras' thread's. */
     private val fallback = LensFallback()
@@ -106,6 +104,19 @@ class CameraStreamer(
         handler.post { close() }
     }
 
+    /**
+     * The screen leaving, its preview's surface about to go: the cameras closed at once, before they fail with it
+     * -- what they say after is no news --; the lenses' streams send what they kept until the screen's [stop], its
+     * return opening the cameras again.
+     */
+    fun away() {
+        handler.post {
+            generation++
+            opened.forEach { it.closeCamera() }
+            log.info(null, "the screen left: the cameras closed until it is back")
+        }
+    }
+
     fun release() {
         handler.post {
             close()
@@ -124,7 +135,6 @@ class CameraStreamer(
     ) {
         close()
         val mine = ++generation
-        shown = preview
         // shortcut: a camera opened again drops what its lenses kept, as their streams start anew; keep the
         // stores across an open if a camera lost in the middle of a network break is seen to cost frames.
         kept.deleteRecursively() // what a killed app kept, too: never sent
@@ -384,12 +394,6 @@ class CameraStreamer(
             reason: String,
             failure: CameraFailure?,
         ) {
-            // The preview's surface gone -- the screen leaving -- stops the camera's frames and fails its session,
-            // the second camera's as much as the first's, whatever says so: not the lenses' doing. The screen's stop
-            // closes the cameras, and its start opens them on a surface of its own.
-            if (shown?.isValid == false) {
-                return log.info(null, "camera ${device?.id ?: "?"}: $reason, the preview gone with the screen")
-            }
             val own = ownLenses
             val streamed = streamed // before this camera closes
             val said = StreamerStatus.Failed(reason)
@@ -533,6 +537,13 @@ class CameraStreamer(
 
         fun close() {
             closed = true
+            closeCamera()
+            streams.forEach { it.stop() }
+            streams.clear()
+        }
+
+        /** Its camera closed, its lenses' streams kept: they send what they kept until [close]. */
+        fun closeCamera() {
             try {
                 session?.close()
             } catch (_: IllegalStateException) {
@@ -541,8 +552,6 @@ class CameraStreamer(
             session = null
             device?.close()
             device = null
-            streams.forEach { it.stop() }
-            streams.clear()
         }
     }
 
