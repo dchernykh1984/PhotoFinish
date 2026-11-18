@@ -73,7 +73,7 @@ class LensFallback {
      * The lenses streamed a while since the start ([settle]): a camera failing early after it is one opened again
      * mid-race, its service still settling, not the lenses'.
      */
-    private var settled = false
+    private val settled: Boolean get() = settledAtMs != Long.MAX_VALUE
 
     /** When the lenses first settled, on the watch's clock: never, before. */
     private var settledAtMs = Long.MAX_VALUE
@@ -118,7 +118,6 @@ class LensFallback {
         waiting.clear()
         waitingIn = null
         paid = null
-        settled = false
         settledAtMs = Long.MAX_VALUE
         stops.clear()
         stoppedAgain = null
@@ -132,7 +131,6 @@ class LensFallback {
      */
     fun settle(atMs: Long) {
         if (!settled) settledAtMs = atMs
-        settled = true
     }
 
     /**
