@@ -85,7 +85,12 @@ switch to the other at the same moment and back to both.
 - A phone that says it streams lenses together and cannot: the Xiaomi 17 Ultra, asked for its
   four lenses at 2560x1440 and 60 fps, gave the encoders no frame, both its cameras failed in
   1.5 s and its camera service started again; opened again, the cameras gave no frame at all.
-  The lenses are left out from the last of the code until the rest stream.
+  The lenses are left out from the last of the code until the rest stream: on 2026-11-18 the
+  same four left the ultra-wide out after 1.6 s, and Main, Telephoto and Front streamed at 60 fps.
+- A lens that gives frames and then none, its camera saying nothing: after 3 s its camera is
+  lost and opened again -- that lens left out in the first seconds, every lens later; the front
+  beside the back closed and said left out, as when it fails. A reopen drops what the lenses
+  kept and had not sent, as any camera lost does.
 - The Wi-Fi carries every lens: about 10 Mbit/s each at 1080p and 60 fps, 16 at 1440p.
 - Several sensors and encoders heat the phone over hours: in the sun it may lower its frame rate.
 - A code of the earlier kind, an address alone, still pairs: the main lens.
@@ -106,8 +111,10 @@ switch to the other at the same moment and back to both.
   the first and `live/<id>` for the others. The session's format does not change: to PhotoFinish each is a
   phone's camera like any other. More than two lenses ticked, the dialog says a phone may not
   stream them at once -- Android promises two -- and advises Main and Telephoto: the telephoto
-  shows who crossed first in detail, the main lens has the phone's best sensor as a rule; the
-  choice stays the referee's.
+  shows who crossed first in detail, the main lens has the phone's best sensor as a rule. The
+  Front ticked beside a back lens, it says Android promises the two at once only up to
+  1920x1440, at no set frame rate -- the size is chosen on the phone --, and that above it a
+  phone may stream them, or fail and leave a lens out. The choice stays the referee's.
 - **FR-002**: The QR code holds the address alone for Main alone, else one line per lens,
   `<lens> <address>`, the lens one of `main`, `ultrawide`, `telephoto`, `front`
   ([contract](../003-phone-camera-app/contracts/phone-stream.md)). The text shown says the same:
@@ -124,20 +131,23 @@ switch to the other at the same moment and back to both.
   opened beside it only when the phone says it can run both at once, and closed alone when it is
   lost, the first streaming on. Each camera streams at the
   size and rate chosen, or the nearest its lenses give; the phone is asked whether a camera runs
-  its lenses at that size -- and, from Android 15, that rate. Cameras that fail, or give a lens no
-  frame for 5 s, within 10 s of their lenses' start, or cannot make the session the phone said
-  they run, are opened again with a lens left out -- the last that gave no frame, or that is
-  waited for, never one that streams for it; else, of the camera that failed, its last, else the
-  code's last; one lens an open, never the first --, said
+  its lenses at that size -- and, from Android 15, that rate. Cameras that fail, give a lens no
+  frame for 5 s, or stop giving one frames for 3 s, saying nothing, within 10 s of their lenses'
+  start, or cannot make the session the phone said they run, are opened again with a lens left
+  out -- the last that gave no frame, or that is waited for, never one that streams for it; a
+  lens that stopped, itself; else, of the camera that failed, its last, else the code's last; one
+  lens an open, never the first --, said
   on the phone, as the cameras failing with it, and to the laptop, until the referee starts
   again; a start for the same lenses and format, the screen back from another app, keeps them
   out; a camera failing alone, the front beside the back, leaves one of its lenses out so, its
   others brought back by opening the cameras again. Cameras
-  that fail before their lenses start, are taken by another app, or fail once every lens of every
+  that fail before their lenses start, are taken by another app, or fail -- a lens's frames
+  stopping for 3 s among it -- once every lens of every
   camera, those waited for aside, gave frames for 10 s -- lost later for whatever reason, closed and opened again for the
-  same, or soon after a reopen mid-race -- are opened again with all their lenses. A camera that
-  fails with the screen away, its preview gone, leaves no lens out: the screen's return opens the
-  cameras again. With no lens left out by either camera, a session the camera cannot make is said
+  same, or soon after a reopen mid-race -- are opened again with all their lenses. The screen
+  leaving closes the cameras at once, before they fail with its preview, leaving no lens out; the
+  lenses' streams send what they kept, and the screen's return opens the cameras again. With no
+  lens left out by either camera, a session the camera cannot make is said
   once, not made again, while the lenses never ran together; and a lens of either camera that
   gives no frame is waited for -- its camera kept, the others streaming on, once the lenses ran
   together too --, said on the phone and to the laptop.

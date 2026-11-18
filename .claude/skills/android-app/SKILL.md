@@ -62,6 +62,13 @@ the computer as the emulator sees it. A phone: USB debugging on, `adb devices`,
 the same install and start with the computer's address on the shared network
 (`ipconfig getifaddr en0`).
 
+The screen leaving: `adb shell input keyevent KEYCODE_HOME` -- `the screen left: the cameras
+closed until it is back` in `phone.log`, no camera failing, the frames kept still sent. Bring it
+back with `KEYCODE_BACK` from whatever is on top, or the recent apps: the launcher's intent opens
+a second activity on top of one `am start` began, which shows the preview alone. A lens that
+stops cannot be made on the emulator: its image is a production build, no root to stop the
+camera's service.
+
 ## Several lenses on the emulator
 
 The AVD's front camera, once enabled (`hw.camera.front=emulated` in
@@ -97,7 +104,10 @@ out of cameras that fail, give a lens no frame for 5 s, within 10 s of the start
 the session they said they run -- the last that gave no frame, never one that streams, else the
 code's last
 (`left out from now on` in `phone.log`); the add-camera dialog advises Main and Telephoto past
-two lenses.
+two lenses, and 1920x1440 or less for the Front beside a back lens. A lens that gives frames and
+then none for 3 s, its camera saying nothing, has its camera opened again (`no frame for 3 s` in
+`phone.log`). On 2026-11-18 the four left the ultra-wide out, and Main, Telephoto and Front
+streamed at 2560x1440 and 60 fps.
 
 ## A break, on the emulator
 
