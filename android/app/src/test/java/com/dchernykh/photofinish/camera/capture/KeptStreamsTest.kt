@@ -117,6 +117,17 @@ class KeptStreamsTest {
     }
 
     @Test
+    fun `the lenses with a stream are told, the idle among them, not those stopped`() {
+        feed(Lens.MAIN)
+        feed(Lens.TELEPHOTO).unsent = true
+        kept.idle(Lens.TELEPHOTO, 0) // left out, still sending what it kept: its room still taken
+        kept.idle(Lens.MAIN, 0)
+        assertEquals(setOf(Lens.MAIN, Lens.TELEPHOTO), kept.lenses)
+        kept.sweep(KeptStreams.IDLE_MS)
+        assertEquals(setOf(Lens.TELEPHOTO), kept.lenses)
+    }
+
+    @Test
     fun `another choice stops every stream once, what they kept dropped`() {
         val main = feed(Lens.MAIN)
         val tele = feed(Lens.TELEPHOTO)
