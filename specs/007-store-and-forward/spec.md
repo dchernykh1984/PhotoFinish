@@ -143,7 +143,10 @@ out, shows the front camera as left out and the banner green.
 - **FR-005**: Each connection's metadata says how long its first frame was kept, `held_ms`
   (contract).
 - **FR-006**: The recorder believes a phone's frame moment up to `held_ms` older than it would
-  otherwise (5 s). A connection it does not believe -- the phone's clock out of step -- it places
+  otherwise (30 s: the look-over, the phone's wait for its clock and the network -- three lenses
+  at 60 fps filling the Wi-Fi had a connection's first frame read 8.5 s after it was taken, 1.6 s
+  of it held, which by arrival would have placed all its frames 7 s late). A connection it does
+  not believe -- the phone's clock out of step -- it places
   by arrival from `held_ms` before its first frame came, in order; a frame it placed elsewhere
   than its own moment -- by arrival, or after the one before -- it places there again when the
   phone sends it again, on whatever connection.

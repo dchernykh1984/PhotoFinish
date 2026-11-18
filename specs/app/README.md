@@ -51,8 +51,9 @@ recorder is down and at most the 0.1 s before it.
   camera answers the phone's clock exchange over UDP on the camera's port, and the phone keeps
   its camera clock in step from it (`specs/003-phone-camera-app/contracts/phone-stream.md`):
   Wi-Fi delays do not move the frame. A connection's first frame decides for all of it: a moment
-  not after the frame was read and at most 5 s before it -- longer by what the phone says it
-  kept the frame, `held_ms` -- is believed; else -- no moments, or a
+  not after the frame was read and at most 30 s before it -- a Wi-Fi full of other lenses read one
+  8.5 s late --, longer by what the phone says it kept the frame, `held_ms`, is believed; else --
+  no moments, or a
   phone clock out of step -- its frames are placed by their arrival, from `held_ms` before the
   first came, a frame the phone sends again where it was placed, and the camera list says
   why. A port another program holds is tried again every 5 s, and said meanwhile. A phone that
@@ -107,19 +108,24 @@ PhotoFinish Camera streams several of the phone's lenses at once (`specs/004-pho
 the dialog's lens boxes -- Main, ticked, Telephoto, Ultra-wide, Front -- make a camera of each,
 named after its lens, on a port of its own, and the QR code holds a line per lens (an address
 alone for Main alone). More than two ticked, the dialog says a phone may not stream them at
-once -- Android promises two -- and advises Main and Telephoto. The phone finds its lenses by their focal lengths among its back camera's
+once -- Android promises two -- and advises Main and Telephoto; Front ticked beside a back lens,
+it says Android promises the two at once only up to 1920x1440, the size chosen on the phone. The phone finds its lenses by their focal lengths among its back camera's
 physical cameras, lists them on its screen, streams those of one camera in one capture session
 and the other camera beside it where the phone runs both; a lens it lacks, or cannot stream with
 the others, is said on the phone. It asks the phone whether a camera runs its lenses at the size
-chosen, and from Android 15 the rate; cameras that fail anyway, or give a lens no frame for 5 s,
-within 10 s of the start are opened again with a lens left out -- one that gave no frame, never
-one that streams for it, else one of the camera that failed --, said on the phone and to the
+chosen, and from Android 15 the rate; cameras that fail anyway, give a lens no frame for 5 s, or
+stop giving one frames for 3 s, saying nothing, within 10 s of the start are opened again with a
+lens left out -- one that gave no frame, never one that streams for it, a lens that stopped
+itself, else one of the camera that failed --, said on the phone and to the
 laptop, until the referee starts again; once every lens of every camera, those waited for aside,
-gave frames for 10 s, a failure leaves none out, and the cameras are opened again as any lost mid-race. The Xiaomi 17 Ultra said yes
-to its four lenses at 2560x1440 and 60 fps and gave no frame. Each lens has its own encoder, connection and clock exchange, so
+gave frames for 10 s, a failure -- a lens stopping for 3 s too -- leaves none out, and the cameras are opened again as any lost mid-race. The Xiaomi 17 Ultra said yes
+to its four lenses at 2560x1440 and 60 fps and gave no frame; now it leaves the ultra-wide out
+and streams the other three. The screen leaving closes the cameras at once, the lenses sending
+what they kept; its return opens them again. Each lens has its own encoder, connection and clock exchange, so
 each is in step on its own. Tried on the emulator: two lenses of one camera and the other camera,
 30 fps each, every frame with its moment. Each lens adds its bitrate to the Wi-Fi and heat to the
-phone.
+phone: two lenses at 2560x1440 and 60 fps fell 8 s behind on the maintainer's Wi-Fi, and came
+back to 3 s.
 
 A video file is either played as if filmed now (and recorded, for trying things out) or, the
 usual case, opened as it is: a camera's own recording from its card, placed by the file's creation
