@@ -89,9 +89,9 @@ switch to the other at the same moment and back to both.
   same four left the ultra-wide out after 1.6 s, and Main, Telephoto and Front streamed at 60 fps.
 - A lens that gives frames and then none, its camera saying nothing: after 3 s its camera is
   lost and opened again -- that lens left out in the first seconds, every lens later, but the
-  lens left out when it stops again within a minute, the first waited for; the front beside the
-  back closed and said left out, as when it fails. A reopen drops what the lenses kept and had
-  not sent, as any camera lost does.
+  lens left out when it stops again within a minute, the first waited for and tried again a
+  minute on; a lens of the front beside the back waited for, not closed. A reopen drops what the
+  lenses kept and had not sent, as any camera lost does: a retry waits for them to be sent.
 - The Wi-Fi carries every lens: about 10 Mbit/s each at 1080p and 60 fps, 16 at 1440p.
 - Several sensors and encoders heat the phone over hours: in the sun it may lower its frame rate.
 - A code of the earlier kind, an address alone, still pairs: the main lens.
@@ -113,9 +113,10 @@ switch to the other at the same moment and back to both.
   phone's camera like any other. More than two lenses ticked, the dialog says a phone may not
   stream them at once -- Android promises two -- and advises Main and Telephoto: the telephoto
   shows who crossed first in detail, the main lens has the phone's best sensor as a rule. The
-  Front ticked beside a back lens, it says Android promises the two at once only up to
-  1920x1440, at no set frame rate -- the size is chosen on the phone --, and that above it a
-  phone may stream them, or fail and leave a lens out. The choice stays the referee's.
+  Front ticked beside a back lens, it says Android promises the two at once only on a phone that
+  runs them together, and then only up to 1920x1440, at no set frame rate -- the size is chosen
+  on the phone --, and that above it a phone may stream them, or fail and leave a lens out. The
+  choice stays the referee's.
 - **FR-002**: The QR code holds the address alone for Main alone, else one line per lens,
   `<lens> <address>`, the lens one of `main`, `ultrawide`, `telephoto`, `front`
   ([contract](../003-phone-camera-app/contracts/phone-stream.md)). The text shown says the same:
@@ -148,8 +149,9 @@ switch to the other at the same moment and back to both.
   same, or soon after a reopen mid-race -- are opened again with all their lenses. A lens that
   stops again within a minute of its last stop, the cameras opened again not bringing it back, is
   left out so, whenever it stops -- the same stop heard by both cameras is one; the first, never
-  left out, is waited for while another lens streams that a reopen would cut, and tried again a
-  minute after it stopped, alone opened again each time; a lens of the other camera stopping
+  left out, is waited for while another lens streams -- not one waited for -- that a reopen
+  would cut, alone opened again each time; the first lens waited for, silent or stopped again,
+  is tried again a minute on, once its frames kept are sent; a lens of the other camera stopping
   later, none left out, is waited for, not closed: the first camera's lenses are not cut for it; a
   lens waited for that gives frames again is watched again. A stop is timed by the
   lens's last frame: one before the lenses first ran together is early, the watch seeing it

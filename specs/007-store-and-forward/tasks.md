@@ -80,6 +80,6 @@
   asked meanwhile heard (FR-009)
 - [x] T035 `main_window.py`: a phone status that is not a table skipped (FR-012)
 - [x] T036 `recorder/__init__.py`, `segments.py`: the lag from the writer's newest frame (FR-008)
-- [x] T037 `sources.py`: a phone's moment believed up to 30 s, not 5, before its first frame is
-  read -- a connection beside two others at 60 fps read 8.5 s late on the maintainer's Wi-Fi,
-  2026-11-18 (FR-006)
+- [x] T037 `sources.py`: a phone's moment judged from when its connection was taken, not when its
+  first frame is read -- a connection beside two others at 60 fps read 8.5 s late on the
+  maintainer's Wi-Fi, 2026-11-18 (FR-006)
