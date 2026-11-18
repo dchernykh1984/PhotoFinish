@@ -231,26 +231,27 @@ class LensFallback {
     ): Lens? {
         if (failure is CameraFailure.Stalled) heard(failure)
         if (!counts(failure) || open == paid) return null
-        val lens =
-            when {
-                failure is CameraFailure.NoFrame -> candidates.lastOrNull { it in failure.silent }
-                failure is CameraFailure.Stalled && failure.lens in candidates -> failure.lens
-                failure is CameraFailure.Stalled && failure == stoppedAgain -> waitForFirst(failure, candidates)
-                open == waitingIn -> candidates.lastOrNull { it in waiting }
-                else -> candidates.lastOrNull { it in own } ?: candidates.lastOrNull()
-            } ?: return null
+        val lens = pick(open, failure, candidates, own) ?: return null
         paid = open
         return lens.also { left += it }
     }
 
-    /** The first lens [failure] stopped again too soon: none left out -- waited for while [others] stream. */
-    private fun waitForFirst(
-        failure: CameraFailure.Stalled,
-        others: List<Lens>,
-    ): Lens? {
-        if (others.isNotEmpty()) waitFor = failure
-        return null
-    }
+    /** Which of [candidates] goes after [failure], as [choose] says. */
+    private fun pick(
+        open: Int,
+        failure: CameraFailure?,
+        candidates: List<Lens>,
+        own: List<Lens>,
+    ): Lens? =
+        when {
+            failure is CameraFailure.NoFrame -> candidates.lastOrNull { it in failure.silent }
+            failure is CameraFailure.Stalled && failure.lens in candidates -> failure.lens
+            // The first lens stopping again: none left out, waited for while another lens streams.
+            failure is CameraFailure.Stalled && failure == stoppedAgain ->
+                null.also { if (candidates.isNotEmpty()) waitFor = failure }
+            open == waitingIn -> candidates.lastOrNull { it in waiting }
+            else -> candidates.lastOrNull { it in own } ?: candidates.lastOrNull()
+        }
 
     /**
      * [lens], waited for in open [open], gave a frame lately -- its last at [lastFrameMs], [nowMs] now --: no longer
