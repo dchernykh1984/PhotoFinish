@@ -139,9 +139,6 @@ class Uplink(
         }
     }
 
-    /** How much the frames kept and not sent yet span, ms: 0 when caught up ([FrameStore.behindMs]). */
-    val keptMs: Long get() = store.behindMs()
-
     /** A frame kept and not sent yet ([FrameStore.unsent]). */
     val unsent: Boolean get() = store.unsent
 

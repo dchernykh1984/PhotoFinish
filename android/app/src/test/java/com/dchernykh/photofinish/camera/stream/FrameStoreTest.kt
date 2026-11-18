@@ -201,23 +201,16 @@ class FrameStoreTest {
     }
 
     @Test
-    fun `how much the frames not sent yet span is told, on their own clock`() {
+    fun `a frame not sent yet, or sent and not confirmed, is told unsent`() {
         val store = store()
         assertEquals(false, store.unsent)
-        assertEquals(0L, store.behindMs())
         second(store, 0)
-        assertEquals(900L, store.behindMs())
         read(store, 9)
-        assertEquals(0L, store.behindMs()) // one frame left: no span,
-        assertEquals(true, store.unsent) // but not sent
+        assertEquals(true, store.unsent) // one frame left, not sent
         read(store, 1)
-        assertEquals(0L, store.behindMs()) // all sent
         assertEquals(true, store.unsent) // none confirmed: perhaps swallowed by a dead connection
         store.confirm(0)
         assertEquals(false, store.unsent) // 0.9 s past the newest confirmed: the acknowledgements' window
-        second(store, 1)
-        second(store, 2)
-        assertEquals(1_900L, store.behindMs()) // 1 s to 2.9 s
     }
 
     @Test

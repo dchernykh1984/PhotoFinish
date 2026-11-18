@@ -286,22 +286,20 @@ class LensFallback {
         }
 
     /**
-     * Open [open]'s camera, its lenses [seen] started at [startedMs], watched at [nowMs], the lenses keeping a frame
-     * unsent [keptMs]: a lens waited for that gives frames again is watched again ([heardFrom]); the open's [first]
-     * lens, given the camera with the preview, tried again ([retry]); else lenses that gave no frame [NO_FRAME_MS]
-     * after the start, or one that stopped ([stall]) -- the last of those, in the code's order: the camera stopping
-     * every lens at once costs its least lens when it comes again, as a failure does, not its first --: what its
-     * camera is taken for lost by, or null.
+     * Open [open]'s camera, its lenses [seen] started at [startedMs], watched at [nowMs]: a lens waited for that
+     * gives frames again is watched again ([heardFrom]); the open's [first] lens, given the camera with the preview,
+     * tried again ([retry]); else lenses that gave no frame [NO_FRAME_MS] after the start, or one that stopped
+     * ([stall]) -- the last of those, in the code's order: the camera stopping every lens at once costs its least
+     * lens when it comes again, as a failure does, not its first --: what its camera is taken for lost by, or null.
+     * Opening the cameras again keeps what the lenses kept to send (KeptStreams): nothing waits for it.
      */
     fun watch(
         open: Int,
         seen: List<Seen>,
         startedMs: Long,
         nowMs: Long,
-        kept: () -> Long,
         first: Lens?,
     ): Watched? {
-        val keptMs by lazy(kept) // the stores' locks taken only when a stop or a retry asks
         seen.forEach { heardFrom(open, it.lens, it.lastFrameMs, nowMs) }
         val since = nowMs - startedMs
         if (first != null) forgetRetries(open, seen.find { it.lens == first }, nowMs)
@@ -312,27 +310,21 @@ class LensFallback {
                 .map { it.lens }
                 .takeIf { since >= NO_FRAME_MS }
                 .orEmpty()
-        // Put off while the lenses keep a frame unsent [KEPT_MS] or more, the cameras opened again dropping it -- a
-        // lens silent meanwhile as before the watch --, [KEPT_WAIT_MS] at most: a slow Wi-Fi keeps none silent.
-        val stales = watched.mapNotNull { stall(it.lens, it.lastFrameMs, startedMs, nowMs) }
-        val stale = stales.lastOrNull()
-        // The cap from the oldest stop: a lens stopping later puts none off past it.
-        val stopped = stale?.takeIf { nowMs - stales.minOf { it.atMs } >= KEPT_WAIT_MS || keptMs < KEPT_MS }
+        val stopped = watched.mapNotNull { stall(it.lens, it.lastFrameMs, startedMs, nowMs) }.lastOrNull()
         val named = silent.joinToString { it.code }
         val noFrame = CameraFailure.NoFrame(silent, since)
-        // A failure first, weighed as the lenses' own when early; the retry the next tick, none while a stop is put
-        // off -- its reopen would pass the stop by uncounted. The other camera's watch has no first lens to try.
+        // A failure first, weighed as the lenses' own when early; the retry the next tick. The other camera's watch
+        // has no first lens to try.
         return when {
             silent.isNotEmpty() -> Watched("the camera gave $named no frame in ${NO_FRAME_MS / MS_PER_S} s", noFrame)
-            stopped != null -> { // silent as long as it was, a stop put off for the frames kept longer than 3 s
+            stopped != null -> {
                 val silentS = (nowMs - stopped.atMs) / MS_PER_S
                 Watched("the camera gave ${stopped.lens.code} no frame for $silentS s", stopped)
             }
-            stale != null -> null
             else -> {
                 val waitedS = firstWaited?.let { (nowMs - it.second) / MS_PER_S } // a minute, two, four...
                 first
-                    ?.let { retry(open, it, nowMs) { keptMs } }
+                    ?.let { retry(open, it, nowMs) }
                     ?.let { Watched("${it.code} waited for $waitedS s: tried again", null) } // silent or stopped
             }
         }
@@ -340,17 +332,14 @@ class LensFallback {
 
     /**
      * The open's [first] lens, waited for in open [open] -- silent from the start, or stopped again beside others --
-     * [AGAIN_MS] since this was first asked it, at [nowMs], the lenses keeping no frame unsent [KEPT_MS] or more
-     * ([keptMs], how much they span) -- opening the cameras again drops what they keep -- or [KEPT_WAIT_MS] more gone
-     * by, a slow Wi-Fi not keeping the first lens silent for good: tried again, the lens
-     * returned for the cameras to be opened again, a moment of the others' frames a minute for a chance of it; its
-     * next stop within a minute of this waited for again. Else null.
+     * [AGAIN_MS] since this was first asked it, at [nowMs]: tried again, the lens returned for the cameras to be
+     * opened again, a moment of the others' frames a minute for a chance of it; its next stop within a minute of
+     * this waited for again. Else null.
      */
     fun retry(
         open: Int,
         first: Lens,
         nowMs: Long,
-        keptMs: () -> Long,
     ): Lens? {
         if (!waitsFor(open, first)) {
             firstWaited = null
@@ -360,7 +349,7 @@ class LensFallback {
         val waited = nowMs - since
         // A minute, then two, four... up to 32: a first lens that stays broken costs the others a cut seldom.
         val due = AGAIN_MS shl retries.coerceAtMost(MOST_DOUBLINGS)
-        if (waited < due || waited < due + KEPT_WAIT_MS && keptMs() >= KEPT_MS) return null
+        if (waited < due) return null
         retries++
         firstWaited = null
         waitStop = null
@@ -422,12 +411,6 @@ class LensFallback {
 
         /** The first lens's retries wait at most 2^5 minutes, half an hour, one from the next. */
         private const val MOST_DOUBLINGS = 5
-
-        /** Frames kept unsent this long put a stop or a retry off: opening the cameras again would drop them. */
-        const val KEPT_MS = 1_000L
-
-        /** How long after its last frame a lens's stop is put off at most for the frames kept to be sent. */
-        const val KEPT_WAIT_MS = 30_000L
 
         /** How long a lens that gave frames may give none, whatever its rate: at 15 fps, 45 frames missed. */
         const val STALL_MS = 3_000L

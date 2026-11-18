@@ -272,11 +272,11 @@ class CameraStreamer(
                 null -> null
             }
         handler.post {
-            // A stream stopped meanwhile starts none (LensStream.startClock); one sending what it kept, the screen
-            // away, does: its frames go with their moments.
+            // A stream stopped meanwhile starts none (LensStream.startClock); one idle, its camera closed meanwhile,
+            // does: what it kept goes with its moments.
             when {
                 clock != null -> stream.startClock(clock)
-                !stream.stopped -> onStatus(stream.lens, StreamerStatus.NoClock) // the screen away too, as it sends
+                !stream.stopped -> onStatus(stream.lens, StreamerStatus.NoClock)
             }
         }
     }
@@ -321,9 +321,6 @@ class CameraStreamer(
 
         /** The lenses it streams: its own, not the phone's. */
         val ownLenses: List<Lens> get() = streams.map { it.lens }
-
-        /** How much the frames its lenses keep unsent span, ms, the most of them. */
-        val keptMs: Long get() = streams.maxOfOrNull { it.keptMs } ?: 0L
 
         /** Each of its lenses has given a frame, or is waited for (LensFallback.waitsFor): none of a camera closed. */
         val allFramed: Boolean get() = streams.all { it.lastFrameMs != 0L || fallback.waitsFor(mine, it.lens) }
@@ -533,13 +530,9 @@ class CameraStreamer(
             val started = startedMs ?: return
             if (mine != generation || closed) return
             val seen = streams.map { Seen(it.lens, it.lastFrameMs) }
-            // A reopen drops what every camera keeps: a stop put off meanwhile; the other camera's closes it alone --
-            // but one of its several lenses left out opens all again.
-            val all = preview != null || streams.size > 1
-            val kept = if (all) ({ opened.maxOfOrNull { it.keptMs } ?: 0L }) else ({ keptMs })
             val first = if (preview != null) streamed.firstOrNull() else null // the retry is its camera's
             val now = SystemClock.elapsedRealtime()
-            fallback.watch(mine, seen, started, now, kept, first)?.let { lost(it.reason, it.failure) }
+            fallback.watch(mine, seen, started, now, first)?.let { lost(it.reason, it.failure) }
             if (mine == generation && !closed) handler.postDelayed({ watchFrames() }, WATCH_MS)
         }
 
