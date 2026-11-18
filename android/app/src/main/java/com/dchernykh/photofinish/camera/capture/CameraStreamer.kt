@@ -186,9 +186,9 @@ class CameraStreamer(
         try {
             val streaming =
                 startInTurn(plan.cameras) { camera, withPreview ->
-                    val open = OpenCamera(if (withPreview) preview else null, mine, again)
+                    val open = OpenCamera(if (withPreview) preview else null, mine, again, camera, format)
                     opened += open
-                    open.startStreams(camera, format).also { started ->
+                    open.startStreams().also { started ->
                         if (started) {
                             manager.openCamera(camera.cameraId, open, handler)
                         } else {
@@ -198,9 +198,9 @@ class CameraStreamer(
                 }
             if (!streaming) { // no camera streams: the first opened for its preview alone, to aim by
                 val first = plan.cameras.first().cameraId
-                val open = OpenCamera(preview, mine, again)
+                val open = OpenCamera(preview, mine, again, PlannedCamera(first, emptyList()), format)
                 opened += open
-                if (open.startStreams(PlannedCamera(first, emptyList()), format)) {
+                if (open.startStreams()) {
                     manager.openCamera(first, open, handler)
                 }
             }
@@ -299,7 +299,8 @@ class CameraStreamer(
 
     /**
      * One camera device opened: the lenses it streams at one format, in one capture session, and
-     * the [preview] it shows -- the first camera's that streams. [again] opens everything again after a loss.
+     * the [preview] it shows -- the first camera's that streams. [again] opens everything again after a loss;
+     * [plan] and [chosen], what it is opened for, open it again alone ([openAlone]).
      */
     @Suppress("TooManyFunctions") // Camera2's callbacks and the watches of the frames, each a step of its own
     private inner class OpenCamera(
@@ -310,13 +311,11 @@ class CameraStreamer(
          * when it does not, the same made again to fail the same way.
          */
         private val again: (String, CameraFailure?, List<Lens>) -> Boolean,
+        private val plan: PlannedCamera,
+        private val chosen: StreamFormat,
     ) : CameraDevice.StateCallback() {
         private val streams = mutableListOf<LensStream>()
         private var format: StreamFormat? = null
-
-        /** What it was opened for, and at what format chosen: what opens it again alone ([openAlone]). */
-        private var plannedCamera: PlannedCamera? = null
-        private var chosenFormat: StreamFormat? = null
 
         /** When the lenses started, on the clock of [SystemClock.elapsedRealtime]: null before. */
         private var startedMs: Long? = null
@@ -347,24 +346,19 @@ class CameraStreamer(
          * there is no preview to show.
          */
         @Suppress("TooGenericExceptionCaught") // whatever an encoder throws costs its lens alone
-        fun startStreams(
-            camera: PlannedCamera,
-            chosen: StreamFormat,
-        ): Boolean {
-            plannedCamera = camera
-            chosenFormat = chosen
-            val lensesFormats = camera.lenses.map { CameraFormats(context, camera.cameraId, it.physicalId) }
+        fun startStreams(): Boolean {
+            val lensesFormats = plan.lenses.map { CameraFormats(context, plan.cameraId, it.physicalId) }
             // Their frames one size and rate throughout, on the connections that go on.
-            val before = camera.lenses.firstNotNullOfOrNull { keptStreams[it.target.lens]?.format }
+            val before = plan.lenses.firstNotNullOfOrNull { keptStreams[it.target.lens]?.format }
             val common =
-                if (camera.lenses.isEmpty()) chosen else CameraFormats.common(lensesFormats, before ?: chosen)
+                if (plan.lenses.isEmpty()) chosen else CameraFormats.common(lensesFormats, before ?: chosen)
             if (common == null) {
-                camera.lenses.forEach { onStatus(it.target.lens, StreamerStatus.Failed("no size this lens streams")) }
+                plan.lenses.forEach { onStatus(it.target.lens, StreamerStatus.Failed("no size this lens streams")) }
                 return false
             }
             format = common
             val named =
-                camera.lenses.joinToString {
+                plan.lenses.joinToString {
                     it.target.lens.code +
                         it.physicalId
                             ?.let { id ->
@@ -372,8 +366,8 @@ class CameraStreamer(
                             }.orEmpty()
                 }
             val what = named.ifEmpty { "its preview" }
-            log.info(null, "camera ${camera.cameraId}: $what at ${common.resolution}, ${common.fps} fps")
-            camera.lenses.forEach { planned ->
+            log.info(null, "camera ${plan.cameraId}: $what at ${common.resolution}, ${common.fps} fps")
+            plan.lenses.forEach { planned ->
                 val lens = planned.target.lens
                 try {
                     streams +=
@@ -398,7 +392,7 @@ class CameraStreamer(
                     leaveOut(listOf(lens))
                 }
             }
-            return streams.isNotEmpty() || camera.lenses.isEmpty() || preview != null
+            return streams.isNotEmpty() || plan.lenses.isEmpty() || preview != null
         }
 
         override fun onOpened(camera: CameraDevice) {
@@ -455,7 +449,7 @@ class CameraStreamer(
                 return
             }
             // Its first lens planned keeps its tries: one that would not open, no stream fed yet, is tried again too.
-            val first = plannedCamera?.lenses?.firstOrNull() ?: return checkSettled(mine)
+            val first = plan.lenses.firstOrNull() ?: return checkSettled(mine)
             val inMs = fallback.aloneIn(first.target.lens, OPEN_AGAIN_MS)
             own.forEach { onStatus(it, StreamerStatus.Failed("$reason; trying again in ${inMs / MS_PER_S} s")) }
             handler.postDelayed({ if (mine == generation) openAlone() }, inMs)
@@ -469,20 +463,18 @@ class CameraStreamer(
         @Suppress("TooGenericExceptionCaught") // a camera gone meanwhile: lost again
         @SuppressLint("MissingPermission") // asked for before the first start; one taken back meanwhile throws, caught
         private fun openAlone() {
-            val camera = plannedCamera ?: return
-            val chosen = chosenFormat ?: return
-            leftOut = leftOut - camera.lenses.map { it.target.lens.code }.toSet() // tried again: not left out
-            val open = OpenCamera(null, mine, again)
+            leftOut = leftOut - plan.lenses.map { it.target.lens.code }.toSet() // tried again: not left out
+            val open = OpenCamera(null, mine, again, plan, chosen)
             opened += open
             try {
-                if (open.startStreams(camera, chosen)) {
-                    manager.openCamera(camera.cameraId, open, handler)
+                if (open.startStreams()) {
+                    manager.openCamera(plan.cameraId, open, handler)
                 } else {
                     opened -= open
-                    leaveOut(camera.lenses.map { it.target.lens })
+                    leaveOut(plan.lenses.map { it.target.lens })
                 }
             } catch (error: Exception) {
-                log.error(null, "opening camera ${camera.cameraId} again: ${Crashes.describe(error)}")
+                log.error(null, "opening camera ${plan.cameraId} again: ${Crashes.describe(error)}")
                 open.lost(error.message ?: error.javaClass.simpleName, null)
             }
         }
