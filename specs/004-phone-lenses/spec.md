@@ -156,7 +156,9 @@ switch to the other at the same moment and back to both.
   lens waited for that gives frames again is watched again. A stop is timed by the
   lens's last frame: one before the lenses first ran together is early, the watch seeing it
   seconds after; and a lens is taken for stopped only once no frame the lenses keep waits to be
-  sent, as opening the cameras again would drop it. The screen
+  sent, as opening the cameras again would drop it -- 30 s after its last frame at most, so a slow
+  Wi-Fi leaves none silent for good. A camera stopping every lens at once is told by its last lens,
+  in the code's order: coming again, it costs that one, not its first. The screen
   leaving closes the cameras at once, before they fail with its preview -- the screen waits for
   the close, a second at most --, leaving no lens out; the lenses' streams send what they kept
   until it comes back, and say so in the phone's log; its return drops what is left, as any reopen
