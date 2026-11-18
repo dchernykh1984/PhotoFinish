@@ -45,6 +45,20 @@ class LensesTest {
     }
 
     @Test
+    fun `the main lens planned alone after its neighbour is left out is the same stream, named or not`() {
+        val both = listOf(target(Lens.MAIN, 1935), target(Lens.TELEPHOTO, 1936))
+        val mainOf = { asked: List<LensTarget> ->
+            SessionPlan.plan(asked, lenses, anyTogether, physicalStreams = true).cameras[0].lenses[0]
+        }
+        val beside = mainOf(both)
+        val alone = mainOf(both.take(1))
+        assertEquals("3", beside.physicalId) // named beside the telephoto, not alone: other plans
+        assertEquals(null, alone.physicalId)
+        assertEquals(true, beside.sameStream(alone)) // its stream fed again, what it kept still sent
+        assertEquals(false, beside.sameStream(alone.copy(target = target(Lens.MAIN, 1999)))) // another place
+    }
+
+    @Test
     fun `lenses of one camera share its session, each named by its physical camera`() {
         val asked = listOf(target(Lens.TELEPHOTO, 1935), target(Lens.MAIN, 1936), target(Lens.FRONT, 1937))
         val plan = SessionPlan.plan(asked, lenses, anyTogether, physicalStreams = true)

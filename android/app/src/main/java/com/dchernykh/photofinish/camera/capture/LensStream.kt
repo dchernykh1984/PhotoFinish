@@ -28,7 +28,8 @@ import java.util.concurrent.atomic.AtomicReference
  */
 @Suppress("LongParameterList") // a stream's parts, each its own, made together in start
 internal class LensStream private constructor(
-    val planned: PlannedLens,
+    /** The camera's plan for it, the latest: its physical camera named or not as the session streams it now. */
+    @Volatile var planned: PlannedLens,
     val format: StreamFormat,
     private val codec: MediaCodec,
     val surface: Surface,
