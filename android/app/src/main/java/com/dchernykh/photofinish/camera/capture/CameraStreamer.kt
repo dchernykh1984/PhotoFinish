@@ -158,7 +158,6 @@ class CameraStreamer(
     // Whatever opening throws -- a camera gone or refused, an encoder that will not take the
     // format -- is said on the screen: an exception left to escape would end the app.
     @Suppress("TooGenericExceptionCaught")
-    @SuppressLint("MissingPermission") // the screen asks for the camera before starting
     private fun open(
         preview: Surface,
         format: StreamFormat,
@@ -188,22 +187,11 @@ class CameraStreamer(
             val streaming =
                 startInTurn(plan.cameras) { camera, withPreview ->
                     val open = OpenCamera(if (withPreview) preview else null, mine, again, camera, format)
-                    opened += open
-                    open.startStreams().also { started ->
-                        if (started) {
-                            manager.openCamera(camera.cameraId, open, handler)
-                        } else {
-                            leaveOut(camera.lenses.map { it.target.lens })
-                        }
-                    }
+                    open.start().also { started -> if (!started) leaveOut(camera.lenses.map { it.target.lens }) }
                 }
             if (!streaming) { // no camera streams: the first opened for its preview alone, to aim by
-                val first = plan.cameras.first().cameraId
-                val open = OpenCamera(preview, mine, again, PlannedCamera(first, emptyList()), format)
-                opened += open
-                if (open.startStreams()) {
-                    manager.openCamera(first, open, handler)
-                }
+                val first = PlannedCamera(plan.cameras.first().cameraId, emptyList())
+                OpenCamera(preview, mine, again, first, format).start()
             }
         } catch (error: Exception) {
             // A camera the phone's camera service lost a moment ago is unknown to it until it is back: tried
@@ -368,6 +356,13 @@ class CameraStreamer(
         private var device: CameraDevice? = null
         private var session: CameraCaptureSession? = null
 
+        /** Its lenses' streams started and its camera opened, it among the cameras open; false when none started. */
+        @SuppressLint("MissingPermission") // the screen asks for the camera before starting
+        fun start(): Boolean {
+            opened += this
+            return startStreams().also { if (it) manager.openCamera(plan.cameraId, this, handler) }
+        }
+
         /**
          * The lenses' streams, at the size and rate [chosen] or the nearest they all give -- opened again, the one
          * their streams kept have, while they all give it, the streams fed again ([KeptStreams]) --; false, said for
@@ -376,7 +371,7 @@ class CameraStreamer(
          * there is no preview to show.
          */
         @Suppress("TooGenericExceptionCaught") // whatever an encoder throws costs its lens alone
-        fun startStreams(): Boolean {
+        private fun startStreams(): Boolean {
             val lensesFormats = plan.lenses.map { CameraFormats(context, plan.cameraId, it.physicalId) }
             // Their frames one size and rate throughout, on the connections that go on.
             val before = plan.lenses.firstNotNullOfOrNull { keptStreams[it.target.lens]?.format }
@@ -486,17 +481,12 @@ class CameraStreamer(
          * This camera, lost and closed alone, opened again alone for the same open, its lenses' streams fed again --
          * the first camera's streaming on --; one the phone will not open now is lost again, tried again later.
          */
-        @Suppress("TooGenericExceptionCaught") // a camera gone meanwhile: lost again
-        @SuppressLint("MissingPermission") // asked for before the first start; one taken back meanwhile throws, caught
+        @Suppress("TooGenericExceptionCaught") // a camera gone meanwhile, a permission taken back: lost again
         private fun openAlone() {
             val open = OpenCamera(null, mine, again, plan, chosen) // its lenses left out until their first frames
-            opened += open
             try {
-                if (open.startStreams()) {
-                    manager.openCamera(plan.cameraId, open, handler)
-                } else {
-                    open.lost("no stream for its lenses", null) // each said why; tried again later, not left out
-                }
+                // No stream started: each lens said why; tried again later, not left out.
+                if (!open.start()) open.lost("no stream for its lenses", null)
             } catch (error: Exception) {
                 log.error(null, "opening camera ${plan.cameraId} again: ${Crashes.describe(error)}")
                 open.lost(error.message ?: error.javaClass.simpleName, null)
