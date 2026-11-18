@@ -235,7 +235,7 @@ class LensFallback {
         failure: CameraFailure?,
     ): Lens? =
         choose(open, failure, streamed.drop(1).filter { it in lenses }, lenses).also {
-            if (it == null && failure is CameraFailure.Stalled) waitStop = failure
+            if (it == null && failure is CameraFailure.Stalled && open != paid) waitStop = failure // else closed
         }
 
     /**
