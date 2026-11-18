@@ -61,6 +61,21 @@ internal class KeptStreams<S : KeptStream> {
         if (idleSince.putIfAbsent(lens, nowMs) == null) stream.idle()
     }
 
+    /**
+     * [lens]'s stream, fed, which its camera's session will not take, at [nowMs]: no camera feeds it this open --
+     * stopped at once when it keeps nothing to send, as it was before the streams were kept, else idle until it has.
+     */
+    fun drop(
+        lens: Lens,
+        nowMs: Long,
+    ) {
+        val stream = streams[lens] ?: return
+        if (stream.unsent) return idle(lens, nowMs)
+        idleSince -= lens
+        streams.remove(lens)
+        stream.stop()
+    }
+
     /** The streams idle [IDLE_MS] at [nowMs] that keep nothing unsent, stopped: their lenses. */
     fun sweep(nowMs: Long): List<Lens> {
         val done = idleSince.filter { (lens, since) -> nowMs - since >= IDLE_MS && streams[lens]?.unsent == false }
