@@ -14,6 +14,7 @@ class KeptStreamsTest {
     ) : KeptStream {
         val said = mutableListOf<String>()
         override var unsent = false
+        override var alive = true
 
         override fun feed() {
             said += "fed"
@@ -56,6 +57,16 @@ class KeptStreamsTest {
             }
         assertEquals(listOf("stopped"), order) // one stream a lens: its folder and its recorder
         assertSame(other, kept[Lens.MAIN])
+    }
+
+    @Test
+    fun `a stream whose encoder stopped is not fed again but stopped, a new one made, as before`() {
+        val main = feed(Lens.MAIN)
+        kept.idle(Lens.MAIN, 1_000)
+        main.alive = false // its encoder failed mid-race: what a camera gives it goes nowhere
+        val again = feed(Lens.MAIN)
+        assertEquals(listOf("idle", "stopped"), main.said)
+        assertSame(again, kept[Lens.MAIN])
     }
 
     @Test

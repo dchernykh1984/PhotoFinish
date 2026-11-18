@@ -13,6 +13,9 @@ internal interface KeptStream {
     /** A frame kept and not sent yet, or sent and not confirmed by the recorder. */
     val unsent: Boolean
 
+    /** Its encoder still takes the camera's frames: one that failed mid-race is made anew, not fed again. */
+    val alive: Boolean
+
     /** Stopped, what it kept dropped. */
     fun stop()
 }
@@ -34,8 +37,8 @@ internal class KeptStreams<S : KeptStream> {
     operator fun get(lens: Lens): S? = streams[lens]
 
     /**
-     * [lens]'s stream, fed by a camera: the one kept when it [fits] -- the same lens, place and format --, else
-     * that one stopped and a new one [start]ed; a start that throws leaves the lens none.
+     * [lens]'s stream, fed by a camera: the one kept when it [fits] -- the same lens, place and format -- and its
+     * encoder lives, else that one stopped and a new one [start]ed; a start that throws leaves the lens none.
      */
     fun feed(
         lens: Lens,
@@ -44,7 +47,7 @@ internal class KeptStreams<S : KeptStream> {
     ): S {
         idleSince -= lens
         val kept = streams[lens]
-        if (kept != null && fits(kept)) return kept.also { it.feed() }
+        if (kept != null && kept.alive && fits(kept)) return kept.also { it.feed() }
         streams.remove(lens)?.stop() // one stream a lens: the store's folder and the recorder are the lens's
         return start().also { streams[lens] = it }
     }
