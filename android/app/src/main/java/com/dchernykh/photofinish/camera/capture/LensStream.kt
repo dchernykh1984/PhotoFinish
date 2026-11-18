@@ -108,7 +108,8 @@ internal class LensStream private constructor(
         private const val DRAIN_JOIN_MS = 500L
 
         /**
-         * [planned]'s stream at [format], started, fed: [report] hears its uplink while a camera feeds it,
+         * [planned]'s stream at [format], started, fed: [report] hears its uplink while a camera feeds it, [logged]
+         * while none does,
          * [onFirstFrame] the presentation time of the first frame each feed; [status] gives the phone's status
          * line for each keyframe;
          * [store] keeps the frames until they are sent; [log] hears of an encoder that fails while it streams
@@ -119,6 +120,7 @@ internal class LensStream private constructor(
             planned: PlannedLens,
             format: StreamFormat,
             report: (UplinkStatus) -> Unit,
+            logged: (UplinkStatus) -> Unit,
             onFirstFrame: (LensStream, Long) -> Unit,
             status: (Long) -> String?,
             store: FrameStore,
@@ -144,7 +146,7 @@ internal class LensStream private constructor(
                     throw error
                 }
             val sync = AtomicReference<ClockSync?>()
-            val words = LinkWords(report)
+            val words = LinkWords(report, logged)
             val uplink =
                 Uplink(
                     address = planned.target.address,
