@@ -470,11 +470,29 @@ def test_a_camera_this_computer_reads_is_not_looked_into_for_moments() -> None:
     assert place(packet, 0) == START  # type: ignore[arg-type]
 
 
-def test_a_phone_s_moment_seconds_behind_the_recorder_is_not_believed() -> None:
+def test_a_phone_s_moment_a_minute_behind_the_recorder_is_not_believed() -> None:
     # The recorder's clock read again after a sleep, before the phone's next exchange.
-    got = receive_phone(lambda k: time.time_ns() // 1000 - 8_000_000)  # 8 s behind
+    got = receive_phone(lambda k: time.time_ns() // 1000 - 60_000_000)  # 60 s behind
     now = time.time_ns() // 1_000_000
     assert all(now - 3_000 < ms <= now + 1_000 for ms in got)  # placed by arrival
+
+
+def test_a_phone_s_first_frame_held_up_seconds_on_a_busy_wi_fi_keeps_its_moment() -> (
+    None
+):
+    # The Xiaomi 17 Ultra's telephoto beside two lenses at 60 fps, 2026-11-18: kept
+    # 1.6 s for the clock, its first frame read 8.5 s after it was taken -- its
+    # connection's look-over crawling through a Wi-Fi the others filled.
+    source = sources.Stream(
+        "rtmp://0.0.0.0:1935/live/x", {}, lambda: START, listen=True
+    )
+    stream = SimpleNamespace(
+        time_base=Fraction(1, 1000), codec_context=SimpleNamespace(name="h264")
+    )
+    place = source._placing(stream, phone=True, held=1_600)  # type: ignore[arg-type]
+    first = avcc(sei((START - 8_500) * 1000), b"\x65\x88")
+    assert place(first, 0) == START - 8_500  # type: ignore[arg-type]
+    assert not source.clock_note  # in step: the frame was only late
 
 
 def test_a_phone_s_stream_says_when_its_frames_come_without_moments() -> None:
@@ -564,7 +582,7 @@ def test_a_phone_s_frame_it_kept_through_a_break_keeps_its_own_moment() -> None:
     assert kept(avcc(sei((START - 61_000) * 1000), b"\x65\x88"), 0) == START - 61_000  # type: ignore[arg-type]
     assert not source.clock_note
     beyond = source._placing(stream, phone=True, held=60_000)  # type: ignore[arg-type]
-    first = avcc(sei((START - 70_000) * 1000), b"\x65\x88")
+    first = avcc(sei((START - 100_000) * 1000), b"\x65\x88")  # 40 s past it
     assert beyond(first, 0) == START - 60_000  # type: ignore[arg-type]
     assert sources.NOT_IN_STEP == source.clock_note  # older than it says: out of step
     # ... and placed by its arrival, less the time the phone says it held it
