@@ -266,7 +266,7 @@ class LensFallback {
         val tries = aloneTries[lens] ?: 0
         aloneTries[lens] = tries + 1
         givingSince -= lens // its minute of frames counted from its next open
-        return if (tries == 0) soonMs else AGAIN_MS shl (tries - 1).coerceAtMost(MOST_DOUBLINGS)
+        return if (tries == 0) soonMs else backoffMs(tries - 1)
     }
 
     /**
@@ -373,7 +373,7 @@ class LensFallback {
         val waited = nowMs - since
         // A minute, then two, four... up to 32: a first lens that stays broken costs the others a cut seldom.
         val tries = retries[first] ?: 0
-        if (waited < AGAIN_MS shl tries.coerceAtMost(MOST_DOUBLINGS)) return null
+        if (waited < backoffMs(tries)) return null
         retries[first] = tries + 1
         firstWaited = null
         waitStop = null
@@ -447,6 +447,9 @@ class LensFallback {
 
         private const val MS_PER_S = 1_000L
         private const val MS_PER_MIN = 60_000L
+
+        /** The wait after [doublings] tries: a minute, then two, four... up to half an hour (FR-005). */
+        private fun backoffMs(doublings: Int): Long = AGAIN_MS shl doublings.coerceAtMost(MOST_DOUBLINGS)
 
         /** A wait as the screen says it: in seconds under a minute, in minutes from one -- "32 min", not "1920 s". */
         fun inWords(ms: Long): String = if (ms < MS_PER_MIN) "${ms / MS_PER_S} s" else "${ms / MS_PER_MIN} min"
