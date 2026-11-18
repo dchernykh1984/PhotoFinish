@@ -181,7 +181,7 @@ def test_a_phones_lenses_go_main_and_telephoto_first_the_phone_leaving_out_the_l
     assert lenses == ["main", "telephoto", "ultrawide", "front"]
 
 
-def test_the_front_beside_a_back_lens_is_advised_at_1920x1440_or_less(
+def test_the_front_beside_a_back_lens_is_advised_whatever_the_size_chosen_on_the_phone(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Android promises a camera beside another up to 1920x1440 only, at no set rate:
