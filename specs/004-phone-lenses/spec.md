@@ -151,7 +151,8 @@ switch to the other at the same moment and back to both.
   left out so, whenever it stops -- the same stop heard by both cameras is one; the first, never
   left out, is waited for while another lens streams -- not one waited for -- that a reopen
   would cut, alone opened again each time; the first lens waited for, silent or stopped again,
-  is tried again a minute on -- then two, four, up to half an hour between tries --, once its
+  is tried again a minute on -- then two, four, up to half an hour between tries, a minute again
+  once it has streamed a minute --, once its
   frames kept are sent or 30 s more have gone; a lens of the
   other camera stopping
   later, none left out, is waited for, not closed: the first camera's lenses are not cut for it; a
@@ -164,7 +165,8 @@ switch to the other at the same moment and back to both.
   in the code's order: coming again, it costs that one, not its first. The screen
   leaving closes the cameras at once, before they fail with its preview -- the screen waits for
   the close, a second at most --, leaving no lens out; the lenses' streams send what they kept,
-  saying so in the phone's log, and stop once no frame is left unsent, a minute at most; its
+  saying so in the phone's log, and stop once no frame is left unsent or unconfirmed by the
+  recorder, a minute at most; its
   return drops what is left, as any reopen does, and opens the cameras again. With no
   lens left out by either camera, a session the camera cannot make is said
   once, not made again, while the lenses never ran together; and a lens of either camera that
