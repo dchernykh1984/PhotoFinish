@@ -526,4 +526,21 @@ class LensFallbackTest {
         fallback.heardFrom(1, Lens.MAIN, 6_000, 6_100) // its frames at 6 s
         assertEquals(Lens.TELEPHOTO, fallback.failed(1, back, back, error(8_000))) // the camera's last, as any error
     }
+
+    @Test
+    fun `no retry while a stop is put off for the frames kept, the stop not passed by uncounted`() {
+        val fallback = LensFallback()
+        val back = listOf(Lens.MAIN, Lens.TELEPHOTO)
+        val mainSilent = CameraFailure.NoFrame(listOf(Lens.MAIN), 5_000)
+        fallback.failed(1, back, back, mainSilent)
+        fallback.waitedFor(1, mainSilent)
+        val streaming = listOf(Seen(Lens.MAIN, 0), Seen(Lens.TELEPHOTO, 5_900))
+        assertNull(fallback.watch(1, streaming, 0, 6_000, { 0 }, Lens.MAIN)) // the wait seen: its minute starts
+        val seen = listOf(Seen(Lens.MAIN, 0), Seen(Lens.TELEPHOTO, 90_000)) // the telephoto stopped at 90 s
+        val kept = { LensFallback.KEPT_MS } // a slow Wi-Fi: its stop put off, the retry due past its 30 s
+        assertNull(fallback.watch(1, seen, 0, 100_000, kept, Lens.MAIN)) // neither, the stop pending
+        assertEquals(true, fallback.waitsFor(1, Lens.MAIN)) // the retry not spent
+        val stop = fallback.watch(1, seen, 0, 90_000 + LensFallback.KEPT_WAIT_MS, kept, Lens.MAIN)
+        assertEquals(CameraFailure.Stalled(Lens.TELEPHOTO, 90_000, 90_000), stop?.failure) // counted
+    }
 }
