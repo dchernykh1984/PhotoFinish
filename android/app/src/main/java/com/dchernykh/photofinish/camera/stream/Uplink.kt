@@ -204,6 +204,7 @@ class Uplink(
             val kept = store.next(POLL_MS)?.takeIf { first != null || it.keyframe }
             if (kept == null) {
                 confirm(connected)
+                throughput.idle()
                 continue
             }
             if (first == null) stamped = kept.momentUs != null
@@ -299,16 +300,25 @@ class Uplink(
         private var since = nanos()
         private var last = since
 
+        /** Nothing to send a second or more -- its camera closed --: counted anew from the next frame. */
+        private var anew = false
+
         /**
-         * Counts a frame of [size] bytes; once a second, the rates since the last time -- a second or more without a
-         * frame, its camera closed, counted anew from the next: the frames after it at their own rate.
+         * Nothing to send now: a second or more since the last frame, the rate is counted anew from the next -- the
+         * frames after a pause at their own rate. A send that hangs is no pause: its frames wait, the rate tells it.
          */
+        fun idle() {
+            if (nanos() - last >= REPORT_NS) anew = true
+        }
+
+        /** Counts a frame of [size] bytes; once a second, the rates since the last time. */
         fun count(size: Int): Pair<Double, Double>? {
             val now = nanos()
-            if (now - last >= REPORT_NS) {
+            if (anew) {
                 frames = 0
                 bytes = 0
                 since = now
+                anew = false
             }
             last = now
             frames++
