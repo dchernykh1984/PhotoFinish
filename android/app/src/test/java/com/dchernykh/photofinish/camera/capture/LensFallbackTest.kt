@@ -543,4 +543,15 @@ class LensFallbackTest {
         val stop = fallback.watch(1, seen, 0, 90_000 + LensFallback.KEPT_WAIT_MS, kept, Lens.MAIN)
         assertEquals(CameraFailure.Stalled(Lens.TELEPHOTO, 90_000, 90_000), stop?.failure) // counted
     }
+
+    @Test
+    fun `the other camera's lens stopping in an open that left a lens out is closed, no wait kept for it`() {
+        val fallback = LensFallback()
+        val streamed = listOf(Lens.MAIN, Lens.TELEPHOTO, Lens.FRONT)
+        assertEquals(Lens.TELEPHOTO, fallback.failed(1, streamed, streamed - Lens.FRONT, error(1_500))) // paid
+        val front = CameraFailure.Stalled(Lens.FRONT, 30_000, 100_000)
+        assertNull(fallback.failedAlone(1, streamed, listOf(Lens.FRONT), front))
+        assertEquals(emptyList<Lens>(), fallback.waitedFor(1, front)) // closed alone
+        assertEquals(true, fallback.madeAgain(2, front)) // no stale wait left for it
+    }
 }
