@@ -136,8 +136,8 @@ switch to the other at the same moment and back to both.
   frame for 5 s, or stop giving one frames for 3 s, saying nothing, within 10 s of their lenses'
   start, or cannot make the session the phone said they run, are opened again with a lens left
   out -- the last that gave no frame, or that is waited for, never one that streams for it; a
-  lens that stopped, itself alone, the first stopped leaving none out; else, of the camera that
-  failed, its last, else the code's last; one lens an open, never the first --, said
+  lens that stopped, itself; else, of the camera that failed, its last, else the code's last, the
+  first lens stopping too; one lens an open, never the first --, said
   on the phone, as the cameras failing with it, and to the laptop, until the referee starts
   again; a start for the same lenses and format, the screen back from another app, keeps them
   out; a camera failing alone, the front beside the back, leaves one of its lenses out so, its
@@ -147,9 +147,11 @@ switch to the other at the same moment and back to both.
   camera, those waited for aside, gave frames for 10 s -- lost later for whatever reason, closed and opened again for the
   same, or soon after a reopen mid-race -- are opened again with all their lenses. A lens that
   stops again within a minute of its last stop, the cameras opened again not bringing it back, is
-  left out so, whenever it stops; the first, never left out, is waited for, the others streaming
-  on. A stop is timed by the lens's last frame: one before the lenses first ran together is early,
-  the watch seeing it seconds after. The screen
+  left out so, whenever it stops -- the same stop heard by both cameras is one; the first, never
+  left out, is waited for while another lens streams that a reopen would cut, alone opened again
+  each time; a lens waited for that gives frames again is watched again. A stop is timed by the
+  lens's last frame: one before the lenses first ran together is early, the watch seeing it
+  seconds after. The screen
   leaving closes the cameras at once, before they fail with its preview, leaving no lens out; the
   lenses' streams send what they kept, and the screen's return opens the cameras again. With no
   lens left out by either camera, a session the camera cannot make is said
