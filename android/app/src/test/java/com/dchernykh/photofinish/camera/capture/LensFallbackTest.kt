@@ -622,8 +622,15 @@ class LensFallbackTest {
             now += minutes * 60_000
             assertEquals(Lens.MAIN, fallback.retry(1, Lens.MAIN, now) { 0 })
         }
-        val streaming = listOf(Seen(Lens.MAIN, now + 59_900), Seen(Lens.TELEPHOTO, now + 59_900))
-        assertNull(fallback.watch(2, streaming, now, now + 60_000, { 0 }, Lens.MAIN)) // a minute of frames
+        val opened = listOf(Seen(Lens.MAIN, now + 900), Seen(Lens.TELEPHOTO, now + 900))
+        assertNull(fallback.watch(2, opened, now, now + 1_000, { 0 }, Lens.MAIN)) // giving frames from 1 s
+        val gap = listOf(Seen(Lens.MAIN, now + 900), Seen(Lens.TELEPHOTO, now + 5_000))
+        val sputter = fallback.watch(2, gap, now, now + 5_000, { 0 }, Lens.MAIN)?.failure // its minute starts over
+        assertEquals(Lens.MAIN, (sputter as? CameraFailure.Stalled)?.lens)
+        val again = listOf(Seen(Lens.MAIN, now + 5_900), Seen(Lens.TELEPHOTO, now + 5_900))
+        assertNull(fallback.watch(2, again, now, now + 6_000, { 0 }, Lens.MAIN)) // giving frames again from 6 s
+        val streaming = listOf(Seen(Lens.MAIN, now + 65_900), Seen(Lens.TELEPHOTO, now + 65_900))
+        assertNull(fallback.watch(2, streaming, now, now + 66_000, { 0 }, Lens.MAIN)) // a minute of frames since
         val silent = CameraFailure.NoFrame(listOf(Lens.MAIN), 5_000)
         fallback.failed(3, back, back, silent)
         fallback.waitedFor(3, silent)
