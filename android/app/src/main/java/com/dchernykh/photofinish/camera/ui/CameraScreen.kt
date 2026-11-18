@@ -91,7 +91,11 @@ fun CameraScreen(
         Surface(modifier = Modifier.fillMaxSize(), color = Color.Black) {
             Row(modifier = Modifier.fillMaxSize().safeDrawingPadding().padding(8.dp)) {
                 Box(modifier = Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
-                    CameraPreview(format?.resolution) { preview = it }
+                    CameraPreview(format?.resolution) {
+                        preview = it
+                        // Gone, the cameras close before they fail with it: the screen's stop waits for its return.
+                        if (it == null) streamer.away()
+                    }
                 }
                 ControlPanel(state, granted, format)
             }
