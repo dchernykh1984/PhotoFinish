@@ -479,6 +479,7 @@ class LensFallbackTest {
         assertNull(fallback.watch(1, seen, 0, 6_000 + LensFallback.KEPT_WAIT_MS - 1, kept, Lens.MAIN))
         val late = fallback.watch(1, seen, 0, 6_000 + LensFallback.KEPT_WAIT_MS, kept, Lens.MAIN)
         assertEquals(CameraFailure.Stalled(Lens.TELEPHOTO, 6_000, 6_000), late?.failure) // not silent for good
+        assertEquals("the camera gave telephoto no frame for 30 s", late?.reason) // as long as it was
         var asked = 0L
         assertNull(fallback.watch(1, listOf(Seen(Lens.MAIN, 9_000)), 0, 9_500, { asked++ }, Lens.MAIN))
         assertEquals(0L, asked) // nothing stopped, no retry due: the stores not asked
