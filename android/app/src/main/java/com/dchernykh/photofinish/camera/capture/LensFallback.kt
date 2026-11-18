@@ -303,8 +303,10 @@ class LensFallback {
                 .orEmpty()
         // Put off while the lenses keep a frame unsent [KEPT_MS] or more, the cameras opened again dropping it -- a
         // lens silent meanwhile as before the watch --, [KEPT_WAIT_MS] at most: a slow Wi-Fi keeps none silent.
-        val stale = watched.mapNotNull { stall(it.lens, it.lastFrameMs, startedMs, nowMs) }.lastOrNull()
-        val stopped = stale?.takeIf { nowMs - it.atMs >= KEPT_WAIT_MS || keptMs < KEPT_MS }
+        val stales = watched.mapNotNull { stall(it.lens, it.lastFrameMs, startedMs, nowMs) }
+        val stale = stales.lastOrNull()
+        // The cap from the oldest stop: a lens stopping later puts none off past it.
+        val stopped = stale?.takeIf { nowMs - stales.minOf { it.atMs } >= KEPT_WAIT_MS || keptMs < KEPT_MS }
         val named = silent.joinToString { it.code }
         val noFrame = CameraFailure.NoFrame(silent, since)
         // A failure first, weighed as the lenses' own when early; the retry the next tick, none while a stop is put
