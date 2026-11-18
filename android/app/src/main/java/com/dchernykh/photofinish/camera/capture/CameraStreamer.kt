@@ -340,7 +340,8 @@ class CameraStreamer(
                             planned,
                             common,
                             report = { status ->
-                                if (mine == generation && !closed) onStatus(lens, StreamerStatus.Link(status))
+                                // The screen away too: the frames kept are sent meanwhile, and said (away).
+                                if (!closed) onStatus(lens, StreamerStatus.Link(status))
                             },
                             onFirstFrame = { stream, ptsUs ->
                                 handler.post { checkSettled(mine) } // its frame heard: lastFrameMs set
