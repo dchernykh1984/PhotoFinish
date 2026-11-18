@@ -530,7 +530,7 @@ class CameraStreamer(
                     val (outputs, dropped) = SessionOutputs.choose(camera, preview, streams, executor, parameters)
                     dropped.forEach {
                         streams.remove(it)
-                        keptStreams.idle(it.lens, SystemClock.elapsedRealtime()) // it sends what it kept
+                        keptStreams.drop(it.lens, SystemClock.elapsedRealtime()) // what it kept still sent
                         onStatus(it.lens, StreamerStatus.Left(LeftOut.NOT_WITH_THE_OTHERS))
                     }
                     leaveOut(dropped.map { it.lens })

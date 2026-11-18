@@ -107,6 +107,20 @@ class KeptStreamsTest {
     }
 
     @Test
+    fun `a stream its camera's session will not take is stopped at once with nothing to send, kept while it sends`() {
+        val front = feed(Lens.FRONT)
+        kept.drop(Lens.FRONT, 1_000) // not with the others: no camera feeds it this open
+        assertEquals(listOf("stopped"), front.said)
+        val tele = feed(Lens.TELEPHOTO)
+        tele.unsent = true // fed before, what it kept still to send
+        kept.drop(Lens.TELEPHOTO, 1_000)
+        assertEquals(listOf("idle"), tele.said)
+        tele.unsent = false
+        assertEquals(listOf(Lens.TELEPHOTO), kept.sweep(1_000 + KeptStreams.IDLE_MS))
+        kept.drop(Lens.MAIN, 1_000) // none: no news
+    }
+
+    @Test
     fun `a stream told idle twice keeps its first moment, and a lens with none is no news`() {
         val main = feed(Lens.MAIN)
         kept.idle(Lens.MAIN, 10_000)
