@@ -90,7 +90,7 @@ fun CameraScreen(
         // stops the cameras, its surface resizing. Back, the start feeds the lenses' streams kept again.
         if (preview == null) return@LaunchedEffect
         if (!started) return@LaunchedEffect streamer.away()
-        streamer.stop(keep = targets.isNotEmpty()) // none asked for: the referee's stop, what they kept dropped
+        streamer.stop(format, targets) // another choice, the referee's stop: what the lenses kept dropped
         if (shown != null && format != null) streamer.start(shown.surface, format, targets)
     }
     LaunchedEffect(granted) {

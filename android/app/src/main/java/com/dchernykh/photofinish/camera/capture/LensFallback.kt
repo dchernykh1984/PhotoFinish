@@ -109,6 +109,12 @@ class LensFallback {
     /** Since when each lens gave frames at every watch, on the watch's clock: a minute forgets its tries. */
     private val givingSince = mutableMapOf<Lens, Long>()
 
+    /** Whether [targets] at [format] are what the last start asked for: their streams kept across a stop for them. */
+    fun asks(
+        format: StreamFormat?,
+        targets: List<LensTarget>,
+    ): Boolean = asked == format?.let { it to targets }
+
     /**
      * The cameras started for [targets] at [format]: the lenses left out forgotten when either is not the last
      * start's -- the referee's choice, a stop in between asking for the preview alone --, kept when the same come
