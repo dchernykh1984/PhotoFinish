@@ -608,4 +608,27 @@ class LensFallbackTest {
         fallback.heardFrom(1, Lens.TELEPHOTO, 55_000, 55_100) // the telephoto back at 55 s
         assertEquals(Lens.MAIN, fallback.retry(1, Lens.MAIN, 65_000) { 0 }) // the first's minute still from 5 s
     }
+
+    @Test
+    fun `the first lens streaming a minute after its retries has them forgotten, its next wait a minute`() {
+        val fallback = LensFallback()
+        val back = listOf(Lens.MAIN, Lens.TELEPHOTO)
+        var now = 0L
+        for (minutes in listOf(1L, 2L)) { // two retries: the next would wait four minutes
+            val silent = CameraFailure.NoFrame(listOf(Lens.MAIN), 5_000)
+            fallback.failed(1, back, back, silent)
+            fallback.waitedFor(1, silent)
+            fallback.retry(1, Lens.MAIN, now) { 0 }
+            now += minutes * 60_000
+            assertEquals(Lens.MAIN, fallback.retry(1, Lens.MAIN, now) { 0 })
+        }
+        val streaming = listOf(Seen(Lens.MAIN, now + 59_900), Seen(Lens.TELEPHOTO, now + 59_900))
+        assertNull(fallback.watch(2, streaming, now, now + 60_000, { 0 }, Lens.MAIN)) // a minute of frames
+        val silent = CameraFailure.NoFrame(listOf(Lens.MAIN), 5_000)
+        fallback.failed(3, back, back, silent)
+        fallback.waitedFor(3, silent)
+        val later = now + 200_000
+        assertNull(fallback.retry(3, Lens.MAIN, later) { 0 })
+        assertEquals(Lens.MAIN, fallback.retry(3, Lens.MAIN, later + 60_000) { 0 }) // a minute again, not four
+    }
 }
