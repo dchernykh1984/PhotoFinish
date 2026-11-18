@@ -512,7 +512,7 @@ class CameraStreamer(
             val watched = streams.filterNot { fallback.waitsFor(mine, it.lens) }
             val silent = watched.filter { it.lastFrameMs == 0L }.map { it.lens }.takeIf { since >= NO_FRAME_MS }
             val stopped = watched.firstNotNullOfOrNull { LensFallback.stall(it.lens, it.lastFrameMs, started, now) }
-            val retried = if (preview != null) fallback.retry(mine, now) else null // the first lens's camera
+            val retried = if (preview != null) fallback.retry(mine, streamed.firstOrNull(), now) else null
             when {
                 retried != null -> lost("${retried.code} silent a minute after stopping again: tried again", null)
                 !silent.isNullOrEmpty() -> {

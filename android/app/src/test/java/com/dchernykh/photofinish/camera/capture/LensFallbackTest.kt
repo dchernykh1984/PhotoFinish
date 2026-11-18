@@ -374,10 +374,11 @@ class LensFallbackTest {
         val again = CameraFailure.Stalled(Lens.MAIN, 3_000, 230_000)
         assertNull(fallback.failed(2, withFront, listOf(Lens.MAIN), again))
         assertEquals(listOf(Lens.MAIN), fallback.waitedFor(2, again))
-        assertNull(fallback.retry(2, 230_000 + LensFallback.AGAIN_MS - 1)) // not yet
-        assertEquals(Lens.MAIN, fallback.retry(2, 230_000 + LensFallback.AGAIN_MS))
+        assertNull(fallback.retry(2, Lens.MAIN, 231_000)) // the wait seen: its minute starts
+        assertNull(fallback.retry(2, Lens.MAIN, 231_000 + LensFallback.AGAIN_MS - 1)) // not yet
+        assertEquals(Lens.MAIN, fallback.retry(2, Lens.MAIN, 231_000 + LensFallback.AGAIN_MS))
         assertEquals(false, fallback.waitsFor(2, Lens.MAIN))
-        assertNull(fallback.retry(2, 400_000)) // once a wait
+        assertNull(fallback.retry(2, Lens.MAIN, 400_000)) // once a wait
         val soon = CameraFailure.Stalled(Lens.MAIN, 4_000, 300_000) // stopping soon after it was tried again
         assertNull(fallback.failed(3, withFront, listOf(Lens.MAIN), soon))
         assertEquals(false, fallback.madeAgain(3, soon)) // waited for again, the front on
@@ -408,5 +409,24 @@ class LensFallbackTest {
         val again = CameraFailure.Stalled(Lens.MAIN, 40_000, 220_000)
         assertNull(fallback.failed(1, back, back, again))
         assertEquals(true, fallback.madeAgain(1, again)) // nothing streams that a reopen would cut
+    }
+
+    @Test
+    fun `the first lens silent from the start is tried again a minute on, another lens waited for not`() {
+        val fallback = LensFallback()
+        val back = listOf(Lens.MAIN, Lens.TELEPHOTO)
+        val mainSilent = CameraFailure.NoFrame(listOf(Lens.MAIN), 5_000)
+        assertNull(fallback.failed(1, back, back, mainSilent))
+        assertEquals(listOf(Lens.MAIN), fallback.waitedFor(1, mainSilent))
+        assertNull(fallback.retry(1, Lens.MAIN, 10_000))
+        assertEquals(Lens.MAIN, fallback.retry(1, Lens.MAIN, 10_000 + LensFallback.AGAIN_MS))
+        val teleSilent = CameraFailure.NoFrame(listOf(Lens.TELEPHOTO), 5_000)
+        assertEquals(Lens.TELEPHOTO, fallback.failed(2, back, back, teleSilent)) // early: left out, not waited for
+        val third = LensFallback()
+        third.settle(0)
+        third.failed(1, back, back, teleSilent)
+        assertEquals(listOf(Lens.TELEPHOTO), third.waitedFor(1, teleSilent))
+        assertNull(third.retry(1, Lens.MAIN, 10_000))
+        assertNull(third.retry(1, Lens.MAIN, 10_000 + LensFallback.AGAIN_MS)) // not the first's: no reopen for it
     }
 }
