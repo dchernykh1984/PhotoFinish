@@ -60,6 +60,9 @@ class LensFallback {
      */
     private var settled = false
 
+    /** When the lenses first settled, on the watch's clock: never, before. */
+    private var settledAtMs = Long.MAX_VALUE
+
     /** The lenses left out so far, in the order they were. */
     val leftOut: Set<Lens> get() = left.toSet()
 
@@ -92,6 +95,7 @@ class LensFallback {
         waitingIn = null
         paid = null
         settled = false
+        settledAtMs = Long.MAX_VALUE
         stops.clear()
         stoppedAgain = null
     }
@@ -100,13 +104,21 @@ class LensFallback {
      * The lenses gave their frames for [EARLY_MS] since they started: whatever fails from now on -- or closes, the
      * screen away, and comes back for the same -- is a camera lost, not the lenses', until the referee starts again.
      */
-    fun settle() {
+    fun settle(atMs: Long) {
+        if (!settled) settledAtMs = atMs
         settled = true
     }
 
-    /** [failure] the lenses', early, before they streamed a while -- or a lens stopping again too soon. */
+    /**
+     * [failure] the lenses', early, before they streamed a while -- a lens that stopped before they first settled
+     * too, the watch seeing it seconds after -- or a lens stopping again too soon.
+     */
     private fun counts(failure: CameraFailure?): Boolean =
-        !settled && early(failure) || failure is CameraFailure.Stalled && failure == stoppedAgain
+        if (failure is CameraFailure.Stalled) {
+            failure == stoppedAgain || early(failure) && failure.atMs < settledAtMs
+        } else {
+            !settled && early(failure)
+        }
 
     /** [failure]'s stop kept for its lens, taken for its own doing when its last came within [AGAIN_MS]. */
     private fun heard(failure: CameraFailure.Stalled) {
@@ -225,6 +237,23 @@ class LensFallback {
 
         /** A lens stopping again this soon after its last stop: the cameras opened again did not bring it back. */
         const val AGAIN_MS = 60_000L
+
+        /** How long a lens that gave frames may give none, whatever its rate: at 15 fps, 45 frames missed. */
+        const val STALL_MS = 3_000L
+
+        /**
+         * [lens] stopped at [nowMs] -- its last frame at [lastFrameMs], 0 for none yet, more than [STALL_MS] before --,
+         * the lenses started at [startedMs]: the failure, timed when it stopped, the watch seeing it seconds later.
+         */
+        fun stall(
+            lens: Lens,
+            lastFrameMs: Long,
+            startedMs: Long,
+            nowMs: Long,
+        ): CameraFailure.Stalled? =
+            CameraFailure.Stalled(lens, lastFrameMs - startedMs, lastFrameMs).takeIf {
+                lastFrameMs != 0L && nowMs - lastFrameMs > STALL_MS
+            }
 
         /**
          * A camera's errors of the lenses asked of it: not another app's holding the camera, nor too many cameras
