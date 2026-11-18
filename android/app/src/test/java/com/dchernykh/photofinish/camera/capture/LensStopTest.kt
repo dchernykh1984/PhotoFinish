@@ -180,6 +180,13 @@ class LensStopTest {
     }
 
     @Test
+    fun `the other camera's wait is said in seconds under a minute, in minutes from one`() {
+        assertEquals("2 s", LensFallback.inWords(2_000))
+        assertEquals("1 min", LensFallback.inWords(60_000))
+        assertEquals("32 min", LensFallback.inWords(32 * 60_000L))
+    }
+
+    @Test
     fun `the other camera giving frames a minute after it opened alone has its tries forgotten, 2 s again`() {
         val fallback = LensFallback()
         fallback.aloneIn(Lens.FRONT, 2_000)

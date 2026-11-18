@@ -438,6 +438,10 @@ class LensFallback {
         const val NO_FRAME_MS = 5_000L
 
         private const val MS_PER_S = 1_000L
+        private const val MS_PER_MIN = 60_000L
+
+        /** A wait as the screen says it: in seconds under a minute, in minutes from one -- "32 min", not "1920 s". */
+        fun inWords(ms: Long): String = if (ms < MS_PER_MIN) "${ms / MS_PER_S} s" else "${ms / MS_PER_MIN} min"
 
         /**
          * [lens] stopped at [nowMs] -- its last frame at [lastFrameMs], 0 for none yet, more than [STALL_MS] before --,

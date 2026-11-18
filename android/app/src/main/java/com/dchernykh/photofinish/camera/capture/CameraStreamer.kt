@@ -471,8 +471,8 @@ class CameraStreamer(
             // Its first lens planned keeps its tries: one that would not open, no stream fed yet, is tried again too.
             val first = plan.lenses.firstOrNull() ?: return checkSettled(mine)
             val inMs = fallback.aloneIn(first.target.lens, OPEN_AGAIN_MS)
-            val inS = TimeUnit.MILLISECONDS.toSeconds(inMs)
-            own.forEach { onStatus(it, StreamerStatus.Failed("$reason; trying again in $inS s")) }
+            val said = StreamerStatus.Failed("$reason; trying again in ${LensFallback.inWords(inMs)}")
+            own.forEach { onStatus(it, said) }
             handler.postDelayed({ if (mine == generation) openAlone() }, inMs)
             checkSettled(mine) // the first camera's lenses may run together without it
         }
