@@ -99,8 +99,8 @@ class LensFallback {
      */
     private var waitStop: CameraFailure.Stalled? = null
 
-    /** When [retry] first saw the open's first lens waited for, on the watch's clock: the minute counted from it. */
-    private var firstWaitedSinceMs: Long? = null
+    /** The open's first lens as [retry] first saw it waited for, and when, on the watch's clock: its wait from then. */
+    private var firstWaited: Pair<Lens, Long>? = null
 
     /** The first lens's retries since the referee's start: each doubles the wait for the next, a minute first. */
     private var retries = 0
@@ -125,7 +125,7 @@ class LensFallback {
         retries = 0
         stoppedAgain = null
         waitStop = null
-        firstWaitedSinceMs = null
+        firstWaited = null
     }
 
     /**
@@ -322,10 +322,12 @@ class LensFallback {
                 Watched("the camera gave ${stopped.lens.code} no frame for $silentS s", stopped)
             }
             stale != null -> null
-            else ->
+            else -> {
+                val waitedS = firstWaited?.let { (nowMs - it.second) / MS_PER_S } // a minute, two, four...
                 first
                     ?.let { retry(open, it, nowMs) { keptMs } }
-                    ?.let { Watched("${it.code} waited for a minute: tried again", null) } // silent or stopped
+                    ?.let { Watched("${it.code} waited for $waitedS s: tried again", null) } // silent or stopped
+            }
         }
     }
 
@@ -344,16 +346,16 @@ class LensFallback {
         keptMs: () -> Long,
     ): Lens? {
         if (!waitsFor(open, first)) {
-            firstWaitedSinceMs = null
+            firstWaited = null
             return null
         }
-        val since = firstWaitedSinceMs ?: nowMs.also { firstWaitedSinceMs = it }
+        val since = firstWaited?.takeIf { it.first == first }?.second ?: nowMs.also { firstWaited = first to it }
         val waited = nowMs - since
         // A minute, then two, four... up to 32: a first lens that stays broken costs the others a cut seldom.
         val due = AGAIN_MS shl retries.coerceAtMost(MOST_DOUBLINGS)
         if (waited < due || waited < due + KEPT_WAIT_MS && keptMs() >= KEPT_MS) return null
         retries++
-        firstWaitedSinceMs = null
+        firstWaited = null
         waitStop = null
         resumed(first, nowMs)
         return first
@@ -367,7 +369,7 @@ class LensFallback {
         waiting -= lens
         if (waiting.isEmpty()) waitingIn = null // none waited for now: a failure leaves a lens out as any
         stops[lens] = nowMs
-        firstWaitedSinceMs = null // a wait after this is counted from its own start
+        if (firstWaited?.first == lens) firstWaited = null // its next wait counted from its own start
     }
 
     /**

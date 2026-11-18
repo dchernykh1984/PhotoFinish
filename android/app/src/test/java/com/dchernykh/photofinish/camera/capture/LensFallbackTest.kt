@@ -462,7 +462,7 @@ class LensFallbackTest {
         assertNull(fallback.watch(1, seen, 0, 65_000, { 0 }, null)) // the other camera's watch tries none
         val retried = fallback.watch(1, seen, 0, 65_000, { 0 }, Lens.MAIN)
         assertEquals(null, retried?.failure)
-        assertEquals("main waited for a minute: tried again", retried?.reason) // silent from the start, not stopped
+        assertEquals("main waited for 60 s: tried again", retried?.reason) // silent from the start, not stopped
     }
 
     @Test
@@ -594,5 +594,18 @@ class LensFallbackTest {
             assertEquals(Lens.MAIN, fallback.retry(1, Lens.MAIN, due) { 0 })
             now = due + 1_000
         }
+    }
+
+    @Test
+    fun `another lens back does not restart the first lens's wait`() {
+        val fallback = LensFallback()
+        fallback.settle(0) // opened again mid-race: both silent, none left out, both waited for
+        val back = listOf(Lens.MAIN, Lens.TELEPHOTO)
+        val bothSilent = CameraFailure.NoFrame(listOf(Lens.MAIN, Lens.TELEPHOTO), 5_000)
+        fallback.failed(1, back, back, bothSilent)
+        assertEquals(back, fallback.waitedFor(1, bothSilent))
+        assertNull(fallback.retry(1, Lens.MAIN, 5_000) { 0 }) // its minute from 5 s
+        fallback.heardFrom(1, Lens.TELEPHOTO, 55_000, 55_100) // the telephoto back at 55 s
+        assertEquals(Lens.MAIN, fallback.retry(1, Lens.MAIN, 65_000) { 0 }) // the first's minute still from 5 s
     }
 }
