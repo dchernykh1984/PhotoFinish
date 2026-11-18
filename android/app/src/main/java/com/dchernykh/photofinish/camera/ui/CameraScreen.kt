@@ -58,10 +58,14 @@ import com.dchernykh.photofinish.camera.capture.StreamFormat
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 
-/** The preview's surface, once it has the size asked of it. */
-private class PreviewSurface(
+/**
+ * The preview's surface, once it has the size asked of it: the [made]-th the view made, the system handing the
+ * same Surface back each time.
+ */
+private data class PreviewSurface(
     val surface: Surface,
     val size: Resolution,
+    val made: Int,
 )
 
 @Composable
@@ -75,8 +79,9 @@ fun CameraScreen(
     val format = state.format
     val targets = if (state.streaming) state.pairing.targets else emptyList()
     // The camera starts once the preview has the stream's size, and again on every change: a surface made again
-    // too, its own PreviewSurface though the system hands the same Surface back, which the cameras closed when it
-    // went (CameraStreamer.away) would otherwise wait for in vain, were its going and coming seen in one frame.
+    // too, told by its count -- the system hands the same Surface back --, as the cameras closed when it went
+    // (CameraStreamer.away) would wait for it in vain were its going and coming seen in one frame. The same
+    // surface changed again at its size is no change: the cameras are not cut for it.
     val shown = preview?.takeIf { started && granted && it.size == format?.resolution }
     LaunchedEffect(shown, format, targets) {
         streamer.stop()
@@ -172,14 +177,18 @@ private fun CameraPreview(
             SurfaceView(viewContext).apply {
                 holder.addCallback(
                     object : SurfaceHolder.Callback {
-                        override fun surfaceCreated(holder: SurfaceHolder) = Unit
+                        private var made = 0
+
+                        override fun surfaceCreated(holder: SurfaceHolder) {
+                            made++
+                        }
 
                         override fun surfaceChanged(
                             holder: SurfaceHolder,
                             format: Int,
                             width: Int,
                             height: Int,
-                        ) = onSurface(PreviewSurface(holder.surface, Resolution(width, height)))
+                        ) = onSurface(PreviewSurface(holder.surface, Resolution(width, height), made))
 
                         override fun surfaceDestroyed(holder: SurfaceHolder) = onSurface(null)
                     },
