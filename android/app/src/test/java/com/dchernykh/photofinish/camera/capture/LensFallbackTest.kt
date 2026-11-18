@@ -483,4 +483,19 @@ class LensFallbackTest {
         assertNull(fallback.watch(1, listOf(Seen(Lens.MAIN, 9_000)), 0, 9_500, { asked++ }, Lens.MAIN))
         assertEquals(0L, asked) // nothing stopped, no retry due: the stores not asked
     }
+
+    @Test
+    fun `a lens failing as the first lens's retry falls due is told first, the retry the tick after`() {
+        val fallback = LensFallback()
+        val back = listOf(Lens.MAIN, Lens.TELEPHOTO)
+        val mainSilent = CameraFailure.NoFrame(listOf(Lens.MAIN), 5_000)
+        fallback.failed(1, back, back, mainSilent)
+        fallback.waitedFor(1, mainSilent)
+        val streaming = listOf(Seen(Lens.MAIN, 0), Seen(Lens.TELEPHOTO, 5_900))
+        assertNull(fallback.watch(1, streaming, 0, 6_000, { 0 }, Lens.MAIN)) // the wait seen: its minute starts
+        val both = listOf(Seen(Lens.MAIN, 0), Seen(Lens.TELEPHOTO, 9_000)) // the telephoto stopped at 9 s
+        val told = fallback.watch(1, both, 0, 66_000, { 0 }, Lens.MAIN)
+        assertEquals(CameraFailure.Stalled(Lens.TELEPHOTO, 9_000, 9_000), told?.failure)
+        assertEquals(true, fallback.waitsFor(1, Lens.MAIN)) // the retry not spent on it
+    }
 }
