@@ -22,7 +22,9 @@ import com.dchernykh.photofinish.camera.status.PhoneStatusReader
 import com.dchernykh.photofinish.camera.stream.FrameStore
 import com.dchernykh.photofinish.camera.stream.UplinkStatus
 import java.io.File
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executor
+import java.util.concurrent.TimeUnit
 
 /** What the camera side says to the screen: of the cameras as a whole, or of one lens. */
 sealed interface StreamerStatus {
@@ -105,15 +107,20 @@ class CameraStreamer(
 
     /**
      * The screen leaving, its preview's surface about to go: the cameras closed at once, before they fail with it
-     * -- what they say after is no news --; the lenses' streams send what they kept until the screen's [stop], its
-     * return opening the cameras again.
+     * -- what they say after is no news --; the lenses' streams send what they kept until the screen comes back,
+     * its stop dropping what is left as any reopen does, its start opening the cameras again. The surface is not to
+     * be used once the screen's callback returns: the close is waited for, a busy thread [AWAY_WAIT_MS] at most.
      */
     fun away() {
-        handler.post {
-            generation++
-            opened.forEach { it.closeCamera() }
-            log.info(null, "the screen left: the cameras closed until it is back")
-        }
+        val closed = CountDownLatch(1)
+        val posted =
+            handler.post {
+                generation++
+                opened.forEach { it.closeCamera() }
+                log.info(null, "the screen left: the cameras closed until it is back")
+                closed.countDown()
+            }
+        if (posted) closed.await(AWAY_WAIT_MS, TimeUnit.MILLISECONDS)
     }
 
     fun release() {
@@ -554,6 +561,7 @@ class CameraStreamer(
 
     companion object {
         private const val OPEN_AGAIN_MS = 2_000L
+        private const val AWAY_WAIT_MS = 1_000L
         private const val NO_FRAME_MS = 5_000L
 
         private const val WATCH_MS = 1_000L
