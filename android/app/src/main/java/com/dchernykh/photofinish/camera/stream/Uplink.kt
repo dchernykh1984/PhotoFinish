@@ -42,6 +42,7 @@ sealed interface UplinkStatus {
  * minus the camera's. [requestKeyframe] asks the encoder for one: a connection waiting for its first frame
  * starts from it, and so do the frames after one the store could not keep.
  */
+@Suppress("TooManyFunctions") // the uplink's loop and its steps, each a few lines
 class Uplink(
     private val address: RtmpAddress,
     private val format: StreamFormat,
@@ -61,6 +62,17 @@ class Uplink(
 
     /** How long into a connection a clock that comes makes a new one: its start, not the race. */
     internal var stampWindowMs = STAMP_WINDOW_MS
+
+    /** Until when, on the nanosecond clock, a clock come in step makes a new connection: [stampWindowMs] on. */
+    @Volatile private var stampUntilNs = Long.MIN_VALUE
+
+    /**
+     * Its camera feeds it anew after a gap -- lost and opened again, the screen back --: a start for its frames, a
+     * clock in step since its connection began, left for the next then, making a new one now, with their moments.
+     */
+    fun stampAgain() {
+        stampUntilNs = System.nanoTime() + stampWindowMs * 1_000_000
+    }
 
     /**
      * The phone's status line a keyframe carries, given the frames dropped so far; null for none
@@ -192,7 +204,7 @@ class Uplink(
         if (clock() != null) store.skipToStamped() else store.skipKept()
         // Then how long the frame it starts at was kept is known, the wait for the clock in it too (contract).
         connected.publish(metadata(format, store.heldMs(captureClock?.invoke())))
-        val until = System.nanoTime() + stampWindowMs * 1_000_000
+        stampAgain() // the connection's start
         await(Long.MAX_VALUE) { record != null }
         connected.sendSequenceHeader(record ?: throw IOException("stopped"))
         requestKeyframe()
@@ -210,7 +222,7 @@ class Uplink(
             if (first == null) stamped = kept.momentUs != null
             // A clock that comes at the start makes a new connection, from this frame; one that comes once the
             // race may be under way is left for the next, as a new one is a moment of frames sent again.
-            val early = System.nanoTime() < until
+            val early = System.nanoTime() < stampUntilNs
             if (!stamped && kept.momentUs != null && early) {
                 store.back()
                 throw IOException("the clock is in step now")
