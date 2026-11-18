@@ -119,3 +119,28 @@ class KeptStreamsTest {
         assertEquals(emptyList<Lens>(), kept.sweep(60_000)) // nothing left to stop again
     }
 }
+
+/** [FedFrames]: a lens's frames as each feed sees them. */
+class FedFramesTest {
+    @Test
+    fun `a frame the camera before took, drained late after the feed, is not the feed's first`() {
+        val frames = FedFrames()
+        assertEquals(true, frames.heard(1_000_000, 100)) // a new stream's first frame
+        assertEquals(false, frames.heard(1_033_000, 133))
+        frames.feed(5_000_000) // the camera opened again: its frames from 5 s on the frames' clock
+        assertEquals(0L, frames.lastFrameMs)
+        assertEquals(false, frames.heard(1_066_000, 4_100)) // the encoder's last of the camera before
+        assertEquals(0L, frames.lastFrameMs) // not taken for the new camera's frames
+        assertEquals(true, frames.heard(5_100_000, 4_200)) // the new camera's first
+        assertEquals(4_200L, frames.lastFrameMs)
+        assertEquals(false, frames.heard(5_133_000, 4_233))
+    }
+
+    @Test
+    fun `a feed with the frames' clock unknown takes every frame as its own`() {
+        val frames = FedFrames()
+        frames.feed(null)
+        assertEquals(true, frames.heard(1_000, 50))
+        assertEquals(50L, frames.lastFrameMs)
+    }
+}
