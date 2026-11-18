@@ -51,7 +51,8 @@ recorder is down and at most the 0.1 s before it.
   camera answers the phone's clock exchange over UDP on the camera's port, and the phone keeps
   its camera clock in step from it (`specs/003-phone-camera-app/contracts/phone-stream.md`):
   Wi-Fi delays do not move the frame. A connection's first frame decides for all of it: a moment
-  not after the frame was read and at most 5 s before the recorder began taking the connection --
+  not after the frame was read and at most 5 s before the recorder began listening for the
+  connection, a second at most before it came --
   the look-over after it does not count, however slow a Wi-Fi full of other lenses makes it --,
   longer by what the phone says it kept the frame, `held_ms`, is believed; else --
   no moments, or a
