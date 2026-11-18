@@ -100,11 +100,11 @@ class LensFallback {
     /** The open's first lens as [retry] first saw it waited for, and when, on the watch's clock: its wait from then. */
     private var firstWaited: Pair<Lens, Long>? = null
 
-    /**
-     * Each lens's tries since the referee's start -- the first lens's [retry]s, the other camera's opens alone
-     * ([aloneIn]) --: each doubles the wait for the next.
-     */
+    /** Each first lens's [retry]s since the referee's start: each doubles the wait for the next, a minute first. */
     private val retries = mutableMapOf<Lens, Int>()
+
+    /** The other camera's opens alone ([aloneIn]), by its first lens: counted apart, on their own scale. */
+    private val aloneTries = mutableMapOf<Lens, Int>()
 
     /** Since when each lens gave frames at every watch, on the watch's clock: a minute forgets its tries. */
     private val givingSince = mutableMapOf<Lens, Long>()
@@ -134,6 +134,7 @@ class LensFallback {
         settledAtMs = Long.MAX_VALUE
         stops.clear()
         retries.clear()
+        aloneTries.clear()
         givingSince.clear()
         stoppedAgain = null
         waitStop = null
@@ -264,8 +265,8 @@ class LensFallback {
         lens: Lens,
         soonMs: Long,
     ): Long {
-        val tries = retries[lens] ?: 0
-        retries[lens] = tries + 1
+        val tries = aloneTries[lens] ?: 0
+        aloneTries[lens] = tries + 1
         givingSince -= lens // its minute of frames counted from its next open
         return if (tries == 0) soonMs else AGAIN_MS shl (tries - 1).coerceAtMost(MOST_DOUBLINGS)
     }
@@ -398,7 +399,10 @@ class LensFallback {
             return
         }
         val since = givingSince.getOrPut(seen.lens) { nowMs }
-        if (nowMs - since >= AGAIN_MS) retries -= seen.lens
+        if (nowMs - since >= AGAIN_MS) {
+            retries -= seen.lens
+            aloneTries -= seen.lens
+        }
     }
 
     /** [lens] no longer waited for at [nowMs] -- tried again, or back --, kept as a stop: stopping soon, it goes. */

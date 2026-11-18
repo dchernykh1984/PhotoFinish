@@ -180,6 +180,18 @@ class LensStopTest {
     }
 
     @Test
+    fun `the front's tries alone and a first lens's waits are counted apart, one not doubling the other`() {
+        val fallback = LensFallback()
+        repeat(4) { fallback.aloneIn(Lens.FRONT, 2_000) } // the front opened alone four times
+        // An open where the front is the first lens -- the back would not start --, silent: waited for.
+        val silent = CameraFailure.NoFrame(listOf(Lens.FRONT), 5_000)
+        fallback.failed(1, listOf(Lens.FRONT), listOf(Lens.FRONT), silent)
+        fallback.waitedFor(1, silent)
+        assertNull(fallback.retry(1, Lens.FRONT, 10_000)) // the wait seen
+        assertEquals(Lens.FRONT, fallback.retry(1, Lens.FRONT, 70_000)) // a minute on, not sixteen
+    }
+
+    @Test
     fun `the other camera's wait is said in seconds under a minute, in minutes from one`() {
         assertEquals("2 s", LensFallback.inWords(2_000))
         assertEquals("1 min", LensFallback.inWords(60_000))
