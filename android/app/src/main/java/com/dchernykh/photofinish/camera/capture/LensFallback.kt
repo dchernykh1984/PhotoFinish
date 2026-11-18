@@ -311,15 +311,18 @@ class LensFallback {
                 .mapNotNull { stall(it.lens, it.lastFrameMs, startedMs, nowMs) }
                 .lastOrNull()
                 ?.takeIf { nowMs - it.atMs >= KEPT_WAIT_MS || keptMs < KEPT_MS }
-        val retried = first?.let { retry(open, it, nowMs) { keptMs } } // the other camera's watch: not its to try
         val named = silent.joinToString { it.code }
         val noFrame = CameraFailure.NoFrame(silent, since)
+        // A failure first, weighed as the lenses' own when early; the retry the next tick. The other camera's watch
+        // has no first lens to try.
         return when {
-            retried != null -> Watched("${retried.code} waited for a minute: tried again", null) // silent or stopped
             silent.isNotEmpty() -> Watched("the camera gave $named no frame in ${NO_FRAME_MS / MS_PER_S} s", noFrame)
             stopped != null ->
                 Watched("the camera gave ${stopped.lens.code} no frame for ${STALL_MS / MS_PER_S} s", stopped)
-            else -> null
+            else ->
+                first
+                    ?.let { retry(open, it, nowMs) { keptMs } }
+                    ?.let { Watched("${it.code} waited for a minute: tried again", null) } // silent or stopped
         }
     }
 
