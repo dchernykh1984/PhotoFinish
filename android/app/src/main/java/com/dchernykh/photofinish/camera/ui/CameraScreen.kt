@@ -84,9 +84,10 @@ fun CameraScreen(
     // surface changed again at its size is no change: the cameras are not cut for it.
     val shown = preview?.takeIf { started && granted && it.size == format?.resolution }
     LaunchedEffect(shown, format, targets) {
-        // The surface gone, its cameras were closed as it went (away), the lenses sending what they kept until it is
-        // back, whenever this runs meanwhile; the screen off view with its surface kept -- some phones keep it --,
-        // closed so now. A size not yet the stream's still stops them, its surface resizing.
+        // The surface gone, its cameras were closed as it went (away), the lenses sending what they kept -- each
+        // stopping 5 s after once all is sent, unless the screen is back --, whenever this runs meanwhile; the screen
+        // off view with its surface kept -- some phones keep it --, closed so now. A size not yet the stream's still
+        // stops the cameras, its surface resizing. Back, the start feeds the lenses' streams kept again.
         if (preview == null) return@LaunchedEffect
         if (!started) return@LaunchedEffect streamer.away()
         streamer.stop()
@@ -105,7 +106,7 @@ fun CameraScreen(
                 Box(modifier = Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
                     CameraPreview(format?.resolution) {
                         preview = it
-                        // Gone, the cameras close before they fail with it: the screen's stop waits for its return.
+                        // Gone, the cameras close before they fail with it; its return opens them again.
                         if (it == null) streamer.away()
                     }
                 }
