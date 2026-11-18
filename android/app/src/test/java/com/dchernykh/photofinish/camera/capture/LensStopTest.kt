@@ -97,7 +97,7 @@ class LensStopTest {
         val front = CameraFailure.Stalled(Lens.FRONT, 30_000, 100_000)
         assertNull(fallback.failedAlone(1, streamed, listOf(Lens.FRONT), front))
         assertNull(fallback.failed(1, streamed, listOf(Lens.FRONT), front)) // the same stop, again: no repeat
-        assertEquals(listOf(Lens.FRONT), fallback.waitedFor(1, front)) // waited for, as the other camera's
+        assertEquals(emptyList<Lens>(), fallback.waitedFor(1, front)) // the other camera's: opened again alone
         assertEquals(emptySet<Lens>(), fallback.leftOut)
     }
 
@@ -153,16 +153,49 @@ class LensStopTest {
     }
 
     @Test
-    fun `the other camera's lens stopping later is waited for, not closed for the open, the first camera not cut`() {
+    fun `the other camera's lens stopping later, and again soon, is opened again alone, never left out for it`() {
         val fallback = LensFallback()
         fallback.settle(0)
         val streamed = listOf(Lens.MAIN, Lens.TELEPHOTO, Lens.FRONT)
         val front = CameraFailure.Stalled(Lens.FRONT, 30_000, 100_000)
         assertNull(fallback.failedAlone(1, streamed, listOf(Lens.FRONT), front))
-        assertEquals(listOf(Lens.FRONT), fallback.waitedFor(1, front)) // a pause may pass
+        assertEquals(2_000L, fallback.aloneIn(Lens.FRONT, 2_000)) // 2 s on, as any camera lost
         val again = CameraFailure.Stalled(Lens.FRONT, 5_000, 140_000) // stopping again within a minute
-        assertEquals(Lens.FRONT, fallback.failedAlone(2, streamed, listOf(Lens.FRONT), again))
-        assertEquals(emptyList<Lens>(), fallback.waitedFor(2, again)) // left out: closed
+        assertNull(fallback.failedAlone(1, streamed, listOf(Lens.FRONT), again)) // it cuts no other lens
+        assertEquals(60_000L, fallback.aloneIn(Lens.FRONT, 2_000)) // its own doing: a minute on
+        assertEquals(emptySet<Lens>(), fallback.leftOut)
+        // The first camera's lens stopping again so goes: its reopen would cut the others.
+        val tele = CameraFailure.Stalled(Lens.TELEPHOTO, 30_000, 200_000)
+        assertNull(fallback.failed(1, streamed, streamed - Lens.FRONT, tele))
+        val teleAgain = CameraFailure.Stalled(Lens.TELEPHOTO, 3_000, 210_000)
+        assertEquals(Lens.TELEPHOTO, fallback.failed(2, streamed, streamed - Lens.FRONT, teleAgain))
+    }
+
+    @Test
+    fun `the other camera opened again alone waits 2 s, then a minute, two, four, up to half an hour`() {
+        val fallback = LensFallback()
+        val waits = List(8) { fallback.aloneIn(Lens.FRONT, 2_000) }
+        val minutes = listOf(1L, 2L, 4L, 8L, 16L, 32L, 32L).map { it * 60_000 }
+        assertEquals(listOf(2_000L) + minutes, waits)
+    }
+
+    @Test
+    fun `the other camera giving frames a minute after it opened alone has its tries forgotten, 2 s again`() {
+        val fallback = LensFallback()
+        fallback.aloneIn(Lens.FRONT, 2_000)
+        fallback.aloneIn(Lens.FRONT, 2_000) // two tries: the next would wait two minutes
+        fallback.watch(1, listOf(Seen(Lens.FRONT, 100_900)), 100_000, 101_000, null) // giving from 101 s
+        fallback.watch(1, listOf(Seen(Lens.FRONT, 160_900)), 100_000, 161_000, null) // a minute of frames
+        assertEquals(2_000L, fallback.aloneIn(Lens.FRONT, 2_000))
+    }
+
+    @Test
+    fun `the other camera's minute of frames is counted from its open alone, not from before it was lost`() {
+        val fallback = LensFallback()
+        fallback.watch(1, listOf(Seen(Lens.FRONT, 900)), 0, 1_000, null) // giving from 1 s
+        assertEquals(2_000L, fallback.aloneIn(Lens.FRONT, 2_000)) // lost at 50 s, its camera closed: no watch
+        fallback.watch(1, listOf(Seen(Lens.FRONT, 61_400)), 52_000, 61_500, null) // opened again, giving
+        assertEquals(60_000L, fallback.aloneIn(Lens.FRONT, 2_000)) // lost again soon: a minute on, not 2 s
     }
 
     @Test
@@ -284,7 +317,7 @@ class LensStopTest {
         assertEquals(Lens.TELEPHOTO, fallback.failed(1, streamed, streamed - Lens.FRONT, error(1_500))) // paid
         val front = CameraFailure.Stalled(Lens.FRONT, 30_000, 100_000)
         assertNull(fallback.failedAlone(1, streamed, listOf(Lens.FRONT), front))
-        assertEquals(emptyList<Lens>(), fallback.waitedFor(1, front)) // closed alone
+        assertEquals(emptyList<Lens>(), fallback.waitedFor(1, front)) // opened again alone
         assertEquals(true, fallback.madeAgain(2, front)) // no stale wait left for it
     }
 

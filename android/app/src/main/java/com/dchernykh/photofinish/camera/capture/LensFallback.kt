@@ -59,7 +59,8 @@ data class Watched(
  * lens out at most. Cameras lost later, having streamed a while, or taken by another app, are opened again
  * with all their lenses -- but a lens that stops again within [AGAIN_MS] of its last stop goes, the cameras
  * opened again not bringing it back; the first, which never goes, is waited for while another lens streams that
- * opening them again would cut.
+ * opening them again would cut. The other camera -- the front beside the back -- lost so is opened again alone
+ * ([aloneIn]), the first camera's lenses streaming on: none goes for it.
  */
 @Suppress("TooManyFunctions") // the rules of FR-005, each a question of a few lines
 class LensFallback {
@@ -93,20 +94,20 @@ class LensFallback {
     /** The last stop that came within [AGAIN_MS] of its lens's one before: the lens's own doing. */
     private var stoppedAgain: CameraFailure.Stalled? = null
 
-    /**
-     * The stop waited for, the cameras not made again for it: the first lens's come again beside a lens that streams,
-     * or a lens of the other camera stopping later -- its first camera's lenses not cut for it.
-     */
+    /** The stop waited for, the cameras not made again for it: the first lens's come again beside one streaming. */
     private var waitStop: CameraFailure.Stalled? = null
 
     /** The open's first lens as [retry] first saw it waited for, and when, on the watch's clock: its wait from then. */
     private var firstWaited: Pair<Lens, Long>? = null
 
-    /** The first lens's retries since the referee's start: each doubles the wait for the next, a minute first. */
-    private var retries = 0
+    /**
+     * Each lens's tries since the referee's start -- the first lens's [retry]s, the other camera's opens alone
+     * ([aloneIn]) --: each doubles the wait for the next.
+     */
+    private val retries = mutableMapOf<Lens, Int>()
 
-    /** Since when the first lens gave frames at every watch, on the watch's clock: a minute forgets its retries. */
-    private var firstGivingSinceMs: Long? = null
+    /** Since when each lens gave frames at every watch, on the watch's clock: a minute forgets its tries. */
+    private val givingSince = mutableMapOf<Lens, Long>()
 
     /**
      * The cameras started for [targets] at [format]: the lenses left out forgotten when either is not the last
@@ -126,8 +127,8 @@ class LensFallback {
         paid = null
         settledAtMs = Long.MAX_VALUE
         stops.clear()
-        retries = 0
-        firstGivingSinceMs = null
+        retries.clear()
+        givingSince.clear()
         stoppedAgain = null
         waitStop = null
         firstWaited = null
@@ -144,11 +145,15 @@ class LensFallback {
 
     /**
      * [failure] the lenses', early, before they streamed a while -- a lens that stopped before they first settled
-     * too, the watch seeing it seconds after -- or a lens stopping again too soon.
+     * too, the watch seeing it seconds after -- or a lens stopping again too soon, but the other camera's ([alone]):
+     * opened again alone, its stops cut no other lens.
      */
-    private fun counts(failure: CameraFailure?): Boolean =
+    private fun counts(
+        failure: CameraFailure?,
+        alone: Boolean,
+    ): Boolean =
         if (failure is CameraFailure.Stalled) {
-            failure == stoppedAgain || early(failure) && failure.atMs < settledAtMs
+            !alone && failure == stoppedAgain || early(failure) && failure.atMs < settledAtMs
         } else {
             !settled && early(failure)
         }
@@ -231,22 +236,33 @@ class LensFallback {
     ): Boolean = open == waitingIn && lens in waiting
 
     /**
-     * The other camera of open [open] -- the front beside the back -- failed alone and was closed, its [lenses]
-     * left out of this open: one of them left out from now on, as the first camera's path does -- after a lens gave
-     * no frame the last of those, else its last, never the first of [streamed], the open's in the code's order --, the
-     * others tried again in the next open, made for them. The lens left out, or null: a lens of it that stopped and
-     * is not left out is waited for, as one that gave no frame, not closed for the open -- a pause that passes then
-     * passes, and opening the cameras again for it would cut the first camera's lenses.
+     * The other camera of open [open] -- the front beside the back -- failed alone and was closed: one of its
+     * [lenses] left out from now on, as the first camera's path does -- after a lens gave no frame the last of those,
+     * else its last, never the first of [streamed], the open's in the code's order --, the others tried again in the
+     * next open, made for them. The lens left out, or null: a failure later, or not the lenses', or a stop come again
+     * too soon, has the camera opened again alone ([aloneIn]), not every camera for it.
      */
     fun failedAlone(
         open: Int,
         streamed: List<Lens>,
         lenses: List<Lens>,
         failure: CameraFailure?,
-    ): Lens? =
-        choose(open, failure, streamed.drop(1).filter { it in lenses }, lenses).also {
-            if (it == null && failure is CameraFailure.Stalled && open != paid) waitStop = failure // else closed
-        }
+    ): Lens? = choose(open, failure, streamed.drop(1).filter { it in lenses }, lenses, alone = true)
+
+    /**
+     * The other camera, [lens] its first, lost and none of its lenses left out ([failedAlone]): how long until it is
+     * opened again alone, the first camera's lenses streaming on -- [soonMs] the first time, as any camera lost; lost
+     * again before it gave frames a minute, a minute, then two, four, up to half an hour.
+     */
+    fun aloneIn(
+        lens: Lens,
+        soonMs: Long,
+    ): Long {
+        val tries = retries[lens] ?: 0
+        retries[lens] = tries + 1
+        givingSince -= lens // its minute of frames counted from its next open
+        return if (tries == 0) soonMs else AGAIN_MS shl (tries - 1).coerceAtMost(MOST_DOUBLINGS)
+    }
 
     /**
      * One of [candidates] left out of open [open] after [failure] when it counts and the open has paid none: after
@@ -260,9 +276,10 @@ class LensFallback {
         failure: CameraFailure?,
         candidates: List<Lens>,
         own: List<Lens>,
+        alone: Boolean = false,
     ): Lens? {
         if (failure is CameraFailure.Stalled) heard(failure)
-        if (!counts(failure) || open == paid) return null
+        if (!counts(failure, alone) || open == paid) return null
         val lens = pick(open, failure, candidates, own) ?: return null
         paid = open
         return lens.also { left += it }
@@ -300,9 +317,11 @@ class LensFallback {
         nowMs: Long,
         first: Lens?,
     ): Watched? {
-        seen.forEach { heardFrom(open, it.lens, it.lastFrameMs, nowMs) }
+        seen.forEach {
+            heardFrom(open, it.lens, it.lastFrameMs, nowMs)
+            forgetRetries(open, it, nowMs)
+        }
         val since = nowMs - startedMs
-        if (first != null) forgetRetries(open, seen.find { it.lens == first }, nowMs)
         val watched = seen.filterNot { waitsFor(open, it.lens) }
         val silent =
             watched
@@ -348,9 +367,9 @@ class LensFallback {
         val since = firstWaited?.takeIf { it.first == first }?.second ?: nowMs.also { firstWaited = first to it }
         val waited = nowMs - since
         // A minute, then two, four... up to 32: a first lens that stays broken costs the others a cut seldom.
-        val due = AGAIN_MS shl retries.coerceAtMost(MOST_DOUBLINGS)
-        if (waited < due) return null
-        retries++
+        val tries = retries[first] ?: 0
+        if (waited < AGAIN_MS shl tries.coerceAtMost(MOST_DOUBLINGS)) return null
+        retries[first] = tries + 1
         firstWaited = null
         waitStop = null
         resumed(first, nowMs)
@@ -358,22 +377,22 @@ class LensFallback {
     }
 
     /**
-     * The first lens, [first] as seen in open [open] at [nowMs], giving frames at every watch for [AGAIN_MS] -- no
-     * gap of [STALL_MS] --: its retries so far forgotten, its next wait a minute again; hours after a bad start it is
-     * not left half an hour, and a lens that sputters forgets none.
+     * A lens, [seen] in open [open] at [nowMs], giving frames at every watch for [AGAIN_MS] -- no gap of [STALL_MS]
+     * --: its tries so far forgotten, its next wait the first again; hours after a bad start it is not left half an
+     * hour, and a lens that sputters forgets none.
      */
     private fun forgetRetries(
         open: Int,
-        first: Seen?,
+        seen: Seen,
         nowMs: Long,
     ) {
-        val giving = first != null && first.lastFrameMs != 0L && nowMs - first.lastFrameMs <= STALL_MS
-        if (!giving || waitsFor(open, first.lens)) {
-            firstGivingSinceMs = null
+        val giving = seen.lastFrameMs != 0L && nowMs - seen.lastFrameMs <= STALL_MS && !waitsFor(open, seen.lens)
+        if (!giving) {
+            givingSince -= seen.lens
             return
         }
-        val since = firstGivingSinceMs ?: nowMs.also { firstGivingSinceMs = it }
-        if (nowMs - since >= AGAIN_MS) retries = 0
+        val since = givingSince.getOrPut(seen.lens) { nowMs }
+        if (nowMs - since >= AGAIN_MS) retries -= seen.lens
     }
 
     /** [lens] no longer waited for at [nowMs] -- tried again, or back --, kept as a stop: stopping soon, it goes. */
