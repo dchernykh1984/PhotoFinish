@@ -355,7 +355,10 @@ class CameraStreamer(
         /** Each of its lenses has given a frame, or is waited for (LensFallback.waitsFor): none of a camera closed. */
         val allFramed: Boolean get() = streams.all { it.lastFrameMs != 0L || fallback.waitsFor(mine, it.lens) }
 
-        /** Closed: its watch ends. */
+        /**
+         * Closed: its watch ends, and what its camera says after -- a callback already on its way, the other camera
+         * closed alone in the same open -- is no news: lost once, it is opened again once.
+         */
         private var closed = false
         private var targets: List<Surface> = emptyList()
         private var device: CameraDevice? = null
@@ -407,7 +410,7 @@ class CameraStreamer(
         }
 
         override fun onOpened(camera: CameraDevice) {
-            if (mine != generation) return camera.close()
+            if (mine != generation || closed) return camera.close()
             device = camera
             configure(camera)
         }
@@ -437,18 +440,25 @@ class CameraStreamer(
             reason: String,
             failure: CameraFailure?,
         ) {
+            if (closed) return
+            if (preview == null) return lostAlone(reason, failure)
             val own = ownLenses
-            val streamed = streamed // before this camera closes
+            val made = again(reason, failure, own)
+            // Waited for, as it may come yet: said on the screen and to the laptop, the lens's own word.
             val said = StreamerStatus.Failed(reason)
-            if (preview != null) {
-                val made = again(reason, failure, own)
-                // Waited for, as it may come yet: said on the screen and to the laptop, the lens's own word.
-                val silent = if (made) emptyList() else fallback.waitedFor(mine, failure)
-                silent.forEach { onStatus(it, said) }
-                if (!made && silent.isEmpty()) say(said)
-                return checkSettled(mine) // the others may run together without the lens waited for
-            }
-            val left = fallback.failedAlone(mine, streamed, own, failure)
+            val silent = if (made) emptyList() else fallback.waitedFor(mine, failure)
+            silent.forEach { onStatus(it, said) }
+            if (!made && silent.isEmpty()) say(said)
+            checkSettled(mine) // the others may run together without the lens waited for
+        }
+
+        /** The other camera lost, for [reason]: closed alone, a lens of it left out, or it opened again alone. */
+        private fun lostAlone(
+            reason: String,
+            failure: CameraFailure?,
+        ) {
+            val own = ownLenses
+            val left = fallback.failedAlone(mine, streamed, own, failure) // streamed before this camera closes
             close() // first: no word of its uplinks comes after the one said here; their streams kept, idle
             opened -= this
             leaveOut(own) // told to the laptop
@@ -497,13 +507,13 @@ class CameraStreamer(
             val callback =
                 object : CameraCaptureSession.StateCallback() {
                     override fun onConfigured(configured: CameraCaptureSession) {
-                        if (mine != generation) return configured.close() // an earlier open's
+                        if (mine != generation || closed) return configured.close() // an earlier open's, or closed
                         session = configured
                         startFrames(configured, camera)
                     }
 
                     override fun onConfigureFailed(failed: CameraCaptureSession) {
-                        if (mine != generation) return
+                        if (mine != generation || closed) return
                         val chosen = format?.let { "${it.resolution} at ${it.fps} fps" }.orEmpty()
                         lost("the camera cannot give these lenses $chosen together", CameraFailure.NotConfigured)
                     }
