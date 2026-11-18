@@ -163,10 +163,15 @@ class FrameStore(
     /** How long the frame the cursor is at has been kept: [nowUs], on the frames' clock, minus its capture. */
     fun heldMs(nowUs: Long?): Long {
         lock.withLock {
-            val run = cursorRun ?: runs.firstOrNull()
-            val entry = run?.frames?.getOrNull(cursorFrame) ?: run?.let { following(runs, it) }?.frames?.first()
+            val entry = nextEntry()
             return if (nowUs == null || entry == null) 0 else maxOf((nowUs - entry.ptsUs) / 1000, 0)
         }
+    }
+
+    /** The frame the uplink reads next, if one is kept; the caller holds the lock. */
+    private fun nextEntry(): Entry? {
+        val run = cursorRun ?: runs.firstOrNull()
+        return run?.frames?.getOrNull(cursorFrame) ?: run?.let { following(runs, it) }?.frames?.firstOrNull()
     }
 
     /**
@@ -175,8 +180,7 @@ class FrameStore(
      */
     fun behindMs(): Long {
         lock.withLock {
-            val run = cursorRun ?: runs.firstOrNull()
-            val entry = run?.frames?.getOrNull(cursorFrame) ?: run?.let { following(runs, it) }?.frames?.first()
+            val entry = nextEntry()
             val newest = runs.lastOrNull()?.frames?.lastOrNull()
             return if (entry == null || newest == null) 0 else maxOf((newest.ptsUs - entry.ptsUs) / 1000, 0)
         }
