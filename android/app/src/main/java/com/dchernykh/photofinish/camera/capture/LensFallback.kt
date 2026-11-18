@@ -399,8 +399,10 @@ class LensFallback {
             startedMs: Long,
             nowMs: Long,
         ): CameraFailure.Stalled? =
-            CameraFailure.Stalled(lens, lastFrameMs - startedMs, lastFrameMs).takeIf {
-                lastFrameMs != 0L && nowMs - lastFrameMs > STALL_MS
+            if (lastFrameMs != 0L && nowMs - lastFrameMs > STALL_MS) {
+                CameraFailure.Stalled(lens, lastFrameMs - startedMs, lastFrameMs)
+            } else {
+                null // most ticks: nothing made to be dropped
             }
 
         /**
