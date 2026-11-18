@@ -84,6 +84,7 @@ internal class LensStream private constructor(
     override fun idle() = words.idle()
 
     override fun stop() {
+        words.idle() // its link's last words, on their way as it stops, said no more: its lens's word stands
         stopped = true
         drainer?.let {
             it.interrupt() // seen within one dequeue's wait
