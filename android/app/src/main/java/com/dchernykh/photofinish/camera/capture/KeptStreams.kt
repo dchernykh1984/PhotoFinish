@@ -1,6 +1,7 @@
 package com.dchernykh.photofinish.camera.capture
 
 import com.dchernykh.photofinish.camera.pairing.Lens
+import com.dchernykh.photofinish.camera.stream.UplinkStatus
 
 /** A lens's stream as [KeptStreams] keeps it: fed by a camera or by none, asked what it keeps, stopped. */
 internal interface KeptStream {
@@ -132,5 +133,38 @@ internal class FedFrames {
         val first = lastFrameMs == 0L
         lastFrameMs = nowMs
         return first
+    }
+}
+
+/**
+ * What a lens's link says, its stream fed or idle ([KeptStream]): said while a camera feeds it; kept while idle --
+ * the camera's word stands -- the last said again at the next feed, the link down or connecting again meanwhile;
+ * not streaming, which the link says itself once the camera's frames flow, not as the camera is still opening.
+ */
+internal class LinkWords(
+    private val say: (UplinkStatus) -> Unit,
+) {
+    /** Fed by a camera: what the link does is said. Read on the cameras' thread. */
+    @Volatile var fed = true
+        private set
+
+    private var last: UplinkStatus? = null
+
+    /** The link's [status], on the uplink's thread: kept, and said while fed. */
+    @Synchronized
+    fun heard(status: UplinkStatus) {
+        last = status
+        if (fed) say(status)
+    }
+
+    @Synchronized
+    fun feed() {
+        fed = true
+        last?.takeIf { it !is UplinkStatus.Streaming }?.let(say)
+    }
+
+    @Synchronized
+    fun idle() {
+        fed = false
     }
 }
