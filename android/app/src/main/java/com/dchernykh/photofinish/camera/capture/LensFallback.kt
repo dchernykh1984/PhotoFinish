@@ -87,6 +87,9 @@ class LensFallback {
     /** The other camera's lens stopped later, none left out: waited for, the first camera's lenses not cut for it. */
     private var waitAlone: CameraFailure.Stalled? = null
 
+    /** When [retry] first saw the open's first lens waited for, on the watch's clock: the minute counted from it. */
+    private var firstWaitedSinceMs: Long? = null
+
     /**
      * The cameras started for [targets] at [format]: the lenses left out forgotten when either is not the last
      * start's -- the referee's choice, a stop in between asking for the preview alone --, kept when the same come
@@ -108,6 +111,7 @@ class LensFallback {
         stoppedAgain = null
         waitFor = null
         waitAlone = null
+        firstWaitedSinceMs = null
     }
 
     /**
@@ -263,19 +267,27 @@ class LensFallback {
         }
 
     /**
-     * The first lens, waited for in open [open] after stopping again beside others, silent [AGAIN_MS] since it stopped
-     * at [nowMs]: tried again, the lens returned for the cameras to be opened again -- a moment of the others' frames
-     * a minute for a chance of it; its next stop within a minute of this waited for again. Else null.
+     * The open's [first] lens, waited for in open [open] -- silent from the start, or stopped again beside others --
+     * [AGAIN_MS] since this was first asked it, at [nowMs]: tried again, the lens returned for the cameras to be
+     * opened again -- a moment of the others' frames a minute for a chance of it; its next stop within a minute of
+     * this waited for again. Else null.
      */
     fun retry(
         open: Int,
+        first: Lens?,
         nowMs: Long,
     ): Lens? {
-        val waited = waitFor?.takeIf { waitsFor(open, it.lens) && nowMs - it.atMs >= AGAIN_MS } ?: return null
+        if (first == null || !waitsFor(open, first)) {
+            firstWaitedSinceMs = null
+            return null
+        }
+        val since = firstWaitedSinceMs ?: nowMs.also { firstWaitedSinceMs = it }
+        if (nowMs - since < AGAIN_MS) return null
+        firstWaitedSinceMs = null
         waitFor = null
-        waiting -= waited.lens
-        stops[waited.lens] = nowMs
-        return waited.lens
+        waiting -= first
+        stops[first] = nowMs
+        return first
     }
 
     /**
