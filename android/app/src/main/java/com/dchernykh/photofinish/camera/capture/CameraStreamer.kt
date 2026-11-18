@@ -62,6 +62,8 @@ class CameraStreamer(
     private val phone: PhoneStatusReader,
     /** Where what is opened, and what fails and why, is told whole (specs/008-phone-log). */
     private val log: PhoneLog,
+    /** What a lens's link says while no camera feeds it: into the phone's log, not over its camera's word on screen. */
+    private val logged: (Lens?, StreamerStatus) -> Unit,
     private val onStatus: (Lens?, StreamerStatus) -> Unit,
 ) {
     private val manager = context.getSystemService(CameraManager::class.java)
@@ -302,6 +304,7 @@ class CameraStreamer(
             planned,
             format,
             report = { status -> onStatus(lens, StreamerStatus.Link(status)) },
+            logged = { status -> logged(lens, StreamerStatus.Link(status)) },
             onFirstFrame = { stream, ptsUs ->
                 handler.post {
                     // It streams: the laptop counts it again, whatever it was told -- unless its camera was lost

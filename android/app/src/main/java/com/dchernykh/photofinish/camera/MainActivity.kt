@@ -44,7 +44,7 @@ class MainActivity : ComponentActivity() {
         val log = Diagnostics.log
         val statuses = Diagnostics.statuses
         streamer =
-            CameraStreamer(this, lenses, PhoneStatusReader(this), log) { lens, status ->
+            CameraStreamer(this, lenses, PhoneStatusReader(this), log, statuses::heard) { lens, status ->
                 statuses.heard(lens, status)
                 runOnUiThread { state.hear(lens, status) }
             }

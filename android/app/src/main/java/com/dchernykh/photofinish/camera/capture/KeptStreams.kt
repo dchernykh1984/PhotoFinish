@@ -137,12 +137,13 @@ internal class FedFrames {
 }
 
 /**
- * What a lens's link says, its stream fed or idle ([KeptStream]): said while a camera feeds it; kept while idle --
- * the camera's word stands -- the last said again at the next feed, the link down or connecting again meanwhile;
- * not streaming, which the link says itself once the camera's frames flow, not as the camera is still opening.
+ * What a lens's link says, its stream fed or idle ([KeptStream]): said while a camera feeds it; while idle only
+ * [logged] -- the camera's word stands on the screen --, the last said again at the next feed, the link down or
+ * connecting again meanwhile; not streaming, which the link says itself once the camera's frames flow.
  */
 internal class LinkWords(
     private val say: (UplinkStatus) -> Unit,
+    private val logged: (UplinkStatus) -> Unit,
 ) {
     /** Fed by a camera: what the link does is said. Read on the cameras' thread. */
     @Volatile var fed = true
@@ -150,11 +151,11 @@ internal class LinkWords(
 
     private var last: UplinkStatus? = null
 
-    /** The link's [status], on the uplink's thread: kept, and said while fed. */
+    /** The link's [status], on the uplink's thread: kept, said while fed, else logged alone. */
     @Synchronized
     fun heard(status: UplinkStatus) {
         last = status
-        if (fed) say(status)
+        if (fed) say(status) else logged(status)
     }
 
     @Synchronized

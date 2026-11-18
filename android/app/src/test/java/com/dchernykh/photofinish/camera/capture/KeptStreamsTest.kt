@@ -184,7 +184,8 @@ class FedFramesTest {
 /** [LinkWords]: what a lens's link says, its stream fed or idle. */
 class LinkWordsTest {
     private val said = mutableListOf<UplinkStatus>()
-    private val words = LinkWords { said += it }
+    private val logged = mutableListOf<UplinkStatus>()
+    private val words = LinkWords({ said += it }, { logged += it })
     private val streaming = UplinkStatus.Streaming(30.0, 1.0, null)
     private val broken = UplinkStatus.Reconnecting("broken pipe")
 
@@ -194,6 +195,7 @@ class LinkWordsTest {
         words.idle()
         words.heard(broken) // the camera closed: the camera's word stands
         assertEquals(listOf<UplinkStatus>(streaming), said)
+        assertEquals(listOf<UplinkStatus>(broken), logged) // in the phone's log all the same
         words.feed()
         assertEquals(listOf(streaming, broken), said) // the link down meanwhile, said at once
     }
