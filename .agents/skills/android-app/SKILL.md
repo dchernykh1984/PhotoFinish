@@ -107,7 +107,7 @@ code's last
 (`left out from now on` in `phone.log`); the add-camera dialog advises Main and Telephoto past
 two lenses, and 1920x1440 or less for the Front beside a back lens. A lens that gives frames and
 then none for 3 s, its camera saying nothing, has its camera opened again (`no frame for 3 s` in
-`phone.log`); stopping again within a minute, it is left out, the first lens waited for beside
+`phone.log`), once no frame kept waits to be sent; stopping again within a minute, it is left out, the first lens waited for beside
 others and tried again a minute on, opened again each time when it streams alone; the other
 camera's lens stopping later is waited for, not closed. On 2026-11-18 the four left the ultra-wide out, and Main, Telephoto and Front
 streamed at 2560x1440 and 60 fps.

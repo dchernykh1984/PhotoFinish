@@ -115,8 +115,9 @@ def open_source(
     return Stream(url, options, clock, listen=True, waiting=waiting)
 
 
-# A phone's own moment is believed up to this long before the recorder began taking its
-# connection: the phone's wait for its clock and the network to it -- and longer by
+# A phone's own moment is believed up to this long before the recorder began listening
+# for its connection -- each listen lasts a second at most, the connection taken within
+# it --: the phone's wait for its clock and the network to it -- and longer by
 # what it says it held the connection's first frame (specs/007). The look-over after
 # it does not count, however long a Wi-Fi full of other lenses makes it: three lenses
 # at 60 fps had a first frame read 8.5 s after it was taken, 1.6 s of it held, which
