@@ -348,17 +348,19 @@ class LensFallbackTest {
 
     @Test
     fun `a lens is taken for stopped once it gave a frame and then none for 3 s, timed by its last`() {
-        assertNull(LensFallback.stall(Lens.MAIN, 0, 0, 60_000)) // none yet: no frame, not a stop
-        assertNull(LensFallback.stall(Lens.MAIN, 1_000, 0, 1_000 + LensFallback.STALL_MS)) // not yet
-        val stopped = LensFallback.stall(Lens.MAIN, 7_500, 500, 7_501 + LensFallback.STALL_MS)
+        assertNull(LensFallback.stall(Lens.MAIN, 0, 0, 60_000, 0)) // none yet: no frame, not a stop
+        assertNull(LensFallback.stall(Lens.MAIN, 1_000, 0, 1_000 + LensFallback.STALL_MS, 0)) // not yet
+        val stopped = LensFallback.stall(Lens.MAIN, 7_500, 500, 7_501 + LensFallback.STALL_MS, 0)
         assertEquals(CameraFailure.Stalled(Lens.MAIN, 7_000, 7_500), stopped) // when it stopped, not when seen
+        // Frames kept unsent -- a Wi-Fi slow or gone -- put it off: the cameras opened again would drop them.
+        assertNull(LensFallback.stall(Lens.MAIN, 7_500, 500, 7_501 + LensFallback.STALL_MS, LensFallback.KEPT_MS))
     }
 
     @Test
     fun `a lens that stopped before the lenses settled is their doing, the watch seeing it after`() {
         val back = listOf(Lens.MAIN, Lens.TELEPHOTO)
         val fallback = LensFallback().apply { settle(10_000) } // every lens framed at once: settled 10 s on
-        val telephoto = LensFallback.stall(Lens.TELEPHOTO, 7_500, 0, 10_600) // stopped at 7.5 s, seen after
+        val telephoto = LensFallback.stall(Lens.TELEPHOTO, 7_500, 0, 10_600, 0) // stopped at 7.5 s, seen after
         assertEquals(Lens.TELEPHOTO, fallback.failed(1, back, back, telephoto))
         // Settled before: a camera lost, every lens opened again -- an open mid-race stopping 3 s in.
         val midRace = LensFallback().apply { settle(10_000) }

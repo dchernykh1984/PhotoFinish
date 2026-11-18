@@ -322,15 +322,18 @@ class LensFallback {
         /**
          * [lens] stopped at [nowMs] -- its last frame at [lastFrameMs], 0 for none yet, more than [STALL_MS] before --,
          * the lenses started at [startedMs]: the failure, timed when it stopped, the watch seeing it seconds later.
+         * Not while the lenses keep a frame unsent [KEPT_MS] or more ([keptMs]): the cameras opened again for it would
+         * drop what they keep, and a lens silent meanwhile is as before the watch.
          */
         fun stall(
             lens: Lens,
             lastFrameMs: Long,
             startedMs: Long,
             nowMs: Long,
+            keptMs: Long,
         ): CameraFailure.Stalled? =
             CameraFailure.Stalled(lens, lastFrameMs - startedMs, lastFrameMs).takeIf {
-                lastFrameMs != 0L && nowMs - lastFrameMs > STALL_MS
+                lastFrameMs != 0L && nowMs - lastFrameMs > STALL_MS && keptMs < KEPT_MS
             }
 
         /**
