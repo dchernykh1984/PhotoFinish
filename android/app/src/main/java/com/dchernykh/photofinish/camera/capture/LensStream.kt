@@ -23,22 +23,27 @@ import java.util.concurrent.atomic.AtomicReference
  * One lens's stream (specs/004-phone-lenses, FR-005): an H.264 encoder the camera feeds through
  * its input [surface], an uplink to the lens's address, a thread draining the encoder into the
  * uplink, and the clock exchange with the lens's recorder, made once the first frame tells which
- * clock the frames are stamped on.
+ * clock the frames are stamped on. It outlives the cameras' opens ([KeptStreams]): a camera opened again feeds
+ * the same encoder's [surface] at its [format].
  */
 internal class LensStream private constructor(
     val planned: PlannedLens,
+    val format: StreamFormat,
     private val codec: MediaCodec,
     val surface: Surface,
     private val uplink: Uplink,
     private val sync: AtomicReference<ClockSync?>,
-) {
+) : KeptStream {
     private var drainer: Thread? = null
+
+    /** Fed by a camera: what its link does is said, an idle one's words not ([KeptStream.idle]). Read by the uplink. */
+    @Volatile private var fed = true
 
     /** Stopped, its stream over: a first frame heard after this starts no clock exchange, and says nothing. */
     @Volatile var stopped = false
         private set
 
-    /** When its encoder last gave a frame, on [SystemClock.elapsedRealtime]: 0 before the first. */
+    /** When its encoder last gave a frame, on [SystemClock.elapsedRealtime]: 0 before the first since it was fed. */
     @Volatile var lastFrameMs = 0L
         private set
 
@@ -58,10 +63,19 @@ internal class LensStream private constructor(
     /** How much its frames kept and not sent yet span, ms ([Uplink.keptMs]). */
     val keptMs: Long get() = uplink.keptMs
 
-    /** A frame of it kept and not sent yet. */
-    val unsent: Boolean get() = uplink.unsent
+    override val unsent: Boolean get() = uplink.unsent
 
-    fun stop() {
+    override fun feed() {
+        fed = true
+        lastFrameMs = 0L // its frames watched from the camera's next: the first since tells the camera gives it
+        requestKeyframe(codec) // the recorder decodes from it, whatever came before the gap
+    }
+
+    override fun idle() {
+        fed = false
+    }
+
+    override fun stop() {
         stopped = true
         drainer?.let {
             it.interrupt() // seen within one dequeue's wait
@@ -83,8 +97,9 @@ internal class LensStream private constructor(
         private const val DRAIN_JOIN_MS = 500L
 
         /**
-         * [planned]'s stream at [format], started: [report] hears its uplink, [onFirstFrame] the
-         * first frame's presentation time; [status] gives the phone's status line for each keyframe;
+         * [planned]'s stream at [format], started, fed: [report] hears its uplink while a camera feeds it,
+         * [onFirstFrame] the presentation time of the first frame each feed; [status] gives the phone's status
+         * line for each keyframe;
          * [store] keeps the frames until they are sent; [log] hears of an encoder that fails while it streams
          * (specs/008-phone-log).
          */
@@ -118,23 +133,28 @@ internal class LensStream private constructor(
                     throw error
                 }
             val sync = AtomicReference<ClockSync?>()
+            lateinit var stream: LensStream // made before the uplink's thread, the one to report, starts
             val uplink =
                 Uplink(
                     address = planned.target.address,
                     format = format,
                     clock = { sync.get()?.offset?.best() },
                     requestKeyframe = { requestKeyframe(codec) },
-                    report = report,
+                    report = { if (stream.fed) report(it) },
                     store = store,
                 )
             uplink.status = status
-            val stream = LensStream(planned, codec, surface, uplink, sync)
+            stream = LensStream(planned, format, codec, surface, uplink, sync)
             val name = planned.target.lens.code
             Thread({ uplink.run() }, "uplink-$name").start()
             val failed = { error: IllegalStateException ->
                 if (!stream.stopped) log.error(name, "its encoder stopped: ${Crashes.describe(error)}")
             }
-            val heard = { stream.lastFrameMs = SystemClock.elapsedRealtime() }
+            val heard = {
+                val first = stream.lastFrameMs == 0L
+                stream.lastFrameMs = SystemClock.elapsedRealtime()
+                first
+            }
             stream.drainer =
                 Thread({ drain(codec, uplink, failed, heard) { onFirstFrame(stream, it) } }, "encoder-$name")
                     .apply { start() }
@@ -169,22 +189,19 @@ internal class LensStream private constructor(
         }
 
         /**
-         * The encoder's output, to the uplink: the stream's header, then the frames, until
-         * interrupted; [heard] hears of each frame, [onFirstFrame] of the first's presentation time.
+         * The encoder's output, to the uplink: the stream's header, then the frames, until interrupted; [heard]
+         * hears of each frame, true for the first since a camera fed the stream, [onFirstFrame] of its time.
          */
         private fun drain(
             codec: MediaCodec,
             link: Uplink,
             failed: (IllegalStateException) -> Unit,
-            heard: () -> Unit,
+            heard: () -> Boolean,
             onFirstFrame: (Long) -> Unit,
         ) {
             val info = MediaCodec.BufferInfo()
-            var waiting = true
             val offer: (EncodedFrame) -> Unit = { frame ->
-                heard()
-                if (waiting) onFirstFrame(frame.ptsUs)
-                waiting = false
+                if (heard()) onFirstFrame(frame.ptsUs)
                 link.offer(frame)
             }
             var more = true

@@ -85,12 +85,17 @@ class CameraStreamer(
     /** Counts the opens: a callback of an earlier one says nothing. Read from the uplinks' threads too. */
     @Volatile private var generation = 0
 
-    /** The screen away ([away]) since the last open: the cameras' thread's. */
-    private var gone = false
-
     /** Where the lenses keep their frames until sent (specs/007), and each one's share of the room. */
     private val kept = File(context.filesDir, KEPT)
     private var share = FrameStore.SHARE_BYTES
+
+    /** The lenses' streams, kept across the cameras' opens while the referee's choice lasts: the cameras' thread's. */
+    private val keptStreams = KeptStreams<LensStream>()
+
+    init {
+        handler.post { kept.deleteRecursively() } // what a killed app kept: never sent (specs/007, FR-004)
+        handler.post { sweep() }
+    }
 
     /** The cameras into [preview]; with [targets], each lens into its encoder and up to PhotoFinish too. */
     fun start(
@@ -99,62 +104,51 @@ class CameraStreamer(
         targets: List<LensTarget>,
     ) {
         handler.post {
-            fallback.start(format, targets) // a choice of the referee's tries every lens again
+            // A choice of the referee's tries every lens again, their streams made anew: what they kept dropped.
+            if (fallback.start(format, targets)) keptStreams.stopAll()
             open(preview, format, targets)
         }
     }
 
+    /** The cameras closed, the lenses' streams kept: a start for the same feeds them again, another stops them. */
     fun stop() {
-        handler.post { close() }
+        handler.post { closeCameras() }
     }
 
     /**
      * The screen leaving, its preview's surface about to go: the cameras closed at once, before they fail with it
-     * -- what they say after is no news --; the lenses' streams send what they kept until the screen comes back,
-     * its stop dropping what is left as any reopen does, its start opening the cameras again. The surface is not to
-     * be used once the screen's callback returns: the close is waited for, a busy thread [AWAY_WAIT_MS] at most.
+     * -- what they say after is no news --; the lenses' streams send what they kept, and stop once all is sent
+     * ([sweep]) unless the screen is back meanwhile, its start feeding them again. The surface is not to be used
+     * once the screen's callback returns: the close is waited for, a busy thread [AWAY_WAIT_MS] at most.
      */
     fun away() {
         val closed = CountDownLatch(1)
         val posted =
             handler.post {
-                if (!gone) { // told again -- the surface going after the screen's stop --, its minute not started over
-                    gone = true
-                    generation++ // an open put off for 2 s too (openAgain): none opens on the surface gone
-                    if (opened.isNotEmpty()) log.info(null, "the screen left: the cameras closed until it is back")
-                    opened.forEach { it.closeCamera() }
-                    sendThenStop(generation, SystemClock.elapsedRealtime())
-                }
+                if (opened.isNotEmpty()) log.info(null, "the screen left: the cameras closed until it is back")
+                closeCameras() // an open put off for 2 s too (openAgain): none opens on the surface gone
                 closed.countDown()
             }
         if (posted) closed.await(AWAY_WAIT_MS, TimeUnit.MILLISECONDS)
     }
 
-    /**
-     * The screen away since open [away], at [sinceMs]: once the lenses keep no frame unsent -- or [SEND_AWAY_MS] on,
-     * a recorder out of reach --, their streams stop too: encoders, uplinks, clock exchanges, not held for as long as
-     * it stays away; its return opens all again.
-     */
-    private fun sendThenStop(
-        away: Int,
-        sinceMs: Long,
-    ) {
-        if (away != generation || opened.isEmpty()) return
-        val sending = opened.any { it.unsent }
-        if (sending && SystemClock.elapsedRealtime() - sinceMs < SEND_AWAY_MS) {
-            handler.postDelayed({ sendThenStop(away, sinceMs) }, WATCH_MS)
-            return
-        }
-        val said = if (sending) "not all sent in a minute" else "sent"
-        log.info(null, "the frames kept $said: the lenses stopped until the screen is back")
-        close()
-    }
-
     fun release() {
         handler.post {
-            close()
+            closeCameras()
+            keptStreams.stopAll()
             thread.quitSafely()
         }
+    }
+
+    /**
+     * Each second: the lenses' streams no camera has fed for a while -- the screen away, a lens left out -- stopped
+     * once they keep nothing unsent ([KeptStreams]): encoders, uplinks, clock exchanges not held for nothing.
+     */
+    private fun sweep() {
+        keptStreams.sweep(SystemClock.elapsedRealtime()).forEach {
+            log.info(it.code, "no camera feeds it, all it kept sent: stopped")
+        }
+        handler.postDelayed({ sweep() }, WATCH_MS)
     }
 
     // Whatever opening throws -- a camera gone or refused, an encoder that will not take the
@@ -166,12 +160,8 @@ class CameraStreamer(
         format: StreamFormat,
         targets: List<LensTarget>,
     ) {
-        close()
-        gone = false
+        closeCameras()
         val mine = ++generation
-        // shortcut: a camera opened again drops what its lenses kept, as their streams start anew; keep the
-        // stores across an open if a camera lost in the middle of a network break is seen to cost frames.
-        kept.deleteRecursively() // what a killed app kept, too: never sent
         order = targets.map { it.lens }
         val failedWith = fallback.leftOut
         val plan =
@@ -243,7 +233,8 @@ class CameraStreamer(
      * frame, or a second camera started after the first, counted from its own; the settling set going once an open.
      */
     private fun checkSettled(open: Int) {
-        if (open != generation || settling == open || !opened.all { it.allFramed }) return
+        val framed = opened.isNotEmpty() && opened.all { it.allFramed } // between two opens, none to settle
+        if (open != generation || settling == open || !framed) return
         settling = open
         val settle = { if (open == generation) fallback.settle(SystemClock.elapsedRealtime()) }
         handler.postDelayed(settle, LensFallback.EARLY_MS)
@@ -259,7 +250,7 @@ class CameraStreamer(
         targets: List<LensTarget>,
         reason: String,
     ) {
-        close()
+        closeCameras() // the lenses' streams kept: the open 2 s on feeds them again, what they kept still sent
         val mine = generation
         onStatus(null, StreamerStatus.Failed("$reason; trying again"))
         handler.postDelayed({ if (mine == generation) open(preview, format, targets) }, OPEN_AGAIN_MS)
@@ -295,7 +286,8 @@ class CameraStreamer(
         leftOut = (leftOut + lenses.map { it.code }).distinct()
     }
 
-    private fun close() {
+    /** The cameras closed, their lenses' streams kept ([KeptStreams]): an open for the same feeds them again. */
+    private fun closeCameras() {
         generation++
         opened.forEach { it.close() }
         opened.clear()
@@ -333,23 +325,21 @@ class CameraStreamer(
         /** How much the frames its lenses keep unsent span, ms, the most of them. */
         val keptMs: Long get() = streams.maxOfOrNull { it.keptMs } ?: 0L
 
-        /** A frame of its lenses kept and not sent yet. */
-        val unsent: Boolean get() = streams.any { it.unsent }
-
         /** Each of its lenses has given a frame, or is waited for (LensFallback.waitsFor): none of a camera closed. */
         val allFramed: Boolean get() = streams.all { it.lastFrameMs != 0L || fallback.waitsFor(mine, it.lens) }
 
-        /** Closed: its uplinks' words after it are the stopped streams', and dropped. */
-        @Volatile private var closed = false
+        /** Closed: its watch ends. */
+        private var closed = false
         private var targets: List<Surface> = emptyList()
         private var device: CameraDevice? = null
         private var session: CameraCaptureSession? = null
 
         /**
-         * The lenses' streams, at the size and rate [chosen] or the nearest they all give; false,
-         * said for each lens, when they give none. A camera opened for its preview alone takes [chosen].
-         * A lens whose encoder will not start -- the phone has no more of them -- is left out alone,
-         * said; false when none started and there is no preview to show.
+         * The lenses' streams, at the size and rate [chosen] or the nearest they all give -- opened again, the one
+         * their streams kept have, while they all give it, the streams fed again ([KeptStreams]) --; false, said for
+         * each lens, when they give none. A camera opened for its preview alone takes [chosen]. A lens whose encoder
+         * will not start -- the phone has no more of them -- is left out alone, said; false when none started and
+         * there is no preview to show.
          */
         @Suppress("TooGenericExceptionCaught") // whatever an encoder throws costs its lens alone
         fun startStreams(
@@ -357,7 +347,10 @@ class CameraStreamer(
             chosen: StreamFormat,
         ): Boolean {
             val lensesFormats = camera.lenses.map { CameraFormats(context, camera.cameraId, it.physicalId) }
-            val common = if (camera.lenses.isEmpty()) chosen else CameraFormats.common(lensesFormats, chosen)
+            // Their frames one size and rate throughout, on the connections that go on.
+            val before = camera.lenses.firstNotNullOfOrNull { keptStreams[it.target.lens]?.format }
+            val common =
+                if (camera.lenses.isEmpty()) chosen else CameraFormats.common(lensesFormats, before ?: chosen)
             if (common == null) {
                 camera.lenses.forEach { onStatus(it.target.lens, StreamerStatus.Failed("no size this lens streams")) }
                 return false
@@ -377,21 +370,21 @@ class CameraStreamer(
                 val lens = planned.target.lens
                 try {
                     streams +=
-                        LensStream.start(
-                            planned,
-                            common,
-                            report = { status ->
-                                // The screen away too: the frames kept are sent meanwhile, and said (away).
-                                if (!closed) onStatus(lens, StreamerStatus.Link(status))
-                            },
-                            onFirstFrame = { stream, ptsUs ->
-                                handler.post { checkSettled(mine) } // its frame heard: lastFrameMs set
-                                clockOfFrames(stream, ptsUs)
-                            },
-                            status = { dropped -> phone.read().copy(dropped = dropped, left = leftOut).line() },
-                            store = FrameStore(File(kept, lens.code), share),
-                            log = log,
-                        )
+                        keptStreams.feed(lens, { it.planned == planned && it.format == common }) {
+                            LensStream.start(
+                                planned,
+                                common,
+                                report = { status -> onStatus(lens, StreamerStatus.Link(status)) },
+                                onFirstFrame = { stream, ptsUs ->
+                                    // Its frame heard, lastFrameMs set: of the open now feeding it.
+                                    handler.post { checkSettled(generation) }
+                                    clockOfFrames(stream, ptsUs)
+                                },
+                                status = { dropped -> phone.read().copy(dropped = dropped, left = leftOut).line() },
+                                store = FrameStore(File(kept, lens.code), share),
+                                log = log,
+                            )
+                        }
                 } catch (error: Exception) {
                     log.error(lens.code, "its encoder would not start: ${Crashes.describe(error)}")
                     onStatus(lens, failed(error))
@@ -487,7 +480,7 @@ class CameraStreamer(
                     val (outputs, dropped) = SessionOutputs.choose(camera, preview, streams, executor, parameters)
                     dropped.forEach {
                         streams.remove(it)
-                        it.stop()
+                        keptStreams.idle(it.lens, SystemClock.elapsedRealtime()) // it sends what it kept
                         onStatus(it.lens, StreamerStatus.Left(LeftOut.NOT_WITH_THE_OTHERS))
                     }
                     leaveOut(dropped.map { it.lens })
@@ -559,15 +552,9 @@ class CameraStreamer(
             if (status is StreamerStatus.Failed) leaveOut(streams.map { it.lens }) // they give no frames
         }
 
+        /** Its camera closed, its lenses' streams kept, idle ([KeptStreams]): an open for the same feeds them again. */
         fun close() {
             closed = true
-            closeCamera()
-            streams.forEach { it.stop() }
-            streams.clear()
-        }
-
-        /** Its camera closed, its lenses' streams kept: they send what they kept until [close]. */
-        fun closeCamera() {
             try {
                 session?.close()
             } catch (_: IllegalStateException) {
@@ -576,13 +563,15 @@ class CameraStreamer(
             session = null
             device?.close()
             device = null
+            val now = SystemClock.elapsedRealtime()
+            streams.forEach { keptStreams.idle(it.lens, now) }
+            streams.clear()
         }
     }
 
     companion object {
         private const val OPEN_AGAIN_MS = 2_000L
         private const val AWAY_WAIT_MS = 1_000L
-        private const val SEND_AWAY_MS = 60_000L
 
         private const val WATCH_MS = 1_000L
 
