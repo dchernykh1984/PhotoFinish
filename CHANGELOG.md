@@ -1,5 +1,57 @@
 # Changelog
 
+## [0.11.0](https://github.com/dchernykh1984/PhotoFinish/compare/v0.10.0...v0.11.0) (2026-11-18)
+
+
+### Features
+
+* **phone:** keep each lens's stream and the frames it kept across the cameras opened again, the screen back too ([c6f1c9e](https://github.com/dchernykh1984/PhotoFinish/commit/c6f1c9e1dbe72f55c27a88cdc1d0cd93f2bd3622))
+* **phone:** open the front beside the back again alone when it is lost later, 2 s on, then a minute, two, four, up to half an hour, not leaving it out ([7c900a5](https://github.com/dchernykh1984/PhotoFinish/commit/7c900a5e082dca9f2549e1218ea193c4c5ba762a))
+* **phone:** take a lens's stop and the first lens's retry at once, no longer put off for the frames kept, as a reopen keeps them ([6e306a8](https://github.com/dchernykh1984/PhotoFinish/commit/6e306a887e692e10269dce6833c4ac14fd5b3dc3))
+
+
+### Bug Fixes
+
+* **phone:** ask a lens fed again for its keyframe as its camera's session starts, not of a frame the camera before left ([d46d3d0](https://github.com/dchernykh1984/PhotoFinish/commit/d46d3d0872cba49d4f5a9a137f94952b14176a02))
+* **phone:** close the cameras before the lenses' streams stop on another choice, none writing to an encoder gone ([65877ba](https://github.com/dchernykh1984/PhotoFinish/commit/65877ba24ae5a9ae9b636363609886b7a5327018))
+* **phone:** count a lens's rate anew after a pause of its camera, not "0.2 fps" the first second back ([f1635f5](https://github.com/dchernykh1984/PhotoFinish/commit/f1635f57a30daecd91b4cdc010db4ea6bdf9bd89))
+* **phone:** count a lens's rate anew only after a pause with nothing to send, a send the network stalls still told ([57fb227](https://github.com/dchernykh1984/PhotoFinish/commit/57fb22783864b2b8d02b6ec37542c8da0b53adf7))
+* **phone:** count the front's opens alone apart from a first lens's waits, neither doubling the other's ([d5e3d08](https://github.com/dchernykh1984/PhotoFinish/commit/d5e3d087ba3ca2c858ed2d8b2559327b51e3dab0))
+* **phone:** drop the front's try put off as the cameras close, nothing of an open over held for half an hour ([dc35697](https://github.com/dchernykh1984/PhotoFinish/commit/dc35697de6d009fc14aa4c014c693d4d8acdf5e9))
+* **phone:** drop what the lenses kept at the referee's stop even while the preview resizes, not send it on ([87cfb56](https://github.com/dchernykh1984/PhotoFinish/commit/87cfb56b3f4d1d2abc82b6bf028c8dcf71a30438))
+* **phone:** drop what the lenses kept at the stop before another choice, whatever the preview does, not at the start after it ([32940e8](https://github.com/dchernykh1984/PhotoFinish/commit/32940e8358b9c2571aba933254b1c17c9ccd45c9))
+* **phone:** feed the main lens's stream again when its neighbour is left out, named alone or not, not drop what it kept ([c1fce35](https://github.com/dchernykh1984/PhotoFinish/commit/c1fce35ba005b7dbba3a79e2aae1f3a020afc99e))
+* **phone:** give a lens's frames their moments again when its camera is opened anew and its clock came late, a new connection ([b2c8df7](https://github.com/dchernykh1984/PhotoFinish/commit/b2c8df71aa7ac12455d5e03692210c923d20bb77))
+* **phone:** hear a closed camera's late word as no news, the front opened again once for one loss ([ad6e61b](https://github.com/dchernykh1984/PhotoFinish/commit/ad6e61ba0df4dfbac7cc68e6b7f6b83f497aa11e))
+* **phone:** hush a lens's link as its stream stops, its last word not said over its lens left out ([a73fbda](https://github.com/dchernykh1984/PhotoFinish/commit/a73fbda9fa8c7cb9886c4d46e61e8fa3a8aa6487))
+* **phone:** keep the front left out to the laptop when its first frame is told after its camera was lost again ([7910a4f](https://github.com/dchernykh1984/PhotoFinish/commit/7910a4f6c071b3eb646cee58316529d4261a2579))
+* **phone:** log a lens's link words its screen does not show without taking them for where the lens came to rest ([ad61305](https://github.com/dchernykh1984/PhotoFinish/commit/ad61305eb0f653d68c79c9719a5d0fbb067d4974))
+* **phone:** log what a lens's link says while no camera feeds it, the screen keeping its camera's word ([87aa0cf](https://github.com/dchernykh1984/PhotoFinish/commit/87aa0cfcc7c8a3df1e9e15d3391b1b820ab932dc))
+* **phone:** make a lens's new connection with moments at a keyframe after its camera is fed again, no kept run skipped ([1cfc592](https://github.com/dchernykh1984/PhotoFinish/commit/1cfc5926f5a573a4b73f20e20d3550237b16919c))
+* **phone:** make a lens's stream anew when its encoder failed, not feed the camera opened again into a dead one ([42ab3ad](https://github.com/dchernykh1984/PhotoFinish/commit/42ab3adcbb614ec24d5383ba5702c0763f324c63))
+* **phone:** not say "no clock" for a lens fed again whose clock exchange runs, its first frame drained late ([7492be0](https://github.com/dchernykh1984/PhotoFinish/commit/7492be06c0ec1230ebb7acbd8c1b95bb8763b9a3))
+* **phone:** open a camera again at the size chosen or the nearest its lenses give, not the one it settled for with a lens since left out ([0cfbc70](https://github.com/dchernykh1984/PhotoFinish/commit/0cfbc700c8d1b2abcd34e5eee78e1805d997f5cc))
+* **phone:** say "no clock" only for a lens a camera feeds, not over an idle one's left out ([cec91c2](https://github.com/dchernykh1984/PhotoFinish/commit/cec91c20adaca382144788af52859c0212d5a8a9))
+* **phone:** say a lens streaming again only once its camera's frames flow, not as its camera is still opening ([f1e2f2d](https://github.com/dchernykh1984/PhotoFinish/commit/f1e2f2d5fd9e7e9dc489cfd7fe807f2a4b0edb2e))
+* **phone:** say a lens's link as it is when its camera feeds it again, not what it said before the gap ([811d1dc](https://github.com/dchernykh1984/PhotoFinish/commit/811d1dc3a7416d74d03ee6941defe602388da224))
+* **phone:** say the front will be tried again when none of its streams started, not leave its last failure standing ([f19e9d6](https://github.com/dchernykh1984/PhotoFinish/commit/f19e9d629a89ad083b5b8d9bc90a88bfabb5ad12))
+* **phone:** say the front's wait in minutes from a minute on, not 1920 s ([ea8d9cc](https://github.com/dchernykh1984/PhotoFinish/commit/ea8d9cc984ceea6dfd17dc8dc7b533e2f0cdd5ca))
+* **phone:** share the room among the lenses kept streaming too, the stores 2 GB in all at most beside a lens left out still sending ([768b4b4](https://github.com/dchernykh1984/PhotoFinish/commit/768b4b40ec9971cff3b6751aabc45ca9ce83ad84))
+* **phone:** stop at once a lens's stream its camera's session will not take, unless it has frames to send, not hold its encoder ([1a3df9a](https://github.com/dchernykh1984/PhotoFinish/commit/1a3df9a2d2f5cd43caf14ae13b870d3bdadb1287))
+* **phone:** take a lens's frames the camera before took, drained late, for none of the camera opened again ([4649ef7](https://github.com/dchernykh1984/PhotoFinish/commit/4649ef7ab4ea3cea3afa9450c63aaf8ebefbe7ba))
+* **phone:** take the front's session that would not start for its loss, opened again alone later, not left dead ([187505a](https://github.com/dchernykh1984/PhotoFinish/commit/187505ac25644b8bd41fd441617afa3828edb7b0))
+* **phone:** tell a feed's first frame apart whole, the camera opened again while the encoder drains the one before ([0744b73](https://github.com/dchernykh1984/PhotoFinish/commit/0744b730e382a9b793b2fac0b1dd338d54fb8084))
+* **phone:** tell the laptop the front is back at its first frame, not as its camera is opened, no NOT RECORDING at each try ([9f28e0a](https://github.com/dchernykh1984/PhotoFinish/commit/9f28e0adf445214336ee0359e98eab71fd37a71a))
+* **phone:** try the front again later when its streams would not start as it is opened again alone, not leave it out for the race ([96f6f1f](https://github.com/dchernykh1984/PhotoFinish/commit/96f6f1fcc6b442584a404a5fbb9db5a0ff7a0c73))
+
+
+### Documentation
+
+* quote the front's wait in minutes, as the phone now says it ([12d1eae](https://github.com/dchernykh1984/PhotoFinish/commit/12d1eae19f75e703802dded193a7339c0d668adf))
+* say a lens's stream kept across an open keeps the share of the room it was made with ([d166e7b](https://github.com/dchernykh1984/PhotoFinish/commit/d166e7b3ce6dc52f862d522103752c251191bec6))
+* say in the screen's code that the lenses' streams kept are fed again on its return ([7bdecd5](https://github.com/dchernykh1984/PhotoFinish/commit/7bdecd57cd2498701c477f1ec825118637794683))
+* say the lenses' streams go on across a reopen, a stop taken at once, the front opened again alone ([16216ed](https://github.com/dchernykh1984/PhotoFinish/commit/16216ed66a7f8b4d981347218a0b899dc6bfb14d))
+
 ## [0.10.0](https://github.com/dchernykh1984/PhotoFinish/compare/v0.9.0...v0.10.0) (2026-11-18)
 
 
