@@ -7,7 +7,9 @@ import androidx.activity.compose.setContent
 import com.dchernykh.photofinish.camera.capture.CameraFormats
 import com.dchernykh.photofinish.camera.capture.CameraStreamer
 import com.dchernykh.photofinish.camera.capture.PhoneLenses
+import com.dchernykh.photofinish.camera.capture.StreamerStatus
 import com.dchernykh.photofinish.camera.diagnostics.Diagnostics
+import com.dchernykh.photofinish.camera.pairing.Lens
 import com.dchernykh.photofinish.camera.status.PhoneStatusReader
 import com.dchernykh.photofinish.camera.ui.CameraScreen
 import com.dchernykh.photofinish.camera.ui.ScreenState
@@ -43,8 +45,10 @@ class MainActivity : ComponentActivity() {
         Diagnostics.start(this, "lenses: ${found.ifEmpty { "none" }}")
         val log = Diagnostics.log
         val statuses = Diagnostics.statuses
+        // A lens's link while its camera is closed: in the log, the screen keeping the camera's word.
+        val logged = { lens: Lens?, status: StreamerStatus -> statuses.heard(lens, status, shown = false) }
         streamer =
-            CameraStreamer(this, lenses, PhoneStatusReader(this), log, statuses::heard) { lens, status ->
+            CameraStreamer(this, lenses, PhoneStatusReader(this), log, logged) { lens, status ->
                 statuses.heard(lens, status)
                 runOnUiThread { state.hear(lens, status) }
             }
