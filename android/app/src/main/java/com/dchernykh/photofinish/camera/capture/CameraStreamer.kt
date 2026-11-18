@@ -509,7 +509,7 @@ class CameraStreamer(
                 }
                 stopped != null -> {
                     val reason = "the camera gave ${stopped.lens.code} no frame for ${STALL_MS / MS_PER_S} s"
-                    lost(reason, CameraFailure.Stalled(stopped.lens, since))
+                    lost(reason, CameraFailure.Stalled(stopped.lens, since, stopped.lastFrameMs))
                 }
             }
             if (mine == generation && !closed) handler.postDelayed({ watchFrames() }, WATCH_MS)

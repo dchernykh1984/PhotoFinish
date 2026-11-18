@@ -24,10 +24,14 @@ sealed interface CameraFailure {
         val sinceStartMs: Long,
     ) : CameraFailure
 
-    /** A camera that gave [lens] frames and then none for a while, saying nothing, [sinceStartMs] after the start. */
+    /**
+     * A camera that gave [lens] frames and then none for a while, saying nothing: [sinceStartMs] after the start,
+     * at [atMs] on the watch's clock.
+     */
     data class Stalled(
         val lens: Lens,
         val sinceStartMs: Long,
+        val atMs: Long,
     ) : CameraFailure
 }
 
@@ -41,7 +45,8 @@ sealed interface CameraFailure {
  * drops them, never the first.
  * The cameras failing together -- the front's and the back's at once -- are one failure: an open leaves one
  * lens out at most. Cameras lost later, having streamed a while, or taken by another app, are opened again
- * with all their lenses.
+ * with all their lenses -- but a lens that stops again within [AGAIN_MS] of its last stop goes, the cameras
+ * opened again not bringing it back; the first, which never goes, is waited for, the others streaming on.
  */
 class LensFallback {
     private val left = linkedSetOf<Lens>()
@@ -65,6 +70,12 @@ class LensFallback {
     /** What the last start asked for: the cameras started again for the same keep what was left out. */
     private var asked: Pair<StreamFormat, List<LensTarget>>? = null
 
+    /** When each lens last stopped giving frames, on the watch's clock, until the referee starts again. */
+    private val stops = mutableMapOf<Lens, Long>()
+
+    /** The last stop that came within [AGAIN_MS] of its lens's one before: the lens's own doing. */
+    private var stoppedAgain: CameraFailure.Stalled? = null
+
     /**
      * The cameras started for [targets] at [format]: the lenses left out forgotten when either is not the last
      * start's -- the referee's choice, a stop in between asking for the preview alone --, kept when the same come
@@ -81,6 +92,8 @@ class LensFallback {
         waitingIn = null
         paid = null
         settled = false
+        stops.clear()
+        stoppedAgain = null
     }
 
     /**
@@ -91,8 +104,15 @@ class LensFallback {
         settled = true
     }
 
-    /** [failure] the lenses', early, before they streamed a while. */
-    private fun counts(failure: CameraFailure?): Boolean = !settled && early(failure)
+    /** [failure] the lenses', early, before they streamed a while -- or a lens stopping again too soon. */
+    private fun counts(failure: CameraFailure?): Boolean =
+        !settled && early(failure) || failure is CameraFailure.Stalled && failure == stoppedAgain
+
+    /** [failure]'s stop kept for its lens, taken for its own doing when its last came within [AGAIN_MS]. */
+    private fun heard(failure: CameraFailure.Stalled) {
+        val before = stops.put(failure.lens, failure.atMs)
+        if (before != null && failure.atMs - before < AGAIN_MS) stoppedAgain = failure
+    }
 
     /**
      * The camera of [own] lenses failed, of open [open] streaming [streamed] in the code's order: the lens left
@@ -114,7 +134,8 @@ class LensFallback {
      * another open without it. Else a lens that gave no frame is waited for, the lenses that give frames streaming
      * on, as before the watch -- made again, they would be cut every few seconds for as long as it stays silent --;
      * and a session the camera could not make is said, not made again, while the lenses never ran together -- made
-     * the same way, it would fail the same way --, made again once they did, as a camera lost mid-race is.
+     * the same way, it would fail the same way --, made again once they did, as a camera lost mid-race is. A lens
+     * that stopped is made again, but the first stopping again too soon: waited for, as one that gave no frame.
      */
     fun madeAgain(
         open: Int,
@@ -123,6 +144,7 @@ class LensFallback {
         open == paid ||
             when (failure) {
                 is CameraFailure.NoFrame -> false
+                is CameraFailure.Stalled -> failure != stoppedAgain
                 CameraFailure.NotConfigured -> settled
                 else -> true
             }
@@ -130,16 +152,23 @@ class LensFallback {
     /**
      * The lenses that gave no frame, waited for after [failure] when open [open] left none out: they may come yet,
      * the others streaming on, as before the watch -- either camera's, the other not closed for the race --; none
-     * after another failure, or once a lens is left out.
+     * after another failure, or once a lens is left out. A lens stopping again too soon, so, the first.
      */
     fun waitedFor(
         open: Int,
         failure: CameraFailure?,
     ): List<Lens> {
-        if (failure !is CameraFailure.NoFrame || open == paid) return emptyList()
+        val silent =
+            when {
+                open == paid -> emptyList()
+                failure is CameraFailure.NoFrame -> failure.silent
+                failure is CameraFailure.Stalled && failure == stoppedAgain -> listOf(failure.lens)
+                else -> emptyList()
+            }
+        if (silent.isEmpty()) return silent
         if (open != waitingIn) waiting.clear()
         waitingIn = open
-        return failure.silent.also { waiting += it }
+        return silent.also { waiting += it }
     }
 
     /**
@@ -177,6 +206,7 @@ class LensFallback {
         candidates: List<Lens>,
         own: List<Lens>,
     ): Lens? {
+        if (failure is CameraFailure.Stalled) heard(failure)
         if (!counts(failure) || open == paid) return null
         val lens =
             when {
@@ -192,6 +222,9 @@ class LensFallback {
     companion object {
         /** How soon a failure is the lenses' own: a camera that streamed longer was lost, not unable. */
         const val EARLY_MS = 10_000L
+
+        /** A lens stopping again this soon after its last stop: the cameras opened again did not bring it back. */
+        const val AGAIN_MS = 60_000L
 
         /**
          * A camera's errors of the lenses asked of it: not another app's holding the camera, nor too many cameras
