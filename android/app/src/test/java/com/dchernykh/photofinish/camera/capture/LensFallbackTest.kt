@@ -563,4 +563,19 @@ class LensFallbackTest {
         val due = fallback.watch(1, seen, 0, 10_000 + LensFallback.KEPT_WAIT_MS, kept, Lens.MAIN)
         assertEquals(CameraFailure.Stalled(Lens.TELEPHOTO, 30_000, 30_000), due?.failure) // 30 s after main's
     }
+
+    @Test
+    fun `the first lens waited for again after coming back gets its own minute, not the last wait's`() {
+        val fallback = LensFallback()
+        val withFront = listOf(Lens.MAIN, Lens.FRONT)
+        val mainSilent = CameraFailure.NoFrame(listOf(Lens.MAIN), 5_000)
+        fallback.failed(1, withFront, listOf(Lens.MAIN), mainSilent)
+        fallback.waitedFor(1, mainSilent)
+        assertNull(fallback.retry(1, Lens.MAIN, 10_000) { 0 }) // its minute from 10 s
+        fallback.heardFrom(1, Lens.MAIN, 60_000, 60_100) // back at 60 s, no retry asked that tick
+        val again = CameraFailure.Stalled(Lens.MAIN, 61_000, 61_000) // and stopped again
+        fallback.failed(1, withFront, listOf(Lens.MAIN), again)
+        assertEquals(listOf(Lens.MAIN), fallback.waitedFor(1, again))
+        assertNull(fallback.retry(1, Lens.MAIN, 75_000) { 0 }) // a new minute from here, not the old one's
+    }
 }
