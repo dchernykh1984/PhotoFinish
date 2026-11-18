@@ -360,6 +360,7 @@ class LensFallback {
         waiting -= lens
         if (waiting.isEmpty()) waitingIn = null // none waited for now: a failure leaves a lens out as any
         stops[lens] = nowMs
+        firstWaitedSinceMs = null // a wait after this is counted from its own start
     }
 
     /**
