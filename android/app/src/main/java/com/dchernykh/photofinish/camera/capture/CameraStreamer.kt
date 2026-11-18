@@ -510,7 +510,7 @@ class CameraStreamer(
             val started = startedMs ?: return
             if (mine != generation || closed) return
             val seen = streams.map { Seen(it.lens, it.lastFrameMs) }
-            val kept = opened.maxOfOrNull { it.keptMs } ?: 0L // a reopen drops them: a stop put off meanwhile
+            val kept = { opened.maxOfOrNull { it.keptMs } ?: 0L } // a reopen drops them: a stop put off meanwhile
             val first = if (preview != null) streamed.firstOrNull() else null // the retry is its camera's
             val now = SystemClock.elapsedRealtime()
             fallback.watch(mine, seen, started, now, kept, first)?.let { lost(it.reason, it.failure) }
