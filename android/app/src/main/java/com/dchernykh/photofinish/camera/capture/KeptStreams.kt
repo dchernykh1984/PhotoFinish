@@ -88,19 +88,24 @@ internal class KeptStreams<S : KeptStream> {
  */
 internal class FedFrames {
     /** The frames' own clock when a camera last fed the stream, us: what was taken before is the camera's before. */
-    @Volatile private var fedAtUs = Long.MIN_VALUE
+    private var fedAtUs = Long.MIN_VALUE
 
     /** When the encoder last gave a frame of this feed, on its caller's clock: 0 before the first. */
     @Volatile var lastFrameMs = 0L
         private set
 
-    /** A camera feeds the stream from [nowUs] on the frames' own clock -- null, unknown: every frame its own. */
+    /**
+     * A camera feeds the stream from [nowUs] on the frames' own clock -- null, unknown: every frame its own. On the
+     * cameras' thread, the encoder's [heard] on its own: the two take the lock, a frame drained meanwhile told whole.
+     */
+    @Synchronized
     fun feed(nowUs: Long?) {
-        fedAtUs = nowUs ?: Long.MIN_VALUE // before the reset: a frame drained meanwhile is told apart
+        fedAtUs = nowUs ?: Long.MIN_VALUE
         lastFrameMs = 0L
     }
 
     /** The encoder gave a frame taken at [ptsUs], at [nowMs]: whether it is the feed's first. */
+    @Synchronized
     fun heard(
         ptsUs: Long,
         nowMs: Long,
