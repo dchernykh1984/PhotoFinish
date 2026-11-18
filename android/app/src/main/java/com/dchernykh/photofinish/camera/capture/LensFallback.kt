@@ -367,6 +367,7 @@ class LensFallback {
     ) {
         if (!waitsFor(open, lens) || lastFrameMs == 0L || nowMs - lastFrameMs > STALL_MS) return
         waiting -= lens
+        if (waiting.isEmpty()) waitingIn = null // none waited for now: a failure leaves a lens out as any
         stops[lens] = nowMs
     }
 

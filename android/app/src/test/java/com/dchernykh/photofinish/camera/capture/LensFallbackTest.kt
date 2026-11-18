@@ -515,4 +515,15 @@ class LensFallbackTest {
         val pause = CameraFailure.Stalled(Lens.TELEPHOTO, 101_000, 101_000) // and paused
         assertEquals(Lens.TELEPHOTO, fallback.failed(1, back, back, pause))
     }
+
+    @Test
+    fun `the lens waited for back, an early failure lightens the load again, not leaving none out`() {
+        val fallback = LensFallback()
+        val back = listOf(Lens.MAIN, Lens.TELEPHOTO)
+        val mainSilent = CameraFailure.NoFrame(listOf(Lens.MAIN), 5_000)
+        assertNull(fallback.failed(1, back, back, mainSilent)) // the first: none goes, waited for
+        fallback.waitedFor(1, mainSilent)
+        fallback.heardFrom(1, Lens.MAIN, 6_000, 6_100) // its frames at 6 s
+        assertEquals(Lens.TELEPHOTO, fallback.failed(1, back, back, error(8_000))) // the camera's last, as any error
+    }
 }
