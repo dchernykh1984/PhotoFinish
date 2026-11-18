@@ -514,8 +514,9 @@ class CameraStreamer(
             streams.forEach { fallback.heardFrom(mine, it.lens, it.lastFrameMs, now) } // one waited for, back
             val watched = streams.filterNot { fallback.waitsFor(mine, it.lens) }
             val silent = watched.filter { it.lastFrameMs == 0L }.map { it.lens }.takeIf { since >= NO_FRAME_MS }
-            val stopped = watched.firstNotNullOfOrNull { LensFallback.stall(it.lens, it.lastFrameMs, started, now) }
-            val kept = opened.maxOfOrNull { it.keptMs } ?: 0L
+            val kept = opened.maxOfOrNull { it.keptMs } ?: 0L // a reopen drops them: a stop put off meanwhile
+            val stopped =
+                watched.firstNotNullOfOrNull { LensFallback.stall(it.lens, it.lastFrameMs, started, now, kept) }
             val retried = if (preview != null) fallback.retry(mine, streamed.firstOrNull(), now, kept) else null
             when {
                 retried != null -> lost("${retried.code} silent a minute after stopping again: tried again", null)
