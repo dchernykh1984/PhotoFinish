@@ -64,6 +64,9 @@ internal class LensStream private constructor(
 
     override val unsent: Boolean get() = uplink.unsent
 
+    /** Its encoder's thread still drains it: it ends when the encoder fails, or the stream stops. */
+    override val alive: Boolean get() = !stopped && drainer?.isAlive == true
+
     override fun feed() {
         fed = true
         frames.feed(uplink.captureClock?.invoke()) // its frames watched from the camera's next, its first told
