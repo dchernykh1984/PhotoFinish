@@ -58,8 +58,9 @@
   again within a minute, left out, the first waited for beside others and tried again a minute on,
   alone opened again; the other camera's lens stopping later waited for; a lens waited for that
   gives frames watched again; timed by its last frame (FR-005).
-- [x] T024 [US1] `CameraStreamer`, `LensStream`: each lens's last frame, watched each second; 3 s
-  without one is its camera lost (FR-005).
+- [x] T024 [US1] `CameraStreamer`, `LensStream`, `LensFallback.watch`: each lens's last frame,
+  watched each second, what it reports decided under the JVM tests; 3 s without one is its camera
+  lost, put off 30 s at most for the frames kept (FR-005).
 - [x] T025 [US1] The dialog's advice for the Front beside a back lens, 1920x1440 or less; its Qt
   test (FR-001).
 - [x] T026 [US1] `CameraStreamer`, `CameraScreen`: the screen leaving closes the cameras at once,
