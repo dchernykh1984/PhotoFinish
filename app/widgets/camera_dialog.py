@@ -51,9 +51,10 @@ MANY_LENSES = (
     "crossed first in detail, the main lens has the phone's best sensor as a rule."
 )
 FRONT_BESIDE = (
-    "The front beside a back lens: Android promises the two at once only up to "
-    "1920x1440, at no set frame rate. Above that size, chosen on the phone, a phone "
-    "may still stream them, or fail and leave a lens out."
+    "The front beside a back lens: Android promises the two at once only on a phone "
+    "that says it runs them together, and then only up to 1920x1440, at no set frame "
+    "rate. Above that size, chosen on the phone, a phone may still stream them, or "
+    "fail and leave a lens out; a phone that cannot run both leaves the front out."
 )
 _ROWS = {  # the fields each connection shows
     "usb": ("device", "size", "fps"),
