@@ -329,7 +329,8 @@ class LensFallback {
     /**
      * The open's [first] lens, waited for in open [open] -- silent from the start, or stopped again beside others --
      * [AGAIN_MS] since this was first asked it, at [nowMs], the lenses keeping no frame unsent [KEPT_MS] or more
-     * ([keptMs], the oldest's age) -- opening the cameras again drops what they keep --: tried again, the lens
+     * ([keptMs], the oldest's age) -- opening the cameras again drops what they keep -- or [KEPT_WAIT_MS] more gone
+     * by, a slow Wi-Fi not keeping the first lens silent for good: tried again, the lens
      * returned for the cameras to be opened again, a moment of the others' frames a minute for a chance of it; its
      * next stop within a minute of this waited for again. Else null.
      */
@@ -344,7 +345,8 @@ class LensFallback {
             return null
         }
         val since = firstWaitedSinceMs ?: nowMs.also { firstWaitedSinceMs = it }
-        if (nowMs - since < AGAIN_MS || keptMs() >= KEPT_MS) return null
+        val waited = nowMs - since
+        if (waited < AGAIN_MS || waited < AGAIN_MS + KEPT_WAIT_MS && keptMs() >= KEPT_MS) return null
         firstWaitedSinceMs = null
         waitStop = null
         waiting -= first
