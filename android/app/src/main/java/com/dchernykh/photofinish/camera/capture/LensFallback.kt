@@ -255,9 +255,9 @@ class LensFallback {
         when {
             failure is CameraFailure.NoFrame -> candidates.lastOrNull { it in failure.silent }
             failure is CameraFailure.Stalled && failure.lens in candidates -> failure.lens
-            // The first lens stopping again: none left out, waited for while another lens streams.
+            // The first lens stopping again: none left out, waited for while another lens streams, not waited for.
             failure is CameraFailure.Stalled && failure == stoppedAgain ->
-                null.also { if (candidates.isNotEmpty()) waitFor = failure }
+                null.also { if (candidates.any { !waitsFor(open, it) }) waitFor = failure }
             open == waitingIn -> candidates.lastOrNull { it in waiting }
             else -> candidates.lastOrNull { it in own } ?: candidates.lastOrNull()
         }
