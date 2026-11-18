@@ -139,7 +139,8 @@ out, shows the front camera as left out and the banner green.
   is full, the oldest unsent frames give way, up to the next keyframe, and are counted among the
   frames dropped (`specs/005-phone-status`, `dropped`). A keyframe is asked for when a frame could
   not be kept, not for the runs given way: the next run starts with its own.
-- **FR-004**: Stop empties the store, and so does the app's start (what a killed app left).
+- **FR-004**: Stop empties the store -- the referee's, or a start for other lenses or another
+  format --, and so does the app's start (what a killed app left).
 - **FR-005**: Each connection's metadata says how long its first frame was kept, `held_ms`
   (contract).
 - **FR-006**: The recorder believes a phone's frame moment up to `held_ms` older than it would
@@ -174,6 +175,14 @@ out, shows the front camera as left out and the banner green.
 - **FR-013**: Covered by automated tests: the store, the resend and the order of frames (JVM); the
   moments believed, a frame sent again written and not listed, the heartbeat's lag and version
   (pytest); the watchdog's replacement, the lag and the left-out lens in the window (Qt tests).
+- **FR-014**: A lens's store lives with its stream, and its stream -- encoder, uplink, clock
+  exchange -- across the cameras' opens while the referee's choice lasts: a camera lost and
+  opened again, opened again with a lens left out or alone, or the screen leaving and coming
+  back, feeds the same encoder at the format it streamed at, while its lenses still give it --
+  what was kept is sent, the connection and its moments go on, the first frame after the gap a
+  keyframe. A stream no camera has fed for 5 s is stopped once nothing it kept is unsent or
+  unconfirmed; its lens's next open starts a new one. While no camera feeds it, its connection's
+  words are not shown (FR-011).
 
 ## Success Criteria *(mandatory)*
 

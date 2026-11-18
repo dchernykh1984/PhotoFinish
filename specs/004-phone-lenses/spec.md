@@ -90,8 +90,9 @@ switch to the other at the same moment and back to both.
 - A lens that gives frames and then none, its camera saying nothing: after 3 s its camera is
   lost and opened again -- that lens left out in the first seconds, every lens later, but the
   lens left out when it stops again within a minute, the first waited for and tried again a
-  minute on; a lens of the front beside the back waited for, not closed. A reopen drops what the
-  lenses kept and had not sent, as any camera lost does: a retry waits for them to be sent.
+  minute on; the front beside the back opened again alone, 2 s on, then a minute, two, four, up
+  to half an hour. A reopen keeps what the lenses kept and had not sent, their streams going on
+  (`specs/007-store-and-forward`, FR-014): nothing waits for it.
 - The Wi-Fi carries every lens: about 10 Mbit/s each at 1080p and 60 fps, 16 at 1440p.
 - Several sensors and encoders heat the phone over hours: in the sun it may lower its frame rate.
 - A code of the earlier kind, an address alone, still pairs: the main lens.
@@ -131,7 +132,7 @@ switch to the other at the same moment and back to both.
 - **FR-005**: The app streams each lens asked for that it has: its own encoder, connection and
   clock exchange; the lenses of one camera in one capture session; the camera on the other side
   opened beside it only when the phone says it can run both at once, and closed alone when it is
-  lost, the first streaming on. Each camera streams at the
+  lost, the first streaming on, and opened again alone as below. Each camera streams at the
   size and rate chosen, or the nearest its lenses give; the phone is asked whether a camera runs
   its lenses at that size -- and, from Android 15, that rate. Cameras that fail, give a lens no
   frame for 5 s, or stop giving one frames for 3 s, saying nothing, within 10 s of their lenses'
@@ -152,26 +153,25 @@ switch to the other at the same moment and back to both.
   left out, is waited for while another lens streams -- not one waited for -- that a reopen
   would cut, alone opened again each time; the first lens waited for, silent or stopped again,
   is tried again a minute on -- then two, four, up to half an hour between tries, a minute again
-  once it has streamed a minute --, once its
-  frames kept are sent or 30 s more have gone; a lens of the
-  other camera stopping
-  later, none left out, is waited for, not closed: the first camera's lenses are not cut for it; a
+  once it has streamed a minute --; the other camera lost later -- failing, taken by another app,
+  a lens silent or stopped, stopping again soon too -- with none of its lenses left out is closed
+  and opened again alone, the first camera's lenses streaming on: 2 s on, as any camera lost,
+  then, lost again before it has streamed a minute, a minute on, two, four, up to half an hour,
+  said on the phone, its lenses left out to the laptop until it is opened again; a
   lens waited for that gives frames again is watched again, its return counted as a stop, so it
   goes stopping within a minute, the others not cut for it. A stop is timed by the
   lens's last frame: one before the lenses first ran together is early, the watch seeing it
-  seconds after; and a lens is taken for stopped only once no frame the lenses keep waits to be
-  sent, as opening the cameras again would drop it -- 30 s after its last frame at most, so a slow
-  Wi-Fi leaves none silent for good. A camera stopping every lens at once is told by its last lens,
-  in the code's order: coming again, it costs that one, not its first. The screen
-  leaving closes the cameras at once, before they fail with its preview -- the screen waits for
-  the close, a second at most --, leaving no lens out; the lenses' streams send what they kept,
-  saying so in the phone's log, and stop once no frame is left unsent or unconfirmed by the
-  recorder, a minute at most; its
-  return drops what is left, as any reopen does, and opens the cameras again. With no
-  lens left out by either camera, a session the camera cannot make is said
-  once, not made again, while the lenses never ran together; and a lens of either camera that
-  gives no frame is waited for -- its camera kept, the others streaming on, once the lenses ran
-  together too --, said on the phone and to the laptop.
+  seconds after; it is taken at once, whatever the lenses keep to send, as opening the cameras
+  again keeps it (`specs/007-store-and-forward`, FR-014). A camera stopping every lens at once is
+  told by its last lens, in the code's order: coming again, it costs that one, not its first. The
+  screen leaving closes the cameras at once, before they fail with its preview -- the screen waits
+  for the close, a second at most --, leaving no lens out; the lenses' streams send what they
+  kept and stop 5 s after once no frame is left unsent or unconfirmed by the recorder, however
+  long that takes, saying so in the phone's log; the screen back before, its cameras feed them
+  again, on the same connections. With no lens left out by either camera, a session the camera
+  cannot make is said once, not made again, while the lenses never ran together; and a lens of
+  the first camera that gives no frame is waited for -- its camera kept, the others streaming on,
+  once the lenses ran together too --, said on the phone and to the laptop.
 - **FR-006**: The preview shows the first lens streamed.
 - **FR-007**: The window's One camera mode shows the chosen camera alone, over the whole video
   area; Ctrl+1 to Ctrl+9 show camera 1 to 9 alone, Ctrl+0 all of them side by side, Ctrl+Up and

@@ -83,3 +83,10 @@
 - [x] T037 `sources.py`: a phone's moment judged from when its connection was taken, not when its
   first frame is read -- a connection beside two others at 60 fps read 8.5 s late on the
   maintainer's Wi-Fi, 2026-11-18 (FR-006)
+
+## Kept across the cameras' opens (2026-11-18)
+
+- [x] T038 `KeptStreams.kt`, `CameraStreamer`, `LensStream`: each lens's stream and store kept
+  across the cameras' opens, the screen's return too, stopped 5 s after no camera feeds it once
+  all is sent; tried on the emulator, the same connection through a camera lost and opened again
+  (FR-014; `specs/004-phone-lenses`, T029, T032)

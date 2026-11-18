@@ -64,13 +64,20 @@ the same install and start with the computer's address on the shared network
 
 The screen leaving: `adb shell input keyevent KEYCODE_HOME` -- `the screen left: the cameras
 closed until it is back` in `phone.log`, no camera failing, no `BufferQueue has been abandoned`
-(the close is waited for before the surface goes), the frames kept still sent, then `the frames
-kept sent: the lenses stopped until the screen is back` (`not all sent in a minute` with no
-recorder in reach). Bring it
-back with `KEYCODE_BACK` from whatever is on top, or the recent apps: the launcher's intent opens
-a second activity on top of one `am start` began, which shows the preview alone. A lens that
-stops cannot be made on the emulator: its image is a production build, no root to stop the
-camera's service.
+(the close is waited for before the surface goes), the frames kept still sent, then, 5 s on,
+`<lens> no camera feeds it, all it kept sent: stopped` (not while a recorder is out of reach: it
+keeps sending). Back within the 5 s, the lenses' connections go on: `lsof -nP -iTCP:<port>
+-sTCP:ESTABLISHED` shows the same client port before and after, and the recorder's `gaps.txt`
+says `no frames` for the pause, not `reconnect`. Bring it back with `am start -n
+com.dchernykh.photofinish.camera/.MainActivity` without extras (its task brought to the front),
+`KEYCODE_BACK` from whatever is on top, or the recent apps: the launcher's intent opens a second
+activity on top of one `am start` began, which shows the preview alone.
+
+A camera lost: `adb shell cmd media.camera set-uid-state com.dchernykh.photofinish.camera idle`, a
+second, then `reset-uid-state` -- every camera of the app fails with error 3 and is opened again
+2 s on, feeding its lenses' streams on the same connections. A lens that stops cannot be made on
+the emulator: its image is a production build, no root to stop the camera's service; nor one
+camera of two lost alone, the front opened again alone: the uid's state takes both.
 
 ## Several lenses on the emulator
 
@@ -109,11 +116,11 @@ code's last
 (`left out from now on` in `phone.log`); the add-camera dialog advises Main and Telephoto past
 two lenses, and 1920x1440 or less for the Front beside a back lens. A lens that gives frames and
 then none for 3 s, its camera saying nothing, has its camera opened again (`no frame for 3 s` in
-`phone.log`), once no frame kept waits to be sent, 30 s at most; stopping again within a minute, it is left out, the first lens waited for beside
-others and tried again a minute on, then two, four, up to half an hour (30 s more at most for
-frames kept), opened again each time
-when it streams alone; the other
-camera's lens stopping later is waited for, not closed. On 2026-11-18 the four left the ultra-wide out, and Main, Telephoto and Front
+`phone.log`), what the lenses kept still sent; stopping again within a minute, it is left out,
+the first lens waited for beside others and tried again a minute on, then two, four, up to half
+an hour, opened again each time when it streams alone; the other camera lost later is opened
+again alone (`trying again in 2 s`, then 60, 120... in `phone.log`), the first camera's lenses
+streaming on. On 2026-11-18 the four left the ultra-wide out, and Main, Telephoto and Front
 streamed at 2560x1440 and 60 fps.
 
 ## A break, on the emulator
