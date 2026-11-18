@@ -171,9 +171,10 @@ class CameraStreamer(
         val plan =
             plan(lenses, targets.filter { it.lens !in failedWith })
                 ?: return onStatus(null, StreamerStatus.Failed("no back camera"))
-        // The room shared by the lenses planned: one left out of the plan leaves the others its share.
-        // shortcut: one dropped when its camera is made, or whose encoder will not start, keeps its share unused;
-        // share it out if a network break is seen to cost the others frames.
+        // The room shared by the lenses planned: one left out of the plan leaves the others its share -- the streams
+        // made in this open; one kept keeps the share it was made with (KeptStreams).
+        // shortcut: one dropped when its camera is made, whose encoder will not start, or left out once its stream was
+        // made, keeps its share, the others not given it; share it out if a network break is seen to cost them frames.
         share = FrameStore.SHARE_BYTES / plan.cameras.sumOf { it.lenses.size }.coerceAtLeast(1)
         failedWith.forEach { onStatus(it, StreamerStatus.Left(LeftOut.FAILED_WITH_THE_OTHERS)) }
         plan.left.forEach { (lens, why) -> onStatus(lens, StreamerStatus.Left(why)) }
