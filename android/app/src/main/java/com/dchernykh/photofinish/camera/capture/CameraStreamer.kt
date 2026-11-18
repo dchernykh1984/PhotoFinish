@@ -493,13 +493,14 @@ class CameraStreamer(
          * The lenses' frames, watched each second while the camera streams: a lens that gave none [NO_FRAME_MS] after
          * they started -- the Xiaomi 17 Ultra's stalled with four lenses, saying nothing --, or gave frames and then
          * none for [LensFallback.STALL_MS], its camera saying nothing, failed: lost, as a camera that says so is. A
-         * lens waited for is no news; the watch goes on while the camera is kept.
+         * lens waited for is no news until it gives frames again; the watch goes on while the camera is kept.
          */
         private fun watchFrames() {
             val started = startedMs ?: return
             if (mine != generation || closed) return
             val now = SystemClock.elapsedRealtime()
             val since = now - started
+            streams.forEach { fallback.heardFrom(mine, it.lens, it.lastFrameMs, now) } // one waited for, back
             val watched = streams.filterNot { fallback.waitsFor(mine, it.lens) }
             val silent = watched.filter { it.lastFrameMs == 0L }.map { it.lens }.takeIf { since >= NO_FRAME_MS }
             val stopped = watched.firstNotNullOfOrNull { LensFallback.stall(it.lens, it.lastFrameMs, started, now) }

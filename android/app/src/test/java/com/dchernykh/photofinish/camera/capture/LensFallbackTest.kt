@@ -309,6 +309,31 @@ class LensFallbackTest {
     }
 
     @Test
+    fun `a lens waited for that gives frames again is watched again, as any lens`() {
+        val fallback = LensFallback()
+        val back = listOf(Lens.MAIN, Lens.TELEPHOTO)
+        val silent = CameraFailure.NoFrame(listOf(Lens.TELEPHOTO), 5_000)
+        assertNull(fallback.failed(1, back - Lens.TELEPHOTO, back, silent)) // none to leave out: waited for
+        assertEquals(listOf(Lens.TELEPHOTO), fallback.waitedFor(1, silent))
+        fallback.heardFrom(1, Lens.TELEPHOTO, 0, 6_000) // still silent
+        assertEquals(true, fallback.waitsFor(1, Lens.TELEPHOTO))
+        fallback.heardFrom(1, Lens.TELEPHOTO, 7_000, 7_100) // its first frame at 7 s
+        assertEquals(false, fallback.waitsFor(1, Lens.TELEPHOTO)) // a stop of it now seen
+    }
+
+    @Test
+    fun `a stop heard by both cameras' paths is one stop, not a stop come again`() {
+        val fallback = LensFallback()
+        fallback.settle(0)
+        val streamed = listOf(Lens.MAIN, Lens.TELEPHOTO, Lens.FRONT)
+        val front = CameraFailure.Stalled(Lens.FRONT, 30_000, 100_000)
+        assertNull(fallback.failedAlone(1, streamed, listOf(Lens.FRONT), front))
+        assertNull(fallback.failed(1, streamed, listOf(Lens.FRONT), front)) // the same stop, again
+        assertEquals(true, fallback.madeAgain(1, front))
+        assertEquals(emptySet<Lens>(), fallback.leftOut)
+    }
+
+    @Test
     fun `a lens stopping a minute or more after its last stop has every lens opened again, as the first time`() {
         val fallback = LensFallback()
         fallback.settle(0)
@@ -338,17 +363,5 @@ class LensFallbackTest {
         // Settled before: a camera lost, every lens opened again -- an open mid-race stopping 3 s in.
         val midRace = LensFallback().apply { settle(10_000) }
         assertNull(midRace.failed(2, back, back, CameraFailure.Stalled(Lens.TELEPHOTO, 3_000, 53_000)))
-    }
-
-    @Test
-    fun `a stop heard by both cameras' paths is one stop, not a stop come again`() {
-        val fallback = LensFallback()
-        fallback.settle(0)
-        val streamed = listOf(Lens.MAIN, Lens.TELEPHOTO, Lens.FRONT)
-        val front = CameraFailure.Stalled(Lens.FRONT, 30_000, 100_000)
-        assertNull(fallback.failedAlone(1, streamed, listOf(Lens.FRONT), front))
-        assertNull(fallback.failed(1, streamed, listOf(Lens.FRONT), front)) // the same stop, again
-        assertEquals(true, fallback.madeAgain(1, front))
-        assertEquals(emptySet<Lens>(), fallback.leftOut)
     }
 }
