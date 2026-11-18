@@ -1,6 +1,7 @@
 package com.dchernykh.photofinish.camera.capture
 
 import com.dchernykh.photofinish.camera.pairing.Lens
+import com.dchernykh.photofinish.camera.stream.UplinkStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertSame
@@ -177,5 +178,32 @@ class FedFramesTest {
         frames.feed(null)
         assertEquals(true, frames.heard(1_000, 50))
         assertEquals(50L, frames.lastFrameMs)
+    }
+}
+
+/** [LinkWords]: what a lens's link says, its stream fed or idle. */
+class LinkWordsTest {
+    private val said = mutableListOf<UplinkStatus>()
+    private val words = LinkWords { said += it }
+    private val streaming = UplinkStatus.Streaming(30.0, 1.0, null)
+    private val broken = UplinkStatus.Reconnecting("broken pipe")
+
+    @Test
+    fun `an idle stream's link says nothing, its last word said again when a camera feeds it`() {
+        words.heard(streaming)
+        words.idle()
+        words.heard(broken) // the camera closed: the camera's word stands
+        assertEquals(listOf<UplinkStatus>(streaming), said)
+        words.feed()
+        assertEquals(listOf(streaming, broken), said) // the link down meanwhile, said at once
+    }
+
+    @Test
+    fun `a link streaming is not said again at the feed, before the camera's frames flow`() {
+        words.heard(streaming)
+        words.idle()
+        words.feed()
+        assertEquals(listOf<UplinkStatus>(streaming), said)
+        assertEquals(true, words.fed)
     }
 }

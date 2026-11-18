@@ -34,24 +34,13 @@ internal class LensStream private constructor(
     val surface: Surface,
     private val uplink: Uplink,
     private val sync: AtomicReference<ClockSync?>,
-    /** What its link does, said on the screen and to the laptop while a camera feeds it. */
-    private val say: (UplinkStatus) -> Unit,
+    /** What its link says, said on the screen and to the laptop while a camera feeds it. */
+    private val words: LinkWords,
 ) : KeptStream {
     private var drainer: Thread? = null
 
-    /** Fed by a camera: what its link does is said, an idle one's words not ([KeptStream.idle]). Read by the uplink. */
-    @Volatile var fed = true
-        private set
-
-    /** What its link said last, said or not: said again when a camera feeds it again. */
-    private var lastLink: UplinkStatus? = null
-
-    /** Its link's [status]: kept, and said while a camera feeds it. On the uplink's thread, against [feed]. */
-    @Synchronized
-    private fun heardLink(status: UplinkStatus) {
-        lastLink = status
-        if (fed) say(status)
-    }
+    /** Fed by a camera: what its link does is said, an idle one's words not ([KeptStream.idle]). */
+    val fed: Boolean get() = words.fed
 
     /** Stopped, its stream over: a first frame heard after this starts no clock exchange, and says nothing. */
     @Volatile var stopped = false
@@ -89,18 +78,10 @@ internal class LensStream private constructor(
 
     override fun feed() {
         frames.feed(uplink.captureClock?.invoke()) // its frames watched from the camera's next, its first told
-        synchronized(this) {
-            fed = true
-            // Its link's word meanwhile -- connecting again, a recorder out of reach -- not the one before the gap;
-            // a link streaming says so itself once the camera's frames flow, not before.
-            lastLink?.takeIf { it !is UplinkStatus.Streaming }?.let(say)
-        }
+        words.feed()
     }
 
-    @Synchronized
-    override fun idle() {
-        fed = false
-    }
+    override fun idle() = words.idle()
 
     override fun stop() {
         stopped = true
@@ -160,18 +141,18 @@ internal class LensStream private constructor(
                     throw error
                 }
             val sync = AtomicReference<ClockSync?>()
-            lateinit var stream: LensStream // made before the uplink's thread, the one to report, starts
+            val words = LinkWords(report)
             val uplink =
                 Uplink(
                     address = planned.target.address,
                     format = format,
                     clock = { sync.get()?.offset?.best() },
                     requestKeyframe = { requestKeyframe(codec) },
-                    report = { stream.heardLink(it) },
+                    report = words::heard,
                     store = store,
                 )
             uplink.status = status
-            stream = LensStream(planned, format, codec, surface, uplink, sync, report)
+            val stream = LensStream(planned, format, codec, surface, uplink, sync, words)
             val name = planned.target.lens.code
             Thread({ uplink.run() }, "uplink-$name").start()
             val failed = { error: IllegalStateException ->
