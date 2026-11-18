@@ -581,4 +581,21 @@ class UplinkTest {
         link.offer(frame(4_000_000, keyframe = false))
         assertEquals(3_000L, link.keptMs) // no clock told: a lens with none keeps as much
     }
+
+    @Test
+    fun `an acknowledgement coming after the last frame sent is taken while idle, the frames then sent`() {
+        val sink = FakeSink()
+        val link = uplink(listOf(sink))
+        start(link)
+        awaitConnected()
+        link.offer(frame(1_000_000, keyframe = true))
+        link.offer(frame(3_000_000, keyframe = false)) // 2 s of frames
+        sink.next()
+        sink.next()
+        assertTrue(link.unsent) // nothing confirmed: perhaps swallowed
+        sink.acknowledgedBytes = sink.sentBytes // the server's word, late, no frame after it
+        val until = System.nanoTime() + 2_000_000_000L
+        while (link.unsent && System.nanoTime() < until) Thread.sleep(20)
+        assertFalse(link.unsent)
+    }
 }
