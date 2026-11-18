@@ -254,10 +254,11 @@ class CameraStreamer(
                 null -> null
             }
         handler.post {
+            // A stream stopped meanwhile starts none (LensStream.startClock); one sending what it kept, the screen
+            // away, does: its frames go with their moments.
             when {
-                mine != generation -> Unit // closed meanwhile
-                clock == null -> onStatus(stream.lens, StreamerStatus.NoClock)
-                else -> stream.startClock(clock)
+                clock != null -> stream.startClock(clock)
+                mine == generation -> onStatus(stream.lens, StreamerStatus.NoClock)
             }
         }
     }
