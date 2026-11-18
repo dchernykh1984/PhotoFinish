@@ -82,6 +82,18 @@ class StatusLogTest {
     }
 
     @Test
+    fun `a link's word its screen does not show is logged, the lens at rest on the screen's word all the same`() {
+        val failed = StreamerStatus.Failed("camera error 4: the camera device failed; trying again in 1 min")
+        statuses.heard(Lens.FRONT, failed)
+        now += 1_000
+        statuses.heard(Lens.FRONT, StreamerStatus.Link(UplinkStatus.Reconnecting("Broken pipe")), shown = false)
+        assertEquals("W front connection lost: Broken pipe; connecting again", said().last()) // its camera closed
+        now += 5_000 // settled: the screen's word 5 s on
+        statuses.settle()
+        assertEquals("E front ${failed.reason}", said().last()) // where the screen came to rest
+    }
+
+    @Test
     fun `failures whose words all differ are told, the oldest of them forgotten as more come`() {
         repeat(200) {
             statuses.heard(null, StreamerStatus.Failed("camera error at frame $it; trying again"))

@@ -45,11 +45,15 @@ class StatusLog(
     fun heard(
         lens: Lens?,
         status: StreamerStatus,
+        shown: Boolean = true,
     ) {
         val (level, text, kind) = said(status)
         val at = nowMs()
-        if (now[lens]?.kind == kind) return // the same going on -- a stream's rates: no news
-        now[lens] = Now(level, text, kind, at)
+        // A word the screen does not show -- a lens's link while its camera is closed -- is logged, not where it rests.
+        if (shown) {
+            if (now[lens]?.kind == kind) return // the same going on -- a stream's rates: no news
+            now[lens] = Now(level, text, kind, at)
+        }
         val before = said[lens to kind]
         if (logged[lens] == kind || before != null && at - before.atMs < QUIET_MS) {
             before?.let { it.again++ } // said again: counted, told with its next time
