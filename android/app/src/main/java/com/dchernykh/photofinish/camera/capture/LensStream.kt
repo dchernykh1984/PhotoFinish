@@ -37,6 +37,9 @@ internal class LensStream private constructor(
     /** Stopped: a first frame heard after this starts no clock exchange. */
     @Volatile private var stopped = false
 
+    /** Its stream over: what it says after is no news. */
+    val ended: Boolean get() = stopped
+
     /** When its encoder last gave a frame, on [SystemClock.elapsedRealtime]: 0 before the first. */
     @Volatile var lastFrameMs = 0L
         private set
