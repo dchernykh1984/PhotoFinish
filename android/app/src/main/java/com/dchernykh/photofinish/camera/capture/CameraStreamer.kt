@@ -110,13 +110,17 @@ class CameraStreamer(
     }
 
     /**
-     * The cameras closed; the lenses' streams kept while some are still asked for ([keep]) -- a start for the same
-     * feeds them again, another stops them --, else stopped too, what they kept dropped: the referee's stop (FR-004).
+     * The cameras closed, for [targets] at [format] to come: the lenses' streams kept when those are what they were
+     * made for -- the screen back, its surface made again --, the next start feeding them again; else stopped too,
+     * what they kept dropped -- the referee's stop, another choice (FR-004) --, whatever the preview does meanwhile.
      */
-    fun stop(keep: Boolean) {
+    fun stop(
+        format: StreamFormat?,
+        targets: List<LensTarget>,
+    ) {
         handler.post {
             closeCameras()
-            if (!keep) keptStreams.stopAll()
+            if (!fallback.asks(format, targets)) keptStreams.stopAll()
         }
     }
 

@@ -67,7 +67,11 @@ class LensFallbackTest {
         val fullHd = StreamFormat(Resolution(1920, 1080), 60, FpsRange(60, 60), 16_000_000)
         val targets = four.map { LensTarget(it, RtmpAddress("10.0.0.5", 1935, "live", it.code)) }
         val fallback = LensFallback()
+        assertEquals(false, fallback.asks(fullHd, targets)) // none started yet
         assertEquals(true, fallback.start(fullHd, targets))
+        assertEquals(true, fallback.asks(fullHd, targets)) // a stop for the same keeps the streams
+        assertEquals(false, fallback.asks(fullHd, emptyList())) // the referee's stop: none asked
+        assertEquals(false, fallback.asks(fullHd.copy(fps = 30, range = FpsRange(30, 30)), targets)) // another rate
         fallback.failed(1, four, four, error(1_500))
         assertEquals(false, fallback.start(fullHd, targets)) // the preview's surface made again: streams kept too
         assertEquals(setOf(Lens.FRONT), fallback.leftOut)
