@@ -502,6 +502,53 @@ def test_a_phone_s_moment_is_believed_up_to_5_s_before_its_connection_was_taken(
     assert sources.NOT_IN_STEP == beyond.clock_note
 
 
+class PhoneContainer:
+    """Stands for what av.open gives for a phone's connection: its packets."""
+
+    def __init__(self, packets: list[av.Packet]) -> None:
+        self.packets = packets
+        video = SimpleNamespace(
+            time_base=Fraction(1, 1000),
+            codec_context=SimpleNamespace(name="h264"),
+            average_rate=60,
+            guessed_rate=60,
+        )
+        self.streams = SimpleNamespace(video=[video])
+        self.metadata = {"encoder": sources.PHONE_APP}
+
+    def __enter__(self) -> PhoneContainer:
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        return None
+
+    def demux(self, _: object) -> Iterator[av.Packet]:
+        return iter(self.packets)
+
+
+def test_a_phone_s_connection_slow_to_look_over_keeps_its_moments(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The look-over crawling through a Wi-Fi full of other lenses: the first frame,
+    # taken 1 s after the connection, read 8.5 s after it; judged from the taking,
+    # as frames() gives it, its moment stands (specs/007, FR-006).
+    now = {"ms": START}
+    packet = av.Packet(avcc(sei((START + 1_000) * 1000), b"\x65\x88"))
+    packet.pts = packet.dts = 0
+
+    def slow_open(url: str, **options: Any) -> PhoneContainer:
+        now["ms"] += 8_500
+        return PhoneContainer([packet])
+
+    monkeypatch.setattr(av, "open", slow_open)
+    source = sources.Stream(
+        "rtmp://0.0.0.0:1935/live/x", {}, lambda: now["ms"], listen=True
+    )
+    moments = [item[1] for item in source.frames() if item is not None]
+    assert moments == [START + 1_000]
+    assert not source.clock_note
+
+
 def test_a_phone_s_first_frame_held_up_seconds_on_a_busy_wi_fi_keeps_its_moment() -> (
     None
 ):
