@@ -298,6 +298,7 @@ class LensFallback {
         val keptMs by lazy(kept) // the stores' locks taken only when a stop or a retry asks
         seen.forEach { heardFrom(open, it.lens, it.lastFrameMs, nowMs) }
         val since = nowMs - startedMs
+        if (first != null && since >= AGAIN_MS) forgetRetries(open, seen.find { it.lens == first }, nowMs)
         val watched = seen.filterNot { waitsFor(open, it.lens) }
         val silent =
             watched
@@ -359,6 +360,19 @@ class LensFallback {
         waitStop = null
         resumed(first, nowMs)
         return first
+    }
+
+    /**
+     * The first lens, [first] as seen in open [open] a minute or more old, giving frames at [nowMs]: its retries so
+     * far forgotten, its next wait a minute again -- hours after a bad start, it is not left half an hour.
+     */
+    private fun forgetRetries(
+        open: Int,
+        first: Seen?,
+        nowMs: Long,
+    ) {
+        if (first == null || first.lastFrameMs == 0L || waitsFor(open, first.lens)) return
+        if (nowMs - first.lastFrameMs <= STALL_MS) retries = 0
     }
 
     /** [lens] no longer waited for at [nowMs] -- tried again, or back --, kept as a stop: stopping soon, it goes. */
