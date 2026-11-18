@@ -310,6 +310,10 @@ class CameraStreamer(
         private val streams = mutableListOf<LensStream>()
         private var format: StreamFormat? = null
 
+        /** What it was opened for, and at what format chosen: what opens it again alone ([openAlone]). */
+        private var plannedCamera: PlannedCamera? = null
+        private var chosenFormat: StreamFormat? = null
+
         /** When the lenses started, on the clock of [SystemClock.elapsedRealtime]: null before. */
         private var startedMs: Long? = null
 
@@ -343,6 +347,8 @@ class CameraStreamer(
             camera: PlannedCamera,
             chosen: StreamFormat,
         ): Boolean {
+            plannedCamera = camera
+            chosenFormat = chosen
             val lensesFormats = camera.lenses.map { CameraFormats(context, camera.cameraId, it.physicalId) }
             // Their frames one size and rate throughout, on the connections that go on.
             val before = camera.lenses.firstNotNullOfOrNull { keptStreams[it.target.lens]?.format }
@@ -412,11 +418,11 @@ class CameraStreamer(
         }
 
         /**
-         * A camera lost: the one with the preview opens everything again in a moment; another --
-         * the front beside the back -- is closed alone, its lenses said left out, so the first
-         * streams on rather than stopping with it each time it fails. A [failure] of the lenses'
-         * own in their first seconds leaves a lens out from then on (LensFallback); a lens that gave
-         * no frame, none left out, is waited for, its camera kept.
+         * A camera lost: the one with the preview opens everything again in a moment; another -- the front beside
+         * the back -- is closed alone and opened again alone ([LensFallback.aloneIn]), so the first streams on rather
+         * than stopping with it each time it fails. A [failure] of the lenses' own in their first seconds leaves a
+         * lens out from then on (LensFallback); a lens of the first camera that gave no frame, none left out, is
+         * waited for, its camera kept.
          */
         private fun lost(
             reason: String,
@@ -434,15 +440,47 @@ class CameraStreamer(
                 return checkSettled(mine) // the others may run together without the lens waited for
             }
             val left = fallback.failedAlone(mine, streamed, own, failure)
-            val silent = fallback.waitedFor(mine, failure)
-            silent.forEach { onStatus(it, said) }
-            if (silent.isNotEmpty()) return checkSettled(mine)
-            close() // first: no word of its uplinks comes after the one said here
-            left?.let { log.warning(it.code, "left out from now on: its camera failed with it ($reason)") }
-            own.forEach { onStatus(it, StreamerStatus.Failed("$reason; left out")) }
+            close() // first: no word of its uplinks comes after the one said here; their streams kept, idle
+            opened -= this
             leaveOut(own) // told to the laptop
-            // Its other lenses come back in an open without the one left out; else the first camera streams on.
-            if (left != null && own.size > 1) again(reason, failure, own) else checkSettled(mine)
+            if (left != null) {
+                log.warning(left.code, "left out from now on: its camera failed with it ($reason)")
+                own.forEach { onStatus(it, StreamerStatus.Failed("$reason; left out")) }
+                // Its other lenses come back in an open without the one left out; else the first camera streams on.
+                if (own.size > 1) again(reason, failure, own) else checkSettled(mine)
+                return
+            }
+            // Its first lens planned keeps its tries: one that would not open, no stream fed yet, is tried again too.
+            val first = plannedCamera?.lenses?.firstOrNull() ?: return checkSettled(mine)
+            val inMs = fallback.aloneIn(first.target.lens, OPEN_AGAIN_MS)
+            own.forEach { onStatus(it, StreamerStatus.Failed("$reason; trying again in ${inMs / MS_PER_S} s")) }
+            handler.postDelayed({ if (mine == generation) openAlone() }, inMs)
+            checkSettled(mine) // the first camera's lenses may run together without it
+        }
+
+        /**
+         * This camera, lost and closed alone, opened again alone for the same open, its lenses' streams fed again --
+         * the first camera's streaming on --; one the phone will not open now is lost again, tried again later.
+         */
+        @Suppress("TooGenericExceptionCaught") // a camera gone meanwhile: lost again
+        @SuppressLint("MissingPermission") // asked for before the first start; one taken back meanwhile throws, caught
+        private fun openAlone() {
+            val camera = plannedCamera ?: return
+            val chosen = chosenFormat ?: return
+            leftOut = leftOut - camera.lenses.map { it.target.lens.code }.toSet() // tried again: not left out
+            val open = OpenCamera(null, mine, again)
+            opened += open
+            try {
+                if (open.startStreams(camera, chosen)) {
+                    manager.openCamera(camera.cameraId, open, handler)
+                } else {
+                    opened -= open
+                    leaveOut(camera.lenses.map { it.target.lens })
+                }
+            } catch (error: Exception) {
+                log.error(null, "opening camera ${camera.cameraId} again: ${Crashes.describe(error)}")
+                open.lost(error.message ?: error.javaClass.simpleName, null)
+            }
         }
 
         // The list form serves Android 8, where a camera streams one lens; a camera gone meanwhile
@@ -565,6 +603,7 @@ class CameraStreamer(
     companion object {
         private const val OPEN_AGAIN_MS = 2_000L
         private const val AWAY_WAIT_MS = 1_000L
+        private const val MS_PER_S = 1_000L
 
         private const val WATCH_MS = 1_000L
 
