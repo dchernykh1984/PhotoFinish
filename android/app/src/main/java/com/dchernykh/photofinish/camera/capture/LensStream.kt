@@ -6,6 +6,7 @@ import android.media.MediaCodecList
 import android.media.MediaFormat
 import android.os.Build
 import android.os.Bundle
+import android.os.SystemClock
 import android.view.Surface
 import com.dchernykh.photofinish.camera.diagnostics.Crashes
 import com.dchernykh.photofinish.camera.diagnostics.PhoneLog
@@ -35,6 +36,10 @@ internal class LensStream private constructor(
 
     /** Stopped: a first frame heard after this starts no clock exchange. */
     @Volatile private var stopped = false
+
+    /** When its encoder last gave a frame, on [SystemClock.elapsedRealtime]: 0 before the first. */
+    @Volatile var lastFrameMs = 0L
+        private set
 
     val lens: Lens get() = planned.target.lens
 
@@ -122,8 +127,10 @@ internal class LensStream private constructor(
             val failed = { error: IllegalStateException ->
                 if (!stream.stopped) log.error(name, "its encoder stopped: ${Crashes.describe(error)}")
             }
+            val heard = { stream.lastFrameMs = SystemClock.elapsedRealtime() }
             stream.drainer =
-                Thread({ drain(codec, uplink, failed) { onFirstFrame(stream, it) } }, "encoder-$name").apply { start() }
+                Thread({ drain(codec, uplink, failed, heard) { onFirstFrame(stream, it) } }, "encoder-$name")
+                    .apply { start() }
             return stream
         }
 
@@ -156,17 +163,19 @@ internal class LensStream private constructor(
 
         /**
          * The encoder's output, to the uplink: the stream's header, then the frames, until
-         * interrupted; [onFirstFrame] hears of the first frame's presentation time.
+         * interrupted; [heard] hears of each frame, [onFirstFrame] of the first's presentation time.
          */
         private fun drain(
             codec: MediaCodec,
             link: Uplink,
             failed: (IllegalStateException) -> Unit,
+            heard: () -> Unit,
             onFirstFrame: (Long) -> Unit,
         ) {
             val info = MediaCodec.BufferInfo()
             var waiting = true
             val offer: (EncodedFrame) -> Unit = { frame ->
+                heard()
                 if (waiting) onFirstFrame(frame.ptsUs)
                 waiting = false
                 link.offer(frame)

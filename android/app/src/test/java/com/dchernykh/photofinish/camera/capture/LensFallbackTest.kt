@@ -242,4 +242,34 @@ class LensFallbackTest {
         val back = four - Lens.FRONT
         assertEquals(Lens.TELEPHOTO, fallback.failed(2, back, back, error(1_500))) // the next open's own
     }
+
+    @Test
+    fun `a lens that gave frames and then none goes early itself, the cameras made again without it`() {
+        val fallback = LensFallback()
+        val back = listOf(Lens.MAIN, Lens.TELEPHOTO, Lens.ULTRAWIDE)
+        val telephoto = CameraFailure.Stalled(Lens.TELEPHOTO, 4_000)
+        assertEquals(Lens.TELEPHOTO, fallback.failed(1, back, back, telephoto)) // not the camera's last
+        assertEquals(true, fallback.madeAgain(1, telephoto))
+        assertEquals(emptyList<Lens>(), fallback.waitedFor(1, telephoto)) // it gave frames: not waited for
+        // The first lens never goes: its camera's last, as for an error -- the first streamed before.
+        val main = CameraFailure.Stalled(Lens.MAIN, 3_000)
+        assertEquals(Lens.ULTRAWIDE, fallback.failed(2, back - Lens.TELEPHOTO, back - Lens.TELEPHOTO, main))
+        assertEquals(true, fallback.madeAgain(2, main))
+        val front = CameraFailure.Stalled(Lens.FRONT, 2_000)
+        assertEquals(Lens.FRONT, fallback.failedAlone(3, listOf(Lens.MAIN, Lens.FRONT), listOf(Lens.FRONT), front))
+    }
+
+    @Test
+    fun `a lens that stops later, or once the lenses ran together, makes the cameras again with every lens`() {
+        val fallback = LensFallback()
+        val back = listOf(Lens.MAIN, Lens.TELEPHOTO)
+        val late = CameraFailure.Stalled(Lens.TELEPHOTO, LensFallback.EARLY_MS)
+        assertNull(fallback.failed(1, back, back, late)) // past its first seconds: a camera lost, not the lenses'
+        assertEquals(true, fallback.madeAgain(1, late))
+        fallback.settle()
+        val soon = CameraFailure.Stalled(Lens.TELEPHOTO, 2_000) // soon after a reopen mid-race
+        assertNull(fallback.failed(2, back, back, soon))
+        assertEquals(true, fallback.madeAgain(2, soon))
+        assertEquals(emptySet<Lens>(), fallback.leftOut)
+    }
 }
