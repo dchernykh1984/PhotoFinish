@@ -54,7 +54,8 @@
 ## Phase 6: A lens that stops, the front's size, the screen leaving (2026-11-18)
 
 - [x] T023 [US1] `LensFallback.kt`, with its JVM tests: a lens that gave frames and then none --
-  early, itself left out, the first aside; later, every lens kept (FR-005).
+  early, itself left out, never another, the first aside; later, every lens kept; again within a
+  minute, left out, the first waited for; timed by its last frame (FR-005).
 - [x] T024 [US1] `CameraStreamer`, `LensStream`: each lens's last frame, watched each second; 3 s
   without one is its camera lost (FR-005).
 - [x] T025 [US1] The dialog's advice for the Front beside a back lens, 1920x1440 or less; its Qt
