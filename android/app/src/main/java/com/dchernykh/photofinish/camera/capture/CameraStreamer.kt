@@ -245,7 +245,6 @@ class CameraStreamer(
     private fun clockOfFrames(
         stream: LensStream,
         ptsUs: Long,
-        mine: Int,
     ) {
         val clock: (() -> Long)? =
             when (TimestampBase.detect(ptsUs * 1000, SystemClock.elapsedRealtimeNanos(), System.nanoTime())) {
@@ -258,7 +257,7 @@ class CameraStreamer(
             // away, does: its frames go with their moments.
             when {
                 clock != null -> stream.startClock(clock)
-                mine == generation -> onStatus(stream.lens, StreamerStatus.NoClock)
+                !stream.ended -> onStatus(stream.lens, StreamerStatus.NoClock) // the screen away too, as it sends
             }
         }
     }
@@ -356,7 +355,7 @@ class CameraStreamer(
                             },
                             onFirstFrame = { stream, ptsUs ->
                                 handler.post { checkSettled(mine) } // its frame heard: lastFrameMs set
-                                clockOfFrames(stream, ptsUs, mine)
+                                clockOfFrames(stream, ptsUs)
                             },
                             status = { dropped -> phone.read().copy(dropped = dropped, left = leftOut).line() },
                             store = FrameStore(File(kept, lens.code), share),
