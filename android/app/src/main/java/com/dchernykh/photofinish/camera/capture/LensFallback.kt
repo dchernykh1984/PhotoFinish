@@ -254,6 +254,22 @@ class LensFallback {
         }
 
     /**
+     * The first lens, waited for in open [open] after stopping again beside others, silent [AGAIN_MS] since it stopped
+     * at [nowMs]: tried again, the lens returned for the cameras to be opened again -- a moment of the others' frames
+     * a minute for a chance of it; its next stop within a minute of this waited for again. Else null.
+     */
+    fun retry(
+        open: Int,
+        nowMs: Long,
+    ): Lens? {
+        val waited = waitFor?.takeIf { waitsFor(open, it.lens) && nowMs - it.atMs >= AGAIN_MS } ?: return null
+        waitFor = null
+        waiting -= waited.lens
+        stops[waited.lens] = nowMs
+        return waited.lens
+    }
+
+    /**
      * [lens], waited for in open [open], gave a frame lately -- its last at [lastFrameMs], [nowMs] now --: no longer
      * waited for, its frames watched again as any lens's.
      */
