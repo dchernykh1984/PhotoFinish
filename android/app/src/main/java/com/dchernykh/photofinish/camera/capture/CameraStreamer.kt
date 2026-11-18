@@ -210,7 +210,8 @@ class CameraStreamer(
     private fun checkSettled(open: Int) {
         if (open != generation || settling == open || !opened.all { it.allFramed }) return
         settling = open
-        handler.postDelayed({ if (open == generation) fallback.settle() }, LensFallback.EARLY_MS)
+        val settle = { if (open == generation) fallback.settle(SystemClock.elapsedRealtime()) }
+        handler.postDelayed(settle, LensFallback.EARLY_MS)
     }
 
     /**
@@ -491,16 +492,17 @@ class CameraStreamer(
         /**
          * The lenses' frames, watched each second while the camera streams: a lens that gave none [NO_FRAME_MS] after
          * they started -- the Xiaomi 17 Ultra's stalled with four lenses, saying nothing --, or gave frames and then
-         * none for [STALL_MS], its camera saying nothing, failed: lost, as a camera that says so is. A lens waited for
-         * is no news; the watch goes on while the camera is kept.
+         * none for [LensFallback.STALL_MS], its camera saying nothing, failed: lost, as a camera that says so is. A
+         * lens waited for is no news; the watch goes on while the camera is kept.
          */
         private fun watchFrames() {
-            val since = sinceStart ?: return
+            val started = startedMs ?: return
             if (mine != generation || closed) return
             val now = SystemClock.elapsedRealtime()
+            val since = now - started
             val watched = streams.filterNot { fallback.waitsFor(mine, it.lens) }
             val silent = watched.filter { it.lastFrameMs == 0L }.map { it.lens }.takeIf { since >= NO_FRAME_MS }
-            val stopped = watched.firstOrNull { it.lastFrameMs != 0L && now - it.lastFrameMs > STALL_MS }
+            val stopped = watched.firstNotNullOfOrNull { LensFallback.stall(it.lens, it.lastFrameMs, started, now) }
             when {
                 !silent.isNullOrEmpty() -> {
                     val named = silent.joinToString { it.code }
@@ -508,8 +510,10 @@ class CameraStreamer(
                     lost(reason, CameraFailure.NoFrame(silent, since))
                 }
                 stopped != null -> {
-                    val reason = "the camera gave ${stopped.lens.code} no frame for ${STALL_MS / MS_PER_S} s"
-                    lost(reason, CameraFailure.Stalled(stopped.lens, since, stopped.lastFrameMs))
+                    lost(
+                        "the camera gave ${stopped.lens.code} no frame for ${LensFallback.STALL_MS / MS_PER_S} s",
+                        stopped,
+                    )
                 }
             }
             if (mine == generation && !closed) handler.postDelayed({ watchFrames() }, WATCH_MS)
@@ -548,8 +552,6 @@ class CameraStreamer(
         private const val OPEN_AGAIN_MS = 2_000L
         private const val NO_FRAME_MS = 5_000L
 
-        /** A lens's frames stopped this long, whatever its rate: at 15 fps, 45 frames missed. */
-        private const val STALL_MS = 3_000L
         private const val WATCH_MS = 1_000L
         private const val MS_PER_S = 1_000L
 
