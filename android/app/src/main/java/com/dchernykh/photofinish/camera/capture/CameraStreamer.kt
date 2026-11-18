@@ -97,15 +97,18 @@ class CameraStreamer(
         handler.post { sweep() }
     }
 
-    /** The cameras into [preview]; with [targets], each lens into its encoder and up to PhotoFinish too. */
+    /**
+     * The cameras into [preview]; with [targets], each lens into its encoder and up to PhotoFinish too -- after a
+     * [stop] for the same, which kept the streams for it or dropped them.
+     */
     fun start(
         preview: Surface,
         format: StreamFormat,
         targets: List<LensTarget>,
     ) {
         handler.post {
-            // A choice of the referee's tries every lens again, their streams made anew: what they kept dropped.
-            open(preview, format, targets, anew = fallback.start(format, targets))
+            fallback.start(format, targets) // a choice of the referee's tries every lens again
+            open(preview, format, targets)
         }
     }
 
@@ -120,6 +123,7 @@ class CameraStreamer(
     ) {
         handler.post {
             closeCameras()
+            // After the cameras: none left writing to the encoders' surfaces as they go.
             if (!fallback.asks(format, targets)) keptStreams.stopAll()
         }
     }
@@ -167,10 +171,8 @@ class CameraStreamer(
         preview: Surface,
         format: StreamFormat,
         targets: List<LensTarget>,
-        anew: Boolean = false,
     ) {
         closeCameras()
-        if (anew) keptStreams.stopAll() // after the cameras: none left writing to the encoders' surfaces as they go
         val mine = ++generation
         order = targets.map { it.lens }
         val failedWith = fallback.leftOut
