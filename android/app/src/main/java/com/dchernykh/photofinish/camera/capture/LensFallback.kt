@@ -35,6 +35,18 @@ sealed interface CameraFailure {
     ) : CameraFailure
 }
 
+/** One lens as the frames' watch sees it: [lastFrameMs], its encoder's last frame on the watch's clock, 0 for none. */
+data class Seen(
+    val lens: Lens,
+    val lastFrameMs: Long,
+)
+
+/** What the frames' watch takes its camera for lost by: [failure] -- none for a lens tried again --, for [reason]. */
+data class Watched(
+    val reason: String,
+    val failure: CameraFailure?,
+)
+
 /**
  * The lenses the cameras failed with, left out until the referee starts again (specs/004-phone-lenses,
  * FR-005): a phone may say it streams lenses together and then not -- the Xiaomi 17 Ultra, asked for four at
@@ -49,6 +61,7 @@ sealed interface CameraFailure {
  * opened again not bringing it back; the first, which never goes, is waited for while another lens streams that
  * opening them again would cut.
  */
+
 @Suppress("TooManyFunctions") // the rules of FR-005, each a question of a few lines
 class LensFallback {
     private val left = linkedSetOf<Lens>()
@@ -267,6 +280,42 @@ class LensFallback {
         }
 
     /**
+     * Open [open]'s camera, its lenses [seen] started at [startedMs], watched at [nowMs], the lenses keeping a frame
+     * unsent [keptMs]: a lens waited for that gives frames again is watched again ([heardFrom]); the open's [first]
+     * lens, given the camera with the preview, tried again ([retry]); else lenses that gave no frame [NO_FRAME_MS]
+     * after the start, or one that stopped ([stall]): what its camera is taken for lost by, or null.
+     */
+    fun watch(
+        open: Int,
+        seen: List<Seen>,
+        startedMs: Long,
+        nowMs: Long,
+        keptMs: Long,
+        first: Lens?,
+    ): Watched? {
+        seen.forEach { heardFrom(open, it.lens, it.lastFrameMs, nowMs) }
+        val since = nowMs - startedMs
+        val watched = seen.filterNot { waitsFor(open, it.lens) }
+        val silent =
+            watched
+                .filter { it.lastFrameMs == 0L }
+                .map { it.lens }
+                .takeIf { since >= NO_FRAME_MS }
+                .orEmpty()
+        val stopped = watched.firstNotNullOfOrNull { stall(it.lens, it.lastFrameMs, startedMs, nowMs, keptMs) }
+        val retried = first?.let { retry(open, it, nowMs, keptMs) } // the other camera's watch: not its to try
+        val named = silent.joinToString { it.code }
+        val noFrame = CameraFailure.NoFrame(silent, since)
+        return when {
+            retried != null -> Watched("${retried.code} silent a minute after stopping again: tried again", null)
+            silent.isNotEmpty() -> Watched("the camera gave $named no frame in ${NO_FRAME_MS / MS_PER_S} s", noFrame)
+            stopped != null ->
+                Watched("the camera gave ${stopped.lens.code} no frame for ${STALL_MS / MS_PER_S} s", stopped)
+            else -> null
+        }
+    }
+
+    /**
      * The open's [first] lens, waited for in open [open] -- silent from the start, or stopped again beside others --
      * [AGAIN_MS] since this was first asked it, at [nowMs], the lenses keeping no frame unsent [KEPT_MS] or more
      * ([keptMs], the oldest's age) -- opening the cameras again drops what they keep --: tried again, the lens
@@ -275,11 +324,11 @@ class LensFallback {
      */
     fun retry(
         open: Int,
-        first: Lens?,
+        first: Lens,
         nowMs: Long,
         keptMs: Long,
     ): Lens? {
-        if (first == null || !waitsFor(open, first)) {
+        if (!waitsFor(open, first)) {
             firstWaitedSinceMs = null
             return null
         }
@@ -318,6 +367,11 @@ class LensFallback {
 
         /** How long a lens that gave frames may give none, whatever its rate: at 15 fps, 45 frames missed. */
         const val STALL_MS = 3_000L
+
+        /** How long after the lenses' start one that gave no frame is a failure: the Xiaomi's gave none in 80 s. */
+        const val NO_FRAME_MS = 5_000L
+
+        private const val MS_PER_S = 1_000L
 
         /**
          * [lens] stopped at [nowMs] -- its last frame at [lastFrameMs], 0 for none yet, more than [STALL_MS] before --,
