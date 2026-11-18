@@ -65,7 +65,8 @@ the same install and start with the computer's address on the shared network
 The screen leaving: `adb shell input keyevent KEYCODE_HOME` -- `the screen left: the cameras
 closed until it is back` in `phone.log`, no camera failing, no `BufferQueue has been abandoned`
 (the close is waited for before the surface goes), the frames kept still sent, then `the frames
-kept sent: the lenses stopped until the screen is back`. Bring it
+kept sent: the lenses stopped until the screen is back` (`not all sent in a minute` with no
+recorder in reach). Bring it
 back with `KEYCODE_BACK` from whatever is on top, or the recent apps: the launcher's intent opens
 a second activity on top of one `am start` began, which shows the preview alone. A lens that
 stops cannot be made on the emulator: its image is a production build, no root to stop the
