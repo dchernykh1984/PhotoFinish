@@ -119,22 +119,28 @@ class CameraStreamer(
                 if (opened.isNotEmpty()) log.info(null, "the screen left: the cameras closed until it is back")
                 opened.forEach { it.closeCamera() }
                 closed.countDown()
-                sendThenStop(generation)
+                sendThenStop(generation, SystemClock.elapsedRealtime())
             }
         if (posted) closed.await(AWAY_WAIT_MS, TimeUnit.MILLISECONDS)
     }
 
     /**
-     * The screen away since open [away]: once the lenses keep nothing more to send, their streams stop too --
-     * encoders, uplinks, clock exchanges --, not held for as long as it stays away; its return opens all again.
+     * The screen away since open [away], at [sinceMs]: once the lenses keep no frame unsent -- or [SEND_AWAY_MS] on,
+     * a recorder out of reach --, their streams stop too: encoders, uplinks, clock exchanges, not held for as long as
+     * it stays away; its return opens all again.
      */
-    private fun sendThenStop(away: Int) {
+    private fun sendThenStop(
+        away: Int,
+        sinceMs: Long,
+    ) {
         if (away != generation || opened.isEmpty()) return
-        if (opened.any { it.keptMs > 0L }) {
-            handler.postDelayed({ sendThenStop(away) }, WATCH_MS)
+        val sending = opened.any { it.unsent }
+        if (sending && SystemClock.elapsedRealtime() - sinceMs < SEND_AWAY_MS) {
+            handler.postDelayed({ sendThenStop(away, sinceMs) }, WATCH_MS)
             return
         }
-        log.info(null, "the frames kept sent: the lenses stopped until the screen is back")
+        val said = if (sending) "not all sent in a minute" else "sent"
+        log.info(null, "the frames kept $said: the lenses stopped until the screen is back")
         close()
     }
 
@@ -319,6 +325,9 @@ class CameraStreamer(
 
         /** How much the frames its lenses keep unsent span, ms, the most of them. */
         val keptMs: Long get() = streams.maxOfOrNull { it.keptMs } ?: 0L
+
+        /** A frame of its lenses kept and not sent yet. */
+        val unsent: Boolean get() = streams.any { it.unsent }
 
         /** Each of its lenses has given a frame, or is waited for (LensFallback.waitsFor): none of a camera closed. */
         val allFramed: Boolean get() = streams.all { it.lastFrameMs != 0L || fallback.waitsFor(mine, it.lens) }
@@ -564,6 +573,7 @@ class CameraStreamer(
     companion object {
         private const val OPEN_AGAIN_MS = 2_000L
         private const val AWAY_WAIT_MS = 1_000L
+        private const val SEND_AWAY_MS = 60_000L
 
         private const val WATCH_MS = 1_000L
 

@@ -58,6 +58,9 @@ internal class LensStream private constructor(
     /** How much its frames kept and not sent yet span, ms ([Uplink.keptMs]). */
     val keptMs: Long get() = uplink.keptMs
 
+    /** A frame of it kept and not sent yet. */
+    val unsent: Boolean get() = uplink.unsent
+
     fun stop() {
         stopped = true
         drainer?.let {
