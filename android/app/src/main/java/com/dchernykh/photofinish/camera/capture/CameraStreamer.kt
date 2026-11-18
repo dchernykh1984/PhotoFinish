@@ -22,7 +22,6 @@ import com.dchernykh.photofinish.camera.status.PhoneStatusReader
 import com.dchernykh.photofinish.camera.stream.FrameStore
 import com.dchernykh.photofinish.camera.stream.UplinkStatus
 import java.io.File
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executor
 
 /** What the camera side says to the screen: of the cameras as a whole, or of one lens. */
@@ -296,10 +295,7 @@ class CameraStreamer(
         val ownLenses: List<Lens> get() = streams.map { it.lens }
 
         /** Each of its lenses has given a frame, or is waited for (LensFallback.waitsFor): none of a camera closed. */
-        val allFramed: Boolean get() = ownLenses.all { it in framed || fallback.waitsFor(mine, it) }
-
-        /** The lenses whose encoder has given a frame: the encoders' threads add, the cameras' reads. */
-        private val framed = ConcurrentHashMap.newKeySet<Lens>()
+        val allFramed: Boolean get() = streams.all { it.lastFrameMs != 0L || fallback.waitsFor(mine, it.lens) }
 
         /** Closed: its uplinks' words after it are the stopped streams', and dropped. */
         @Volatile private var closed = false
@@ -346,8 +342,7 @@ class CameraStreamer(
                                 if (mine == generation && !closed) onStatus(lens, StreamerStatus.Link(status))
                             },
                             onFirstFrame = { stream, ptsUs ->
-                                framed += stream.lens
-                                handler.post { checkSettled(mine) }
+                                handler.post { checkSettled(mine) } // its frame heard: lastFrameMs set
                                 clockOfFrames(stream, ptsUs, mine)
                             },
                             status = { dropped -> phone.read().copy(dropped = dropped, left = leftOut).line() },
@@ -483,10 +478,7 @@ class CameraStreamer(
                     }
                 configured.setRepeatingRequest(request.build(), null, handler)
                 startedMs = SystemClock.elapsedRealtime()
-                if (streams.isNotEmpty()) {
-                    handler.postDelayed({ checkFrames() }, NO_FRAME_MS)
-                    handler.postDelayed({ watchFrames() }, WATCH_MS)
-                }
+                if (streams.isNotEmpty()) handler.postDelayed({ watchFrames() }, WATCH_MS)
                 // The camera gives frames: a failure said before, a camera lost and opened again, is over;
                 // the camera with the preview says so for the cameras as a whole, the others' lenses by their links.
                 previewStatus(preview, targets)?.let { onStatus(null, it) }
@@ -497,33 +489,30 @@ class CameraStreamer(
         }
 
         /**
-         * A camera that has given a lens no frame [NO_FRAME_MS] after they started -- the Xiaomi 17 Ultra's
-         * stalled with four lenses, saying nothing -- failed, the lenses' doing: lost, as one that says so is.
-         */
-        private fun checkFrames() {
-            val since = sinceStart ?: return
-            if (mine != generation || closed) return
-            val silent = ownLenses.filter { it !in framed }
-            if (silent.isEmpty()) return
-            val reason = "the camera gave ${silent.joinToString { it.code }} no frame in ${NO_FRAME_MS / MS_PER_S} s"
-            lost(reason, CameraFailure.NoFrame(silent, since))
-        }
-
-        /**
-         * Each second while it streams: a lens that gave frames and then none for [STALL_MS] -- its camera saying
-         * nothing, as no error comes -- stopped, the camera lost as one that says so is, opened again.
+         * The lenses' frames, watched each second while the camera streams: a lens that gave none [NO_FRAME_MS] after
+         * they started -- the Xiaomi 17 Ultra's stalled with four lenses, saying nothing --, or gave frames and then
+         * none for [STALL_MS], its camera saying nothing, failed: lost, as a camera that says so is. A lens waited for
+         * is no news; the watch goes on while the camera is kept.
          */
         private fun watchFrames() {
             val since = sinceStart ?: return
             if (mine != generation || closed) return
             val now = SystemClock.elapsedRealtime()
-            val stopped = streams.firstOrNull { it.lastFrameMs != 0L && now - it.lastFrameMs > STALL_MS }
-            if (stopped == null) {
-                handler.postDelayed({ watchFrames() }, WATCH_MS)
-                return
+            val watched = streams.filterNot { fallback.waitsFor(mine, it.lens) }
+            val silent = watched.filter { it.lastFrameMs == 0L }.map { it.lens }.takeIf { since >= NO_FRAME_MS }
+            val stopped = watched.firstOrNull { it.lastFrameMs != 0L && now - it.lastFrameMs > STALL_MS }
+            when {
+                !silent.isNullOrEmpty() -> {
+                    val named = silent.joinToString { it.code }
+                    val reason = "the camera gave $named no frame in ${NO_FRAME_MS / MS_PER_S} s"
+                    lost(reason, CameraFailure.NoFrame(silent, since))
+                }
+                stopped != null -> {
+                    val reason = "the camera gave ${stopped.lens.code} no frame for ${STALL_MS / MS_PER_S} s"
+                    lost(reason, CameraFailure.Stalled(stopped.lens, since))
+                }
             }
-            val reason = "the camera gave ${stopped.lens.code} no frame for ${STALL_MS / MS_PER_S} s"
-            lost(reason, CameraFailure.Stalled(stopped.lens, since))
+            if (mine == generation && !closed) handler.postDelayed({ watchFrames() }, WATCH_MS)
         }
 
         /**
