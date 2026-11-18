@@ -102,6 +102,9 @@ class LensFallback {
     /** When [retry] first saw the open's first lens waited for, on the watch's clock: the minute counted from it. */
     private var firstWaitedSinceMs: Long? = null
 
+    /** The first lens's retries since the referee's start: each doubles the wait for the next, a minute first. */
+    private var retries = 0
+
     /**
      * The cameras started for [targets] at [format]: the lenses left out forgotten when either is not the last
      * start's -- the referee's choice, a stop in between asking for the preview alone --, kept when the same come
@@ -119,6 +122,7 @@ class LensFallback {
         paid = null
         settledAtMs = Long.MAX_VALUE
         stops.clear()
+        retries = 0
         stoppedAgain = null
         waitStop = null
         firstWaitedSinceMs = null
@@ -345,7 +349,10 @@ class LensFallback {
         }
         val since = firstWaitedSinceMs ?: nowMs.also { firstWaitedSinceMs = it }
         val waited = nowMs - since
-        if (waited < AGAIN_MS || waited < AGAIN_MS + KEPT_WAIT_MS && keptMs() >= KEPT_MS) return null
+        // A minute, then two, four... up to 32: a first lens that stays broken costs the others a cut seldom.
+        val due = AGAIN_MS shl retries.coerceAtMost(MOST_DOUBLINGS)
+        if (waited < due || waited < due + KEPT_WAIT_MS && keptMs() >= KEPT_MS) return null
+        retries++
         firstWaitedSinceMs = null
         waitStop = null
         resumed(first, nowMs)
@@ -384,6 +391,9 @@ class LensFallback {
 
         /** A lens stopping again this soon after its last stop: the cameras opened again did not bring it back. */
         const val AGAIN_MS = 60_000L
+
+        /** The first lens's retries wait at most 2^5 minutes, half an hour, one from the next. */
+        private const val MOST_DOUBLINGS = 5
 
         /** Frames kept unsent this long put a stop or a retry off: opening the cameras again would drop them. */
         const val KEPT_MS = 1_000L
