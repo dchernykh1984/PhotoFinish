@@ -128,8 +128,8 @@ alone; the other camera lost later is opened again alone, 2 s on, then a minute,
 the first camera's lenses streaming on. The Xiaomi 17 Ultra said yes
 to its four lenses at 2560x1440 and 60 fps and gave no frame; now it leaves the ultra-wide out
 and streams the other three. A camera opened again -- lost, a lens left out, the screen back within 5 s --
-feeds the streams it fed, at the format they have: their encoders, connections and clock exchanges go on, and
-what the lenses kept is still sent. The screen leaving closes the cameras at once; a stream no camera feeds
+feeds the streams it fed at the same format: their encoders, connections and clock exchanges go on, and what
+the lenses kept is still sent. The screen leaving closes the cameras at once; a stream no camera feeds
 stops 5 s on once all it kept is sent. Each lens has its own encoder, connection and clock exchange, so
 each is in step on its own. Tried on the emulator: two lenses of one camera and the other camera,
 30 fps each, every frame with its moment. Each lens adds its bitrate to the Wi-Fi and heat to the

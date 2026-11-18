@@ -178,9 +178,11 @@ out, shows the front camera as left out and the banner green.
 - **FR-014**: A lens's store lives with its stream, and its stream -- encoder, uplink, clock
   exchange -- across the cameras' opens while the referee's choice lasts: a camera lost and
   opened again, opened again with a lens left out or alone, or the screen leaving and coming
-  back, feeds the same encoder at the format it streamed at, while its lenses still give it --
-  what was kept is sent, the connection and its moments go on, the first frame after the gap a
-  keyframe. A stream no camera has fed for 5 s is stopped once nothing it kept is unsent or
+  back, feeds the same encoder -- what was kept is sent, the connection and its moments go on, the
+  first frame after the gap a keyframe -- as long as the camera streams at the same format: one
+  that streams at another, the nearest its lenses give to the size and rate chosen changing with a
+  lens left out, makes a new stream, what the one before kept dropped; so does a lens whose
+  encoder failed. A stream no camera has fed for 5 s is stopped once nothing it kept is unsent or
   unconfirmed; its lens's next open starts a new one. While no camera feeds it, its connection's
   words are not shown (FR-011).
 
