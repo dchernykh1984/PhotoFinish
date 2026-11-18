@@ -119,7 +119,8 @@ lens left out -- one that gave no frame, never one that streams for it, a lens t
 itself, else one of the camera that failed --, said on the phone and to the
 laptop, until the referee starts again; once every lens of every camera, those waited for aside,
 gave frames for 10 s, a failure -- a lens stopping for 3 s too -- leaves none out, and the cameras are opened again as any lost mid-race;
-a lens that stops again within a minute is left out then, the first waited for, the others streaming on. The Xiaomi 17 Ultra said yes
+a lens that stops again within a minute is left out then, the first waited for while the others stream, opened
+again each time when it streams alone. The Xiaomi 17 Ultra said yes
 to its four lenses at 2560x1440 and 60 fps and gave no frame; now it leaves the ultra-wide out
 and streams the other three. The screen leaving closes the cameras at once, the lenses sending
 what they kept; its return opens them again. Each lens has its own encoder, connection and clock exchange, so
