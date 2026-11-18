@@ -604,8 +604,27 @@ class ThroughputTest {
             throughput.count(1_000)?.let { rates += it.first }
         }
         repeat(32) { count(it * 33_333_333L) } // a second at 30 fps: told
+        for (idleNs in 1_100_000_000L..5_900_000_000L step 100_000_000L) { // nothing to send, as the uplink polls
+            now = idleNs
+            throughput.idle()
+        }
         repeat(32) { count(6_000_000_000L + it * 33_333_333L) } // 5 s without a frame, then a second more
         assertEquals(2, rates.size)
         assertTrue(rates.toString(), rates.all { it > 25 }) // not one frame over the 5 s pause
+    }
+
+    @Test
+    fun `a send that hangs a while, its frames waiting, is told in the rate after it`() {
+        var now = 0L
+        val throughput = Uplink.Throughput { now }
+        val rates = mutableListOf<Double>()
+        val count = { atNs: Long ->
+            now = atNs
+            throughput.count(1_000)?.let { rates += it.first }
+        }
+        repeat(32) { count(it * 33_333_333L) } // a second at 30 fps
+        count(2_500_000_000L) // a send hung 1.5 s, the network stalled: never idle meanwhile
+        assertEquals(2, rates.size)
+        assertTrue(rates.toString(), rates[1] < 25) // the stall told, not hidden
     }
 }
