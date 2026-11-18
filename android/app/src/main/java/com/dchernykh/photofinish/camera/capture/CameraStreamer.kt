@@ -459,10 +459,12 @@ class CameraStreamer(
             val left = fallback.failedAlone(mine, streamed, own, failure) // streamed before this camera closes
             close() // first: no word of its uplinks comes after the one said here; their streams kept, idle
             opened -= this
-            leaveOut(own) // told to the laptop
+            // Its lenses' word, those it streamed or, none started, those it was opened for; told to the laptop.
+            val told = own.ifEmpty { plan.lenses.map { it.target.lens } }
+            leaveOut(told)
             if (left != null) {
                 log.warning(left.code, "left out from now on: its camera failed with it ($reason)")
-                own.forEach { onStatus(it, StreamerStatus.Failed("$reason; left out")) }
+                told.forEach { onStatus(it, StreamerStatus.Failed("$reason; left out")) }
                 // Its other lenses come back in an open without the one left out; else the first camera streams on.
                 if (own.size > 1) again(reason, failure, own) else checkSettled(mine)
                 return
@@ -471,10 +473,7 @@ class CameraStreamer(
             val first = plan.lenses.firstOrNull() ?: return checkSettled(mine)
             val inMs = fallback.aloneIn(first.target.lens, OPEN_AGAIN_MS)
             val said = StreamerStatus.Failed("$reason; trying again in ${LensFallback.inWords(inMs)}")
-            // Its lenses' word, those it streamed or, none started, those it was opened for: told it comes again.
-            val told = own.ifEmpty { plan.lenses.map { it.target.lens } }
             told.forEach { onStatus(it, said) }
-            leaveOut(told)
             handler.postDelayed({ if (mine == generation) openAlone() }, inMs)
             checkSettled(mine) // the first camera's lenses may run together without it
         }
