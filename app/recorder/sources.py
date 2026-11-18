@@ -379,7 +379,7 @@ class Stream:
         or before now, its opening unknown -- else the phone's clock is not in step
         with this one."""
         now = self.anchor.clock()
-        since = now if opened is None else min(opened, now)
+        since = now if opened is None else opened  # taken before the frame was read
         return since - OWN_PAST_MS - held <= own <= now + OWN_FUTURE_MS
 
 
