@@ -470,48 +470,52 @@ def test_a_camera_this_computer_reads_is_not_looked_into_for_moments() -> None:
     assert place(packet, 0) == START  # type: ignore[arg-type]
 
 
-def test_a_phone_s_moment_a_minute_behind_the_recorder_is_not_believed() -> None:
+def test_a_phone_s_moment_seconds_behind_the_recorder_is_not_believed() -> None:
     # The recorder's clock read again after a sleep, before the phone's next exchange.
-    got = receive_phone(lambda k: time.time_ns() // 1000 - 60_000_000)  # 60 s behind
+    got = receive_phone(lambda k: time.time_ns() // 1000 - 8_000_000)  # 8 s behind
     now = time.time_ns() // 1_000_000
     assert all(now - 3_000 < ms <= now + 1_000 for ms in got)  # placed by arrival
 
 
-def test_a_phone_s_moment_is_believed_up_to_30_s_before_its_frame_is_read() -> None:
-    # The window's two edges (specs/007, FR-006): a late first frame within it keeps
-    # its moment; one further back is a clock out of step, placed by its arrival. A
-    # clock 5 to 30 s behind is believed: after the computer's clock is set, the
-    # phone's next exchange, 2 s on, puts it right (ClockOffset).
+def test_a_phone_s_moment_is_believed_up_to_5_s_before_its_connection_was_taken() -> (
+    None
+):
+    # The window's two edges (specs/007, FR-006), from the connection's taking, read
+    # 8 s later: a first frame within it keeps its moment, one further back is a
+    # clock out of step, placed by its arrival.
     stream = SimpleNamespace(
         time_base=Fraction(1, 1000), codec_context=SimpleNamespace(name="h264")
     )
+    opened = START - 8_000
     within = sources.Stream(
         "rtmp://0.0.0.0:1935/live/x", {}, lambda: START, listen=True
     )
-    place = within._placing(stream, phone=True)  # type: ignore[arg-type]
-    assert place(avcc(sei((START - 30_000) * 1000), b"\x65\x88"), 0) == START - 30_000  # type: ignore[arg-type]
+    place = within._placing(stream, phone=True, opened=opened)  # type: ignore[arg-type]
+    edge = opened - 5_000
+    assert place(avcc(sei(edge * 1000), b"\x65\x88"), 0) == edge  # type: ignore[arg-type]
     assert not within.clock_note
     beyond = sources.Stream(
         "rtmp://0.0.0.0:1935/live/x", {}, lambda: START, listen=True
     )
-    late = beyond._placing(stream, phone=True)  # type: ignore[arg-type]
-    assert late(avcc(sei((START - 30_001) * 1000), b"\x65\x88"), 0) == START  # type: ignore[arg-type]
+    late = beyond._placing(stream, phone=True, opened=opened)  # type: ignore[arg-type]
+    assert late(avcc(sei((edge - 1) * 1000), b"\x65\x88"), 0) == START  # type: ignore[arg-type]
     assert sources.NOT_IN_STEP == beyond.clock_note
 
 
 def test_a_phone_s_first_frame_held_up_seconds_on_a_busy_wi_fi_keeps_its_moment() -> (
     None
 ):
-    # The Xiaomi 17 Ultra's telephoto beside two lenses at 60 fps, 2026-11-18: kept
-    # 1.6 s for the clock, its first frame read 8.5 s after it was taken -- its
-    # connection's look-over crawling through a Wi-Fi the others filled.
+    # The Xiaomi 17 Ultra's telephoto beside two lenses at 60 fps, 2026-11-18: its
+    # connection taken, its first frame kept 1.6 s for the clock and read 8.5 s after
+    # it was taken -- the look-over crawling through a Wi-Fi the others filled.
     source = sources.Stream(
         "rtmp://0.0.0.0:1935/live/x", {}, lambda: START, listen=True
     )
     stream = SimpleNamespace(
         time_base=Fraction(1, 1000), codec_context=SimpleNamespace(name="h264")
     )
-    place = source._placing(stream, phone=True, held=1_600)  # type: ignore[arg-type]
+    opened = START - 9_900  # the connection taken before the frame was
+    place = source._placing(stream, phone=True, held=1_600, opened=opened)  # type: ignore[arg-type]
     first = avcc(sei((START - 8_500) * 1000), b"\x65\x88")
     assert place(first, 0) == START - 8_500  # type: ignore[arg-type]
     assert not source.clock_note  # in step: the frame was only late
@@ -604,7 +608,7 @@ def test_a_phone_s_frame_it_kept_through_a_break_keeps_its_own_moment() -> None:
     assert kept(avcc(sei((START - 61_000) * 1000), b"\x65\x88"), 0) == START - 61_000  # type: ignore[arg-type]
     assert not source.clock_note
     beyond = source._placing(stream, phone=True, held=60_000)  # type: ignore[arg-type]
-    first = avcc(sei((START - 100_000) * 1000), b"\x65\x88")  # 40 s past it
+    first = avcc(sei((START - 70_000) * 1000), b"\x65\x88")
     assert beyond(first, 0) == START - 60_000  # type: ignore[arg-type]
     assert sources.NOT_IN_STEP == source.clock_note  # older than it says: out of step
     # ... and placed by its arrival, less the time the phone says it held it
