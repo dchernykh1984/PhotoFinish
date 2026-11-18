@@ -84,6 +84,9 @@ class LensFallback {
     /** The first lens's stop come again while another lens streamed: waited for, the cameras not made again for it. */
     private var waitFor: CameraFailure.Stalled? = null
 
+    /** The other camera's lens stopped later, none left out: waited for, the first camera's lenses not cut for it. */
+    private var waitAlone: CameraFailure.Stalled? = null
+
     /**
      * The cameras started for [targets] at [format]: the lenses left out forgotten when either is not the last
      * start's -- the referee's choice, a stop in between asking for the preview alone --, kept when the same come
@@ -104,6 +107,7 @@ class LensFallback {
         stops.clear()
         stoppedAgain = null
         waitFor = null
+        waitAlone = null
     }
 
     /**
@@ -184,7 +188,7 @@ class LensFallback {
             when {
                 open == paid -> emptyList()
                 failure is CameraFailure.NoFrame -> failure.silent
-                failure is CameraFailure.Stalled && failure == waitFor -> listOf(failure.lens)
+                failure is CameraFailure.Stalled && (failure == waitFor || failure == waitAlone) -> listOf(failure.lens)
                 else -> emptyList()
             }
         if (silent.isEmpty()) return silent
@@ -207,14 +211,19 @@ class LensFallback {
      * The other camera of open [open] -- the front beside the back -- failed alone and was closed, its [lenses]
      * left out of this open: one of them left out from now on, as the first camera's path does -- after a lens gave
      * no frame the last of those, else its last, never the first of [streamed], the open's in the code's order --, the
-     * others tried again in the next open, made for them. The lens left out, or null.
+     * others tried again in the next open, made for them. The lens left out, or null: a lens of it that stopped and
+     * is not left out is waited for, as one that gave no frame, not closed for the open -- a pause that passes then
+     * passes, and opening the cameras again for it would cut the first camera's lenses.
      */
     fun failedAlone(
         open: Int,
         streamed: List<Lens>,
         lenses: List<Lens>,
         failure: CameraFailure?,
-    ): Lens? = choose(open, failure, streamed.drop(1).filter { it in lenses }, lenses)
+    ): Lens? =
+        choose(open, failure, streamed.drop(1).filter { it in lenses }, lenses).also {
+            if (it == null && failure is CameraFailure.Stalled) waitAlone = failure
+        }
 
     /**
      * One of [candidates] left out of open [open] after [failure] when it counts and the open has paid none: after
