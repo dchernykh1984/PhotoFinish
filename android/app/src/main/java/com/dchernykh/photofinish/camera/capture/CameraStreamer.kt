@@ -285,6 +285,29 @@ class CameraStreamer(
         }
     }
 
+    /**
+     * [planned]'s stream at [format], its callbacks the streamer's: it outlives the camera that first fed it
+     * ([KeptStreams]), and holds none of it.
+     */
+    private fun startStream(
+        planned: PlannedLens,
+        format: StreamFormat,
+    ): LensStream {
+        val lens = planned.target.lens
+        return LensStream.start(
+            planned,
+            format,
+            report = { status -> onStatus(lens, StreamerStatus.Link(status)) },
+            onFirstFrame = { stream, ptsUs ->
+                handler.post { checkSettled(generation) } // its frame heard, lastFrameMs set: of the open feeding it
+                clockOfFrames(stream, ptsUs)
+            },
+            status = { dropped -> phone.read().copy(dropped = dropped, left = leftOut).line() },
+            store = FrameStore(File(kept, lens.code), share),
+            log = log,
+        )
+    }
+
     /** Lenses that do not stream after all, told to the laptop with the next status. */
     private fun leaveOut(lenses: List<Lens>) {
         leftOut = (leftOut + lenses.map { it.code }).distinct()
@@ -372,19 +395,7 @@ class CameraStreamer(
                 try {
                     streams +=
                         keptStreams.feed(lens, { it.planned == planned && it.format == common }) {
-                            LensStream.start(
-                                planned,
-                                common,
-                                report = { status -> onStatus(lens, StreamerStatus.Link(status)) },
-                                onFirstFrame = { stream, ptsUs ->
-                                    // Its frame heard, lastFrameMs set: of the open now feeding it.
-                                    handler.post { checkSettled(generation) }
-                                    clockOfFrames(stream, ptsUs)
-                                },
-                                status = { dropped -> phone.read().copy(dropped = dropped, left = leftOut).line() },
-                                store = FrameStore(File(kept, lens.code), share),
-                                log = log,
-                            )
+                            startStream(planned, common)
                         }
                 } catch (error: Exception) {
                     log.error(lens.code, "its encoder would not start: ${Crashes.describe(error)}")
