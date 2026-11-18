@@ -260,6 +260,7 @@ class CameraStreamer(
      * One camera device opened: the lenses it streams at one format, in one capture session, and
      * the [preview] it shows -- the first camera's that streams. [again] opens everything again after a loss.
      */
+    @Suppress("TooManyFunctions") // Camera2's callbacks and the watches of the frames, each a step of its own
     private inner class OpenCamera(
         private val preview: Surface?,
         private val mine: Int,
@@ -478,7 +479,10 @@ class CameraStreamer(
                     }
                 configured.setRepeatingRequest(request.build(), null, handler)
                 startedMs = SystemClock.elapsedRealtime()
-                if (streams.isNotEmpty()) handler.postDelayed({ checkFrames() }, NO_FRAME_MS)
+                if (streams.isNotEmpty()) {
+                    handler.postDelayed({ checkFrames() }, NO_FRAME_MS)
+                    handler.postDelayed({ watchFrames() }, WATCH_MS)
+                }
                 // The camera gives frames: a failure said before, a camera lost and opened again, is over;
                 // the camera with the preview says so for the cameras as a whole, the others' lenses by their links.
                 previewStatus(preview, targets)?.let { onStatus(null, it) }
@@ -499,6 +503,23 @@ class CameraStreamer(
             if (silent.isEmpty()) return
             val reason = "the camera gave ${silent.joinToString { it.code }} no frame in ${NO_FRAME_MS / MS_PER_S} s"
             lost(reason, CameraFailure.NoFrame(silent, since))
+        }
+
+        /**
+         * Each second while it streams: a lens that gave frames and then none for [STALL_MS] -- its camera saying
+         * nothing, as no error comes -- stopped, the camera lost as one that says so is, opened again.
+         */
+        private fun watchFrames() {
+            val since = sinceStart ?: return
+            if (mine != generation || closed) return
+            val now = SystemClock.elapsedRealtime()
+            val stopped = streams.firstOrNull { it.lastFrameMs != 0L && now - it.lastFrameMs > STALL_MS }
+            if (stopped == null) {
+                handler.postDelayed({ watchFrames() }, WATCH_MS)
+                return
+            }
+            val reason = "the camera gave ${stopped.lens.code} no frame for ${STALL_MS / MS_PER_S} s"
+            lost(reason, CameraFailure.Stalled(stopped.lens, since))
         }
 
         /**
@@ -528,6 +549,10 @@ class CameraStreamer(
     companion object {
         private const val OPEN_AGAIN_MS = 2_000L
         private const val NO_FRAME_MS = 5_000L
+
+        /** A lens's frames stopped this long, whatever its rate: at 15 fps, 45 frames missed. */
+        private const val STALL_MS = 3_000L
+        private const val WATCH_MS = 1_000L
         private const val MS_PER_S = 1_000L
 
         private const val KEPT = "kept"
