@@ -470,8 +470,7 @@ class CameraStreamer(
                 if (open.startStreams()) {
                     manager.openCamera(plan.cameraId, open, handler)
                 } else {
-                    opened -= open
-                    leaveOut(plan.lenses.map { it.target.lens })
+                    open.lost("no stream for its lenses", null) // each said why; tried again later, not left out
                 }
             } catch (error: Exception) {
                 log.error(null, "opening camera ${plan.cameraId} again: ${Crashes.describe(error)}")
