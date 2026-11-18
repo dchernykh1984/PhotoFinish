@@ -68,7 +68,13 @@ data class PlannedLens(
     val target: LensTarget,
     val info: LensInfo,
     val physicalId: String?,
-)
+) {
+    /**
+     * Whether a stream made for this lens is the one a camera opened for [planned] feeds: the same lens to the same
+     * place -- its physical camera named beside others, not alone, as `SessionPlan` does --, at whatever format.
+     */
+    fun sameStream(planned: PlannedLens): Boolean = target == planned.target
+}
 
 /** A camera device to open, and the lenses its one capture session streams. */
 data class PlannedCamera(

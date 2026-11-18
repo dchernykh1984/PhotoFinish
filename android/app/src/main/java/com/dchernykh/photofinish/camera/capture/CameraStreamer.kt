@@ -405,10 +405,10 @@ class CameraStreamer(
             plan.lenses.forEach { planned ->
                 val lens = planned.target.lens
                 try {
-                    streams +=
-                        keptStreams.feed(lens, { it.planned == planned && it.format == common }) {
-                            startStream(planned, common)
-                        }
+                    val fits = { kept: LensStream -> kept.planned.sameStream(planned) && kept.format == common }
+                    val stream = keptStreams.feed(lens, fits) { startStream(planned, common) }
+                    stream.planned = planned // its physical camera as the session streams it now
+                    streams += stream
                 } catch (error: Exception) {
                     log.error(lens.code, "its encoder would not start: ${Crashes.describe(error)}")
                     onStatus(lens, failed(error))
