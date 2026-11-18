@@ -26,6 +26,7 @@ import java.util.concurrent.atomic.AtomicReference
  * clock the frames are stamped on. It outlives the cameras' opens ([KeptStreams]): a camera opened again feeds
  * the same encoder's [surface] at its [format].
  */
+@Suppress("LongParameterList") // a stream's parts, each its own, made together in start
 internal class LensStream private constructor(
     val planned: PlannedLens,
     val format: StreamFormat,
@@ -33,12 +34,24 @@ internal class LensStream private constructor(
     val surface: Surface,
     private val uplink: Uplink,
     private val sync: AtomicReference<ClockSync?>,
+    /** What its link does, said on the screen and to the laptop while a camera feeds it. */
+    private val say: (UplinkStatus) -> Unit,
 ) : KeptStream {
     private var drainer: Thread? = null
 
     /** Fed by a camera: what its link does is said, an idle one's words not ([KeptStream.idle]). Read by the uplink. */
     @Volatile var fed = true
         private set
+
+    /** What its link said last, said or not: said again when a camera feeds it again. */
+    private var lastLink: UplinkStatus? = null
+
+    /** Its link's [status]: kept, and said while a camera feeds it. On the uplink's thread, against [feed]. */
+    @Synchronized
+    private fun heardLink(status: UplinkStatus) {
+        lastLink = status
+        if (fed) say(status)
+    }
 
     /** Stopped, its stream over: a first frame heard after this starts no clock exchange, and says nothing. */
     @Volatile var stopped = false
@@ -72,11 +85,15 @@ internal class LensStream private constructor(
     override val alive: Boolean get() = !stopped && drainer?.isAlive == true
 
     override fun feed() {
-        fed = true
         frames.feed(uplink.captureClock?.invoke()) // its frames watched from the camera's next, its first told
         requestKeyframe(codec) // the recorder decodes from it, whatever came before the gap
+        synchronized(this) {
+            fed = true
+            lastLink?.let(say) // its link's word now, not the one before the gap: it said nothing meanwhile
+        }
     }
 
+    @Synchronized
     override fun idle() {
         fed = false
     }
@@ -146,11 +163,11 @@ internal class LensStream private constructor(
                     format = format,
                     clock = { sync.get()?.offset?.best() },
                     requestKeyframe = { requestKeyframe(codec) },
-                    report = { if (stream.fed) report(it) },
+                    report = { stream.heardLink(it) },
                     store = store,
                 )
             uplink.status = status
-            stream = LensStream(planned, format, codec, surface, uplink, sync)
+            stream = LensStream(planned, format, codec, surface, uplink, sync, report)
             val name = planned.target.lens.code
             Thread({ uplink.run() }, "uplink-$name").start()
             val failed = { error: IllegalStateException ->
