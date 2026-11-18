@@ -554,4 +554,13 @@ class LensFallbackTest {
         assertEquals(emptyList<Lens>(), fallback.waitedFor(1, front)) // closed alone
         assertEquals(true, fallback.madeAgain(2, front)) // no stale wait left for it
     }
+
+    @Test
+    fun `a stop is put off 30 s from the oldest stop, a lens stopping later putting none off further`() {
+        val fallback = LensFallback()
+        val seen = listOf(Seen(Lens.MAIN, 10_000), Seen(Lens.TELEPHOTO, 30_000)) // main stopped first
+        val kept = { LensFallback.KEPT_MS }
+        val due = fallback.watch(1, seen, 0, 10_000 + LensFallback.KEPT_WAIT_MS, kept, Lens.MAIN)
+        assertEquals(CameraFailure.Stalled(Lens.TELEPHOTO, 30_000, 30_000), due?.failure) // 30 s after main's
+    }
 }
