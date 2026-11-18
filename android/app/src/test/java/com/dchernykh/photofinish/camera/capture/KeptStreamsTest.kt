@@ -2,7 +2,7 @@ package com.dchernykh.photofinish.camera.capture
 
 import com.dchernykh.photofinish.camera.pairing.Lens
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
+import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertThrows
 import org.junit.Test
@@ -43,7 +43,6 @@ class KeptStreamsTest {
         main.unsent = true
         assertSame(main, feed(Lens.MAIN)) // opened again 2 s on
         assertEquals(listOf("idle", "fed"), main.said)
-        assertSame(main, kept[Lens.MAIN])
     }
 
     @Test
@@ -56,7 +55,7 @@ class KeptStreamsTest {
                 Fake(2)
             }
         assertEquals(listOf("stopped"), order) // one stream a lens: its folder and its recorder
-        assertSame(other, kept[Lens.MAIN])
+        assertSame(other, feed(Lens.MAIN, format = 2)) // the new one kept
     }
 
     @Test
@@ -66,7 +65,7 @@ class KeptStreamsTest {
         main.alive = false // its encoder failed mid-race: what a camera gives it goes nowhere
         val again = feed(Lens.MAIN)
         assertEquals(listOf("idle", "stopped"), main.said)
-        assertSame(again, kept[Lens.MAIN])
+        assertSame(again, feed(Lens.MAIN)) // the new one kept
     }
 
     @Test
@@ -76,7 +75,7 @@ class KeptStreamsTest {
             kept.feed(Lens.MAIN, { false }) { throw IllegalStateException("no encoder") }
         }
         assertEquals(listOf("stopped"), main.said)
-        assertNull(kept[Lens.MAIN])
+        assertNotSame(main, feed(Lens.MAIN)) // none kept: the next feed makes one
     }
 
     @Test
@@ -89,10 +88,10 @@ class KeptStreamsTest {
         assertEquals(emptyList<Lens>(), kept.sweep(10_000 + KeptStreams.IDLE_MS - 1))
         assertEquals(listOf(Lens.MAIN), kept.sweep(10_000 + KeptStreams.IDLE_MS))
         assertEquals(listOf("idle", "stopped"), main.said)
-        assertNull(kept[Lens.MAIN])
         assertEquals(emptyList<Lens>(), kept.sweep(60_000)) // the telephoto kept while it sends
         tele.unsent = false
         assertEquals(listOf(Lens.TELEPHOTO), kept.sweep(60_000))
+        assertNotSame(main, feed(Lens.MAIN)) // the main lens's next open makes a new one
     }
 
     @Test
@@ -126,7 +125,7 @@ class KeptStreamsTest {
         kept.stopAll()
         assertEquals(listOf("stopped"), main.said)
         assertEquals(listOf("idle", "stopped"), tele.said)
-        assertNull(kept[Lens.TELEPHOTO])
+        assertNotSame(tele, feed(Lens.TELEPHOTO))
         assertEquals(emptyList<Lens>(), kept.sweep(60_000)) // nothing left to stop again
     }
 }

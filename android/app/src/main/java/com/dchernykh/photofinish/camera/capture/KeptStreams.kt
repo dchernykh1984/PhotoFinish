@@ -33,9 +33,6 @@ internal class KeptStreams<S : KeptStream> {
     /** Since when no camera feeds each idle lens's stream. */
     private val idleSince = mutableMapOf<Lens, Long>()
 
-    /** [lens]'s stream, kept or not. */
-    operator fun get(lens: Lens): S? = streams[lens]
-
     /**
      * [lens]'s stream, fed by a camera: the one kept when it [fits] -- the same lens, place and format -- and its
      * encoder lives, else that one stopped and a new one [start]ed; a start that throws leaves the lens none.
