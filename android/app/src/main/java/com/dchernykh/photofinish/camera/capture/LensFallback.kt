@@ -94,11 +94,11 @@ class LensFallback {
     /** The last stop that came within [AGAIN_MS] of its lens's one before: the lens's own doing. */
     private var stoppedAgain: CameraFailure.Stalled? = null
 
-    /** The first lens's stop come again while another lens streamed: waited for, the cameras not made again for it. */
-    private var waitFor: CameraFailure.Stalled? = null
-
-    /** The other camera's lens stopped later, none left out: waited for, the first camera's lenses not cut for it. */
-    private var waitAlone: CameraFailure.Stalled? = null
+    /**
+     * The stop waited for, the cameras not made again for it: the first lens's come again beside a lens that streams,
+     * or a lens of the other camera stopping later -- its first camera's lenses not cut for it.
+     */
+    private var waitStop: CameraFailure.Stalled? = null
 
     /** When [retry] first saw the open's first lens waited for, on the watch's clock: the minute counted from it. */
     private var firstWaitedSinceMs: Long? = null
@@ -122,8 +122,7 @@ class LensFallback {
         settledAtMs = Long.MAX_VALUE
         stops.clear()
         stoppedAgain = null
-        waitFor = null
-        waitAlone = null
+        waitStop = null
         firstWaitedSinceMs = null
     }
 
@@ -187,7 +186,7 @@ class LensFallback {
         open == paid ||
             when (failure) {
                 is CameraFailure.NoFrame -> false
-                is CameraFailure.Stalled -> failure != waitFor
+                is CameraFailure.Stalled -> failure != waitStop
                 CameraFailure.NotConfigured -> settled
                 else -> true
             }
@@ -205,7 +204,7 @@ class LensFallback {
             when {
                 open == paid -> emptyList()
                 failure is CameraFailure.NoFrame -> failure.silent
-                failure is CameraFailure.Stalled && (failure == waitFor || failure == waitAlone) -> listOf(failure.lens)
+                failure is CameraFailure.Stalled && failure == waitStop -> listOf(failure.lens)
                 else -> emptyList()
             }
         if (silent.isEmpty()) return silent
@@ -239,7 +238,7 @@ class LensFallback {
         failure: CameraFailure?,
     ): Lens? =
         choose(open, failure, streamed.drop(1).filter { it in lenses }, lenses).also {
-            if (it == null && failure is CameraFailure.Stalled) waitAlone = failure
+            if (it == null && failure is CameraFailure.Stalled) waitStop = failure
         }
 
     /**
@@ -274,7 +273,7 @@ class LensFallback {
             failure is CameraFailure.Stalled && failure.lens in candidates -> failure.lens
             // The first lens stopping again: none left out, waited for while another lens streams, not waited for.
             failure is CameraFailure.Stalled && failure == stoppedAgain ->
-                null.also { if (candidates.any { !waitsFor(open, it) }) waitFor = failure }
+                null.also { if (candidates.any { !waitsFor(open, it) }) waitStop = failure }
             open == waitingIn -> candidates.lastOrNull { it in waiting }
             else -> candidates.lastOrNull { it in own } ?: candidates.lastOrNull()
         }
@@ -344,7 +343,7 @@ class LensFallback {
         val since = firstWaitedSinceMs ?: nowMs.also { firstWaitedSinceMs = it }
         if (nowMs - since < AGAIN_MS || keptMs() >= KEPT_MS) return null
         firstWaitedSinceMs = null
-        waitFor = null
+        waitStop = null
         waiting -= first
         stops[first] = nowMs
         return first
