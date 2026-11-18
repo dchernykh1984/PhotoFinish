@@ -252,6 +252,20 @@ class LensFallback {
         return null
     }
 
+    /**
+     * [lens], waited for in open [open], gave a frame lately -- its last at [lastFrameMs], [nowMs] now --: no longer
+     * waited for, its frames watched again as any lens's.
+     */
+    fun heardFrom(
+        open: Int,
+        lens: Lens,
+        lastFrameMs: Long,
+        nowMs: Long,
+    ) {
+        if (!waitsFor(open, lens) || lastFrameMs == 0L || nowMs - lastFrameMs > STALL_MS) return
+        waiting -= lens
+    }
+
     companion object {
         /** How soon a failure is the lenses' own: a camera that streamed longer was lost, not unable. */
         const val EARLY_MS = 10_000L
