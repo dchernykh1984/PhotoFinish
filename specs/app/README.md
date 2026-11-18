@@ -51,8 +51,9 @@ recorder is down and at most the 0.1 s before it.
   camera answers the phone's clock exchange over UDP on the camera's port, and the phone keeps
   its camera clock in step from it (`specs/003-phone-camera-app/contracts/phone-stream.md`):
   Wi-Fi delays do not move the frame. A connection's first frame decides for all of it: a moment
-  not after the frame was read and at most 30 s before it -- a Wi-Fi full of other lenses read one
-  8.5 s late --, longer by what the phone says it kept the frame, `held_ms`, is believed; else --
+  not after the frame was read and at most 5 s before the recorder began taking the connection --
+  the look-over after it does not count, however slow a Wi-Fi full of other lenses makes it --,
+  longer by what the phone says it kept the frame, `held_ms`, is believed; else --
   no moments, or a
   phone clock out of step -- its frames are placed by their arrival, from `held_ms` before the
   first came, a frame the phone sends again where it was placed, and the camera list says
@@ -109,7 +110,8 @@ the dialog's lens boxes -- Main, ticked, Telephoto, Ultra-wide, Front -- make a 
 named after its lens, on a port of its own, and the QR code holds a line per lens (an address
 alone for Main alone). More than two ticked, the dialog says a phone may not stream them at
 once -- Android promises two -- and advises Main and Telephoto; Front ticked beside a back lens,
-it says Android promises the two at once only up to 1920x1440, the size chosen on the phone. The phone finds its lenses by their focal lengths among its back camera's
+it says Android promises the two at once only on a phone that runs them together, and then up to 1920x1440, the
+size chosen on the phone. The phone finds its lenses by their focal lengths among its back camera's
 physical cameras, lists them on its screen, streams those of one camera in one capture session
 and the other camera beside it where the phone runs both; a lens it lacks, or cannot stream with
 the others, is said on the phone. It asks the phone whether a camera runs its lenses at the size

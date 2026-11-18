@@ -84,9 +84,9 @@ Two more numbers for a phone. Whether its moments were believed: a packet's own 
 (`frame_time.moment_ms`) against its `.times` row -- equal when believed; a connection placed
 by its arrival has every row elsewhere. On 2026-11-18 the telephoto beside two other lenses at
 60 fps carried right moments and was placed 6.9 s late: its first frame came 8.5 s after it was
-taken, past the 5 s the recorder then believed (now 30 s). And the lag: a `.times` file's time
-written less its last moment, segment by segment -- two lenses at 2560x1440 and 60 fps fell 8 s
-behind on the maintainer's Wi-Fi and came back to 3 s.
+taken, judged from the read, not from when its connection was taken (now it is). And the lag:
+a `.times` file's time written less its last moment, segment by segment -- two lenses at
+2560x1440 and 60 fps fell 8 s behind on the maintainer's Wi-Fi and came back to 3 s.
 
 ## Probing a camera's own Wi-Fi
 
