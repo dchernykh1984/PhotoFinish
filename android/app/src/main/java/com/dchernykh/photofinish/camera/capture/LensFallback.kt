@@ -120,10 +120,13 @@ class LensFallback {
             !settled && early(failure)
         }
 
-    /** [failure]'s stop kept for its lens, taken for its own doing when its last came within [AGAIN_MS]. */
+    /**
+     * [failure]'s stop kept for its lens, taken for its own doing when its last came within [AGAIN_MS]: the same stop
+     * heard again -- by both cameras' paths -- is no other.
+     */
     private fun heard(failure: CameraFailure.Stalled) {
-        val before = stops.put(failure.lens, failure.atMs)
-        if (before != null && failure.atMs - before < AGAIN_MS) stoppedAgain = failure
+        val before = stops.put(failure.lens, failure.atMs) ?: return
+        if (before != failure.atMs && failure.atMs - before < AGAIN_MS) stoppedAgain = failure
     }
 
     /**

@@ -327,4 +327,16 @@ class LensFallbackTest {
         val midRace = LensFallback().apply { settle(10_000) }
         assertNull(midRace.failed(2, back, back, CameraFailure.Stalled(Lens.TELEPHOTO, 3_000, 53_000)))
     }
+
+    @Test
+    fun `a stop heard by both cameras' paths is one stop, not a stop come again`() {
+        val fallback = LensFallback()
+        fallback.settle(0)
+        val streamed = listOf(Lens.MAIN, Lens.TELEPHOTO, Lens.FRONT)
+        val front = CameraFailure.Stalled(Lens.FRONT, 30_000, 100_000)
+        assertNull(fallback.failedAlone(1, streamed, listOf(Lens.FRONT), front))
+        assertNull(fallback.failed(1, streamed, listOf(Lens.FRONT), front)) // the same stop, again
+        assertEquals(true, fallback.madeAgain(1, front))
+        assertEquals(emptySet<Lens>(), fallback.leftOut)
+    }
 }
