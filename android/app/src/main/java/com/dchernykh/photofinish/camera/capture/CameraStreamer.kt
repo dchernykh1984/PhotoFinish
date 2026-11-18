@@ -543,7 +543,7 @@ class CameraStreamer(
                 }
             } catch (error: Exception) {
                 log.error(null, "configuring camera ${camera.id}: ${Crashes.describe(error)}")
-                say(failed(error))
+                broke(error)
             }
         }
 
@@ -567,7 +567,7 @@ class CameraStreamer(
                 previewStatus(preview, targets)?.let { onStatus(null, it) }
             } catch (error: Exception) {
                 log.error(null, "starting camera ${camera.id}'s frames: ${Crashes.describe(error)}")
-                say(failed(error))
+                broke(error)
             }
         }
 
@@ -593,6 +593,15 @@ class CameraStreamer(
         private fun say(status: StreamerStatus) {
             if (streams.isEmpty()) onStatus(null, status) else streams.forEach { onStatus(it.lens, status) }
             if (status is StreamerStatus.Failed) leaveOut(streams.map { it.lens }) // they give no frames
+        }
+
+        /**
+         * Its session would not start, for [error]: said; the other camera's is its loss -- opened again alone, later
+         * ([lostAlone]) --, as no word of its camera may follow to say so.
+         */
+        private fun broke(error: Exception) {
+            val said = failed(error)
+            if (preview == null) lost(said.reason, null) else say(said)
         }
 
         /** Its camera closed, its lenses' streams kept, idle ([KeptStreams]): an open for the same feeds them again. */
