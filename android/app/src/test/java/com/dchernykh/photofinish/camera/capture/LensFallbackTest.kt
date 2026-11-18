@@ -395,4 +395,18 @@ class LensFallbackTest {
         assertEquals(Lens.FRONT, fallback.failedAlone(2, streamed, listOf(Lens.FRONT), again))
         assertEquals(emptyList<Lens>(), fallback.waitedFor(2, again)) // left out: closed
     }
+
+    @Test
+    fun `the first lens stopping again beside lenses waited for alone is opened again, none streaming to cut`() {
+        val fallback = LensFallback()
+        fallback.settle(0)
+        val back = listOf(Lens.MAIN, Lens.TELEPHOTO)
+        val silent = CameraFailure.NoFrame(listOf(Lens.TELEPHOTO), 5_000)
+        fallback.failed(1, back, back, silent)
+        assertEquals(listOf(Lens.TELEPHOTO), fallback.waitedFor(1, silent)) // the telephoto silent, waited for
+        fallback.failed(1, back, back, CameraFailure.Stalled(Lens.MAIN, 20_000, 200_000))
+        val again = CameraFailure.Stalled(Lens.MAIN, 40_000, 220_000)
+        assertNull(fallback.failed(1, back, back, again))
+        assertEquals(true, fallback.madeAgain(1, again)) // nothing streams that a reopen would cut
+    }
 }
