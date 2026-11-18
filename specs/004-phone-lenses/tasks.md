@@ -70,3 +70,23 @@
   the frames kept sent; back: streaming again; 2.5 min without a lens taken for stopped. A lens
   that stops could not be made there: its image gives no root to stop the camera's service.
 - [ ] T028 By hand: a phone whose lens stops mid-stream, its camera opened again.
+
+## Phase 7: The lenses' streams kept across a reopen, the front opened again alone (2026-11-18)
+
+- [x] T029 [US1] `KeptStreams.kt`, with its JVM tests; `CameraStreamer`, `LensStream`: a lens's
+  stream -- its encoder, uplink, frames kept and clock exchange -- kept across the cameras' opens
+  while the referee's choice lasts, a camera opened again feeding the same encoder at the format
+  it streamed at; one no camera feeds for 5 s stopped once all it kept is sent (FR-005;
+  `specs/007-store-and-forward`, FR-014).
+- [x] T030 [US1] `LensFallback.watch`, `retry`: a stop, and the first lens's retry, no longer put
+  off for the frames kept (FR-005).
+- [x] T031 [US1] `LensFallback.aloneIn`, `failedAlone`, with their JVM tests; `CameraStreamer`: the
+  other camera lost later opened again alone, 2 s on, then a minute, two, four, up to half an
+  hour, its tries forgotten once it streams a minute, never left out for a stop come again
+  (FR-005).
+- [x] T032 By hand: the emulator. One lens: Home and back within 5 s, the same connection, 2 s
+  without frames; away 10 s, the stream stopped once sent, a new connection on the return; the
+  camera taken away (`cmd media.camera set-uid-state <package> idle`) and opened again 2 s on, the
+  same connection. Two cameras, three lenses: the same, every moment of each lens once. The front
+  opened again alone could not be made there: the emulator takes both cameras at once.
+- [ ] T033 By hand: a phone whose front beside the back is lost mid-race, opened again alone.

@@ -123,12 +123,14 @@ itself, else one of the camera that failed --, said on the phone and to the
 laptop, until the referee starts again; once every lens of every camera, those waited for aside,
 gave frames for 10 s, a failure -- a lens stopping for 3 s too -- leaves none out, and the cameras are opened again as any lost mid-race;
 a lens that stops again within a minute is left out then, the first waited for while the others stream and tried
-again a minute on, then two, four, up to half an hour between tries -- 30 s more at most while frames wait to be
-sent --, opened again each time when it streams alone; the other camera's lens stopping later is waited
-for, not closed; a stop waits up to 30 s for the frames the lenses keep to be sent, as a reopen drops them. The Xiaomi 17 Ultra said yes
+again a minute on, then two, four, up to half an hour between tries, opened again each time when it streams
+alone; the other camera lost later is opened again alone, 2 s on, then a minute, two, four, up to half an hour,
+the first camera's lenses streaming on. The Xiaomi 17 Ultra said yes
 to its four lenses at 2560x1440 and 60 fps and gave no frame; now it leaves the ultra-wide out
-and streams the other three. The screen leaving closes the cameras at once, the lenses sending
-what they kept and then stopping; its return drops what is left, as any reopen, and opens them again. Each lens has its own encoder, connection and clock exchange, so
+and streams the other three. A camera opened again -- lost, a lens left out, the screen back within 5 s --
+feeds the streams it fed, at the format they have: their encoders, connections and clock exchanges go on, and
+what the lenses kept is still sent. The screen leaving closes the cameras at once; a stream no camera feeds
+stops 5 s on once all it kept is sent. Each lens has its own encoder, connection and clock exchange, so
 each is in step on its own. Tried on the emulator: two lenses of one camera and the other camera,
 30 fps each, every frame with its moment. Each lens adds its bitrate to the Wi-Fi and heat to the
 phone: two lenses at 2560x1440 and 60 fps fell 8 s behind on the maintainer's Wi-Fi, and came
