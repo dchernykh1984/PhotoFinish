@@ -119,8 +119,23 @@ class CameraStreamer(
                 if (opened.isNotEmpty()) log.info(null, "the screen left: the cameras closed until it is back")
                 opened.forEach { it.closeCamera() }
                 closed.countDown()
+                sendThenStop(generation)
             }
         if (posted) closed.await(AWAY_WAIT_MS, TimeUnit.MILLISECONDS)
+    }
+
+    /**
+     * The screen away since open [away]: once the lenses keep nothing more to send, their streams stop too --
+     * encoders, uplinks, clock exchanges --, not held for as long as it stays away; its return opens all again.
+     */
+    private fun sendThenStop(away: Int) {
+        if (away != generation || opened.isEmpty()) return
+        if (opened.any { it.keptMs > 0L }) {
+            handler.postDelayed({ sendThenStop(away) }, WATCH_MS)
+            return
+        }
+        log.info(null, "the frames kept sent: the lenses stopped until the screen is back")
+        close()
     }
 
     fun release() {
