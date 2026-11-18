@@ -289,7 +289,9 @@ class CameraStreamer(
             report = { status -> onStatus(lens, StreamerStatus.Link(status)) },
             onFirstFrame = { stream, ptsUs ->
                 handler.post {
-                    leftOut = leftOut - lens.code // it streams: the laptop counts it again, whatever it was told
+                    // It streams: the laptop counts it again, whatever it was told -- unless its camera was lost
+                    // since, the frame told after the loss.
+                    if (stream.fed) leftOut = leftOut - lens.code
                     checkSettled(generation) // its frame heard, lastFrameMs set: of the open feeding it
                 }
                 clockOfFrames(stream, ptsUs)

@@ -37,7 +37,8 @@ internal class LensStream private constructor(
     private var drainer: Thread? = null
 
     /** Fed by a camera: what its link does is said, an idle one's words not ([KeptStream.idle]). Read by the uplink. */
-    @Volatile private var fed = true
+    @Volatile var fed = true
+        private set
 
     /** Stopped, its stream over: a first frame heard after this starts no clock exchange, and says nothing. */
     @Volatile var stopped = false
