@@ -74,11 +74,13 @@ fun CameraScreen(
     var preview by remember { mutableStateOf<PreviewSurface?>(null) }
     val format = state.format
     val targets = if (state.streaming) state.pairing.targets else emptyList()
-    // The camera starts once the preview has the stream's size, and again on every change.
-    val surface = preview?.takeIf { started && granted && it.size == format?.resolution }?.surface
-    LaunchedEffect(surface, format, targets) {
+    // The camera starts once the preview has the stream's size, and again on every change: a surface made again
+    // too, its own PreviewSurface though the system hands the same Surface back, which the cameras closed when it
+    // went (CameraStreamer.away) would otherwise wait for in vain, were its going and coming seen in one frame.
+    val shown = preview?.takeIf { started && granted && it.size == format?.resolution }
+    LaunchedEffect(shown, format, targets) {
         streamer.stop()
-        if (surface != null && format != null) streamer.start(surface, format, targets)
+        if (shown != null && format != null) streamer.start(shown.surface, format, targets)
     }
     LaunchedEffect(granted) {
         if (state.autostart && granted && state.pairing.targets.isNotEmpty()) {
