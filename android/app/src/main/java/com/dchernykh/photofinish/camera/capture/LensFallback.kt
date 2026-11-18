@@ -317,8 +317,10 @@ class LensFallback {
         // has no first lens to try.
         return when {
             silent.isNotEmpty() -> Watched("the camera gave $named no frame in ${NO_FRAME_MS / MS_PER_S} s", noFrame)
-            stopped != null ->
-                Watched("the camera gave ${stopped.lens.code} no frame for ${STALL_MS / MS_PER_S} s", stopped)
+            stopped != null -> { // silent as long as it was, a stop put off for the frames kept longer than 3 s
+                val silentS = (nowMs - stopped.atMs) / MS_PER_S
+                Watched("the camera gave ${stopped.lens.code} no frame for $silentS s", stopped)
+            }
             else ->
                 first
                     ?.let { retry(open, it, nowMs) { keptMs } }
