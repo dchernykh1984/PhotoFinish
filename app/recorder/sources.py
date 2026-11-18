@@ -116,10 +116,12 @@ def open_source(
 
 
 # A phone's own moment is believed up to this long before its frame is read: the
-# look-over, the phone's wait for its clock and the network -- and longer by what it
-# says it held the connection's first frame (specs/007). Further back, the phone's
-# clock is not in step with this one: its frame is placed by its arrival.
-OWN_PAST_MS = 5_000
+# look-over, the phone's wait for its clock and the network -- three lenses at 60 fps
+# on a busy Wi-Fi brought a connection's first frame 7 s late, which by arrival would
+# have put every frame of it there -- and longer by what it says it held the
+# connection's first frame (specs/007). Further back, the phone's clock is not in step
+# with this one: its frame is placed by its arrival.
+OWN_PAST_MS = 30_000
 # A phone's frames placed by their arrival kept by their own moments, to place one sent
 # again where it was: what it may send again, at 120 fps.
 ARRIVALS_KEPT = RESENT_MS * 120 // 1000
