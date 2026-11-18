@@ -299,7 +299,10 @@ class CameraStreamer(
             format,
             report = { status -> onStatus(lens, StreamerStatus.Link(status)) },
             onFirstFrame = { stream, ptsUs ->
-                handler.post { checkSettled(generation) } // its frame heard, lastFrameMs set: of the open feeding it
+                handler.post {
+                    leftOut = leftOut - lens.code // it streams: the laptop counts it again, whatever it was told
+                    checkSettled(generation) // its frame heard, lastFrameMs set: of the open feeding it
+                }
                 clockOfFrames(stream, ptsUs)
             },
             status = { dropped -> phone.read().copy(dropped = dropped, left = leftOut).line() },
@@ -485,8 +488,7 @@ class CameraStreamer(
         @Suppress("TooGenericExceptionCaught") // a camera gone meanwhile: lost again
         @SuppressLint("MissingPermission") // asked for before the first start; one taken back meanwhile throws, caught
         private fun openAlone() {
-            leftOut = leftOut - plan.lenses.map { it.target.lens.code }.toSet() // tried again: not left out
-            val open = OpenCamera(null, mine, again, plan, chosen)
+            val open = OpenCamera(null, mine, again, plan, chosen) // its lenses left out until their first frames
             opened += open
             try {
                 if (open.startStreams()) {
