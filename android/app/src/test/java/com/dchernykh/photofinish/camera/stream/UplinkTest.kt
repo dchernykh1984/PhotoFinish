@@ -277,6 +277,31 @@ class UplinkTest {
     }
 
     @Test
+    fun `a feed's new connection waits for a keyframe, a run under way sent whole on the one going`() {
+        val unstamped = FakeSink(gateOn = 2)
+        val stamped = FakeSink()
+        val clock = AtomicReference<Sample?>(null)
+        val link = uplink(listOf(unstamped, stamped), waitForClockMs = 50, clock = clock)
+        link.stampWindowMs = 0 // the clock comes once the race is under way: left for the next connection
+        start(link)
+        awaitConnected()
+        link.offer(frame(0, keyframe = true))
+        unstamped.next()
+        clock.set(exchange(2_000_000))
+        link.offer(frame(100_000, keyframe = true))
+        assertTrue(unstamped.atGate.await(5, TimeUnit.SECONDS)) // its send held, as on a slow network
+        link.offer(frame(133_333, keyframe = false)) // its run kept, with moments, unsent
+        link.offer(frame(166_666, keyframe = false))
+        link.stampWindowMs = 10_000
+        link.stampAgain() // its camera opened again meanwhile
+        unstamped.gate.countDown()
+        repeat(3) { unstamped.next() } // the run under way all sent, none skipped for the new connection
+        link.offer(frame(200_000, keyframe = true))
+        awaitConnected()
+        assertEquals(200_000L + 2_000_000, momentOf(stamped.next().units[0])) // the new one from the keyframe
+    }
+
+    @Test
     fun `a connection with moments after one without sends none of that one's frames again`() {
         val first = FakeSink(failOn = 4)
         val second = FakeSink()

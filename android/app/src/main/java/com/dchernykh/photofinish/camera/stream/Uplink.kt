@@ -66,11 +66,18 @@ class Uplink(
     /** Until when, on the nanosecond clock, a clock come in step makes a new connection: [stampWindowMs] on. */
     @Volatile private var stampUntilNs = Long.MIN_VALUE
 
+    /** The window a feed opened ([stampAgain]): its new connection made at a keyframe alone. */
+    @Volatile private var stampAtKeyframe = false
+
     /**
      * Its camera feeds it anew after a gap -- lost and opened again, the screen back --: a start for its frames, a
-     * clock in step since its connection began, left for the next then, making a new one now, with their moments.
+     * clock in step since its connection began, left for the next then, making a new one now, with their moments --
+     * at a keyframe: a run kept before it, under way, is sent whole on the one going, none of it skipped.
      */
-    fun stampAgain() {
+    fun stampAgain() = openStampWindow(atKeyframe = true)
+
+    private fun openStampWindow(atKeyframe: Boolean) {
+        stampAtKeyframe = atKeyframe
         stampUntilNs = System.nanoTime() + stampWindowMs * 1_000_000
     }
 
@@ -204,7 +211,7 @@ class Uplink(
         if (clock() != null) store.skipToStamped() else store.skipKept()
         // Then how long the frame it starts at was kept is known, the wait for the clock in it too (contract).
         connected.publish(metadata(format, store.heldMs(captureClock?.invoke())))
-        stampAgain() // the connection's start
+        openStampWindow(atKeyframe = false) // the connection's start
         await(Long.MAX_VALUE) { record != null }
         connected.sendSequenceHeader(record ?: throw IOException("stopped"))
         requestKeyframe()
@@ -220,10 +227,7 @@ class Uplink(
                 continue
             }
             if (first == null) stamped = kept.momentUs != null
-            // A clock that comes at the start makes a new connection, from this frame; one that comes once the
-            // race may be under way is left for the next, as a new one is a moment of frames sent again.
-            val early = System.nanoTime() < stampUntilNs
-            if (!stamped && kept.momentUs != null && early) {
+            if (restamps(kept)) {
                 store.back()
                 throw IOException("the clock is in step now")
             }
@@ -239,6 +243,16 @@ class Uplink(
             val delay = clock()?.takeIf { stamped }?.delay?.div(1000.0)
             if (rates != null) report(UplinkStatus.Streaming(rates.first, rates.second, delay))
         }
+    }
+
+    /**
+     * Whether [kept], with its moment on a connection whose frames go without, makes a new one from it: a clock that
+     * comes at the start does -- or as a camera feeds the lens again, at a keyframe --; one that comes once the race
+     * may be under way is left for the next, as a new one is a moment of frames sent again.
+     */
+    private fun restamps(kept: KeptFrame): Boolean {
+        val inWindow = System.nanoTime() < stampUntilNs && (kept.keyframe || !stampAtKeyframe)
+        return !stamped && kept.momentUs != null && inWindow
     }
 
     /** One frame, [sinceStartUs] into the connection, with its [momentUs] when it goes with one. */
