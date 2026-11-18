@@ -168,6 +168,9 @@ class FrameStore(
         }
     }
 
+    /** A frame kept and not sent yet: one is as much as many when the stream is to stop. */
+    val unsent: Boolean get() = lock.withLock { nextEntry() != null }
+
     /** The frame the uplink reads next, if one is kept; the caller holds the lock. */
     private fun nextEntry(): Entry? {
         val run = cursorRun ?: runs.firstOrNull()
