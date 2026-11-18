@@ -84,9 +84,11 @@ internal class LensStream private constructor(
     /** Its encoder's thread still drains it: it ends when the encoder fails, or the stream stops. */
     override val alive: Boolean get() = !stopped && drainer?.isAlive == true
 
+    /** A keyframe asked of its encoder as a camera's session starts: the recorder decodes from its first frame. */
+    fun keyframe() = requestKeyframe(codec)
+
     override fun feed() {
         frames.feed(uplink.captureClock?.invoke()) // its frames watched from the camera's next, its first told
-        requestKeyframe(codec) // the recorder decodes from it, whatever came before the gap
         synchronized(this) {
             fed = true
             // Its link's word meanwhile -- connecting again, a recorder out of reach -- not the one before the gap;
