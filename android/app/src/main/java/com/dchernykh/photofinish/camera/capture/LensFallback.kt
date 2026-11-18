@@ -348,9 +348,18 @@ class LensFallback {
         if (waited < AGAIN_MS || waited < AGAIN_MS + KEPT_WAIT_MS && keptMs() >= KEPT_MS) return null
         firstWaitedSinceMs = null
         waitStop = null
-        waiting -= first
-        stops[first] = nowMs
+        resumed(first, nowMs)
         return first
+    }
+
+    /** [lens] no longer waited for at [nowMs] -- tried again, or back --, kept as a stop: stopping soon, it goes. */
+    private fun resumed(
+        lens: Lens,
+        nowMs: Long,
+    ) {
+        waiting -= lens
+        if (waiting.isEmpty()) waitingIn = null // none waited for now: a failure leaves a lens out as any
+        stops[lens] = nowMs
     }
 
     /**
@@ -365,9 +374,7 @@ class LensFallback {
         nowMs: Long,
     ) {
         if (!waitsFor(open, lens) || lastFrameMs == 0L || nowMs - lastFrameMs > STALL_MS) return
-        waiting -= lens
-        if (waiting.isEmpty()) waitingIn = null // none waited for now: a failure leaves a lens out as any
-        stops[lens] = nowMs
+        resumed(lens, nowMs)
     }
 
     companion object {
