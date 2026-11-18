@@ -105,6 +105,9 @@ class LensFallback {
     /** The first lens's retries since the referee's start: each doubles the wait for the next, a minute first. */
     private var retries = 0
 
+    /** Since when the first lens gave frames at every watch, on the watch's clock: a minute forgets its retries. */
+    private var firstGivingSinceMs: Long? = null
+
     /**
      * The cameras started for [targets] at [format]: the lenses left out forgotten when either is not the last
      * start's -- the referee's choice, a stop in between asking for the preview alone --, kept when the same come
@@ -123,6 +126,7 @@ class LensFallback {
         settledAtMs = Long.MAX_VALUE
         stops.clear()
         retries = 0
+        firstGivingSinceMs = null
         stoppedAgain = null
         waitStop = null
         firstWaited = null
@@ -298,7 +302,7 @@ class LensFallback {
         val keptMs by lazy(kept) // the stores' locks taken only when a stop or a retry asks
         seen.forEach { heardFrom(open, it.lens, it.lastFrameMs, nowMs) }
         val since = nowMs - startedMs
-        if (first != null && since >= AGAIN_MS) forgetRetries(open, seen.find { it.lens == first }, nowMs)
+        if (first != null) forgetRetries(open, seen.find { it.lens == first }, nowMs)
         val watched = seen.filterNot { waitsFor(open, it.lens) }
         val silent =
             watched
@@ -363,16 +367,22 @@ class LensFallback {
     }
 
     /**
-     * The first lens, [first] as seen in open [open] a minute or more old, giving frames at [nowMs]: its retries so
-     * far forgotten, its next wait a minute again -- hours after a bad start, it is not left half an hour.
+     * The first lens, [first] as seen in open [open] at [nowMs], giving frames at every watch for [AGAIN_MS] -- no
+     * gap of [STALL_MS] --: its retries so far forgotten, its next wait a minute again; hours after a bad start it is
+     * not left half an hour, and a lens that sputters forgets none.
      */
     private fun forgetRetries(
         open: Int,
         first: Seen?,
         nowMs: Long,
     ) {
-        if (first == null || first.lastFrameMs == 0L || waitsFor(open, first.lens)) return
-        if (nowMs - first.lastFrameMs <= STALL_MS) retries = 0
+        val giving = first != null && first.lastFrameMs != 0L && nowMs - first.lastFrameMs <= STALL_MS
+        if (!giving || waitsFor(open, first.lens)) {
+            firstGivingSinceMs = null
+            return
+        }
+        val since = firstGivingSinceMs ?: nowMs.also { firstGivingSinceMs = it }
+        if (nowMs - since >= AGAIN_MS) retries = 0
     }
 
     /** [lens] no longer waited for at [nowMs] -- tried again, or back --, kept as a stop: stopping soon, it goes. */
