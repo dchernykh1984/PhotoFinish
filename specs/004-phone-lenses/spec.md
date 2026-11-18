@@ -88,9 +88,10 @@ switch to the other at the same moment and back to both.
   The lenses are left out from the last of the code until the rest stream: on 2026-11-18 the
   same four left the ultra-wide out after 1.6 s, and Main, Telephoto and Front streamed at 60 fps.
 - A lens that gives frames and then none, its camera saying nothing: after 3 s its camera is
-  lost and opened again -- that lens left out in the first seconds, every lens later; the front
-  beside the back closed and said left out, as when it fails. A reopen drops what the lenses
-  kept and had not sent, as any camera lost does.
+  lost and opened again -- that lens left out in the first seconds, every lens later, but the
+  lens left out when it stops again within a minute, the first waited for; the front beside the
+  back closed and said left out, as when it fails. A reopen drops what the lenses kept and had
+  not sent, as any camera lost does.
 - The Wi-Fi carries every lens: about 10 Mbit/s each at 1080p and 60 fps, 16 at 1440p.
 - Several sensors and encoders heat the phone over hours: in the sun it may lower its frame rate.
 - A code of the earlier kind, an address alone, still pairs: the main lens.
@@ -135,8 +136,8 @@ switch to the other at the same moment and back to both.
   frame for 5 s, or stop giving one frames for 3 s, saying nothing, within 10 s of their lenses'
   start, or cannot make the session the phone said they run, are opened again with a lens left
   out -- the last that gave no frame, or that is waited for, never one that streams for it; a
-  lens that stopped, itself; else, of the camera that failed, its last, else the code's last; one
-  lens an open, never the first --, said
+  lens that stopped, itself alone, the first stopped leaving none out; else, of the camera that
+  failed, its last, else the code's last; one lens an open, never the first --, said
   on the phone, as the cameras failing with it, and to the laptop, until the referee starts
   again; a start for the same lenses and format, the screen back from another app, keeps them
   out; a camera failing alone, the front beside the back, leaves one of its lenses out so, its
@@ -144,7 +145,11 @@ switch to the other at the same moment and back to both.
   that fail before their lenses start, are taken by another app, or fail -- a lens's frames
   stopping for 3 s among it -- once every lens of every
   camera, those waited for aside, gave frames for 10 s -- lost later for whatever reason, closed and opened again for the
-  same, or soon after a reopen mid-race -- are opened again with all their lenses. The screen
+  same, or soon after a reopen mid-race -- are opened again with all their lenses. A lens that
+  stops again within a minute of its last stop, the cameras opened again not bringing it back, is
+  left out so, whenever it stops; the first, never left out, is waited for, the others streaming
+  on. A stop is timed by the lens's last frame: one before the lenses first ran together is early,
+  the watch seeing it seconds after. The screen
   leaving closes the cameras at once, before they fail with its preview, leaving no lens out; the
   lenses' streams send what they kept, and the screen's return opens the cameras again. With no
   lens left out by either camera, a session the camera cannot make is said
