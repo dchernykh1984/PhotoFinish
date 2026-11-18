@@ -626,6 +626,8 @@ class CameraStreamer(
             val now = SystemClock.elapsedRealtime()
             streams.forEach { keptStreams.idle(it.lens, now) }
             streams.clear()
+            targets = emptyList() // a try put off -- the front's, half an hour at most -- holds none of it
+            asked = null
         }
     }
 
