@@ -477,6 +477,28 @@ def test_a_phone_s_moment_a_minute_behind_the_recorder_is_not_believed() -> None
     assert all(now - 3_000 < ms <= now + 1_000 for ms in got)  # placed by arrival
 
 
+def test_a_phone_s_moment_is_believed_up_to_30_s_before_its_frame_is_read() -> None:
+    # The window's two edges (specs/007, FR-006): a late first frame within it keeps
+    # its moment; one further back is a clock out of step, placed by its arrival. A
+    # clock 5 to 30 s behind is believed: after the computer's clock is set, the
+    # phone's next exchange, 2 s on, puts it right (ClockOffset).
+    stream = SimpleNamespace(
+        time_base=Fraction(1, 1000), codec_context=SimpleNamespace(name="h264")
+    )
+    within = sources.Stream(
+        "rtmp://0.0.0.0:1935/live/x", {}, lambda: START, listen=True
+    )
+    place = within._placing(stream, phone=True)  # type: ignore[arg-type]
+    assert place(avcc(sei((START - 30_000) * 1000), b"\x65\x88"), 0) == START - 30_000  # type: ignore[arg-type]
+    assert not within.clock_note
+    beyond = sources.Stream(
+        "rtmp://0.0.0.0:1935/live/x", {}, lambda: START, listen=True
+    )
+    late = beyond._placing(stream, phone=True)  # type: ignore[arg-type]
+    assert late(avcc(sei((START - 30_001) * 1000), b"\x65\x88"), 0) == START  # type: ignore[arg-type]
+    assert sources.NOT_IN_STEP == beyond.clock_note
+
+
 def test_a_phone_s_first_frame_held_up_seconds_on_a_busy_wi_fi_keeps_its_moment() -> (
     None
 ):
