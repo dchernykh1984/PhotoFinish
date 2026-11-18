@@ -92,6 +92,9 @@ class CameraStreamer(
     /** The lenses' streams, kept across the cameras' opens while the referee's choice lasts: the cameras' thread's. */
     private val keptStreams = KeptStreams<LensStream>()
 
+    /** The other camera's next try alone, put off up to half an hour: dropped as the cameras close. */
+    private var aloneTry: Runnable? = null
+
     init {
         handler.post { kept.deleteRecursively() } // what a killed app kept: never sent (specs/007, FR-004)
         handler.post { sweep() }
@@ -322,6 +325,8 @@ class CameraStreamer(
 
     /** The cameras closed, their lenses' streams kept ([KeptStreams]): an open for the same feeds them again. */
     private fun closeCameras() {
+        aloneTry?.let { handler.removeCallbacks(it) } // of an open over: nothing of it kept waiting
+        aloneTry = null
         generation++
         opened.forEach { it.close() }
         opened.clear()
@@ -487,7 +492,7 @@ class CameraStreamer(
             val inMs = fallback.aloneIn(first.target.lens, OPEN_AGAIN_MS)
             val said = StreamerStatus.Failed("$reason; trying again in ${LensFallback.inWords(inMs)}")
             told.forEach { onStatus(it, said) }
-            handler.postDelayed({ if (mine == generation) openAlone() }, inMs)
+            aloneTry = Runnable { if (mine == generation) openAlone() }.also { handler.postDelayed(it, inMs) }
             checkSettled(mine) // the first camera's lenses may run together without it
         }
 
@@ -632,7 +637,7 @@ class CameraStreamer(
             val now = SystemClock.elapsedRealtime()
             streams.forEach { keptStreams.idle(it.lens, now) }
             streams.clear()
-            targets = emptyList() // a try put off -- the front's, half an hour at most -- holds none of it
+            targets = emptyList() // the front's try put off holds none of it meanwhile
             asked = null
         }
     }
