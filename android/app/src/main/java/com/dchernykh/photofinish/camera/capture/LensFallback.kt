@@ -268,21 +268,23 @@ class LensFallback {
 
     /**
      * The open's [first] lens, waited for in open [open] -- silent from the start, or stopped again beside others --
-     * [AGAIN_MS] since this was first asked it, at [nowMs]: tried again, the lens returned for the cameras to be
-     * opened again -- a moment of the others' frames a minute for a chance of it; its next stop within a minute of
-     * this waited for again. Else null.
+     * [AGAIN_MS] since this was first asked it, at [nowMs], the lenses keeping no frame unsent [KEPT_MS] or more
+     * ([keptMs], the oldest's age) -- opening the cameras again drops what they keep --: tried again, the lens
+     * returned for the cameras to be opened again, a moment of the others' frames a minute for a chance of it; its
+     * next stop within a minute of this waited for again. Else null.
      */
     fun retry(
         open: Int,
         first: Lens?,
         nowMs: Long,
+        keptMs: Long,
     ): Lens? {
         if (first == null || !waitsFor(open, first)) {
             firstWaitedSinceMs = null
             return null
         }
         val since = firstWaitedSinceMs ?: nowMs.also { firstWaitedSinceMs = it }
-        if (nowMs - since < AGAIN_MS) return null
+        if (nowMs - since < AGAIN_MS || keptMs >= KEPT_MS) return null
         firstWaitedSinceMs = null
         waitFor = null
         waiting -= first
@@ -310,6 +312,9 @@ class LensFallback {
 
         /** A lens stopping again this soon after its last stop: the cameras opened again did not bring it back. */
         const val AGAIN_MS = 60_000L
+
+        /** Frames kept unsent this long put a retry off: opening the cameras again would drop them. */
+        const val KEPT_MS = 1_000L
 
         /** How long a lens that gave frames may give none, whatever its rate: at 15 fps, 45 frames missed. */
         const val STALL_MS = 3_000L

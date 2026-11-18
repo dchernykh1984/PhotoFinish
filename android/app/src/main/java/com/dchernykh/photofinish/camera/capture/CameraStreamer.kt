@@ -302,6 +302,9 @@ class CameraStreamer(
         /** The lenses it streams: its own, not the phone's. */
         val ownLenses: List<Lens> get() = streams.map { it.lens }
 
+        /** How long the oldest frame its lenses keep unsent has been kept, ms. */
+        val keptMs: Long get() = streams.maxOfOrNull { it.keptMs } ?: 0L
+
         /** Each of its lenses has given a frame, or is waited for (LensFallback.waitsFor): none of a camera closed. */
         val allFramed: Boolean get() = streams.all { it.lastFrameMs != 0L || fallback.waitsFor(mine, it.lens) }
 
@@ -512,7 +515,8 @@ class CameraStreamer(
             val watched = streams.filterNot { fallback.waitsFor(mine, it.lens) }
             val silent = watched.filter { it.lastFrameMs == 0L }.map { it.lens }.takeIf { since >= NO_FRAME_MS }
             val stopped = watched.firstNotNullOfOrNull { LensFallback.stall(it.lens, it.lastFrameMs, started, now) }
-            val retried = if (preview != null) fallback.retry(mine, streamed.firstOrNull(), now) else null
+            val kept = opened.maxOfOrNull { it.keptMs } ?: 0L
+            val retried = if (preview != null) fallback.retry(mine, streamed.firstOrNull(), now, kept) else null
             when {
                 retried != null -> lost("${retried.code} silent a minute after stopping again: tried again", null)
                 !silent.isNullOrEmpty() -> {

@@ -573,4 +573,13 @@ class UplinkTest {
         assertFalse(thread.isAlive)
         assertTrue(kept.listFiles()!!.isEmpty())
     }
+
+    @Test
+    fun `it says how long the next frame to send has been kept, nothing before the frames' clock is known`() {
+        val link = uplink(emptyList())
+        link.offer(frame(1_000_000, keyframe = true))
+        assertEquals(0L, link.keptMs) // the frames' clock not told yet
+        link.captureClock = { 4_000_000 }
+        assertEquals(3_000L, link.keptMs)
+    }
 }
