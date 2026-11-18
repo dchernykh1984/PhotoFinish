@@ -104,8 +104,12 @@ class CameraStreamer(
         targets: List<LensTarget>,
     ) {
         handler.post {
-            // A choice of the referee's tries every lens again, their streams made anew: what they kept dropped.
-            if (fallback.start(format, targets)) keptStreams.stopAll()
+            // A choice of the referee's tries every lens again, their streams made anew: what they kept dropped --
+            // the cameras closed first, not left writing to the encoders' surfaces as they go.
+            if (fallback.start(format, targets)) {
+                closeCameras()
+                keptStreams.stopAll()
+            }
             open(preview, format, targets)
         }
     }
