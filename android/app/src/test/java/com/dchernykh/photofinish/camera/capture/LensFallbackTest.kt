@@ -328,8 +328,8 @@ class LensFallbackTest {
         val streamed = listOf(Lens.MAIN, Lens.TELEPHOTO, Lens.FRONT)
         val front = CameraFailure.Stalled(Lens.FRONT, 30_000, 100_000)
         assertNull(fallback.failedAlone(1, streamed, listOf(Lens.FRONT), front))
-        assertNull(fallback.failed(1, streamed, listOf(Lens.FRONT), front)) // the same stop, again
-        assertEquals(true, fallback.madeAgain(1, front))
+        assertNull(fallback.failed(1, streamed, listOf(Lens.FRONT), front)) // the same stop, again: no repeat
+        assertEquals(listOf(Lens.FRONT), fallback.waitedFor(1, front)) // waited for, as the other camera's
         assertEquals(emptySet<Lens>(), fallback.leftOut)
     }
 
