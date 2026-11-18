@@ -283,7 +283,9 @@ class LensFallback {
      * Open [open]'s camera, its lenses [seen] started at [startedMs], watched at [nowMs], the lenses keeping a frame
      * unsent [keptMs]: a lens waited for that gives frames again is watched again ([heardFrom]); the open's [first]
      * lens, given the camera with the preview, tried again ([retry]); else lenses that gave no frame [NO_FRAME_MS]
-     * after the start, or one that stopped ([stall]): what its camera is taken for lost by, or null.
+     * after the start, or one that stopped ([stall]) -- the last of those, in the code's order: the camera stopping
+     * every lens at once costs its least lens when it comes again, as a failure does, not its first --: what its
+     * camera is taken for lost by, or null.
      */
     fun watch(
         open: Int,
@@ -302,7 +304,7 @@ class LensFallback {
                 .map { it.lens }
                 .takeIf { since >= NO_FRAME_MS }
                 .orEmpty()
-        val stopped = watched.firstNotNullOfOrNull { stall(it.lens, it.lastFrameMs, startedMs, nowMs, keptMs) }
+        val stopped = watched.mapNotNull { stall(it.lens, it.lastFrameMs, startedMs, nowMs, keptMs) }.lastOrNull()
         val retried = first?.let { retry(open, it, nowMs, keptMs) } // the other camera's watch: not its to try
         val named = silent.joinToString { it.code }
         val noFrame = CameraFailure.NoFrame(silent, since)

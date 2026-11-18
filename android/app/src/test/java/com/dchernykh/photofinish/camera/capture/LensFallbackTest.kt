@@ -463,4 +463,12 @@ class LensFallbackTest {
         assertEquals(null, retried?.failure)
         assertEquals(true, retried?.reason?.startsWith("main"))
     }
+
+    @Test
+    fun `a camera stopping every lens at once is told by its last lens, not its first`() {
+        val fallback = LensFallback()
+        val seen = listOf(Seen(Lens.MAIN, 6_000), Seen(Lens.TELEPHOTO, 6_000))
+        val stopped = fallback.watch(1, seen, 0, 9_500, 0, Lens.MAIN)
+        assertEquals(CameraFailure.Stalled(Lens.TELEPHOTO, 6_000, 6_000), stopped?.failure)
+    }
 }
