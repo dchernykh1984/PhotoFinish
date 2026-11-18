@@ -292,9 +292,10 @@ class LensFallback {
         seen: List<Seen>,
         startedMs: Long,
         nowMs: Long,
-        keptMs: Long,
+        kept: () -> Long,
         first: Lens?,
     ): Watched? {
+        val keptMs by lazy(kept) // the stores' locks taken only when a stop or a retry asks
         seen.forEach { heardFrom(open, it.lens, it.lastFrameMs, nowMs) }
         val since = nowMs - startedMs
         val watched = seen.filterNot { waitsFor(open, it.lens) }
@@ -304,8 +305,14 @@ class LensFallback {
                 .map { it.lens }
                 .takeIf { since >= NO_FRAME_MS }
                 .orEmpty()
-        val stopped = watched.mapNotNull { stall(it.lens, it.lastFrameMs, startedMs, nowMs, keptMs) }.lastOrNull()
-        val retried = first?.let { retry(open, it, nowMs, keptMs) } // the other camera's watch: not its to try
+        // Put off while the lenses keep a frame unsent [KEPT_MS] or more, the cameras opened again dropping it -- a
+        // lens silent meanwhile as before the watch --, [KEPT_WAIT_MS] at most: a slow Wi-Fi keeps none silent.
+        val stopped =
+            watched
+                .mapNotNull { stall(it.lens, it.lastFrameMs, startedMs, nowMs) }
+                .lastOrNull()
+                ?.takeIf { nowMs - it.atMs >= KEPT_WAIT_MS || keptMs < KEPT_MS }
+        val retried = first?.let { retry(open, it, nowMs) { keptMs } } // the other camera's watch: not its to try
         val named = silent.joinToString { it.code }
         val noFrame = CameraFailure.NoFrame(silent, since)
         return when {
@@ -328,14 +335,14 @@ class LensFallback {
         open: Int,
         first: Lens,
         nowMs: Long,
-        keptMs: Long,
+        keptMs: () -> Long,
     ): Lens? {
         if (!waitsFor(open, first)) {
             firstWaitedSinceMs = null
             return null
         }
         val since = firstWaitedSinceMs ?: nowMs.also { firstWaitedSinceMs = it }
-        if (nowMs - since < AGAIN_MS || keptMs >= KEPT_MS) return null
+        if (nowMs - since < AGAIN_MS || keptMs() >= KEPT_MS) return null
         firstWaitedSinceMs = null
         waitFor = null
         waiting -= first
@@ -364,8 +371,11 @@ class LensFallback {
         /** A lens stopping again this soon after its last stop: the cameras opened again did not bring it back. */
         const val AGAIN_MS = 60_000L
 
-        /** Frames kept unsent this long put a retry off: opening the cameras again would drop them. */
+        /** Frames kept unsent this long put a stop or a retry off: opening the cameras again would drop them. */
         const val KEPT_MS = 1_000L
+
+        /** How long after its last frame a lens's stop is put off at most for the frames kept to be sent. */
+        const val KEPT_WAIT_MS = 30_000L
 
         /** How long a lens that gave frames may give none, whatever its rate: at 15 fps, 45 frames missed. */
         const val STALL_MS = 3_000L
@@ -378,18 +388,15 @@ class LensFallback {
         /**
          * [lens] stopped at [nowMs] -- its last frame at [lastFrameMs], 0 for none yet, more than [STALL_MS] before --,
          * the lenses started at [startedMs]: the failure, timed when it stopped, the watch seeing it seconds later.
-         * Not while the lenses keep a frame unsent [KEPT_MS] or more ([keptMs]): the cameras opened again for it would
-         * drop what they keep, and a lens silent meanwhile is as before the watch.
          */
         fun stall(
             lens: Lens,
             lastFrameMs: Long,
             startedMs: Long,
             nowMs: Long,
-            keptMs: Long,
         ): CameraFailure.Stalled? =
             CameraFailure.Stalled(lens, lastFrameMs - startedMs, lastFrameMs).takeIf {
-                lastFrameMs != 0L && nowMs - lastFrameMs > STALL_MS && keptMs < KEPT_MS
+                lastFrameMs != 0L && nowMs - lastFrameMs > STALL_MS
             }
 
         /**
