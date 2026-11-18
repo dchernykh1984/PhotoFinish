@@ -104,13 +104,8 @@ class CameraStreamer(
         targets: List<LensTarget>,
     ) {
         handler.post {
-            // A choice of the referee's tries every lens again, their streams made anew: what they kept dropped --
-            // the cameras closed first, not left writing to the encoders' surfaces as they go.
-            if (fallback.start(format, targets)) {
-                closeCameras()
-                keptStreams.stopAll()
-            }
-            open(preview, format, targets)
+            // A choice of the referee's tries every lens again, their streams made anew: what they kept dropped.
+            open(preview, format, targets, anew = fallback.start(format, targets))
         }
     }
 
@@ -162,8 +157,10 @@ class CameraStreamer(
         preview: Surface,
         format: StreamFormat,
         targets: List<LensTarget>,
+        anew: Boolean = false,
     ) {
         closeCameras()
+        if (anew) keptStreams.stopAll() // after the cameras: none left writing to the encoders' surfaces as they go
         val mine = ++generation
         order = targets.map { it.lens }
         val failedWith = fallback.leftOut
