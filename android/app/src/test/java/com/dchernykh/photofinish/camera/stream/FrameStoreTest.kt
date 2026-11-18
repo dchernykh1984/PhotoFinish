@@ -201,6 +201,19 @@ class FrameStoreTest {
     }
 
     @Test
+    fun `how much the frames not sent yet span is told, on their own clock`() {
+        val store = store()
+        assertEquals(0L, store.behindMs())
+        second(store, 0)
+        assertEquals(900L, store.behindMs())
+        read(store, 10)
+        assertEquals(0L, store.behindMs()) // all sent
+        second(store, 1)
+        second(store, 2)
+        assertEquals(1_900L, store.behindMs()) // 1 s to 2.9 s
+    }
+
+    @Test
     fun `how long the frame to send next has been kept is told`() {
         val store = store()
         assertEquals(0L, store.heldMs(9_000_000))

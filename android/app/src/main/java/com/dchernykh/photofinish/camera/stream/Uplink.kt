@@ -139,8 +139,8 @@ class Uplink(
         }
     }
 
-    /** How long the next frame to send has been kept, ms: 0 when caught up, or before a frame told the clock. */
-    val keptMs: Long get() = store.heldMs(captureClock?.invoke())
+    /** How much the frames kept and not sent yet span, ms: 0 when caught up ([FrameStore.behindMs]). */
+    val keptMs: Long get() = store.behindMs()
 
     /** Streaming over: the loop ends, and what the store keeps is dropped (FR-004). */
     fun stop() {

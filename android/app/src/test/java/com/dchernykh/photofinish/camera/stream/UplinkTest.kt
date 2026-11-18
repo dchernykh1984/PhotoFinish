@@ -575,11 +575,10 @@ class UplinkTest {
     }
 
     @Test
-    fun `it says how long the next frame to send has been kept, nothing before the frames' clock is known`() {
+    fun `it says how much the frames not sent yet span, the frames' clock told or not`() {
         val link = uplink(emptyList())
         link.offer(frame(1_000_000, keyframe = true))
-        assertEquals(0L, link.keptMs) // the frames' clock not told yet
-        link.captureClock = { 4_000_000 }
-        assertEquals(3_000L, link.keptMs)
+        link.offer(frame(4_000_000, keyframe = false))
+        assertEquals(3_000L, link.keptMs) // no clock told: a lens with none keeps as much
     }
 }

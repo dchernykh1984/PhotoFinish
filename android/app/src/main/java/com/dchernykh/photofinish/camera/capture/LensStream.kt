@@ -57,7 +57,7 @@ internal class LensStream private constructor(
         sync.set(ClockSync(address.host, address.port, clock).also { it.start() })
     }
 
-    /** How long its next frame to send has been kept, ms ([Uplink.keptMs]). */
+    /** How much its frames kept and not sent yet span, ms ([Uplink.keptMs]). */
     val keptMs: Long get() = uplink.keptMs
 
     fun stop() {
