@@ -419,9 +419,12 @@ class LensFallbackTest {
         assertNull(fallback.failed(1, back, back, mainSilent))
         assertEquals(listOf(Lens.MAIN), fallback.waitedFor(1, mainSilent))
         assertNull(fallback.retry(1, Lens.MAIN, 10_000) { 0 })
-        // Frames kept unsent -- a network slow -- put it off: a reopen would drop them.
-        assertNull(fallback.retry(1, Lens.MAIN, 10_000 + LensFallback.AGAIN_MS) { LensFallback.KEPT_MS })
-        assertEquals(Lens.MAIN, fallback.retry(1, Lens.MAIN, 10_000 + LensFallback.AGAIN_MS) { 0 })
+        // Frames kept unsent -- a network slow -- put it off, a reopen dropping them: 30 s at most, not for good.
+        val kept = { LensFallback.KEPT_MS }
+        val due = 10_000 + LensFallback.AGAIN_MS
+        assertNull(fallback.retry(1, Lens.MAIN, due, kept))
+        assertNull(fallback.retry(1, Lens.MAIN, due + LensFallback.KEPT_WAIT_MS - 1, kept))
+        assertEquals(Lens.MAIN, fallback.retry(1, Lens.MAIN, due + LensFallback.KEPT_WAIT_MS, kept))
         val teleSilent = CameraFailure.NoFrame(listOf(Lens.TELEPHOTO), 5_000)
         assertEquals(Lens.TELEPHOTO, fallback.failed(2, back, back, teleSilent)) // early: left out, not waited for
         val third = LensFallback()
