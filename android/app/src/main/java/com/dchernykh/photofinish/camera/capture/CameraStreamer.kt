@@ -265,10 +265,11 @@ class CameraStreamer(
             }
         handler.post {
             // A stream stopped meanwhile starts none (LensStream.startClock); one idle, its camera closed meanwhile,
-            // does: what it kept goes with its moments.
+            // does: what it kept goes with its moments. "No clock" is a fed stream's word: an idle one's lens keeps
+            // its camera's -- left out, failed.
             when {
                 clock != null -> stream.startClock(clock)
-                !stream.stopped -> onStatus(stream.lens, StreamerStatus.NoClock)
+                !stream.stopped && stream.fed -> onStatus(stream.lens, StreamerStatus.NoClock)
             }
         }
     }
