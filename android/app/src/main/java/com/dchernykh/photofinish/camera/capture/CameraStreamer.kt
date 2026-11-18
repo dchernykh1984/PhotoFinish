@@ -294,7 +294,8 @@ class CameraStreamer(
                     if (stream.fed) leftOut = leftOut - lens.code
                     checkSettled(generation) // its frame heard, lastFrameMs set: of the open feeding it
                 }
-                clockOfFrames(stream, ptsUs)
+                // Fed again, its frames still on the clock told: a first frame drained late is not "no clock".
+                if (!stream.clocked) clockOfFrames(stream, ptsUs)
             },
             status = { dropped -> phone.read().copy(dropped = dropped, left = leftOut).line() },
             store = FrameStore(File(kept, lens.code), share),
