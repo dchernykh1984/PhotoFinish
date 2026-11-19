@@ -254,6 +254,11 @@ helps find the moments to look at.
 
 ## Known limits
 
+- One PhotoFinish to a computer, and one PhotoFinish Camera to a phone: a second at the same
+  time is not provided for. Two windows from one folder would share its session, its output and
+  its recorders, and from two folders the cameras' ports. The phone app opened twice (started
+  from adb, then from the launcher) keeps both copies' unsent frames in one folder, and the
+  second deletes what the first had kept.
 - The Linux builds cannot capture USB cameras (PyAV's Linux wheels have no video4linux2): the
   camera dialog says so, and a camera's stream or a file is used there instead.
 - A network camera's timestamps follow its own clock, which can drift from the computer's by a few
