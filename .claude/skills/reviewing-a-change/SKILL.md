@@ -69,3 +69,7 @@ Tests build their own frames and files; no real race data.
 Report what you find outside the scope of the task; do not fix it. An
 unrequested edit next to a requested one is hard to review and easy to
 distrust.
+
+One PhotoFinish to a computer and one PhotoFinish Camera to a phone is a
+known limit (`specs/app/README.md`): a finding that needs two copies of
+either running at once is not valid.
