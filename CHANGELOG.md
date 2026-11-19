@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.11.1](https://github.com/dchernykh1984/PhotoFinish/compare/v0.11.0...v0.11.1) (2026-11-19)
+
+
+### Documentation
+
+* count no review finding that needs two copies of the program running at once ([e0269a6](https://github.com/dchernykh1984/PhotoFinish/commit/e0269a6f50ed362135d95a6867fbe15a88350c2a))
+* make one PhotoFinish to a computer and one PhotoFinish Camera to a phone a known limit ([7f1662a](https://github.com/dchernykh1984/PhotoFinish/commit/7f1662add24d79dd6906b02dc011cf0a1ff6908d))
+
 ## [0.11.0](https://github.com/dchernykh1984/PhotoFinish/compare/v0.10.0...v0.11.0) (2026-11-18)
 
 
