@@ -69,7 +69,8 @@ class StreamHeader(
         /**
          * A stream's header kept in [folder] as the encoder gives it, written by [later] -- the stores' own thread,
          * never the encoder's, which a slow flash's sync would hold up --: true once a record is known kept, so that
-         * one the storage refused, [failed] told, is written again as the encoder gives it again.
+         * one the storage refused, [failed] told, is written again as the encoder gives it again. A folder gone by
+         * then -- its store discarded, or sent whole -- has nothing to keep it for.
          */
         fun keeper(
             header: (ByteArray) -> StreamHeader,
@@ -81,7 +82,15 @@ class StreamHeader(
             return { record ->
                 kept.get()?.contentEquals(record) == true ||
                     false.also {
-                        later(Runnable { if (header(record).write(folder)) kept.set(record) else failed() })
+                        later(
+                            Runnable {
+                                when {
+                                    !folder.isDirectory -> Unit
+                                    header(record).write(folder) -> kept.set(record)
+                                    else -> failed()
+                                }
+                            },
+                        )
                     }
             }
         }
