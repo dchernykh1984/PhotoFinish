@@ -372,10 +372,10 @@ class _Recording:
             isinstance(image, av.Packet)
             and getattr(image.stream, "type", "") == "audio"
         ):
-            if self.writer is not None:  # sound beside the frames of its segment (013)
-                _disk(self.writer.write_audio, image, ms)
-                # The frames stalled, the sound going on: alive, not stuck -- once
-                # a second, as the beat writes.
+            # Sound beside the frames of its segment (013); kept, the frames stalled
+            # and the sound going on, the recorder is alive, not stuck -- once a
+            # second, as the beat writes. A sound not kept says nothing of it.
+            if self.writer is not None and _disk(self.writer.write_audio, image, ms):
                 self.beat.beat(state="recording", phone=source.phone)
             return
         if self.writer is None:  # its own recovery writes too: a full disk said so

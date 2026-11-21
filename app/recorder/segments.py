@@ -133,22 +133,24 @@ class SegmentWriter:
             while self._recent and self._recent[0] < ms - RESENT_MS:
                 self._listed.discard(self._recent.popleft())
 
-    def write_audio(self, packet: av.Packet, ms: int) -> None:
+    def write_audio(self, packet: av.Packet, ms: int) -> bool:
         """A piece of a network camera's sound, placed at ``ms`` by the frame before
         it (specs/013): into the open segment beside its frames. A connection's first
         pieces not after the newest kept by half their length -- sent again after a
         loss -- are not, until its first new one: after it each piece comes once,
         though placed a little back by a frame placed late. Nor one before any
-        segment, which has no frame to be placed by."""
+        segment, which has no frame to be placed by. Whether it was kept."""
         if packet.pts is None or packet.dts is None or packet.stream is None:
-            return
+            return False
         half = in_ms(packet.duration or 0, fraction(packet.time_base)) // 2
         heard = self._heard_ms
         if self._heard_again and heard is not None and ms < heard + max(half, 1):
-            return
+            return False
         if isinstance(self._open, _Remuxed) and self._open.add_audio(packet):
             self._heard_again = False
             self._heard_ms = ms if heard is None else max(heard, ms)
+            return True
+        return False
 
     @property
     def newest_ms(self) -> int | None:
