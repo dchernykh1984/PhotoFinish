@@ -27,7 +27,10 @@ import numpy as np
 from app.recorder.segments import LEAD_MS, fraction, in_ms
 from app.video_index import VideoIndex, read_times
 
-GAP_MS = 30  # a piece this much after the end of the one before: silence between
+# A piece this much after the end of the one before: silence between. Under a piece's
+# 21 ms, so one the decoder gave nothing for -- its first, one damaged -- is silence of
+# its length, and over the moments' rounding to the millisecond.
+GAP_MS = 10
 PREROLL_MS = 50  # decoded before the moment asked and dropped: no click as it begins
 SILENCE_MS = 100  # a gap's silence made this much at a time
 # atempo's range: faster in one stage, as each stage's window puts the sound earlier
@@ -211,7 +214,11 @@ class Renderer:
         packet = piece.packet
         packet.pts = packet.dts = piece.ms
         packet.time_base = MS
-        for frame in self._decoder.decode(packet):
+        try:
+            frames = self._decoder.decode(packet)
+        except av.FFmpegError:  # damaged -- a crash's cut --: its length silence
+            return
+        for frame in frames:
             at = piece.ms if frame.pts is None else in_ms(frame.pts, fraction(MS))
             if at > self._next_ms + GAP_MS:  # a gap: silence of its length
                 while (left := at - self._next_ms) > 0:

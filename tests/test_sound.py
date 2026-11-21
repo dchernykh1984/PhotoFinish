@@ -110,6 +110,8 @@ def test_the_sound_from_a_moment_has_the_beep_where_it_was_heard(
     index = recorded(tmp_path)
     samples = played(index, START + 500)
     assert beep_at(samples) == pytest.approx(1.0, abs=0.03)
+    from_first = played(index, START)  # a decoder gives nothing for its first piece
+    assert beep_at(from_first) == pytest.approx(1.5, abs=0.005)
     assert samples.size / RATE == pytest.approx(2.5, abs=0.1)  # to the recording's end
 
 
@@ -232,3 +234,23 @@ def test_whose_sound_is_the_cameras_own_else_its_phones_first_that_has_some() ->
     assert sound.whose(other, cameras, heard) is None  # another phone's: none
     has.add("cam2")
     assert sound.whose(tele, cameras, heard) is tele
+
+
+def test_a_piece_that_cannot_be_decoded_costs_its_own_length_alone(
+    tmp_path: Path,
+) -> None:
+    # A damaged piece -- a segment a crash cut short -- is silence, the rest heard.
+    index = recorded(tmp_path)
+    found = list(sound.pieces(index, START))
+    bad = found[20]
+    damaged = av.Packet(b"\xff\xf1" + bytes(range(200)))
+    damaged.pts = damaged.dts = bad.packet.pts
+    damaged.time_base = bad.packet.time_base
+    found[20] = sound.Piece(bad.ms, bad.end_ms, damaged, bad.form, bad.path)
+    renderer = sound.Renderer(iter(found), START, 1.0)
+    out = b""
+    while chunk := renderer.read():
+        out += chunk
+    samples = np.frombuffer(out, np.int16).reshape(-1, 2)[:, 0]
+    assert samples.size / RATE == pytest.approx(3.0, abs=0.1)
+    assert beep_at(samples) == pytest.approx(1.5, abs=0.03)
