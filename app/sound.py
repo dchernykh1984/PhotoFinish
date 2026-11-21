@@ -25,7 +25,7 @@ from typing import Any
 import av
 import numpy as np
 
-from app.recorder.segments import LEAD_MS, fraction, in_ms
+from app.recorder.segments import LEAD_MS, SOUND, fraction, in_ms
 from app.video_index import VideoIndex, read_times
 
 # A piece this much after the end of the one before: silence between. Under a piece's
@@ -95,11 +95,19 @@ def heard_at(index: VideoIndex, moment: int, within: int) -> bool:
     return place is not None and has_sound(index.frame(place).path)
 
 
+def heard_somewhere(folder: Path) -> bool:
+    """Whether a camera kept sound in any of its segments: its recorder lists those
+    that did as they close."""
+    try:
+        return (folder / SOUND).stat().st_size > 0
+    except OSError:
+        return False
+
+
 def heard_later(index: VideoIndex) -> bool:
-    """Whether a camera's newest segment, in time, has sound: one allowed the
-    microphone later is heard in its turn, the pieces following as it plays."""
-    newest = len(index) - 1
-    return newest >= 0 and has_sound(index.frame(newest).path)
+    """Whether a camera kept sound anywhere: one allowed the microphone later is
+    heard in its turn, the pieces following as it plays."""
+    return heard_somewhere(index.folder)
 
 
 def playing_from(
