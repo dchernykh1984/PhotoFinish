@@ -10,6 +10,7 @@ shows. A computer with no audio output plays none.
 from __future__ import annotations
 
 import threading
+import time
 from collections import deque
 from collections.abc import Callable
 from typing import Any
@@ -57,20 +58,24 @@ def default_output() -> tuple[Any, int, int] | None:
 
 class SoundPlayer(QObject):
     """Plays a camera's sound from a moment at a rate until stopped; ``output`` makes
-    the output -- Qt's, or a test's."""
+    the output -- Qt's, or a test's --, ``clock`` tells the time it took to start."""
 
     def __init__(
         self,
         parent: QObject | None = None,
         output: Callable[[], tuple[Any, int, int] | None] = default_output,
+        clock: Callable[[], float] = time.monotonic,
     ) -> None:
         super().__init__(parent)
-        self._make = output
+        self._make, self._clock = output, clock
         self._output: Any = None
         self._device: Any = None
         self._chunks: deque[bytes] = deque()
         self._held = 0  # bytes rendered and not yet given to the output
         self._ahead = 0  # bytes rendered ahead at most, at the output's rate
+        self._frame = 4  # bytes a sample of every channel takes at the output
+        self._asked: float | None = None  # when play was asked, until the first write
+        self._out_rate = RATE
         self._lock = threading.Lock()
         self._room = threading.Condition(self._lock)
         self._thread: threading.Thread | None = None
@@ -104,6 +109,8 @@ class SoundPlayer(QObject):
             self.stop()
             return
         self._ahead = round(AHEAD_S * out_rate) * channels * 2
+        self._frame, self._out_rate = channels * 2, out_rate
+        self._asked = self._clock()
         layout = LAYOUTS.get(channels, "stereo")
         renderer = sound.Renderer(
             sound.pieces(index, from_ms), from_ms, rate, out_rate, layout
@@ -151,10 +158,16 @@ class SoundPlayer(QObject):
             return
 
     def _pump(self) -> None:
-        """What the output has room for, given it."""
+        """What the output has room for, given it; the first time, the time since
+        play was asked left out of it -- the sound made, opened and decoded while the
+        picture played on --, so it keeps up with the picture."""
         if self._output is None or self._device is None:
             return
         with self._lock:
+            if self._asked is not None and self._chunks:
+                late = self._clock() - self._asked
+                self._asked = None
+                self._skip(round(late * self._out_rate) * self._frame)
             room = int(self._output.bytesFree())
             while self._chunks and room > 0:
                 chunk = self._chunks.popleft()
@@ -167,3 +180,13 @@ class SoundPlayer(QObject):
                 if not taken:
                     break
             self._room.notify_all()
+
+    def _skip(self, count: int) -> None:
+        """``count`` bytes of what was rendered left out; the lock held."""
+        while count > 0 and self._chunks:
+            chunk = self._chunks.popleft()
+            if len(chunk) > count:
+                self._chunks.appendleft(chunk[count:])
+            taken = min(count, len(chunk))
+            self._held -= taken
+            count -= taken
