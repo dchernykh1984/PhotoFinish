@@ -89,6 +89,7 @@ class SoundPlayer(QObject):
         self._index: VideoIndex | None = None
         self._listed = 0  # the index's segments the pieces know of
         self._waited = 0  # polls the newest have waited for one whose times are held
+        self._waited_for: frozenset[str] = frozenset()  # those waited for: once each
         self._drained: float | None = None  # when the output ran dry, the picture on
         self._said = ""  # the output's failure said last, until one starts
         self._render_said = ""  # a rendering's failure said last, until one renders
@@ -126,6 +127,7 @@ class SoundPlayer(QObject):
         layout = LAYOUTS.get(channels, "stereo")
         self._pieces = sound.pieces(index, from_ms, follows)
         self._index, self._listed, self._waited = index, len(index.paths), 0
+        self._waited_for = frozenset()
         renderer = sound.Renderer(self._pieces, from_ms, rate, out_rate, layout)
         stopped = self._stopped = threading.Event()
         self._thread = threading.Thread(
@@ -148,11 +150,13 @@ class SoundPlayer(QObject):
         if self._pieces is None or self._index is None:
             return
         # A segment listed, its times held a moment: those closed after it wait for
-        # it a poll or two, so it is heard in its place, never passed over after them.
-        if grows and self._index.pending and self._waited < HELD_POLLS:
+        # it a poll or two, so it is heard in its place, never passed over after them;
+        # once for each, times that never come holding none after.
+        held = self._index.pending
+        if grows and held - self._waited_for and self._waited < HELD_POLLS:
             self._waited += 1
             return
-        self._waited = 0
+        self._waited, self._waited_for = 0, self._waited_for | held
         found = self._index.paths[self._listed :]  # as they closed: names may mislead
         self._listed = len(self._index.paths)
         if found:
