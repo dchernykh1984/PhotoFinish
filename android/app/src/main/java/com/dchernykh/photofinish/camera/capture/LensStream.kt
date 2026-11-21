@@ -211,11 +211,11 @@ internal class LensStream private constructor(
             format: StreamFormat,
             store: FrameStore,
             log: PhoneLog,
-        ): (ByteArray) -> Unit =
+        ): (ByteArray) -> Boolean =
             { record ->
                 val target = planned.target
-                if (!StreamHeader(target.lens, target.address, format, record).write(store.folder)) {
-                    log.warning(target.lens.code, "its header not kept: what it keeps cannot be sent after a restart")
+                StreamHeader(target.lens, target.address, format, record).write(store.folder).also { kept ->
+                    if (!kept) log.warning(target.lens.code, "its header not kept: tried again as the encoder gives it")
                 }
             }
 
