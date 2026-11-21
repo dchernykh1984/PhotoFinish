@@ -26,7 +26,7 @@ import av
 import numpy as np
 
 from app.recorder import folder_of
-from app.recorder.segments import LEAD_MS, SOUND, fraction, in_ms
+from app.recorder.segments import LEAD_MS, SOUND, fraction, in_ms, kept_sound
 from app.video_index import VideoIndex, read_times
 
 # A piece this much after the end of the one before: silence between. Under a piece's
@@ -177,8 +177,7 @@ def has_sound(path: Path) -> bool:
 @functools.lru_cache(maxsize=4096)
 def _keeps_sound(path: Path) -> bool:
     """Read, and kept only when read: lru_cache keeps no exception."""
-    with av.open(str(path)) as container:
-        return bool(container.streams.audio)
+    return kept_sound(path)
 
 
 def pieces(
