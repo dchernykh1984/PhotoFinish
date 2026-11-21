@@ -47,17 +47,26 @@ object Senders {
         started?.let { return it }
         val backlog = Backlog(root, send = { header, store -> send(header, store, report, status) }, say = say, session)
         started = backlog
-        Thread({ tick(backlog) }, "backlog").apply {
+        Thread({ tick(backlog, say) }, "backlog").apply {
             isDaemon = true
             start()
         }
         return backlog
     }
 
-    private fun tick(backlog: Backlog) {
+    /** The backlog's thread: whatever a tick throws is said, and the next tick comes -- never the app ended. */
+    @Suppress("TooGenericExceptionCaught")
+    private fun tick(
+        backlog: Backlog,
+        say: (Lens, String) -> Unit,
+    ) {
         backlog.readBack()
         while (true) {
-            backlog.tick(SystemClock.elapsedRealtime())
+            try {
+                backlog.tick(SystemClock.elapsedRealtime())
+            } catch (error: Exception) {
+                say(Lens.MAIN, "the backlog's tick: ${error.javaClass.simpleName}: ${error.message}")
+            }
             try {
                 Thread.sleep(TICK_MS)
             } catch (_: InterruptedException) {
