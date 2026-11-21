@@ -99,6 +99,9 @@ class FrameStore(
 
         fun first(): Entry = get(0)
 
+        /** The capture time of the frame at [index], us: no entry made for it. */
+        fun ptsUs(index: Int): Long = pts[index]
+
         fun last(): Entry = get(count - 1)
 
         fun firstOrNull(): Entry? = getOrNull(0)
@@ -336,8 +339,23 @@ class FrameStore(
                         before += run.bytes
                     }
                 }
-                Pending(maxOf((newest.ptsUs - next.ptsUs) / 1000, 0), total - before)
+                Pending(maxOf((newest.ptsUs - next.ptsUs - unfedUs(next.ptsUs)) / 1000, 0), total - before)
             }
+
+    /**
+     * The whiles no camera fed the stream after [fromUs] -- the screen away, a camera opened again --: the gaps
+     * between runs past [UNFED_FROM_US], no video held (specs/009, FR-008).
+     */
+    private fun unfedUs(fromUs: Long): Long {
+        var unfed = 0L
+        for (i in 1 until runs.size) {
+            val before = runs[i - 1].frames
+            val after = runs[i].frames
+            if (before.isEmpty() || after.isEmpty() || after.ptsUs(0) <= fromUs) continue
+            unfed += maxOf(after.ptsUs(0) - before.ptsUs(before.size - 1) - UNFED_FROM_US, 0)
+        }
+        return unfed
+    }
 
     /**
      * A frame kept and not sent yet -- one as much as many -- or sent and not confirmed, [UNCONFIRMED_US] or more past
@@ -625,6 +643,9 @@ class FrameStore(
          * killed after it confirmed had not written yet.
          */
         const val CONFIRMED_MARGIN_US = 2_000_000L
+
+        /** A gap between two runs longer than this is a while no camera fed the stream: counted as this much video. */
+        const val UNFED_FROM_US = 1_000_000L
 
         /** Frames read and not confirmed this far past the newest confirmed: perhaps swallowed, not taken for sent. */
         const val UNCONFIRMED_US = 1_000_000L
