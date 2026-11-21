@@ -296,6 +296,13 @@ def test_frames_out_of_moment_order_as_b_frames_come_stay_in_one_file(
     assert len(read(written[0])[1]) == 70
 
 
+def test_a_camera_s_name_becomes_a_file_s() -> None:
+    assert export.file_name('Mi 17: main/"wide"') == "Mi 17_ main_wide_"
+    assert export.file_name("...") == "camera"
+    assert export.file_name("aux") == "aux_"
+    assert export.file_name("Tab\there") == "Tab_here"
+
+
 def test_a_camera_whose_list_names_no_piece_has_no_video(tmp_path: Path) -> None:
     folder = tmp_path / "cam1"
     folder.mkdir()

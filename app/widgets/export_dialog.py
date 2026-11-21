@@ -3,7 +3,6 @@ tick, and the job that writes their files on a thread of its own."""
 
 from __future__ import annotations
 
-import re
 import threading
 from pathlib import Path
 
@@ -20,9 +19,6 @@ from PySide6.QtWidgets import (
 from app import export
 
 CANCELLED = "cancelled"
-RESERVED = {"CON", "PRN", "AUX", "NUL"} | {
-    f"{d}{n}" for d in ("COM", "LPT") for n in range(1, 10)
-}
 STEPS = 1000  # the progress's whole
 
 
@@ -57,13 +53,6 @@ def choose_cameras(parent: QWidget | None, names: dict[str, str]) -> list[str]:
     """The cameras ticked; none when the referee cancels."""
     dialog = ExportChoice(parent, names)
     return dialog.chosen() if dialog.exec() == QDialog.DialogCode.Accepted else []
-
-
-def file_name(name: str) -> str:
-    """A camera's name as a file's on every platform: what a file's name cannot
-    hold replaced, and a name Windows keeps for a device given a mark."""
-    found = re.sub(r'[\\/:*?"<>|\x00-\x1f]+', "_", name).strip(" .") or "camera"
-    return f"{found}_" if found.split(".")[0].upper() in RESERVED else found
 
 
 class ExportJob(QObject):
