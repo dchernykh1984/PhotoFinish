@@ -48,9 +48,7 @@ internal class Microphone(
     private fun open(): Pair<AudioRecord, MediaCodec>? {
         var record: AudioRecord? = null
         return try {
-            val least = AudioRecord.getMinBufferSize(RATE, CHANNEL, PCM)
-            record = AudioRecord(MediaRecorder.AudioSource.CAMCORDER, RATE, CHANNEL, PCM, maxOf(least, BUFFER_BYTES))
-            check(record.state == AudioRecord.STATE_INITIALIZED) { "the microphone did not open" }
+            record = recorder()
             val format =
                 MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_AAC, RATE, 1).apply {
                     setInteger(MediaFormat.KEY_AAC_PROFILE, MediaCodecInfo.CodecProfileLevel.AACObjectLC)
@@ -67,6 +65,21 @@ internal class Microphone(
             failed("no sound: ${error.message ?: error.javaClass.simpleName}")
             null
         }
+    }
+
+    /**
+     * The microphone as a camcorder records it -- tuned for video, the one beside the lens where a phone has
+     * several --, else the plain one a phone may offer alone.
+     */
+    @SuppressLint("MissingPermission") // asked by the caller, as for open
+    private fun recorder(): AudioRecord {
+        val least = AudioRecord.getMinBufferSize(RATE, CHANNEL, PCM)
+        for (source in listOf(MediaRecorder.AudioSource.CAMCORDER, MediaRecorder.AudioSource.MIC)) {
+            val record = AudioRecord(source, RATE, CHANNEL, PCM, maxOf(least, BUFFER_BYTES))
+            if (record.state == AudioRecord.STATE_INITIALIZED) return record
+            record.release()
+        }
+        error("the microphone did not open")
     }
 
     @Suppress("TooGenericExceptionCaught") // an encoder that fails costs the sound from then on, never the app
