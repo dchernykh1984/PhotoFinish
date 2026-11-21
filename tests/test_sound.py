@@ -5,6 +5,7 @@ from __future__ import annotations
 import threading
 import time
 from pathlib import Path
+from typing import Any
 
 import av
 import numpy as np
@@ -275,3 +276,22 @@ def test_pieces_follow_a_recording_that_grows_until_finished(tmp_path: Path) -> 
     reader.join(timeout=5)
     assert got == sorted(got)
     assert got[-1] - got[0] == pytest.approx(3000, abs=60)
+
+
+def test_whether_a_segment_has_sound_is_read_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A closed segment never changes: the window opens no file twice for it.
+    index = recorded(tmp_path)
+    path = index.paths[0]
+    assert sound.has_sound(path)
+    opened: list[object] = []
+    real = av.open
+
+    def counted(*args: Any, **kwargs: Any) -> Any:
+        opened.append(args[0])
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(sound.av, "open", counted)
+    assert sound.has_sound(path)
+    assert opened == []
