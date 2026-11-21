@@ -37,7 +37,9 @@ def read_numbers(path: Path) -> dict[str, str]:
             continue
     numbers: dict[str, str] = {}
     for line in text.splitlines():
-        fields = SEPARATORS.split(line)
+        # StartProtocolMaker's lines split at "#" alone: a comma in a name or a group
+        # is the referee's, and would move the stages' field.
+        fields = line.split("#") if "#" in line else SEPARATORS.split(line)
         number = fields[0].strip().strip("\"'")
         if not any(c.isdigit() for c in number):
             continue
@@ -50,7 +52,7 @@ def read_numbers(path: Path) -> dict[str, str]:
 def _stages(line: str, fields: list[str], number: str) -> list[str]:
     """A relay's numbers after its first: a StartProtocolMaker line's fifth field of
     N > 1 stages, its number a number."""
-    if not number.isdigit() or line.count("#") < 5:
+    if not number.isdigit() or line.count("#") < 5 or len(fields) < 5:
         return []
     stages = fields[4].strip()
     count = int(stages) if stages.isdigit() else 1

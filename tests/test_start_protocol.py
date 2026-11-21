@@ -67,3 +67,16 @@ def test_the_numbers_are_read_again_when_the_path_or_the_file_changes(
     chosen[0] = str(tmp_path / "gone.txt")
     assert numbers() == {}  # a file that cannot be read: read as without one
     assert numbers.problem.startswith("the start protocol cannot be read")
+
+
+def test_a_lines_fields_are_split_at_hashes_alone_a_comma_in_a_group_kept(
+    tmp_path: Path,
+) -> None:
+    # StartProtocolMaker writes "#" alone, a comma in a name or group as it is.
+    lines = ["12#Ivanov Ivan#Men, Elite#5#1#1990#", "101#A / B#Relay, Mixed##3#"]
+    assert read_numbers(protocol(tmp_path, lines)) == {
+        "12": "12",  # not 13 to 16: its five laps are no stages
+        "101": "101",
+        "102": "102",
+        "103": "103",
+    }
