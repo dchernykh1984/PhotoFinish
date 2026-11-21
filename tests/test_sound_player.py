@@ -49,9 +49,9 @@ def test_the_sound_plays_from_the_moment_its_buffer_ahead(
     played.play(index, START + 500, rate)
     assert played.playing
     wait_until(lambda: len(output.taken) > 4 * RATE * (2.0 / rate))  # past the beep
-    # What is heard lags what is written by the output's buffer: skipped.
-    expected = (1.0 - player.BUFFER_S * rate) / rate
-    assert beep_at(heard(output)) == pytest.approx(expected, abs=0.05 / rate)
+    # The first sample written is the moment asked: heard as the output's own small
+    # latency on, its buffer filling behind it -- what is heard is what is shown.
+    assert beep_at(heard(output)) == pytest.approx(1.0 / rate, abs=0.05 / rate)
     played.stop()
     assert output.stopped
     assert not played.playing
@@ -92,5 +92,5 @@ def test_an_output_that_takes_another_rate_and_channels_is_played_in_them(
     wait_until(lambda: len(output.taken) > 2 * 44100 * 2.0)
     samples = np.frombuffer(bytes(output.taken), np.int16)  # one channel
     loud = np.flatnonzero(np.abs(samples) > 3000)
-    assert loud[0] / 44100 == pytest.approx(1.0 - player.BUFFER_S, abs=0.05)
+    assert loud[0] / 44100 == pytest.approx(1.0, abs=0.05)
     played.stop()
