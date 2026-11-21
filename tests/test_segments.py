@@ -1270,6 +1270,55 @@ def test_a_crash_keeps_the_sound_it_left_whole_with_its_frames(tmp_path: Path) -
     assert (folder / segments_module.SOUND).read_text().split() == [name]
 
 
+class RefusingSound:
+    """A file of a segment's whose muxer refuses its sound's packets."""
+
+    def __init__(self, real: Any) -> None:
+        self.real = real
+
+    def __enter__(self) -> RefusingSound:
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self.real.__exit__(*exc)
+
+    def add_stream_from_template(self, template: Any) -> Any:
+        return self.real.add_stream_from_template(template)
+
+    def mux(self, packet: av.Packet) -> None:
+        if packet.stream.type == "audio":
+            raise av.FFmpegError(22, "refused")
+        self.real.mux(packet)
+
+
+def test_a_crash_whose_sound_the_copy_refuses_keeps_its_frames(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A refused sound costs the sound alone: never the frames a crash left whole.
+    with_sound(tmp_path / "phone.mkv", 1)
+    folder = tmp_path / "cam1"
+    run = [
+        sys.executable,
+        "-c",
+        KILLED_WITH_SOUND,
+        str(folder),
+        str(tmp_path / "phone.mkv"),
+        str(START),
+    ]
+    subprocess.run(run, cwd=ROOT, check=False)  # noqa: S603 - this interpreter
+    real = av.open
+
+    def opened(path: Any, *args: Any, **kwargs: Any) -> Any:
+        made = real(path, *args, **kwargs)
+        copy = str(path).endswith(segments_module.RECOVERED_MKV)
+        return RefusingSound(made) if copy else made
+
+    monkeypatch.setattr(segments_module.av, "open", opened)
+    (name,) = segments_module.recover(folder)
+    monkeypatch.undo()
+    assert len(segments_module.frame_times(folder / f"{name}.times")) > 20
+
+
 def test_a_cameras_sound_matroska_will_not_hold_costs_the_sound_alone(
     tmp_path: Path,
 ) -> None:
