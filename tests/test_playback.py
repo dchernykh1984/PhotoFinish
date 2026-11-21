@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from app.playback import play_on
+from app.playback import FASTEST, SLOWEST, play_on, speed_name
 
 
 class Frames:
@@ -61,3 +61,52 @@ def test_playing_from_before_the_cameras_first_frame_jumps_to_it() -> None:
     assert play_on(frames, start, 0.033, 0) == (1, start)
     near = (0.0, 300_000 - 500)  # half a second before it: held, not jumped
     assert play_on(frames, near, 0.0, 0) == (0, near)
+
+
+def test_a_rate_plays_faster_or_slower_from_where_playing_started() -> None:
+    frames = Frames(70)
+    start = (50.0, 1000 + 9 * 33)
+    assert play_on(frames, start, 50.33, 0, rate=2.0) == (29, start)  # 660 ms on
+    assert play_on(frames, start, 50.33, 0, rate=0.25) == (11, start)  # 82 ms on
+    assert play_on(frames, start, 51.0, 0, rate=1 / 16) == (10, start)  # 62 ms on
+
+
+def test_backwards_the_frame_due_is_the_first_at_or_after_the_moment() -> None:
+    frames = Frames(70)
+    start = (0.0, 1000 + 30 * 33)  # played back from frame 30
+    assert play_on(frames, start, 0.0, 0, rate=-1.0) == (30, start)
+    assert play_on(frames, start, 0.33, 0, rate=-1.0) == (20, start)
+    assert play_on(frames, start, 0.34, 0, rate=-1.0) == (20, start)  # 19 not yet
+    assert play_on(frames, start, 0.33, 0, rate=-2.0) == (10, start)
+
+
+def test_backwards_past_the_first_frame_playing_ends() -> None:
+    frames = Frames(70)
+    start = (0.0, 1000 + 2 * 33)
+    assert play_on(frames, start, 0.05, 0, rate=-1.0) == (1, start)
+    assert play_on(frames, start, 0.066, 0, rate=-1.0) == (None, start)
+    assert play_on(Frames(0), start, 0.0, 0, rate=-1.0) == (None, start)
+
+
+def test_backwards_a_gap_is_jumped_over_to_the_frame_before_it() -> None:
+    frames = Frames(20, gap_after=10)  # frames 0-9, ten minutes, frames 10-19
+    start = (0.0, int(frames.ms[15]))
+    assert play_on(frames, start, 0.2, 0, rate=-1.0) == (10, start)  # held a while
+    place, start = play_on(frames, start, 1.5, 0, rate=-1.0)
+    assert (place, start) == (9, (1.5, int(frames.ms[9])))
+    assert play_on(frames, start, 1.533, 0, rate=-1.0) == (8, start)
+
+
+def test_backwards_from_after_the_newest_frame_jumps_to_it_when_far() -> None:
+    frames = Frames(10)
+    newest = int(frames.ms[-1])
+    near = (0.0, newest + 500)  # half a second after it: held, not jumped
+    assert play_on(frames, near, 0.0, 0, rate=-1.0) == (9, near)
+    place, start = play_on(frames, (0.0, newest + 5000), 0.0, 0, rate=-1.0)
+    assert (place, start) == (9, (0.0, newest))
+
+
+def test_a_speed_is_named_as_its_button_names_it() -> None:
+    names = [speed_name(2.0**n) for n in range(-4, 5)]
+    assert names == ["x1/16", "x1/8", "x0.25", "x0.5", "x1", "x2", "x4", "x8", "x16"]
+    assert (SLOWEST, FASTEST) == (1 / 16, 16.0)
