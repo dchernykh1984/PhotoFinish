@@ -3884,3 +3884,23 @@ def test_a_lens_without_sound_plays_its_phones_main_lens_sound(
     assert heard.calls[-1][:2] == ("play", win.cameras["cam1"].index)
     win.go_live()
     assert heard.calls[-1] == ("stop",)  # Live: silent
+
+
+def test_a_lens_without_sound_is_exported_with_its_phones_main_lens_sound(
+    phone_with_sound: Path,
+    make_window: Callable[[], mw.MainWindow],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    win = make_window()
+    out = tmp_path / "out"
+    out.mkdir()
+    told: list[str] = []
+    monkeypatch.setattr(mw.export_dialog, "choose_cameras", lambda _p, n: list(n))
+    monkeypatch.setattr(mw.QFileDialog, "getExistingDirectory", lambda *_: str(out))
+    monkeypatch.setattr(mw.QMessageBox, "information", lambda *a: told.append(a[2]))
+    win.export_video()
+    wait_until(lambda: bool(told))
+    for name in ("Side", "Tele"):
+        with av.open(str(out / f"{name}.mp4")) as container:
+            assert container.streams.audio, name  # its phone's sound with it
