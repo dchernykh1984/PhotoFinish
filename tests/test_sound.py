@@ -508,5 +508,7 @@ def test_the_sound_later_is_one_from_the_moment_on_never_one_all_behind(
 
     moment = START + 6000
     assert sound.playing_from(first, [first, second], index_of, moment, 1000) is second
+    # In a gap past its sound's last frame, before frames without: its sound behind.
+    assert not sound.heard_later(before, START + 3500)
     assert sound.heard_later(before, START)  # from its start: its sound to come
     assert not sound.heard_later(before, moment)
