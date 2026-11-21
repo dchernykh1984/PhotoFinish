@@ -246,6 +246,10 @@ class MainWindow(QMainWindow):
         self.protocol_button = QPushButton()  # the race's start numbers (014)
         self.protocol_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.protocol_button.clicked.connect(self.choose_protocol)
+        self.no_protocol_button = QPushButton("No protocol")  # shown with one
+        self.no_protocol_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.no_protocol_button.setToolTip("Numbers read as without a start protocol")
+        self.no_protocol_button.clicked.connect(self.drop_protocol)
         self.protocol = StartNumbers(
             lambda: str(self.session.get("start_protocol") or "")
         )
@@ -390,6 +394,7 @@ class MainWindow(QMainWindow):
         finding.addWidget(self.analysis_box)
         finding.addWidget(self.crossings_box)
         finding.addWidget(self.protocol_button)
+        finding.addWidget(self.no_protocol_button)
         finding.addWidget(zone_button)
         finding.addWidget(self.model_box)
         finding.addStretch()
@@ -764,6 +769,12 @@ class MainWindow(QMainWindow):
         self._save_session()
         self._show_protocol()
 
+    def drop_protocol(self) -> None:
+        """No start protocol: the numbers read as without one (014)."""
+        self.session["start_protocol"] = ""
+        self._save_session()
+        self._show_protocol()
+
     def _show_protocol(self) -> None:
         """The protocol chosen named on its button, with how many numbers it holds,
         or why it cannot be read."""
@@ -781,6 +792,7 @@ class MainWindow(QMainWindow):
             "reader names only its numbers, passing over stickers and writing"
         )
         self.protocol_button.setText(text)
+        self.no_protocol_button.setHidden(not chosen)
         self.protocol_button.setToolTip(
             f"{tip}\n{self.protocol.problem}" if self.protocol.problem else tip
         )

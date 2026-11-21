@@ -50,7 +50,7 @@ protocol holding 37: the number is 37; without the protocol: 2026.
 
 - **FR-001**: "Start protocol..." beside the number reader's switches chooses the file; the
   session keeps its path; the button names the file and how many numbers it holds. The file is
-  only read.
+  only read. "No protocol" beside it, while one is chosen, goes back to none.
 - **FR-002**: A start number is the first field of a line, split at `#`, `;`, `,` or a tab, with
   a digit in it; a line whose fifth field says N > 1 stages adds the N - 1 numbers after a
   numeric one. UTF-8, cp1251 and Latin-1 are tried in that order.
