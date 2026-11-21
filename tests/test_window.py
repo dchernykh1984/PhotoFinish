@@ -4045,3 +4045,31 @@ def test_removing_the_camera_whose_sound_plays_stops_that_sound(
     win.remove_camera()  # the main lens
     assert "cam1" not in win.cameras
     assert heard.calls[-1] == ("stop",)
+
+
+def test_the_sound_hears_of_a_segment_in_the_poll_that_lists_it(
+    phone_with_sound: Path,
+    make_window: Callable[[], mw.MainWindow],
+    clock: list[float],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Told after the index is refreshed, not a poll later.
+    win = make_window()
+    wait_until(lambda: win.moment is not None and win.place is not None)
+    index = win.cameras["cam1"].index
+    seen: list[int] = []
+    heard = sounding(win)
+    monkeypatch.setattr(
+        heard, "follow", lambda: seen.append(len(index.paths)), raising=False
+    )
+    real = index.refresh
+
+    def grown() -> bool:
+        real()
+        index.paths.append(index.paths[-1])  # a segment closed as it was polled
+        return True
+
+    monkeypatch.setattr(index, "refresh", grown)
+    listed = len(index.paths)
+    win.poll()
+    assert seen == [listed + 1]
