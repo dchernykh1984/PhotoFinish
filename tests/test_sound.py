@@ -405,6 +405,19 @@ def test_a_segment_whose_sound_line_came_late_is_heard_as_it_comes(
     assert any(START + 1400 <= piece.ms < START + 1600 for piece in found)
 
 
+def test_the_sound_list_unchanged_is_given_as_it_was_never_copied_again(
+    tmp_path: Path,
+) -> None:
+    # A day's names asked at each poll: the same list given while none is added.
+    listed = tmp_path / sound.SOUND
+    listed.write_text("20251029-103000-0001\n")
+    first = sound.sounding(tmp_path)
+    assert sound.sounding(tmp_path) is first
+    with listed.open("a") as f:
+        f.write("20251029-103001-0002\n")
+    assert len(sound.sounding(tmp_path)) == 2
+
+
 def test_a_sound_list_held_a_moment_keeps_what_it_listed(tmp_path: Path) -> None:
     # Held by a scanner a moment (Windows), unreadable, not gone: no camera taken
     # for silent, and the list not read again from its start.

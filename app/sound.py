@@ -98,7 +98,7 @@ def heard_at(index: VideoIndex, moment: int, within: int) -> bool:
     return place is not None and index.frame(place).path.stem in sounding(index.folder)
 
 
-_SOUNDING: dict[Path, tuple[Appended, set[str], bytes | None]] = {}
+_SOUNDING: dict[Path, tuple[Appended, frozenset[str], bytes | None]] = {}
 _SOUNDING_LOCK = threading.Lock()  # the window's thread and an export's ask
 
 
@@ -109,20 +109,21 @@ def sounding(folder: Path) -> frozenset[str]:
     cleared -- begins with another line, or is shorter: read from its start. One
     held a moment, unreadable, gives what it listed so far."""
     with _SOUNDING_LOCK:
-        follower, names, seen = _SOUNDING.get(folder, (None, set(), None))
+        follower, names, seen = _SOUNDING.get(folder, (None, frozenset(), None))
         try:
             file = _first_line(folder / SOUND)
         except OSError:
-            return frozenset(names)  # held by a scanner a moment (Windows): not gone
+            return names  # held by a scanner a moment (Windows): not gone
         if follower is None or file != seen:
-            follower, names = Appended(folder / SOUND), set()
+            follower, names = Appended(folder / SOUND), frozenset()
         before = follower.offset
         found = follower.new_lines()
         if follower.offset < before:
-            names.clear()
-        names.update(found)
+            names = frozenset()
+        if found:  # made anew only as lines come, never at each ask
+            names = names | frozenset(found)
         _SOUNDING[folder] = (follower, names, file)
-        return frozenset(names)
+        return names
 
 
 def _first_line(path: Path) -> bytes | None:
