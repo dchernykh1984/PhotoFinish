@@ -39,4 +39,6 @@
     <string name="discard">Удалить неотправленное</string>
     <string name="discard_title">Удалить неотправленное видео?</string>
     <string name="discard_text">%1$s видео (%2$d МБ), которых ещё нет на ноутбуке, будут удалены безвозвратно.</string>
+    <string name="codec_hevc">, H.265</string>
+    <string name="codec_no_hevc">; H.265 здесь не берётся при этом размере и частоте: H.264</string>
 </resources>

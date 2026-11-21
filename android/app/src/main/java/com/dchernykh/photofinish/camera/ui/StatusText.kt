@@ -8,6 +8,7 @@ import com.dchernykh.photofinish.camera.capture.LensInfo
 import com.dchernykh.photofinish.camera.capture.StreamFormat
 import com.dchernykh.photofinish.camera.capture.StreamerStatus
 import com.dchernykh.photofinish.camera.pairing.Lens
+import com.dchernykh.photofinish.camera.stream.Codec
 import com.dchernykh.photofinish.camera.stream.UplinkStatus
 import kotlin.math.roundToInt
 
@@ -42,7 +43,10 @@ internal fun statusText(
 ): String {
     if (!granted || format == null) return stringResource(if (granted) R.string.no_format else R.string.need_camera)
     val camera = (state.status as? StreamerStatus.Failed)?.let { stringResource(R.string.camera_failed, it.reason) }
-    if (!state.streaming) return camera ?: stringResource(R.string.ready, format.resolution.toString(), format.fps)
+    if (!state.streaming) {
+        val ready = stringResource(R.string.ready, format.resolution.toString(), format.fps) + codecText(state, format)
+        return camera ?: ready
+    }
     // While streaming, a line per lens: the lens named when there are several.
     val targets = state.pairing.targets
     val lines =
@@ -52,6 +56,18 @@ internal fun statusText(
         }
     return (listOfNotNull(camera) + lines).joinToString("\n")
 }
+
+/** The codec, when the code asked for H.265: given, or not taken by this phone's encoder (specs/010-hevc). */
+@Composable
+private fun codecText(
+    state: ScreenState,
+    format: StreamFormat,
+): String =
+    when {
+        state.pairing.codec != Codec.HEVC -> ""
+        format.codec == Codec.HEVC -> stringResource(R.string.codec_hevc)
+        else -> stringResource(R.string.codec_no_hevc)
+    }
 
 @Composable
 private fun lensText(status: StreamerStatus?): String =

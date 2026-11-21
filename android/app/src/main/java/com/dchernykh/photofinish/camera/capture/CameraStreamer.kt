@@ -109,8 +109,15 @@ class CameraStreamer(
         preview: Surface,
         format: StreamFormat,
         targets: List<LensTarget>,
+        asked: Codec = format.codec,
     ) {
         handler.post {
+            if (targets.isNotEmpty() && asked != format.codec) {
+                log.warning(
+                    null,
+                    "${asked.paired} asked for, not taken at ${format.resolution}, ${format.fps} fps: h264",
+                )
+            }
             fallback.start(format, targets) // a choice of the referee's tries every lens again
             open(preview, format, targets)
         }

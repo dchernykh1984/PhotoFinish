@@ -99,7 +99,7 @@ fun CameraScreen(
         if (preview == null) return@LaunchedEffect
         if (!started) return@LaunchedEffect streamer.away()
         streamer.stop(format, targets) // another choice, the referee's stop: what the lenses kept dropped
-        if (shown != null && format != null) streamer.start(shown.surface, format, targets)
+        if (shown != null && format != null) streamer.start(shown.surface, format, targets, state.pairing.codec)
     }
     WatchUnsent(state)
     LaunchedEffect(granted) {
