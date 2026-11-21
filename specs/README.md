@@ -39,3 +39,5 @@ request.
 - [009-nothing-lost](009-nothing-lost/spec.md): what the phone kept survives a crash, a restart and
   Stop, and is sent however long it takes; the first lens first; the video still on the phone and
   its free storage shown on the laptop.
+- [010-hevc](010-hevc/spec.md): H.265 as an experimental choice for PhotoFinish Camera, at 0.7 of
+  H.264's bitrate.
