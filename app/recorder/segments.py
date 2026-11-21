@@ -51,7 +51,14 @@ MS_SCALE = Fraction(1, 1000)  # a millisecond in seconds
 _GOP = 15
 _QUALITY = 3
 _QP2LAMBDA = 118  # FFmpeg's scale: quality 3 is global_quality 3 * 118
-_AS_IT_COMES = {"flush_packets": "1", "cluster_time_limit": "100"}
+# Written as they come: a cluster a tenth of a second, and no stream waited for longer
+# than that to interleave another's with -- a sound gone silent would hold the frames
+# back for ten seconds, FFmpeg's default, and a crash would lose them (specs/013).
+_AS_IT_COMES = {
+    "flush_packets": "1",
+    "cluster_time_limit": "100",
+    "max_interleave_delta": "100000",
+}
 
 
 class SegmentWriter:

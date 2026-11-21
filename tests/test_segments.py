@@ -1307,3 +1307,45 @@ def test_a_cameras_sound_matroska_will_not_hold_costs_the_sound_alone(
     for path in segments(folder):
         with av.open(str(path)) as container:
             assert not container.streams.audio
+
+
+KILLED_SILENT = """
+import os, sys
+from pathlib import Path
+import av
+from app.recorder.segments import SegmentWriter, fraction, in_ms
+writer = SegmentWriter(Path(sys.argv[1]), fps=30)
+n = 0
+with av.open(sys.argv[2]) as container:
+    for packet in container.demux():
+        if packet.pts is None or packet.stream.type == "audio":
+            continue  # its sound declared, no piece of it: a microphone gone silent
+        ms = int(sys.argv[3]) + in_ms(packet.pts, fraction(packet.time_base))
+        writer.write_packet(packet, ms)
+        n += 1
+        if n == 25:
+            break
+import time
+time.sleep(0.3)
+os._exit(1)  # killed: nothing closed, nothing flushed on the way out
+"""
+
+
+def test_a_crash_keeps_the_frames_of_a_stream_whose_sound_went_silent(
+    tmp_path: Path,
+) -> None:
+    # Matroska's interleaving waited for a piece of every stream before writing any:
+    # a sound gone silent held the frames back, and a crash lost the segment whole.
+    with_sound(tmp_path / "phone.mkv", 1)
+    folder = tmp_path / "cam1"
+    run = [
+        sys.executable,
+        "-c",
+        KILLED_SILENT,
+        str(folder),
+        str(tmp_path / "phone.mkv"),
+        str(START),
+    ]
+    subprocess.run(run, cwd=ROOT, check=False)  # noqa: S603 - this interpreter
+    (name,) = segments_module.recover(folder)
+    assert len(packets(folder / f"{name}.mkv")) >= 20  # all but the last 0.1 s
