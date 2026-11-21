@@ -12,8 +12,8 @@ import java.io.File
  * starts -- what a crash, Android or a dead battery left --, or handed over by a stream that stopped -- Stop,
  * another choice, the app closing, its encoder failing. Each is sent by an uplink of its own ([send]), alone:
  * one an address at a time, the oldest first, and a stream fed by a camera waits for its address to be free
- * ([holds]), so the recorder gets a camera's frames in the order taken. A stream sent whole -- nothing unsent for
- * [DONE_MS] -- is removed with its folder; [discard] drops them all.
+ * ([holds]), so the recorder gets a camera's frames in the order taken. A stream sent whole -- all of it
+ * acknowledged -- is stopped at the next tick and removed with its folder; [discard] drops them all.
  */
 @Suppress("TooManyFunctions") // its steps: read back, hand over, tick, the counts, discard
 class Backlog(
@@ -40,7 +40,6 @@ class Backlog(
         val store: FrameStore,
     ) {
         var sending: Sending? = null
-        var quietSince: Long? = null
     }
 
     private val kept = mutableListOf<Kept>()
@@ -141,35 +140,29 @@ class Backlog(
     }
 
     /**
-     * Each second, at [nowMs]: streams sent whole removed; the oldest of each address with none sending started.
+     * Each second: streams sent whole -- all acknowledged -- stopped at once, the address free for the
+     * next, their folders removed outside the lock; the oldest of each address with none sending started.
      */
-    @Synchronized
-    fun tick(nowMs: Long) {
-        kept.removeAll { done(it, nowMs) }
-        kept
-            .groupBy { it.header.address }
-            .values
-            .forEach { streams ->
-                val oldest = streams.first()
-                if (streams.none { it.sending != null }) oldest.sending = send(oldest.header, oldest.store)
+    fun tick() {
+        val finished =
+            synchronized(this) {
+                val done = kept.filter { stream -> stream.sending?.uplink?.unsent == false }
+                done.forEach { it.sending?.stop() } // a socket's close: quick
+                kept.removeAll(done)
+                kept
+                    .groupBy { it.header.address }
+                    .values
+                    .forEach { streams ->
+                        val oldest = streams.first()
+                        if (streams.none { it.sending != null }) oldest.sending = send(oldest.header, oldest.store)
+                    }
+                done
             }
-    }
-
-    private fun done(
-        stream: Kept,
-        nowMs: Long,
-    ): Boolean {
-        val sending = stream.sending
-        if (sending == null || sending.uplink.unsent) {
-            stream.quietSince = null
-            return false
+        finished.forEach {
+            // a folder of GBs removed with nobody waiting for it
+            it.store.clear()
+            say(it.header.lens, "all it kept sent to ${it.header.address}: removed")
         }
-        val since = stream.quietSince ?: nowMs.also { stream.quietSince = it }
-        if (nowMs - since < DONE_MS) return false
-        sending.stop()
-        stream.store.clear()
-        say(stream.header.lens, "all it kept sent to ${stream.header.address}: removed")
-        return true
     }
 
     /** Streams kept for [address], sending or waiting -- or not read back yet: a stream a camera feeds waits. */
@@ -208,20 +201,24 @@ class Backlog(
      */
     @Synchronized
     fun discard() {
-        kept.forEach {
-            it.sending?.stop()
+        val (dropped, folders) =
+            synchronized(this) {
+                kept.forEach { it.sending?.stop() }
+                val dropped = kept.toList()
+                kept.clear()
+                orphans.clear()
+                val fed = live.map { it.second.folder }.toSet()
+                dropped to root.listFiles { file -> file.isDirectory && file !in fed }.orEmpty().toList()
+            }
+        dropped.forEach {
+            // removed outside the lock: the live lenses' counts wait for none of it
             it.store.clear()
             say(it.header.lens, "what it kept for ${it.header.address} discarded")
         }
-        kept.clear()
-        orphans.clear()
-        val fed = live.map { it.second.folder }.toSet()
-        root.listFiles { file -> file.isDirectory && file !in fed }?.forEach { it.deleteRecursively() }
+        folders.forEach { it.deleteRecursively() }
     }
 
     companion object {
-        /** How long a stream kept has had nothing unsent before it is removed: its last acknowledgements in. */
-        const val DONE_MS = 5_000L
         private const val MS_PER_S = 1_000
         private const val BYTES_PER_MB = 1_000_000
 
