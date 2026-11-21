@@ -179,12 +179,12 @@ internal class LensStream private constructor(
                     store = store,
                     // What was kept for its camera before goes first; the first lens before the others (specs/009).
                     turn = { !Senders.backlog.holds(address) },
-                    firstLens = { Senders.board.allows(lens) },
+                    firstLens = { Senders.board.allows(lens, address.host) },
                 )
             uplink.status = status
             // Its header kept with its frames, as they are to be sent after a restart (specs/009, FR-001).
             uplink.onConfigured = keepHeader(planned, format, store, log)
-            val offBoard = Senders.board.register(lens, { uplink.connected }, { store.pending.ms })
+            val offBoard = Senders.board.register(lens, address.host, { uplink.connected }, { store.pending.ms })
             val offCount = Senders.backlog.live(address, store)
             val off = {
                 offBoard()

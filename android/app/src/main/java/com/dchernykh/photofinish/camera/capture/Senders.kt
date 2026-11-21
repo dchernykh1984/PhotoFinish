@@ -100,11 +100,11 @@ object Senders {
                 report = { report(lens, it) },
                 store = store,
                 alone = true,
-                firstLens = { board.allows(lens) },
+                firstLens = { board.allows(lens, header.address.host) },
             )
         uplink.status = { dropped -> status(header.address, dropped) }
         uplink.configure(header.record)
-        val off = board.register(lens, { uplink.connected }, { store.pending.ms })
+        val off = board.register(lens, header.address.host, { uplink.connected }, { store.pending.ms })
         Thread({ uplink.run() }, "kept-${lens.code}").start()
         return Backlog.Sending(uplink) {
             uplink.stop()
