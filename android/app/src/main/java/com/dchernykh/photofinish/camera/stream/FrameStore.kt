@@ -57,8 +57,83 @@ class FrameStore(
         val file: File,
     ) {
         val index = File(file.parentFile, file.name.removeSuffix(DATA) + INDEX)
-        val frames = ArrayList<Entry>()
+        val frames = Frames()
         var bytes = 0L
+    }
+
+    /**
+     * A run's frames field by field, in arrays: some 33 bytes a frame, not an object's 90 -- a long break's hours of
+     * them held in memory (specs/009). An [Entry] is made of one as it is asked for; the wall clock is the run's
+     * first frame's, which is what a connection's first frame -- a keyframe, a run's first -- is held by.
+     */
+    private class Frames {
+        private var count = 0
+        private var offsets = IntArray(FIRST_ROOM)
+        private var sizes = IntArray(FIRST_ROOM)
+        private var pts = LongArray(FIRST_ROOM)
+        private var moments = LongArray(FIRST_ROOM)
+        private var flags = ByteArray(FIRST_ROOM)
+        private var wallMs = 0L
+
+        val size: Int get() = count
+
+        fun isEmpty(): Boolean = count == 0
+
+        operator fun get(index: Int): Entry {
+            val flag = flags[index].toInt()
+            val moment = moments[index].takeIf { it != NO_MOMENT }
+            return Entry(
+                offsets[index].toLong(),
+                sizes[index],
+                pts[index],
+                flag and KEYFRAME != 0,
+                moment,
+                wallMs,
+                flag and READ_BACK != 0,
+            )
+        }
+
+        fun getOrNull(index: Int): Entry? = if (index in 0 until count) get(index) else null
+
+        fun first(): Entry = get(0)
+
+        fun last(): Entry = get(count - 1)
+
+        fun firstOrNull(): Entry? = getOrNull(0)
+
+        /** The bytes of the frames before [index]: where the one at it begins. */
+        fun bytesBefore(index: Int): Long =
+            if (index <
+                count
+            ) {
+                offsets[index].toLong()
+            } else {
+                (if (count == 0) 0L else offsets[count - 1].toLong() + sizes[count - 1])
+            }
+
+        operator fun plusAssign(entry: Entry) {
+            if (count == sizes.size) grow()
+            if (count == 0) wallMs = entry.wallMs
+            offsets[count] = entry.offset.toInt()
+            sizes[count] = entry.size
+            pts[count] = entry.ptsUs
+            moments[count] = entry.momentUs ?: NO_MOMENT
+            flags[count] = ((if (entry.keyframe) KEYFRAME else 0) or (if (entry.readBack) READ_BACK else 0)).toByte()
+            count++
+        }
+
+        private fun grow() = resize(sizes.size * 2)
+
+        /** The run done: its arrays cut to its frames, no room kept for more. */
+        fun trim() = resize(count)
+
+        private fun resize(room: Int) {
+            offsets = offsets.copyOf(room)
+            sizes = sizes.copyOf(room)
+            pts = pts.copyOf(room)
+            moments = moments.copyOf(room)
+            flags = flags.copyOf(room)
+        }
     }
 
     /** The video kept and not sent yet: its span from the next frame to the newest, ms, and its bytes. */
@@ -241,7 +316,7 @@ class FrameStore(
                 if (at != null) {
                     for (run in runs) {
                         if (run === at) {
-                            before += run.frames.take(cursorFrame).sumOf { it.size.toLong() }
+                            before += run.frames.bytesBefore(cursorFrame)
                             break
                         }
                         before += run.bytes
@@ -360,6 +435,7 @@ class FrameStore(
             val read = readIndex(run)
             when {
                 run.frames.firstOrNull()?.keyframe == true -> {
+                    run.frames.trim()
                     runs += run
                     total += run.bytes
                 }
@@ -417,6 +493,7 @@ class FrameStore(
         momentUs: Long?,
     ): Boolean {
         if (frame.keyframe) {
+            runs.lastOrNull()?.frames?.trim() // the run before done: no room kept in it
             retired += listOfNotNull(writer, indexWriter) // synced once the lock is let go: a power cut costs a run
             writer = null
             indexWriter = null
@@ -559,6 +636,9 @@ class FrameStore(
         private const val MARK = 'F'.code.toByte()
         private const val KEYFRAME = 1
         private const val HAS_MOMENT = 2
+        private const val READ_BACK = 4
+        private const val NO_MOMENT = Long.MIN_VALUE
+        private const val FIRST_ROOM = 32 // a second's run at 30 fps; at 60, grown once
 
         private fun record(entry: Entry): ByteArray {
             val flags = (if (entry.keyframe) KEYFRAME else 0) or (if (entry.momentUs != null) HAS_MOMENT else 0)
