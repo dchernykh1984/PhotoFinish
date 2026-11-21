@@ -1,9 +1,10 @@
 """The sound played with the picture (specs/013-sound).
 
 A camera's sound from the moment playing goes on from, at its rate, is rendered on a
-thread of its own (app/sound.py) and fed to Qt's audio output as it plays. Its
-buffer's length is skipped at the start, so what is heard is what the picture shows.
-A computer with no audio output plays none.
+thread of its own (app/sound.py) and fed to Qt's audio output as it plays: its first
+sample is the moment asked, heard the output's own latency on -- its buffer fills
+behind that sample, it never delays it --, so what is heard is what the picture
+shows. A computer with no audio output plays none.
 """
 
 from __future__ import annotations
@@ -20,7 +21,7 @@ from app.video_index import VideoIndex
 
 RATE = 48000
 CHANNELS = 2
-BUFFER_S = 0.15  # the output's own: what is heard lags what is written by this much
+BUFFER_S = 0.15  # the output's own: room for the window's thread to be late a while
 AHEAD_S = 0.5  # rendered ahead of what the output has taken
 PUMP_MS = 10
 # FFmpeg's layout for a device's channels: one it prefers past these is not played.
@@ -95,10 +96,9 @@ class SoundPlayer(QObject):
             self.stop()
             return
         self._ahead = round(AHEAD_S * out_rate) * channels * 2
-        skipped = round(from_ms + BUFFER_S * rate * 1000)  # heard as the picture shows
         layout = LAYOUTS.get(channels, "stereo")
         renderer = sound.Renderer(
-            sound.pieces(index, skipped), skipped, rate, out_rate, layout
+            sound.pieces(index, from_ms), from_ms, rate, out_rate, layout
         )
         stopped = self._stopped = threading.Event()
         self._thread = threading.Thread(
