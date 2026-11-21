@@ -351,15 +351,16 @@ def test_a_recording_that_grows_no_more_is_heard_to_its_end(tmp_path: Path) -> N
 
 
 class ShortOutput(Output):
-    """An output whose free room, empty, stops a period short of its buffer."""
+    """An output whose free room stops a tenth of a second short of its buffer: as
+    one still playing that much, or one whose empty room stops a period short."""
 
     def bufferSize(self) -> int:  # noqa: N802 - Qt's name
-        return self.free + 4 * 480
+        return self.free + 4 * 4800
 
 
-@pytest.mark.parametrize("kind", [Output, ShortOutput])
+@pytest.mark.parametrize(("kind", "queued"), [(Output, 0.0), (ShortOutput, 0.1)])
 def test_the_time_the_output_ran_dry_is_left_out_so_the_sound_keeps_up(
-    tmp_path: Path, kind: type[Output]
+    tmp_path: Path, kind: type[Output], queued: float
 ) -> None:
     # The sound waited 0.4 s for a segment as the picture played on: that much of
     # what came after it is left out.
@@ -377,5 +378,6 @@ def test_the_time_the_output_ran_dry_is_left_out_so_the_sound_keeps_up(
     grow()
     played.follow()
     wait_until(lambda: len(output.taken) > 4 * RATE * 1.8)
-    assert beep_at(heard(output)) == pytest.approx(1.5 - 0.4, abs=0.05)
+    # What it still held played on: the silence heard, and left out, that much less.
+    assert beep_at(heard(output)) == pytest.approx(1.5 - 0.4 + queued, abs=0.03)
     played.stop()
