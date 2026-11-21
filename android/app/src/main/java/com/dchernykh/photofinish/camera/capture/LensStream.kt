@@ -211,13 +211,15 @@ internal class LensStream private constructor(
             format: StreamFormat,
             store: FrameStore,
             log: PhoneLog,
-        ): (ByteArray) -> Boolean =
-            { record ->
-                val target = planned.target
-                StreamHeader(target.lens, target.address, format, record).write(store.folder).also { kept ->
-                    if (!kept) log.warning(target.lens.code, "its header not kept: tried again as the encoder gives it")
-                }
-            }
+        ): (ByteArray) -> Boolean {
+            val target = planned.target
+            return StreamHeader.keeper(
+                header = { StreamHeader(target.lens, target.address, format, it) },
+                folder = store.folder,
+                later = { store.syncOff(it) }, // before the stream's first run is synced, on the same thread
+                failed = { log.warning(target.lens.code, "its header not kept: tried again as the encoder gives it") },
+            )
+        }
 
         private fun mediaFormat(format: StreamFormat): MediaFormat =
             MediaFormat

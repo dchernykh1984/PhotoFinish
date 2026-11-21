@@ -7,6 +7,7 @@ import com.dchernykh.photofinish.camera.pairing.Lens
 import com.dchernykh.photofinish.camera.pairing.RtmpAddress
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -39,6 +40,25 @@ class StreamHeaderTest {
         assertEquals(Codec.HEVC, read.format.codec)
         assertArrayEquals(header.record, read.record)
         assertEquals(listOf(StreamHeader.FILE), folder.list()!!.toList()) // the file written beside goes
+    }
+
+    @Test
+    fun `a header is written on the stores' thread, and again as it comes again after the storage refused it`() {
+        val folder = temporary.newFolder()
+        val queued = ArrayDeque<Runnable>()
+        var failures = 0
+        val keep = StreamHeader.keeper({ header }, folder, { queued += it }) { failures++ }
+        assertFalse(keep(header.record)) // asked of the stores' thread: nothing written on the encoder's
+        assertNull(StreamHeader.read(folder))
+        folder.setWritable(false) // the storage refuses it
+        queued.removeFirst().run()
+        assertEquals(1, failures)
+        folder.setWritable(true)
+        assertFalse(keep(header.record)) // given again: written again
+        queued.removeFirst().run()
+        assertTrue(keep(header.record)) // kept: nothing more asked
+        assertTrue(queued.isEmpty())
+        assertArrayEquals(header.record, StreamHeader.read(folder)!!.record)
     }
 
     @Test

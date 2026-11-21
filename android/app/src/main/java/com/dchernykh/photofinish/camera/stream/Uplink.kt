@@ -118,8 +118,8 @@ class Uplink(
         private set
 
     /**
-     * The stream's header, once the encoder gave it: kept with the frames, to be sent after a restart; true once kept,
-     * a failure tried again as the encoder gives it again.
+     * The stream's header, once the encoder gave it: kept with the frames, to be sent after a restart; true once known
+     * kept, else told again as the encoder gives it again.
      */
     var onConfigured: (ByteArray) -> Boolean = { true }
 

@@ -10,6 +10,7 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.nio.channels.FileChannel
 import java.nio.file.StandardOpenOption
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * What a kept stream needs to be sent by itself, the app started again since (specs/009, FR-001): its lens,
@@ -64,6 +65,26 @@ class StreamHeader(
         const val FILE = "stream.txt"
         private const val VERSION = 1
         private const val HEX = 16
+
+        /**
+         * A stream's header kept in [folder] as the encoder gives it, written by [later] -- the stores' own thread,
+         * never the encoder's, which a slow flash's sync would hold up --: true once a record is known kept, so that
+         * one the storage refused, [failed] told, is written again as the encoder gives it again.
+         */
+        fun keeper(
+            header: (ByteArray) -> StreamHeader,
+            folder: File,
+            later: (Runnable) -> Unit,
+            failed: () -> Unit,
+        ): (ByteArray) -> Boolean {
+            val kept = AtomicReference<ByteArray?>()
+            return { record ->
+                kept.get()?.contentEquals(record) == true ||
+                    false.also {
+                        later(Runnable { if (header(record).write(folder)) kept.set(record) else failed() })
+                    }
+            }
+        }
 
         /** The header kept in [folder]; null when there is none, or it cannot be read whole. */
         fun read(folder: File): StreamHeader? {
