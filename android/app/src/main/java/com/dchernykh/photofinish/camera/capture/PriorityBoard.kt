@@ -1,6 +1,7 @@
 package com.dchernykh.photofinish.camera.capture
 
 import com.dchernykh.photofinish.camera.pairing.Lens
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 
 /**
@@ -8,7 +9,9 @@ import java.util.concurrent.CopyOnWriteArrayList
  * and sent alone --, the first in [order] sends whenever it can; the others only while it is not connected, or
  * within [BEHIND_MS] of what it holds -- one camera near live and whole beats two behind, and the others' frames
  * wait on the phone, not lost. A first lens its laptop is gone for, connecting in vain, holds nobody back; nor does
- * one sending what it kept for another laptop, the phone paired again since.
+ * one sending what it kept for another laptop, the phone paired again since. A lens held waits until the first is
+ * within [RESUME_MS], not just under [BEHIND_MS]: on a network the lenses overrun, one let go at the line would push
+ * the first back over it at once, connecting again and again.
  */
 class PriorityBoard {
     private class Sender(
@@ -19,6 +22,9 @@ class PriorityBoard {
     )
 
     private val senders = CopyOnWriteArrayList<Sender>()
+
+    /** The lenses held back, by laptop: they wait for the first to be within [RESUME_MS]. */
+    private val held = ConcurrentHashMap.newKeySet<Pair<Lens, String>>()
 
     /** The lenses in the order the referee's code gave them; before any, the laptop's dialog's. */
     @Volatile var order: List<Lens> = DEFAULT_ORDER
@@ -50,12 +56,19 @@ class PriorityBoard {
         val sending = same.map { it.lens }.toSet()
         val first = (order + DEFAULT_ORDER + Lens.entries).firstOrNull { it in sending } ?: return true
         if (lens == first) return true
-        return same.none { it.lens == first && it.connected() && it.behindMs() > BEHIND_MS }
+        val key = lens to host
+        val limit = if (key in held) RESUME_MS else BEHIND_MS
+        val holds = same.any { it.lens == first && it.connected() && it.behindMs() > limit }
+        if (holds) held += key else held -= key
+        return !holds
     }
 
     companion object {
         /** The first lens this far behind keeps the others waiting. */
         const val BEHIND_MS = 2_000L
+
+        /** A lens held waits until the first is this near live again. */
+        const val RESUME_MS = 1_000L
 
         /** The order of the laptop's camera dialog. */
         val DEFAULT_ORDER = listOf(Lens.MAIN, Lens.TELEPHOTO, Lens.ULTRAWIDE, Lens.FRONT)

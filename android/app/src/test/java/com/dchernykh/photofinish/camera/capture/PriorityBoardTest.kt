@@ -18,11 +18,25 @@ class PriorityBoardTest {
         board.register(Lens.TELEPHOTO, LAPTOP, { true }, { 60_000 })
         assertTrue(board.allows(Lens.MAIN, LAPTOP))
         assertFalse(board.allows(Lens.TELEPHOTO, LAPTOP))
-        behind = PriorityBoard.BEHIND_MS
+        behind = PriorityBoard.RESUME_MS // held, it waits for the first within a second
         assertTrue(board.allows(Lens.TELEPHOTO, LAPTOP))
         behind = 5_000
         connected = false // its laptop gone: it holds nobody back
         assertTrue(board.allows(Lens.TELEPHOTO, LAPTOP))
+    }
+
+    @Test
+    fun `a lens held waits until the first is well within the line, not just under it`() {
+        var behind = 3_000L
+        board.register(Lens.MAIN, LAPTOP, { true }, { behind })
+        board.register(Lens.TELEPHOTO, LAPTOP, { true }, { 0 })
+        assertFalse(board.allows(Lens.TELEPHOTO, LAPTOP))
+        behind = 1_500
+        assertFalse(board.allows(Lens.TELEPHOTO, LAPTOP)) // under 2 s, not yet within 1 s
+        behind = PriorityBoard.RESUME_MS
+        assertTrue(board.allows(Lens.TELEPHOTO, LAPTOP))
+        behind = 1_500
+        assertTrue(board.allows(Lens.TELEPHOTO, LAPTOP)) // let go: held again only past 2 s
     }
 
     @Test
