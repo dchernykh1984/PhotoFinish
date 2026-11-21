@@ -38,7 +38,7 @@ class PriorityBoard {
     /** Whether [lens] may send now. */
     fun allows(lens: Lens): Boolean {
         val sending = senders.map { it.lens }.toSet()
-        val first = (order + Lens.entries).firstOrNull { it in sending } ?: return true
+        val first = (order + DEFAULT_ORDER + Lens.entries).firstOrNull { it in sending } ?: return true
         if (lens == first) return true
         return senders.none { it.lens == first && it.connected() && it.behindMs() > BEHIND_MS }
     }

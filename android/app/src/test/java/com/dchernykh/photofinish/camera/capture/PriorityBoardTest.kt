@@ -35,6 +35,15 @@ class PriorityBoardTest {
     }
 
     @Test
+    fun `with no order of the referee's, the laptop's dialog's decides`() {
+        board.order = emptyList()
+        board.register(Lens.ULTRAWIDE, { true }, { 0 })
+        board.register(Lens.TELEPHOTO, { true }, { 9_000 })
+        assertFalse(board.allows(Lens.ULTRAWIDE)) // the telephoto comes before it in the dialog
+        assertTrue(board.allows(Lens.TELEPHOTO))
+    }
+
+    @Test
     fun `a lens of several senders waits while any of the first's is behind`() {
         board.register(Lens.MAIN, { true }, { 0 })
         board.register(Lens.MAIN, { true }, { 3_000 }) // what it kept before, sent alone
