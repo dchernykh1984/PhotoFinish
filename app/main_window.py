@@ -558,7 +558,8 @@ class MainWindow(QMainWindow):
         progress = QProgressDialog(
             "Exporting the video...", "Cancel", 0, export.STEPS, self
         )
-        progress.setWindowModality(Qt.WindowModality.WindowModal)
+        # In the background (specs/011, FR-005): the window takes corrections meanwhile.
+        progress.setWindowModality(Qt.WindowModality.NonModal)
         progress.setMinimumDuration(0)
         progress.canceled.connect(job.cancel)
         job.progress.connect(lambda value: _progressed(progress, value))
