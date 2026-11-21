@@ -404,6 +404,40 @@ def test_the_list_of_segments_that_kept_sound_is_followed_never_read_again(
     assert sound.sounding(tmp_path) == {"20251030-090000-0001"}
 
 
+def test_a_segment_listed_late_is_heard_in_the_order_the_segments_were_made(
+    tmp_path: Path,
+) -> None:
+    # Its times held a poll, a segment listed after the one made after it, before its
+    # time is played: its sound -- the beep -- heard in its place, in order.
+    index = recorded(tmp_path)
+    first, middle, last = index.paths
+    found = sound.Pieces([first], START, True, folder=index.folder)
+    found.extend([last])
+    found.extend([middle])
+    found.finish()
+    moments = [piece.ms for piece in found]
+    assert moments == sorted(moments)
+    assert any(START + 1400 <= ms < START + 1600 for ms in moments)
+
+
+def test_a_segment_whose_sound_line_came_late_is_heard_as_it_comes(
+    tmp_path: Path,
+) -> None:
+    # Its line refused at its close, written with the next: looked at again then.
+    index = recorded(tmp_path)
+    first, middle, last = index.paths
+    listed = index.folder / sound.SOUND
+    lines = listed.read_text().split()
+    listed.write_text("".join(f"{n}\n" for n in lines if n != middle.stem))
+    found = sound.Pieces([first], START, True, folder=index.folder)
+    found.extend([middle])  # not listed as sounding yet
+    with listed.open("a") as f:
+        f.write(f"{middle.stem}\n")  # the next close lists it
+    found.extend([last])
+    found.finish()
+    assert any(START + 1400 <= piece.ms < START + 1600 for piece in found)
+
+
 def test_the_segments_that_kept_no_sound_are_never_opened_for_it(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
