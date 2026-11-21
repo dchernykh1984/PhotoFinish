@@ -3984,6 +3984,11 @@ def test_the_sound_follows_while_the_window_keeps_its_recorder(
     win.pause()
     win.play()
     assert heard.calls[-1][0::4] == ("play", False)
+    beat = phone_with_sound / "video" / "cam1" / "recorder.json"
+    killed = json.loads(beat.read_text()) | {"state": "recording", "heartbeat_ms": 0}
+    beat.write_text(json.dumps(killed))  # let go, then killed: its beat stale
+    win.poll()
+    assert heard.calls[-1] == ("follow", False)
 
 
 def test_a_lens_exported_with_its_phones_sound_takes_it_on_their_offsets(
