@@ -79,4 +79,32 @@ def test_a_job_tells_whatever_fails_never_leaving_the_window_waiting(
     heard = finished(job)
     job.start()
     wait(heard)
-    assert heard == [([], "list index out of range", 0)]
+    assert heard == [([], "a: list index out of range", 0)]
+
+
+def test_a_camera_that_fails_is_told_and_the_next_still_exported(
+    tmp_path: Path,
+) -> None:
+    record(tmp_path / "cam2", START, 40)
+    jobs = [
+        (tmp_path / "cam2", tmp_path / "missing" / "Main.mp4"),  # no such folder
+        (tmp_path / "cam2", tmp_path / "Tele.mp4"),
+    ]
+    job = export_dialog.ExportJob(jobs)
+    heard = finished(job)
+    job.start()
+    wait(heard)
+    ((written, error, _),) = heard
+    assert written == [tmp_path / "Tele.mp4"]
+    assert error.startswith("Main: ")
+
+
+def test_a_job_stopped_as_the_program_closes_leaves_no_file_half_written(
+    tmp_path: Path,
+) -> None:
+    record(tmp_path / "cam1", START, 70)
+    job = export_dialog.ExportJob([(tmp_path / "cam1", tmp_path / "Side.mp4")])
+    job.stop(5)  # before it starts: nothing written
+    job.start()
+    job.stop(5)
+    assert not list(tmp_path.glob("Side*.part"))

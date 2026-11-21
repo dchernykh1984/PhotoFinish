@@ -107,6 +107,7 @@ from app.widgets.timeline import Timeline
 POLL_MS = 500
 PLAY_MS = 15  # how often playing looks for the next frame: oftener than any camera's
 FOLLOW_S = 0.25  # how often the lists follow a video playing: not at every frame
+EXPORT_STOP_S = 5.0  # how long the window closing waits for an export to stop
 NEAR_MS = 1000  # another camera's frame further from the moment than this: none
 STOP_MS = 3000  # an analyser stopped is killed if it has not ended by then
 OUTSIDE = "The output file was changed outside PhotoFinish: kept beside it"
@@ -2044,6 +2045,9 @@ class MainWindow(QMainWindow):
             if job is not None:
                 job.cancel()
         self._job = self._numbers_job = None
+        if self._export_job is not None:  # its file under way removed, not left half
+            self._export_job.stop(EXPORT_STOP_S)
+            self._export_job = None
         for camera in self.cameras.values():
             camera.worker.stop()
             self._stop_analyzer(camera)

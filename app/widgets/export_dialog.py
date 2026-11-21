@@ -73,29 +73,38 @@ class ExportJob(QObject):
         super().__init__()
         self.jobs = jobs
         self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._run, daemon=True)
 
     def start(self) -> None:
-        threading.Thread(target=self._run, daemon=True).start()
+        self._thread.start()
 
     def cancel(self) -> None:
         self._stop.set()
 
+    def stop(self, wait_s: float) -> None:
+        """Cancelled, waited for up to ``wait_s``: the program closing removes the
+        file under way rather than leaving it half written."""
+        self.cancel()
+        if self._thread.is_alive():
+            self._thread.join(wait_s)
+
     def _run(self) -> None:
         written: list[Path] = []  # each file as it is done: those a stop leaves too
         skipped: list[Path] = []
-        error = ""
+        failed: list[str] = []  # a camera's failure told, the cameras after it exported
+        cancelled = False
         count = len(self.jobs)
-        try:
-            for n, (folder, target) in enumerate(self.jobs):
+        for n, (folder, target) in enumerate(self.jobs):
 
-                def told(done: int, total: int, n: int = n) -> None:
-                    self.progress.emit(
-                        (n * STEPS + done * STEPS // max(total, 1)) // count
-                    )
+            def told(done: int, total: int, n: int = n) -> None:
+                self.progress.emit((n * STEPS + done * STEPS // max(total, 1)) // count)
 
+            try:
                 export.export(folder, target, told, self._stop.is_set, written, skipped)
-        except export.CancelledError:
-            error = CANCELLED
-        except Exception as failure:
-            error = str(failure) or type(failure).__name__
+            except export.CancelledError:
+                cancelled = True
+                break
+            except Exception as failure:
+                failed.append(f"{target.stem}: {failure or type(failure).__name__}")
+        error = CANCELLED if cancelled else "; ".join(failed)
         self.done.emit(written, error, len(skipped))
