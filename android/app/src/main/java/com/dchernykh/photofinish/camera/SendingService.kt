@@ -44,6 +44,7 @@ class SendingService : Service() {
         flags: Int,
         startId: Int,
     ): Int {
+        running = true
         val type =
             if (Build.VERSION.SDK_INT >=
                 Build.VERSION_CODES.Q
@@ -64,6 +65,7 @@ class SendingService : Service() {
     ) = stopSelf() // the day's time for sending in the background spent: the next start of the app goes on
 
     override fun onDestroy() {
+        running = false
         handler.removeCallbacks(tick)
         super.onDestroy()
     }
@@ -105,6 +107,16 @@ class SendingService : Service() {
     }
 
     companion object {
+        /** It runs: the screen starts it again whenever it does not and there are frames to send. */
+        @Volatile var running = false
+            private set
+
+        /** Whether the screen starts it now: frames to send, the screen shown, and it not running already. */
+        fun wanted(
+            sending: Boolean,
+            shown: Boolean,
+        ): Boolean = sending && shown && !running
+
         private const val ID = 9
         private const val CHANNEL = "sending"
         private const val TICK_MS = 2_000L
