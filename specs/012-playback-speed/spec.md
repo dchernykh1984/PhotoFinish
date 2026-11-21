@@ -70,8 +70,10 @@ reached 2 s later and the video holds there.
   following; the button of the direction playing reads "Pause".
 - **FR-003**: Playing backwards ends at the first frame, held; forwards ends as it does today.
 - **FR-004**: Timing waits for Pause at every speed and in both directions, as it does today.
-- **FR-005**: Stepping back a frame, or playing backwards, decodes each stretch between two
-  keyframes about once, not once a frame.
+- **FR-005**: Stepping back a frame, or playing backwards, takes the frames decoded lately from
+  where they are kept, never decoding from the keyframe once a frame: a stretch between two
+  keyframes is decoded once where the keep holds it -- 1080p at 30 fps and below -- and a few times
+  at 1440p 60 fps, whose second of frames is larger than the keep.
 
 ## Success Criteria *(mandatory)*
 

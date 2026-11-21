@@ -22,7 +22,8 @@ app/main_window.py      "< Play", "Play >", the speed buttons and their label; t
 - **The decoder's keep**: frames decoded are kept, newest last, up to 96 MB a camera -- some 17
   frames of 1440p, 30 of 1080p --; a request for one kept is answered from it; the keep is
   emptied when another segment is opened. Going backwards, a seek decodes from the keyframe to
-  the frame asked and keeps the frames on the way.
+  the frame asked and keeps the frames on the way: a second of 1440p 60 fps is decoded about 3.5
+  times, of 1080p 30 fps once.
 
 ## Tests
 

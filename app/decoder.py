@@ -2,8 +2,9 @@
 decode forward. A request for a frame a little later in the same file decodes on
 without seeking, so stepping is cheap; one more than FAR_S later -- in a camera's own
 long recording -- seeks. The frames decoded lately are kept, up to KEEP_BYTES: a step
-back, or playing backwards, takes them from there, each stretch between two keyframes
-decoded about once (specs/012, FR-005). Used from one worker thread at a time.
+back, or playing backwards, takes them from there -- a stretch between two keyframes
+decoded once where the keep holds it, a few times at 1440p 60 fps (specs/012,
+FR-005). Used from one worker thread at a time.
 """
 
 from __future__ import annotations

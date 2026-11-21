@@ -207,7 +207,8 @@ or a swaying patch.
   beside them and kept until changed; a change while playing goes on from the frame shown. Each
   frame shown is one asked for, the next asked once it is on screen, so a slow computer shows
   fewer frames, never late ones; the frames decoded lately are kept, up to 96 MB a camera, so a
-  step back or playing backwards decodes each stretch between keyframes about once. A gap of
+  step back or playing backwards takes them from there -- a second of 1080p 30 fps decoded once
+  backwards, of 1440p 60 fps a few times, at half the forwards rate. A gap of
   more than a second in the recording is jumped over either way; playing on past the newest
   frame is Live, playing back past the first holds it. Pause holds the frame shown -- Live too,
   while recording goes on -- and asks for it again, so a crossing is timed on the frame on
