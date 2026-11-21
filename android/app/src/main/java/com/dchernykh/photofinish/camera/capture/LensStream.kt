@@ -193,7 +193,7 @@ internal class LensStream private constructor(
             val stream = LensStream(planned, format, codec, surface, uplink, sync, words, store, off)
             val name = planned.target.lens.code
             Thread({ uplink.run() }, "uplink-$name").start()
-            val failed = { error: IllegalStateException ->
+            val failed = { error: RuntimeException ->
                 if (!stream.stopped) log.error(name, "its encoder stopped: ${Crashes.describe(error)}")
             }
             val heard = { ptsUs: Long -> stream.frames.heard(ptsUs, SystemClock.elapsedRealtime()) }
@@ -256,7 +256,7 @@ internal class LensStream private constructor(
             codec: MediaCodec,
             kind: Codec,
             link: Uplink,
-            failed: (IllegalStateException) -> Unit,
+            failed: (RuntimeException) -> Unit,
             heard: (Long) -> Boolean,
             onFirstFrame: (Long) -> Unit,
         ) {
@@ -270,6 +270,8 @@ internal class LensStream private constructor(
                 while (more && !Thread.currentThread().isInterrupted) more = deliver(codec, kind, link, info, offer)
             } catch (error: IllegalStateException) {
                 failed(error) // the encoder was stopped, the stream over -- or it failed, and is said
+            } catch (error: IllegalArgumentException) {
+                failed(error) // a header the encoder gave that cannot be read (H.265's SPS): said, never the app ended
             }
         }
 
