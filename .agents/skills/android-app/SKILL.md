@@ -57,6 +57,13 @@ adb shell am start -n com.dchernykh.photofinish.camera/.MainActivity --es addres
 adb exec-out screencap -p > screen.png
 ```
 
+Keep `-no-audio`: the app records the microphone with its main lens (`specs/013-sound`), and an
+emulator with the computer's audio hung and died (exit 139) as it opened it -- macOS asking for
+the microphone in a headless process. With `-no-audio` the guest's microphone gives silence, enough
+to see the sound through: `dumpsys media.audio_flinger` shows the input `Standby: no`, and the
+recorder's segments an `aac` 48 kHz mono stream, its config `1188`. A beep at a flash, to judge the
+sound against the picture, needs a phone.
+
 The `address` and `autostart` extras work in debug builds only; `10.0.2.2` is
 the computer as the emulator sees it. A phone: USB debugging on, `adb devices`,
 the same install and start with the computer's address on the shared network

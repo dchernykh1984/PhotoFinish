@@ -43,6 +43,13 @@ recorder is down and at most the 0.1 s before it.
 
 - USB cameras, files played as live and the test camera are encoded (mpeg4, a keyframe every 15
   frames); RTSP and RTMP streams are kept as the camera encoded them, cut at its keyframes.
+- A stream's sound (`specs/013-sound`) -- PhotoFinish Camera's main lens's, or a streaming app's --
+  is kept in the segments beside its frames, on their timestamps, which start a second after a
+  segment's base: a piece captured just before the keyframe that opens a segment comes after it,
+  and Matroska shifts every stream for a negative timestamp. A piece is placed at the moment of the
+  frame before it plus the distance between their timestamps; one at or before the newest kept --
+  sent again after a loss -- is not kept again, nor one before a connection's first frame. A crash
+  keeps the sound it left whole with its frames.
 - A frame's moment is the computer's clock when the camera's first frame arrived plus the frame's
   own timestamp's distance from it: arrival jitter does not shake the timeline, and setting the
   computer's clock does not move frames already recorded.
@@ -116,7 +123,11 @@ experiment (`specs/010-hevc`): about 0.7 of H.264's bitrate for the same picture
 RTMP, the phone saying when its encoder does not take it at the size and rate and streaming H.264
 then; tried on the emulator at 320x240, every frame with its moment -- without sound at the size and rate
 chosen (60 fps first), a keyframe a second and a bitrate that follows the size, and connects again
-on its own after a loss; it keeps the screen on, and can dim it while it streams. A streaming app
+on its own after a loss; it keeps the screen on, and can dim it while it streams. Its main lens
+sends the phone's sound too (`specs/013-sound`): AAC, mono, 48 kHz, 128 kbit/s -- under 1% of the
+lens's bitrate --, kept with the main lens's frames and sent with them, oldest first, through breaks,
+restarts and Stop as they are, the other lenses waiting for the main lens as before. The
+microphone is asked for after the camera; refused, the lens streams video alone, its log saying so. A streaming app
 is set to 60 fps, about 10 Mbit/s and a keyframe a second: the newest frame waits for the next
 keyframe. Tried: a Xiaomi
 17 Ultra with Larix Broadcaster sent 2560x1440 at 59.9 fps, 9 Mbit/s, 0.15 s without frames in a
@@ -202,6 +213,12 @@ or a swaying patch.
   while recording goes on -- and asks for it again, so a crossing is timed on the frame on
   screen; while playing, timing waits for Pause. Stop goes back to the frame playing started
   from.
+- **Sound.** Playing forwards, the camera shown's sound plays -- or, a lens without, its phone's
+  main lens's -- at every speed with its pitch kept (FFmpeg's `atempo`), from where playing goes
+  on from, started again where it jumps, its output's buffer skipped so it is heard as the picture
+  shows: within 100 ms of the recording's time from x1/16 to x4. Backwards, stepping, paused and Live
+  there is none. **Sound** beside the speeds switches it, kept with the session; a computer without
+  an audio output plays none.
 - **Input.** New lines of the chronometer's file arrive in the output within 2 s, as they are. A
   line the chronometer changes is held back, highlighted with both contents, until "Copy to
   output"; a line that is gone leaves its output line marked; a line the referee removed is not
@@ -292,7 +309,9 @@ recorded, all ticked; each ticked becomes one MP4 in a folder chosen, named afte
 number added when the name is taken. The frames are copied as recorded, not encoded again, timed
 by their moments, each once -- a frame the phone sent again is skipped --, from the first keyframe;
 a gap stays a gap. Where the stream's format changes, the file ends and `<name>-2.mp4` goes on.
-H.265 is tagged `hvc1`, as QuickTime wants it. It runs in the background with a progress bar;
+H.265 is tagged `hvc1`, as QuickTime wants it. Each file has its camera's sound -- a lens without,
+its phone's main lens's -- in step with the picture, the pieces continuous but for a gap
+(`specs/013-sound`). It runs in the background with a progress bar;
 Cancel removes the file under way. A camera still recording is exported up to its last piece
 closed.
 

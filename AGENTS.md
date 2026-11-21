@@ -26,7 +26,7 @@ ChronometerPython issue #49.
 | --- | --- |
 | `app/main.py` | Entry point (`uv run python -m app.main`); `--recorder <camera id>` runs a camera's recorder instead of the window. |
 | `app/main_window.py` | The Qt window: layout and wiring. |
-| `app/widgets/` | Camera view, timeline, lists, camera dialog, number field, decode worker. |
+| `app/widgets/` | Camera view, timeline, lists, camera dialog, number field, decode worker, sound player. |
 | `app/lines.py` | Crossing lines and times, read with the older tools' encodings. |
 | `app/session.py` | `data/session.json`: the files chosen, the cameras, the offsets. |
 | `app/output_list.py` | The output file, its state and its journal. |
@@ -34,7 +34,10 @@ ChronometerPython issue #49.
 | `app/cameras.py` | Connections and what a camera's settings must be. |
 | `app/recorder/` | The recorder process: sources, segments, test camera, launcher; the phone's clock exchange (`clock_sync.py`), frame moments (`frame_time.py`) and log (`phone_log.py`, kept in `video/<camera id>/phone.log`). |
 | `android/` | PhotoFinish Camera, the phone app: Kotlin, its own Gradle build (see the `android-app` skill). |
-| `app/video_index.py`, `app/decoder.py` | Recorded frames found by time; one decoded. |
+| `app/video_index.py`, `app/decoder.py` | Recorded frames found by time; one decoded, the last ones kept. |
+| `app/playback.py` | The frame due by the clock at a speed, forwards or backwards. |
+| `app/sound.py` | A camera's sound from a moment, at a speed, the pitch kept. |
+| `app/start_protocol.py` | The start numbers of a start protocol, for the number reader. |
 | `app/interpolation.py` | The finish line and the caliper reading. |
 | `app/shared_event.py` | Cameras in step on an event they all show. |
 | `app/paths.py` | Resolves where data lives (see below). |
