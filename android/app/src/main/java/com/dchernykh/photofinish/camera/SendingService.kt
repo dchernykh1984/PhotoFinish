@@ -38,18 +38,25 @@ class SendingService : Service() {
     /**
      * The processor kept awake while it runs: a foreground service alone keeps the process, not the processor, and
      * with the screen off the phone would sleep with video left to send. Taken for a minute at each tick, so a
-     * service Android ends without a word lets it go within the minute.
+     * service Android ends without a word lets it go within the minute; let go while no laptop has taken a
+     * connection for [UNHEARD_MS] -- gone for the night --, the frames kept for when the phone wakes.
      */
     private val awake by lazy {
         getSystemService(PowerManager::class.java)
             ?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "PhotoFinish:sending")
             ?.apply { setReferenceCounted(false) }
     }
+
+    /** When a laptop last took a connection of the phone's, on the elapsed clock. */
+    private var heardMs = 0L
+
     private val tick =
         object : Runnable {
             override fun run() {
                 if (!Senders.active) return stopSelf()
-                awake?.acquire(AWAKE_MS)
+                val now = SystemClock.elapsedRealtime()
+                if (Senders.board.anyConnected()) heardMs = now
+                if (awake(heardMs, now)) awake?.acquire(AWAKE_MS) else awake?.takeIf { it.isHeld }?.release()
                 notify(notification(Senders.backlog.pending()))
                 handler.postDelayed(this, TICK_MS)
             }
@@ -81,6 +88,7 @@ class SendingService : Service() {
             return START_NOT_STICKY
         }
         running = true
+        heardMs = SystemClock.elapsedRealtime() // a while to connect in, the laptop perhaps there
         awake?.acquire(AWAKE_MS)
         handler.removeCallbacks(tick)
         handler.postDelayed(tick, TICK_MS)
@@ -162,6 +170,15 @@ class SendingService : Service() {
 
         /** How long each tick keeps the processor awake: past the next ticks, gone within a minute of the last. */
         private const val AWAKE_MS = 60_000L
+
+        /** No laptop taking a connection this long, the processor is let sleep: ten minutes of trying. */
+        const val UNHEARD_MS = 600_000L
+
+        /** Whether the processor is kept awake at [nowMs], a laptop last taking a connection at [heardMs]. */
+        fun awake(
+            heardMs: Long,
+            nowMs: Long,
+        ): Boolean = nowMs - heardMs < UNHEARD_MS
 
         /**
          * Started from the screen, in the foreground, as there are frames to send; false when Android refuses it --
