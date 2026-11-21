@@ -244,6 +244,19 @@ class FrameStoreTest {
     }
 
     @Test
+    fun `a newest frame the storage will not read holds the stream unsent for nothing`() {
+        val store = store()
+        second(store, 0)
+        store.keep(frame(1_000_000, keyframe = true), 1) // the newest, in a run of its own
+        File(folder, "1.h264").setReadable(false)
+        read(store, 10)
+        assertNull(store.next(0)) // passed over
+        store.confirm(900_000) // all it could send confirmed
+        assertFalse(store.unsent)
+        File(folder, "1.h264").setReadable(true)
+    }
+
+    @Test
     fun `how long the frame to send next has been kept is told`() {
         val store = store()
         assertEquals(0L, store.heldMs(9_000_000))

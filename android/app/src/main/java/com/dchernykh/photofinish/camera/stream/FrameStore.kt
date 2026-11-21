@@ -598,7 +598,6 @@ class FrameStore(
         val entry = run.frames[cursorFrame]
         cursorRun = run
         cursorFrame++
-        lastReadUs = maxOf(lastReadUs ?: entry.ptsUs, entry.ptsUs)
         val data = ByteArray(entry.size)
         return try {
             val file =
@@ -609,9 +608,12 @@ class FrameStore(
                 }
             file.seek(entry.offset)
             file.readFully(data)
+            lastReadUs = maxOf(lastReadUs ?: entry.ptsUs, entry.ptsUs) // to be confirmed, or sent again
             KeptFrame(data, entry.ptsUs, entry.keyframe, entry.momentUs)
         } catch (_: IOException) {
-            null // its file gone: the uplink asks for the next frame
+            // Its file gone, or the storage failing: passed over, the uplink asking for the next -- a frame never
+            // sent is never confirmed, and would hold the stream unsent, its camera waiting, for good.
+            null
         }
     }
 
