@@ -1265,3 +1265,45 @@ def test_a_crash_keeps_the_sound_it_left_whole_with_its_frames(tmp_path: Path) -
         assert container.streams.audio
         heard = [p for p in container.demux(container.streams.audio[0]) if p.size]
     assert len(heard) > 30  # most of a second of it, a cluster cut short aside
+
+
+def test_a_cameras_sound_matroska_will_not_hold_costs_the_sound_alone(
+    tmp_path: Path,
+) -> None:
+    # An IP camera's G.711 (specs/013): kept only when it is AAC, the video whole.
+    source = tmp_path / "ipcam.mov"
+    with av.open(str(source), "w", format="mov") as out:
+        video = out.add_stream("libx264", rate=30, options={"g": "30", "bf": "0"})
+        video.width, video.height, video.pix_fmt = 160, 96, "yuv420p"
+        heard = out.add_stream("pcm_mulaw", rate=8000)
+        heard.layout = "mono"
+        for k in range(45):
+            frame = av.VideoFrame.from_ndarray(render(START + k * 33, 160, 96))
+            frame.pts = k
+            for packet in video.encode(frame):
+                out.mux(packet)
+            piece = av.AudioFrame.from_ndarray(
+                np.zeros((1, 267), np.int16), format="s16", layout="mono"
+            )
+            piece.sample_rate, piece.pts = 8000, k * 267
+            for packet in heard.encode(piece):
+                out.mux(packet)
+        for stream in (video, heard):
+            for packet in stream.encode(None):
+                out.mux(packet)
+    folder = tmp_path / "cam1"
+    writer = SegmentWriter(folder, fps=30)
+    with av.open(str(source)) as container:
+        for packet in container.demux():
+            if packet.pts is None:
+                continue
+            ms = START + in_ms(packet.pts, fraction(packet.time_base))
+            if packet.stream.type == "audio":
+                writer.write_audio(packet, ms)
+            else:
+                writer.write_packet(packet, ms)
+    writer.close()
+    assert writer.frames == 45
+    for path in segments(folder):
+        with av.open(str(path)) as container:
+            assert not container.streams.audio
