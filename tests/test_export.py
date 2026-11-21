@@ -277,3 +277,20 @@ def test_a_clock_set_back_goes_on_in_a_new_file_never_back_in_time(
     written = export.export(folder, tmp_path / "Side.mp4")
     assert written == [tmp_path / "Side.mp4", tmp_path / "Side-2.mp4"]
     assert all(read(path)[1] == sorted(set(read(path)[1])) for path in written)
+
+
+def test_frames_out_of_moment_order_as_b_frames_come_stay_in_one_file(
+    tmp_path: Path,
+) -> None:
+    folder = tmp_path / "cam1"
+    record(folder, START, 70)
+    times = export.pieces(folder)[0].with_suffix(".times")
+    lines = times.read_text().split("\n")
+    lines[3], lines[4] = (
+        f"{lines[3].split()[0]} {lines[4].split()[1]}",
+        f"{lines[4].split()[0]} {lines[3].split()[1]}",
+    )  # the 4th frame's moment after the 5th's, in decode order: a B-frame's way
+    times.write_text("\n".join(lines))
+    written = export.export(folder, tmp_path / "Side.mp4")
+    assert written == [tmp_path / "Side.mp4"]
+    assert len(read(written[0])[1]) == 70
