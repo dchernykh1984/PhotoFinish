@@ -43,6 +43,10 @@ class CatchUp:
             self.peak = 0
             self.said.clear()
             return ""
+        if self.said and held > self.said[-1][1] + SAID_MS < self.peak:
+            # Behind again after catching up a while: the bar measures this break.
+            self.peak = held
+            self.said.clear()
         if not self.said or self.said[-1][0] != heard:
             self.said.append((heard, held))
         while self.said and self.said[0][0] < heard - LOOK_BACK_MS:

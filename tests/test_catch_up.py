@@ -71,3 +71,11 @@ def test_a_phone_gone_quiet_is_told_as_last_heard_with_no_estimate() -> None:
     catch_up.line(said(540_000, 30_000), 30_000)
     assert catch_up.line(said(540_000, 30_000), 30_000).endswith("in about 5 min")
     assert catch_up.line(said(540_000, 30_000), 36_000).endswith("10%, as last heard")
+
+
+def test_a_new_break_after_catching_up_a_while_measures_the_bar_anew() -> None:
+    catch_up = Heard()
+    catch_up.line(said(600_000, 0))
+    catch_up.line(said(5_000, 300_000))  # nearly caught up
+    line = catch_up.line(said(240_000, 360_000))  # a new break, four minutes held
+    assert line.startswith(f"4:00 of video on the phone {EMPTY * 10} 0%")
