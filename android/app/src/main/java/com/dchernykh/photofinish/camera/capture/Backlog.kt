@@ -55,6 +55,9 @@ class Backlog(
     /** Streams handed over and not taken yet, by their address: it is held for them meanwhile. */
     private val handing = mutableListOf<Pair<RtmpAddress, FrameStore>>()
 
+    /** Counts the Discards: a stream handed over before one is dropped, not taken, once its turn comes. */
+    private var discards = 0
+
     /** Read back: until then every address is held ([holds]), so nothing a camera feeds goes before what was kept. */
     @Volatile private var ready = false
 
@@ -98,17 +101,21 @@ class Backlog(
         off: () -> Unit,
     ) {
         val handed = address to store
-        synchronized(this) { handing += handed } // its address held until it is taken
+        val before = synchronized(this) { discards.also { handing += handed } } // its address held until taken
         handOff(
             Runnable {
                 // Synced and read back away from the cameras' thread and outside the backlog's lock: the next open,
                 // the other lenses' status and the screen wait for none of it.
                 val read = if (store.handOver()) read(store.folder) else null
-                synchronized(this) {
-                    read?.let { admit(it) }
-                    handing -= handed
-                    off()
-                }
+                val dropped =
+                    synchronized(this) {
+                        val dropped = discards != before // the referee's Discard came meanwhile
+                        if (!dropped) read?.let { admit(it) }
+                        handing -= handed
+                        off()
+                        dropped
+                    }
+                if (dropped) store.folder.deleteRecursively() // whatever it held, as Discard drops all
             },
         )
     }
@@ -236,6 +243,7 @@ class Backlog(
     fun discard() {
         val (dropped, folders) =
             synchronized(this) {
+                discards++ // what is being handed over meanwhile is dropped as its turn comes
                 kept.forEach { it.sending?.stop() }
                 val dropped = kept.toList()
                 kept.clear()
