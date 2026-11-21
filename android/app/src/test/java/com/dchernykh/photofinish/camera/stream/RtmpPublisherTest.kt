@@ -195,6 +195,23 @@ class RtmpPublisherTest {
     }
 
     @Test
+    fun `the sound goes in FLV's AAC audio tags on a chunk stream of its own`() {
+        val server = server()
+        server.serve()
+        val publisher = RtmpPublisher(server.address)
+        publisher.publish(mapOf("audiocodecid" to 10))
+        publisher.sendSoundHeader(byteArrayOf(0x11, 0x88.toByte()))
+        val header = server.nextOfType(RtmpType.AUDIO)
+        assertArrayEquals(byteArrayOf(0xAF.toByte(), 0, 0x11, 0x88.toByte()), header.payload)
+        publisher.sendSound(21, byteArrayOf(5, 6))
+        val piece = server.nextOfType(RtmpType.AUDIO)
+        assertEquals(21L, piece.timestamp)
+        assertEquals(5, piece.chunkStreamId)
+        assertArrayEquals(byteArrayOf(0xAF.toByte(), 1, 5, 6), piece.payload)
+        publisher.close()
+    }
+
+    @Test
     fun `a refused connection or publish throws`() {
         for (refuse in listOf("connect", "publish")) {
             val server = server(refuse)

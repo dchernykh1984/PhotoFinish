@@ -6,11 +6,15 @@ import com.dchernykh.photofinish.camera.sync.OffsetSlew
 import com.dchernykh.photofinish.camera.sync.Sample
 import java.io.IOException
 
-/** One encoded frame: Annex B units, its presentation time on the camera's clock, us. */
+/**
+ * One encoded frame: Annex B units, its presentation time on the camera's clock, us -- or, [sound], a piece of the
+ * phone's sound in AAC, its capture time on the same clock (specs/013).
+ */
 class EncodedFrame(
     val data: ByteArray,
     val ptsUs: Long,
     val keyframe: Boolean,
+    val sound: Boolean = false,
 )
 
 /** What the uplink says to the screen. */
@@ -127,10 +131,16 @@ class Uplink(
         private set
 
     /**
-     * The stream's header, once the encoder gave it: kept with the frames, to be sent after a restart; true once known
-     * kept, else told again as the encoder gives it again.
+     * The stream's header -- and its sound's config, if any -- once the encoders gave them: kept with the frames, to be
+     * sent after a restart; true once known kept, else told again as the encoder gives it again.
      */
-    var onConfigured: (ByteArray) -> Boolean = { true }
+    var onConfigured: (ByteArray, ByteArray?) -> Boolean = { _, _ -> true }
+
+    /** The sound's AudioSpecificConfig, once its encoder gave it (specs/013): its pieces are not sent without. */
+    @Volatile private var soundConfig: ByteArray? = null
+
+    /** The connection under way has sent the sound's config; the uplink's thread alone keeps it. */
+    private var soundHeaderSent = false
 
     /** The header kept with the frames ([onConfigured]). */
     @Volatile private var headerKept = false
@@ -172,7 +182,22 @@ class Uplink(
     fun configure(record: ByteArray) {
         if (this.record?.contentEquals(record) == true && headerKept) return
         this.record = record
-        headerKept = onConfigured(record)
+        headerKept = onConfigured(record, soundConfig)
+    }
+
+    /** The sound's AudioSpecificConfig, as its encoder gives it, or one kept with the frames ([alone]) (specs/013). */
+    fun configureSound(config: ByteArray) {
+        if (soundConfig?.contentEquals(config) == true && headerKept) return
+        soundConfig = config
+        record?.let { headerKept = onConfigured(it, config) }
+    }
+
+    /**
+     * A piece of the phone's sound, kept with the frames in the order captured, sent with them (specs/013): one with no
+     * run of frames to go in yet -- before the stream's first keyframe -- is not, and counts as no frame dropped.
+     */
+    fun offerSound(piece: EncodedFrame) {
+        store.keep(piece, null)
     }
 
     /**
@@ -189,7 +214,7 @@ class Uplink(
             askedKeyframe = false
             // A header the storage refused, or not known kept yet, tried again at each keyframe: frames kept with no
             // header are never sent after a Stop or a crash, and the encoder gives its header once.
-            if (!headerKept) record?.let { headerKept = onConfigured(it) }
+            if (!headerKept) record?.let { headerKept = onConfigured(it, soundConfig) }
         }
         if (lost > 0) {
             dropped += lost
@@ -280,6 +305,7 @@ class Uplink(
     private fun open(): VideoSink {
         streamed = false
         stamped = false
+        soundHeaderSent = false
         unacknowledged.clear()
         askedNs = 0L
         heardBytes = 0L
@@ -294,7 +320,7 @@ class Uplink(
         // as what was kept would be placed late by all the time it was kept. Kept frames sent alone carry theirs.
         if (alone || clock() != null) store.skipToStamped() else store.skipKept()
         // Then how long the frame it starts at was kept is known, the wait for the clock in it too (contract).
-        connected.publish(metadata(format, store.heldMs(captureClock?.invoke())))
+        connected.publish(metadata(format, store.heldMs(captureClock?.invoke()), soundConfig != null))
         // Connected once the recorder took it: a lens waiting for its clock, or connecting in vain, holds no other
         // lens back (PriorityBoard) and keeps no phone awake for a laptop that is not there.
         this.connected = true
@@ -351,23 +377,42 @@ class Uplink(
                 continue
             }
             waitingSince = 0L
-            if (first == null) stamped = kept.momentUs != null
-            if (restamps(kept)) {
-                store.back()
-                throw IOException("the clock is in step now")
+            // A connection starts at a keyframe: a piece of sound comes after its first frame, never before.
+            if (kept.sound) {
+                first?.let { sendSound(connected, kept, it) }
+            } else {
+                first =
+                    sendFrame(connected, kept, first, throughput)
             }
-            val start = first ?: kept.ptsUs
-            first = start
-            send(connected, kept, kept.ptsUs - start, kept.momentUs?.takeIf { stamped })
-            unacknowledged.addLast(connected.sentBytes to kept.ptsUs)
-            // A server that acknowledges nothing leaves the store its 6 s after the newest sent (FrameStore).
-            if (unacknowledged.size > UNACKNOWLEDGED_KEPT) unacknowledged.removeFirst()
-            confirm(connected)
-            streamed = true
-            val rates = throughput.count(kept.data.size)
-            val delay = clock()?.takeIf { stamped }?.delay?.div(1000.0)
-            if (rates != null) report(UplinkStatus.Streaming(rates.first, rates.second, delay))
         }
+    }
+
+    /**
+     * One frame [kept] on the connection, its first at [first] if one went; returns the capture time of the
+     * connection's first frame.
+     */
+    private fun sendFrame(
+        connected: VideoSink,
+        kept: KeptFrame,
+        first: Long?,
+        throughput: Throughput,
+    ): Long {
+        if (first == null) stamped = kept.momentUs != null
+        if (restamps(kept)) {
+            store.back()
+            throw IOException("the clock is in step now")
+        }
+        val start = first ?: kept.ptsUs
+        send(connected, kept, kept.ptsUs - start, kept.momentUs?.takeIf { stamped })
+        unacknowledged.addLast(connected.sentBytes to kept.ptsUs)
+        // A server that acknowledges nothing leaves the store its 6 s after the newest sent (FrameStore).
+        if (unacknowledged.size > UNACKNOWLEDGED_KEPT) unacknowledged.removeFirst()
+        confirm(connected)
+        streamed = true
+        val rates = throughput.count(kept.data.size)
+        val delay = clock()?.takeIf { stamped }?.delay?.div(1000.0)
+        if (rates != null) report(UplinkStatus.Streaming(rates.first, rates.second, delay))
+        return start
     }
 
     /**
@@ -405,6 +450,33 @@ class Uplink(
         } finally {
             sendingSince = 0 // a send that failed is no send hanging: the next connection is not cut
         }
+    }
+
+    /**
+     * A piece of sound, [kept] [start] us after the connection's first frame on the frames' clock, after the sound's
+     * config the first time: one captured before that frame, or with no config to decode it by, is not sent.
+     */
+    private fun sendSound(
+        connected: VideoSink,
+        kept: KeptFrame,
+        start: Long,
+    ) {
+        val config = soundConfig ?: return
+        val since = kept.ptsUs - start
+        if (since < 0) return
+        if (!soundHeaderSent) {
+            connected.sendSoundHeader(config)
+            soundHeaderSent = true
+        }
+        sendingSince = System.nanoTime()
+        try {
+            connected.sendSound(since / 1000, kept.data)
+        } finally {
+            sendingSince = 0
+        }
+        unacknowledged.addLast(connected.sentBytes to kept.ptsUs)
+        if (unacknowledged.size > UNACKNOWLEDGED_KEPT) unacknowledged.removeFirst()
+        confirm(connected)
     }
 
     /**
@@ -556,10 +628,14 @@ class Uplink(
             return if (next != null && next - momentUs in 1..CLOCK_SET_US) next else momentUs
         }
 
-        /** The stream's metadata; [heldMs]: how long its first frame was kept (specs/007, contract). */
+        /** FLV's `audiocodecid` for AAC (specs/013). */
+        private const val AUDIO_CODEC_AAC = 10
+
+        /** The stream's metadata; [heldMs]: how long its first frame was kept (specs/007, contract); its [sound]. */
         private fun metadata(
             format: StreamFormat,
             heldMs: Long,
+            sound: Boolean,
         ): Map<String, Any?> =
             mapOf(
                 "width" to format.resolution.width,
@@ -569,6 +645,6 @@ class Uplink(
                 "videodatarate" to format.bitrate / 1000,
                 "encoder" to "PhotoFinish Camera",
                 "held_ms" to heldMs,
-            )
+            ) + if (sound) mapOf("audiocodecid" to AUDIO_CODEC_AAC) else emptyMap()
     }
 }

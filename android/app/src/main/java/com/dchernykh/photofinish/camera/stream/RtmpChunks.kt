@@ -21,6 +21,7 @@ object RtmpType {
     const val USER_CONTROL = 4
     const val WINDOW_ACK_SIZE = 5
     const val SET_PEER_BANDWIDTH = 6
+    const val AUDIO = 8
     const val VIDEO = 9
     const val DATA_AMF0 = 18
     const val COMMAND_AMF0 = 20

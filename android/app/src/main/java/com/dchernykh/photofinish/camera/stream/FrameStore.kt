@@ -12,12 +12,16 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
-/** A frame as the store gives it back: its bytes, when it was taken, and its moment on the recorder's clock. */
+/**
+ * A frame as the store gives it back: its bytes, when it was taken, and its moment on the recorder's clock -- or,
+ * [sound], a piece of the phone's sound (specs/013).
+ */
 class KeptFrame(
     val data: ByteArray,
     val ptsUs: Long,
     val keyframe: Boolean,
     val momentUs: Long?,
+    val sound: Boolean = false,
 )
 
 /**
@@ -53,6 +57,8 @@ class FrameStore(
         val wallMs: Long,
         /** Read back from what a store before left: its capture clock may have started again since. */
         val readBack: Boolean = false,
+        /** A piece of the phone's sound, kept in the run of the frames it was heard with (specs/013). */
+        val sound: Boolean = false,
     )
 
     private class Run(
@@ -92,6 +98,7 @@ class FrameStore(
                 moment,
                 wallMs,
                 flag and READ_BACK != 0,
+                flag and SOUND != 0,
             )
         }
 
@@ -126,7 +133,7 @@ class FrameStore(
             sizes[count] = entry.size
             pts[count] = entry.ptsUs
             moments[count] = entry.momentUs ?: NO_MOMENT
-            flags[count] = ((if (entry.keyframe) KEYFRAME else 0) or (if (entry.readBack) READ_BACK else 0)).toByte()
+            flags[count] = (flagsOf(entry) or (if (entry.readBack) READ_BACK else 0)).toByte()
             count++
         }
 
@@ -201,7 +208,8 @@ class FrameStore(
 
     /**
      * Keeps [frame] with its [momentUs]; returns the frames dropped meanwhile: the oldest not read yet, for
-     * room, and this one when it cannot be written or has no keyframe before it to start from.
+     * room, and this one when it cannot be written or has no keyframe before it to start from -- a piece of sound
+     * (specs/013) goes in the newest run, and counts as no frame when it cannot.
      */
     fun keep(
         frame: EncodedFrame,
@@ -215,7 +223,8 @@ class FrameStore(
                     prune()
                     while (runs.isNotEmpty() && full(frame.ptsUs)) dropped += removeOldest()
                 }
-                dropped + if (append(frame, momentUs)) 0 else 1
+                val written = append(frame, momentUs)
+                dropped + if (written || frame.sound) 0 else 1
             }
         retire()
         return dropped
@@ -538,7 +547,9 @@ class FrameStore(
             whole = marked && size > 0 && run.bytes + size <= length
             if (whole) {
                 val moment = momentUs.takeIf { flags and HAS_MOMENT != 0 }
-                run.frames += Entry(run.bytes, size, ptsUs, flags and KEYFRAME != 0, moment, wallMs, readBack = true)
+                val keyframe = flags and KEYFRAME != 0
+                val sound = flags and SOUND != 0
+                run.frames += Entry(run.bytes, size, ptsUs, keyframe, moment, wallMs, readBack = true, sound = sound)
                 run.bytes += size
             }
         }
@@ -577,7 +588,8 @@ class FrameStore(
         val out = writer
         val index = indexWriter
         if (run == null || out == null || index == null) return false
-        val entry = Entry(run.bytes, frame.data.size, frame.ptsUs, frame.keyframe, momentUs, wallClock())
+        val size = frame.data.size
+        val entry = Entry(run.bytes, size, frame.ptsUs, frame.keyframe, momentUs, wallClock(), sound = frame.sound)
         try {
             out.write(frame.data)
             index.write(record(entry)) // after its bytes: an index record names a frame all written
@@ -622,7 +634,7 @@ class FrameStore(
             file.seek(entry.offset)
             file.readFully(data)
             lastReadUs = maxOf(lastReadUs ?: entry.ptsUs, entry.ptsUs) // to be confirmed, or sent again
-            KeptFrame(data, entry.ptsUs, entry.keyframe, entry.momentUs)
+            KeptFrame(data, entry.ptsUs, entry.keyframe, entry.momentUs, entry.sound)
         } catch (_: IOException) {
             // Its file gone, or the storage failing: passed over, the uplink asking for the next -- a frame never
             // sent is never confirmed, and would hold the stream unsent, its camera waiting, for good.
@@ -708,11 +720,20 @@ class FrameStore(
         private const val KEYFRAME = 1
         private const val HAS_MOMENT = 2
         private const val READ_BACK = 4
+
+        /** A piece of sound (specs/013): an index written before it never says so, its frames all video. */
+        private const val SOUND = 8
         private const val NO_MOMENT = Long.MIN_VALUE
         private const val FIRST_ROOM = 32 // a second's run at 30 fps; at 60, grown once
 
+        /** What an index record, and the frames' flags, say of [entry]: keyframe, moment, sound. */
+        private fun flagsOf(entry: Entry): Int =
+            (if (entry.keyframe) KEYFRAME else 0) or
+                (if (entry.momentUs != null) HAS_MOMENT else 0) or
+                (if (entry.sound) SOUND else 0)
+
         private fun record(entry: Entry): ByteArray {
-            val flags = (if (entry.keyframe) KEYFRAME else 0) or (if (entry.momentUs != null) HAS_MOMENT else 0)
+            val flags = flagsOf(entry)
             return ByteBuffer
                 .allocate(RECORD)
                 .put(MARK)
