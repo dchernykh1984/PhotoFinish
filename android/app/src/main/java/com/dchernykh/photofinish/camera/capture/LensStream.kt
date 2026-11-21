@@ -90,7 +90,7 @@ internal class LensStream private constructor(
     fun keyframe() = requestKeyframe(codec)
 
     override fun feed() {
-        microphone?.let { uplink.sounded = it.start() } // the sound with the camera that feeds the stream again
+        microphone?.start() // the sound with the camera that feeds the stream again
         frames.feed(uplink.captureClock?.invoke()) // its frames watched from the camera's next, its first told
         uplink.stampAgain() // a connection without moments, its clock come since, made anew with them
         words.feed()
@@ -103,7 +103,7 @@ internal class LensStream private constructor(
 
     /** The microphone allowed since the stream began (specs/013): heard from now on, while a camera feeds it. */
     fun hear() {
-        if (fed && !stopped) microphone?.let { uplink.sounded = it.start() }
+        if (fed && !stopped) microphone?.start()
     }
 
     /** Stopped, what it kept and has not sent handed to the backlog to send alone (specs/009, FR-003). */
@@ -222,8 +222,8 @@ internal class LensStream private constructor(
                     "encoder-$name",
                 ).apply { start() }
             // A stream starts fed: feed() is a camera's after the first. Its connection waits for the sound's config
-            // only while the microphone runs.
-            microphone?.let { uplink.sounded = it.start() }
+            // only while the microphone runs, as it tells.
+            microphone?.start()
             return stream
         }
 
@@ -233,7 +233,13 @@ internal class LensStream private constructor(
             lens: String,
             log: PhoneLog,
             allowed: () -> Boolean,
-        ) = Microphone(uplink::configureSound, uplink::offerSound, { uplink.captureClock }, allowed) {
+        ) = Microphone(
+            uplink::configureSound,
+            uplink::offerSound,
+            { uplink.captureClock },
+            allowed,
+            { uplink.sounded = it },
+        ) {
             log.warning(lens, it)
             uplink.sounded = false // no sound to wait for
         }
