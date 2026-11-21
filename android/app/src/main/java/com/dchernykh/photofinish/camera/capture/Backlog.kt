@@ -27,6 +27,8 @@ class Backlog(
      * those are live streams', not to read back, whatever the phone's clock did meanwhile.
      */
     private val session: String = "",
+    /** Where a stream handed over is synced and read back: a thread of its own, never the cameras'. */
+    private val handOff: (Runnable) -> Unit = { it.run() },
 ) {
     /** A kept stream's uplink, running, and how it is stopped. */
     class Sending(
@@ -50,11 +52,14 @@ class Backlog(
     /** Frames whose header was lost, and their bytes: counted, so the screen offers Discard for them. */
     private val orphans = mutableMapOf<File, Long>()
 
+    /** Streams handed over and not taken yet, by their address: it is held for them meanwhile. */
+    private val handing = mutableListOf<Pair<RtmpAddress, FrameStore>>()
+
     /** Read back: until then every address is held ([holds]), so nothing a camera feeds goes before what was kept. */
     @Volatile private var ready = false
 
     /** A lens streams, or a stream is kept: there are frames to send. */
-    val active: Boolean @Synchronized get() = kept.isNotEmpty() || live.isNotEmpty()
+    val active: Boolean @Synchronized get() = kept.isNotEmpty() || live.isNotEmpty() || handing.isNotEmpty()
 
     /**
      * What the stores' root holds from the app's runs before, read back: streams to send, or folders of nothing to
@@ -89,14 +94,23 @@ class Backlog(
      */
     fun handOver(
         store: FrameStore,
+        address: RtmpAddress,
         off: () -> Unit,
     ) {
-        // Synced and read back outside the backlog's lock: the other lenses' status and the screen wait for none.
-        val read = if (store.handOver()) read(store.folder) else null
-        synchronized(this) {
-            read?.let { admit(it) }
-            off()
-        }
+        val handed = address to store
+        synchronized(this) { handing += handed } // its address held until it is taken
+        handOff(
+            Runnable {
+                // Synced and read back away from the cameras' thread and outside the backlog's lock: the next open,
+                // the other lenses' status and the screen wait for none of it.
+                val read = if (store.handOver()) read(store.folder) else null
+                synchronized(this) {
+                    read?.let { admit(it) }
+                    handing -= handed
+                    off()
+                }
+            },
+        )
     }
 
     /** A stream handed over, its store closed: sent if it holds anything unsent, else removed. */
@@ -186,7 +200,8 @@ class Backlog(
 
     /** Streams kept for [address], sending or waiting -- or not read back yet: a stream a camera feeds waits. */
     @Synchronized
-    fun holds(address: RtmpAddress): Boolean = !ready || kept.any { it.header.address == address }
+    fun holds(address: RtmpAddress): Boolean =
+        !ready || kept.any { it.header.address == address } || handing.any { it.first == address }
 
     /** A store a camera feeds, for [address]: counted in what the phone holds for it. Returns what takes it off. */
     @Synchronized

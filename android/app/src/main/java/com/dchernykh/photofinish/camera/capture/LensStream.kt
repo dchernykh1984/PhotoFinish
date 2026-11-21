@@ -95,7 +95,7 @@ internal class LensStream private constructor(
     /** Stopped, what it kept and has not sent handed to the backlog to send alone (specs/009, FR-003). */
     override fun stop() {
         end()
-        Senders.backlog.handOver(store, off) // kept before its live count goes: never idle in between
+        Senders.backlog.handOver(store, planned.target.address, off) // kept before its live count goes
     }
 
     /** Stopped, what it kept dropped: the referee's Discard (specs/009, FR-004). */

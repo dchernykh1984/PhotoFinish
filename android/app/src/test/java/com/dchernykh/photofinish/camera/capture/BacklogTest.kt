@@ -164,7 +164,7 @@ class BacklogTest {
         StreamHeader(Lens.MAIN, first, format, byteArrayOf(1)).write(folder)
         val off = backlog.live(first, store)
         var activeAtOff: Boolean? = null
-        backlog.handOver(store) {
+        backlog.handOver(store, first) {
             activeAtOff = backlog.active
             off()
         }
@@ -199,7 +199,7 @@ class BacklogTest {
             release.await(5, java.util.concurrent.TimeUnit.SECONDS)
         }
         val off = backlog.live(first, store)
-        val handing = Thread { backlog.handOver(store, off) }.apply { start() }
+        val handing = Thread { backlog.handOver(store, first, off) }.apply { start() }
         assertTrue(syncing.await(5, java.util.concurrent.TimeUnit.SECONDS))
         val since = System.nanoTime()
         backlog.pending()
@@ -275,12 +275,30 @@ class BacklogTest {
         val store = FrameStore(newer, freeBytes = { Long.MAX_VALUE })
         store.keep(EncodedFrame(ByteArray(10), 0, true), 1)
         StreamHeader(Lens.MAIN, first, format, byteArrayOf(1)).write(newer)
-        backlog.handOver(store) {} // in while the read back has not run
+        backlog.handOver(store, first) {} // in while the read back has not run
         backlog.tick()
         assertTrue(started.isEmpty()) // nothing sent before all is read back
         backlog.readBack()
         backlog.tick()
         assertEquals(listOf(older.name), started.map { it.folder.name })
+    }
+
+    @Test
+    fun `a stream handed over holds its address and counts as activity until it is taken, off the caller's thread`() {
+        val queued = mutableListOf<Runnable>()
+        val later = Backlog(root, { _, _ -> error("not sent") }, handOff = { queued += it })
+        later.readBack()
+        val folder = File(root, "main-900")
+        val store = FrameStore(folder, freeBytes = { Long.MAX_VALUE })
+        store.keep(EncodedFrame(ByteArray(10), 0, true), 1)
+        StreamHeader(Lens.MAIN, first, format, byteArrayOf(1)).write(folder)
+        val off = later.live(first, store)
+        later.handOver(store, first, off)
+        assertTrue(later.holds(first)) // not taken yet: a new stream to the camera waits
+        assertEquals(1, queued.size)
+        queued.single().run()
+        assertTrue(later.holds(first)) // taken: kept to send
+        assertTrue(later.active)
     }
 
     @Test

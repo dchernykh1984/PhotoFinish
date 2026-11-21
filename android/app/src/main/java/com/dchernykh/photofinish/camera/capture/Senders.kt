@@ -44,7 +44,17 @@ object Senders {
         status: (RtmpAddress, Long) -> String?,
     ): Backlog {
         started?.let { return it }
-        val backlog = Backlog(root, send = { header, store -> send(header, store, report, status) }, say = say, session)
+        val handing =
+            java.util.concurrent.Executors.newSingleThreadExecutor {
+                Thread(it, "handing").apply {
+                    isDaemon =
+                        true
+                }
+            }
+        val backlog =
+            Backlog(root, send = { header, store -> send(header, store, report, status) }, say = say, session) {
+                handing.execute(it)
+            }
         started = backlog
         Thread({ tick(backlog, say) }, "backlog").apply {
             isDaemon = true
