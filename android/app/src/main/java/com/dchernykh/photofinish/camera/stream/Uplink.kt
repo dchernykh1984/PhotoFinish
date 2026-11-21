@@ -211,7 +211,7 @@ class Uplink(
             try {
                 stream() // returns once stopped; a lost connection throws
             } catch (_: Holding) {
-                lost() // let go to wait for the first lens: no pause, nothing lost
+                lost(held = true) // let go to wait for the first lens: no pause, nothing lost
             } catch (error: Exception) {
                 lost()
                 if (running) pause = reconnectAfter(error, pause)
@@ -232,13 +232,17 @@ class Uplink(
         return minOf(waited * 2, MAX_PAUSE_MS)
     }
 
-    /** A connection gone: what it acknowledged before it died taken, and the next begins before what it swallowed. */
-    private fun lost() {
+    /**
+     * A connection gone: what it acknowledged before it died taken, and the next begins before what it swallowed --
+     * from the newest frame confirmed when it was [held] for the first lens: let go by the phone, to a recorder that
+     * wrote what it confirmed, nothing it has is sent again each time the first lens holds it back.
+     */
+    private fun lost(held: Boolean = false) {
         connected = false
         publisher?.close()
         if (!running) return
         publisher?.let { confirm(it) }
-        if (stamped) store.rewind()
+        if (stamped) store.rewind(if (held) 0L else FrameStore.CONFIRMED_MARGIN_US)
     }
 
     /** Waits, said once, until the address is the stream's turn and the first lens lets it send; false once stopped. */

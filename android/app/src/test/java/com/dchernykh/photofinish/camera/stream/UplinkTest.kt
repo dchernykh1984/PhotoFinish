@@ -806,6 +806,39 @@ class UplinkWaitsTest {
     }
 
     @Test
+    fun `a lens held for the first sends again only what its recorder did not confirm`() {
+        val held = FakeSink(acknowledgeTo = 31) // read to 3.0 s
+        val again = FakeSink()
+        val allowed =
+            java.util.concurrent.atomic
+                .AtomicBoolean(true)
+        val queue = ArrayDeque(listOf(held, again))
+        val link =
+            Uplink(
+                address,
+                format,
+                clock = { exchange(1_000_000) },
+                requestKeyframe = { keyframesAsked.release() },
+                report = { statuses += it },
+                FrameStore(kept, freeBytes = { Long.MAX_VALUE }),
+                firstLens = { allowed.get() },
+            )
+        link.connect = { queue.removeFirst() }
+        link.configure(sps, pps)
+        running += link
+        start(link)
+        awaitConnected()
+        repeat(40) { link.offer(frame(it * 100_000L, keyframe = it % 10 == 0)) }
+        repeat(40) { held.next() }
+        allowed.set(false)
+        assertTrue(held.closed.await(Uplink.HOLD_MS + 2_000, TimeUnit.MILLISECONDS))
+        allowed.set(true)
+        awaitConnected()
+        // Its keyframe at 3.0 s, not 2 s before it again: the moment is the frame's capture, the recorder 1 s ahead.
+        assertEquals(3_000_000L + 1_000_000, momentOf(again.next().units[0]))
+    }
+
+    @Test
     fun `an h265 stream's frames carry its sei units, and its metadata names hvc1`() {
         val sink = FakeSink()
         val hevc = StreamFormat(Resolution(1920, 1080), 30, FpsRange(30, 30), 3_500_000, Codec.HEVC)

@@ -259,12 +259,12 @@ class FrameStore(
 
     /**
      * After a loss: the cursor back to the last keyframe before what a dead connection may have swallowed --
-     * [CONFIRMED_MARGIN_US] before the newest frame the server confirmed, or [KEEP_SENT_US] before the newest
-     * read when it confirmed none -- the oldest kept when none is that old.
+     * [marginUs] before the newest frame the server confirmed, or [KEEP_SENT_US] before the newest read when it
+     * confirmed none -- the oldest kept when none is that old.
      */
-    fun rewind() {
+    fun rewind(marginUs: Long = CONFIRMED_MARGIN_US) {
         lock.withLock {
-            val safe = safeBefore(confirmedUs, lastReadUs) ?: return
+            val safe = safeBefore(confirmedUs, lastReadUs, marginUs) ?: return
             cursorRun = runs.lastOrNull { it.frames.first().ptsUs <= safe } ?: runs.firstOrNull()
             cursorFrame = 0
         }
@@ -688,7 +688,8 @@ class FrameStore(
         private fun safeBefore(
             confirmedUs: Long?,
             lastReadUs: Long?,
-        ): Long? = confirmedUs?.minus(CONFIRMED_MARGIN_US) ?: lastReadUs?.minus(KEEP_SENT_US)
+            marginUs: Long = CONFIRMED_MARGIN_US,
+        ): Long? = confirmedUs?.minus(marginUs) ?: lastReadUs?.minus(KEEP_SENT_US)
 
         /** [run] read past, and wholly before [safeUs]: not to be sent again. */
         private fun sent(
