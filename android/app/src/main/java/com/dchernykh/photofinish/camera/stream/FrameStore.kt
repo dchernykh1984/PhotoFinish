@@ -102,6 +102,9 @@ class FrameStore(
         /** The capture time of the frame at [index], us: no entry made for it. */
         fun ptsUs(index: Int): Long = pts[index]
 
+        /** Whether the frame at [index] is a keyframe: no entry made for it. */
+        fun keyframe(index: Int): Boolean = flags[index].toInt() and KEYFRAME != 0
+
         fun last(): Entry = get(count - 1)
 
         fun firstOrNull(): Entry? = getOrNull(0)
@@ -234,14 +237,24 @@ class FrameStore(
     }
 
     /** The next frame to send, waiting up to [waitMs] for one; null when none came, or the store was cleared. */
-    fun next(waitMs: Long): KeptFrame? {
+    fun next(
+        waitMs: Long,
+        fromKeyframe: Boolean = false,
+    ): KeptFrame? {
         lock.withLock {
             var left = TimeUnit.MILLISECONDS.toNanos(waitMs)
             while (!cleared && !closed) {
                 val run = cursorRun ?: runs.firstOrNull()
                 val after = run?.let { following(runs, it) }
+                val here = run?.takeIf { cursorFrame < it.frames.size }
                 when {
-                    run != null && cursorFrame < run.frames.size -> return read(run)
+                    // A connection starts at a keyframe: the frames before it passed over, never read -- a frame
+                    // read is one to be confirmed, and these never go.
+                    here != null && fromKeyframe && !here.frames.keyframe(cursorFrame) -> {
+                        cursorRun = here
+                        cursorFrame++
+                    }
+                    here != null -> return read(here)
                     after != null -> {
                         cursorRun = after
                         cursorFrame = 0

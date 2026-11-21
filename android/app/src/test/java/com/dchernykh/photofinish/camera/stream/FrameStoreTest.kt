@@ -257,6 +257,18 @@ class FrameStoreTest {
     }
 
     @Test
+    fun `frames before a connection's keyframe are passed over, never read to be confirmed`() {
+        val store = store()
+        second(store, 0)
+        assertEquals(0L, store.next(0)?.ptsUs) // the keyframe sent
+        store.confirm(0)
+        assertNull(store.next(0, fromKeyframe = true)) // a new connection: no keyframe after it yet
+        assertFalse(store.unsent) // the frames passed over will never be sent: nothing left unconfirmed
+        second(store, 1)
+        assertEquals(1_000_000L, store.next(0, fromKeyframe = true)?.ptsUs)
+    }
+
+    @Test
     fun `how long the frame to send next has been kept is told`() {
         val store = store()
         assertEquals(0L, store.heldMs(9_000_000))

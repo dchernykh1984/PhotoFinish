@@ -307,7 +307,7 @@ class Uplink(
             sleep(POLL_MS)
             return null
         }
-        val kept = store.next(POLL_MS)?.takeIf { first != null || it.keyframe }
+        val kept = store.next(POLL_MS, fromKeyframe = first == null)
         if (kept != null && !firstLens()) {
             store.back() // the first lens fell behind while this one waited for a frame: it waits too
             return null
