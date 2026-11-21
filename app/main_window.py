@@ -95,7 +95,7 @@ from app.recorder.launcher import (
     recording,
 )
 from app.recorder.phone_log import last_word
-from app.sound import has_sound
+from app.sound import has_sound, phone_mates, shift_ms
 from app.start_protocol import StartNumbers
 from app.video_index import FileIndex, Frame, VideoIndex
 from app.widgets import export_dialog
@@ -1999,9 +1999,8 @@ class MainWindow(QMainWindow):
         if heard is None or not self.sound_box.isChecked():
             self.sound.stop()
             return
-        clock, moment = self._play_start
-        since = (time.monotonic() - clock) * 1000 * self.rate
-        own = round(moment + since) - int(heard.settings.get("offset_ms", 0))
+        due = playback.moment_due(self._play_start, time.monotonic(), self.rate)
+        own = due - int(heard.settings.get("offset_ms", 0))  # on its own times
         self.sound.play(heard.index, own, self.rate)
         self._sound_from = (heard.index, len(heard.index.paths))
 
@@ -2021,13 +2020,10 @@ class MainWindow(QMainWindow):
         camera = self.cameras.get(camera_id)
         if camera is None or export.has_sound(folder_of(camera_id)):
             return None
-        phone = camera.settings.get("phone")
-        own = int(camera.settings.get("offset_ms", 0))
-        for other in self.cameras.values():
-            if other is not camera and phone and other.settings.get("phone") == phone:
-                if export.has_sound(folder_of(other.id)):
-                    shift = int(other.settings.get("offset_ms", 0)) - own
-                    return folder_of(other.id), shift
+        settings = [c.settings for c in self.cameras.values()]
+        for mate in phone_mates(camera.settings, settings):
+            if export.has_sound(folder_of(str(mate["id"]))):
+                return folder_of(str(mate["id"])), shift_ms(camera.settings, mate)
         return None
 
     def _sound_camera(self) -> Camera | None:
@@ -2036,12 +2032,10 @@ class MainWindow(QMainWindow):
         chosen = self._camera()
         if chosen is None or self.moment is None:
             return None
-        phone = chosen.settings.get("phone")
-        siblings = [
-            other
-            for other in self.cameras.values()
-            if other is not chosen and phone and other.settings.get("phone") == phone
-        ]
+        mates = phone_mates(
+            chosen.settings, [c.settings for c in self.cameras.values()]
+        )
+        siblings = [self.cameras[str(mate["id"])] for mate in mates]
         for camera in (chosen, *siblings):
             own = self.moment - int(camera.settings.get("offset_ms", 0))
             place = camera.index.nearest(own, within=NEAR_MS)

@@ -29,6 +29,13 @@ def speed_name(speed: float) -> str:
     return f"x{speed:g}" if speed >= 0.25 else f"x1/{round(1 / speed)}"
 
 
+def moment_due(started: Start, now: float, rate: float) -> int:
+    """The video's moment due at clock ``now``: where playing went on from, and the
+    time since at ``rate``, below 0 backwards."""
+    clock, moment = started
+    return moment + round((now - clock) * 1000 * rate)
+
+
 def play_on(
     frames: Frames, started: Start, now: float, offset: int, rate: float = 1.0
 ) -> tuple[int | None, Start]:
@@ -39,8 +46,7 @@ def play_on(
     started later) playing goes on from the first frame after it, rather than
     holding one frame for the gap's length. None once the newest frame is passed:
     playing on is Live -- or, backwards, once the first is: playing ends."""
-    clock, moment = started
-    due = moment + round((now - clock) * 1000 * rate) - offset  # the camera's times
+    due = moment_due(started, now, rate) - offset  # the camera's times
     if rate < 0:
         return _back(frames, started, now, offset, due)
     if not len(frames) or due >= int(frames.ms[-1]):
