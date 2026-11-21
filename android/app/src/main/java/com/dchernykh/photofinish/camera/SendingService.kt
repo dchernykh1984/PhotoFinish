@@ -44,7 +44,6 @@ class SendingService : Service() {
         flags: Int,
         startId: Int,
     ): Int {
-        running = true
         val type =
             if (Build.VERSION.SDK_INT >=
                 Build.VERSION_CODES.Q
@@ -53,7 +52,15 @@ class SendingService : Service() {
             } else {
                 0
             }
-        ServiceCompat.startForeground(this, ID, notification(), type)
+        try {
+            ServiceCompat.startForeground(this, ID, notification(), type)
+        } catch (_: IllegalStateException) {
+            // Android refusing it -- the day's time for sending in the background spent --: the app goes on unkept,
+            // never ended for it; what is kept is sent at its next start.
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        running = true
         handler.removeCallbacks(tick)
         handler.postDelayed(tick, TICK_MS)
         return START_NOT_STICKY
