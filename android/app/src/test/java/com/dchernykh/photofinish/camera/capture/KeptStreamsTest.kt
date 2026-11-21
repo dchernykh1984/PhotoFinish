@@ -136,14 +136,13 @@ class KeptStreamsTest {
     }
 
     @Test
-    fun `the lenses with a stream are told, the idle among them, not those stopped`() {
+    fun `an idle stream still sending what it kept is not swept, one with nothing unsent is`() {
         feed(Lens.MAIN)
         feed(Lens.TELEPHOTO).unsent = true
-        kept.idle(Lens.TELEPHOTO, 0) // left out, still sending what it kept: its room still taken
+        kept.idle(Lens.TELEPHOTO, 0) // left out, still sending what it kept
         kept.idle(Lens.MAIN, 0)
-        assertEquals(setOf(Lens.MAIN, Lens.TELEPHOTO), kept.lenses)
-        kept.sweep(KeptStreams.IDLE_MS)
-        assertEquals(setOf(Lens.TELEPHOTO), kept.lenses)
+        assertEquals(listOf(Lens.MAIN), kept.sweep(KeptStreams.IDLE_MS))
+        assertEquals(emptyList<Lens>(), kept.sweep(KeptStreams.IDLE_MS)) // the telephoto still sending
     }
 
     @Test
@@ -165,7 +164,7 @@ class KeptStreamsTest {
         main.unsent = true
         kept.discardAll()
         assertEquals(listOf("discarded"), main.said)
-        assertEquals(emptySet<Lens>(), kept.lenses)
+        assertEquals(emptyList<Lens>(), kept.sweep(60_000)) // none left
         kept.discardAll()
         assertEquals(listOf("discarded"), main.said)
     }
