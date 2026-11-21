@@ -2024,8 +2024,10 @@ class MainWindow(QMainWindow):
         if self.playing and not self.backwards and self.sound_box.isChecked():
             due = playback.moment_due(self._play_start, time.monotonic(), self.rate)
             now = self._sound_camera(due)
-            if (None if now is None else now.id) != self._sound_from:
-                self._play_sound()  # or begun: the microphone allowed as it plays
+            # Another's, or begun -- the microphone allowed as it plays --; none a
+            # poll, a line late a close, never stops the sound playing.
+            if now is not None and now.id != self._sound_from:
+                self._play_sound()
                 return
         heard = self.cameras.get(self._sound_from or "")
         grows = heard is not None and self._grows(heard)
