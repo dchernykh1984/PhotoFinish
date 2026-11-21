@@ -95,7 +95,7 @@ from app.recorder.launcher import (
     recording,
 )
 from app.recorder.phone_log import last_word
-from app.sound import playing_from, shift_ms, whose
+from app.sound import exported_sound, playing_from
 from app.start_protocol import StartNumbers
 from app.video_index import FileIndex, Frame, VideoIndex
 from app.widgets import export_dialog
@@ -2010,21 +2010,14 @@ class MainWindow(QMainWindow):
         self.sound.play(heard.index, own, self.rate, follows=alive(heard.info))
 
     def _sound_folder(self, camera_id: str) -> tuple[Path, int] | None:
-        """Whose sound a camera's exported file takes (013): another camera's of its
-        phone, when its own pieces have none and that one's have, with how much
-        later that sound goes -- the two offsets apart, as it plays --; else None,
-        its own."""
+        """Whose sound a camera's exported file takes, and how much later (013);
+        None, its own."""
         camera = self.cameras.get(camera_id)
         if camera is None:
             return None
-        found = whose(
-            camera.settings,
-            [c.settings for c in self.cameras.values()],
-            lambda heard: export.has_sound(folder_of(str(heard["id"]))),
+        return exported_sound(
+            camera.settings, [c.settings for c in self.cameras.values()]
         )
-        if found is None or found is camera.settings:
-            return None
-        return folder_of(str(found["id"])), shift_ms(camera.settings, found)
 
     def _sound_camera(self, moment: int) -> Camera | None:
         """Whose sound plays from ``moment`` (013): the camera shown, when its

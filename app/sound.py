@@ -25,6 +25,7 @@ from typing import Any
 import av
 import numpy as np
 
+from app.recorder import folder_of
 from app.recorder.segments import LEAD_MS, SOUND, fraction, in_ms
 from app.video_index import VideoIndex, read_times
 
@@ -135,6 +136,18 @@ def shift_ms(own: Mapping[str, Any], heard: Mapping[str, Any]) -> int:
     """How much later than its own moments ``heard``'s sound goes in ``own``'s video:
     the two cameras' offsets apart, as it plays."""
     return int(heard.get("offset_ms", 0)) - int(own.get("offset_ms", 0))
+
+
+def exported_sound(
+    own: Mapping[str, Any], cameras: Iterable[Mapping[str, Any]]
+) -> tuple[Path, int] | None:
+    """Whose sound ``own``'s exported file takes: a camera's of its phone, when its
+    own recording kept none and that one's did, with how much later that sound goes
+    -- the two offsets apart, as it plays --; None, its own or none."""
+    found = whose(own, cameras, lambda c: heard_somewhere(folder_of(str(c["id"]))))
+    if found is None or found is own:
+        return None
+    return folder_of(str(found["id"])), shift_ms(own, found)
 
 
 def has_sound(path: Path) -> bool:

@@ -12,7 +12,8 @@ import numpy as np
 import pytest
 
 from app import sound
-from app.recorder.segments import SegmentWriter, fraction, in_ms
+from app.recorder import folder_of
+from app.recorder.segments import SOUND, SegmentWriter, fraction, in_ms
 from app.recorder.testcam import render
 from app.video_index import VideoIndex
 from tests.test_segments import START
@@ -237,6 +238,22 @@ def test_whose_sound_is_the_cameras_own_else_its_phones_first_that_has_some() ->
     assert sound.whose(other, cameras, heard) is None  # another phone's: none
     has.add("cam2")
     assert sound.whose(tele, cameras, heard) is tele
+
+
+def test_an_exported_file_takes_its_phones_sound_when_its_own_kept_none(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)  # the cameras' folders under it, as next to the app
+    main: dict[str, object] = {"id": "cam1", "phone": "p1", "offset_ms": 50}
+    tele: dict[str, object] = {"id": "cam2", "phone": "p1", "offset_ms": 20}
+    other: dict[str, object] = {"id": "cam3", "phone": "p2"}
+    cameras = [main, tele, other]
+    folder_of("cam1").mkdir(parents=True)
+    (folder_of("cam1") / SOUND).write_text("0001.mkv\n")  # the main lens kept some
+    # Its phone's, 30 ms later: the main lens aligned that much later than it.
+    assert sound.exported_sound(tele, cameras) == (folder_of("cam1"), 30)
+    assert sound.exported_sound(main, cameras) is None  # its own
+    assert sound.exported_sound(other, cameras) is None  # another phone's: none
 
 
 def test_a_piece_that_cannot_be_decoded_costs_its_own_length_alone(
