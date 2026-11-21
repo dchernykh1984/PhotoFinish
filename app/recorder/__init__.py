@@ -379,8 +379,12 @@ class _Recording:
                 self.beat.beat(state="recording", phone=source.phone)
             return
         if self.writer is None:  # its own recovery writes too: a full disk said so
+            # A track for its sound when the source reads it: a pushed stream's alone.
+            heard = bool(getattr(source, "listen", False))
             self.writer = _disk(
-                lambda: SegmentWriter(self.folder, source.fps, closed=self.closed)
+                lambda: SegmentWriter(
+                    self.folder, source.fps, closed=self.closed, sound=heard
+                )
             )
         writer = self.writer
         writer.fps = source.fps
