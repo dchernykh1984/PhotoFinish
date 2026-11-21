@@ -27,8 +27,8 @@ def moment_ms(packet: bytes | memoryview, hevc: bool = False) -> int | None:
     """The moment written into an H.264 packet -- an H.265 one with ``hevc`` -- as
     RTMP carries it, each unit after its length in four bytes, in milliseconds;
     None when it has none. A memoryview is read without a copy."""
-    moment = _found(packet, MARK, hevc)
-    if moment is None or len(moment) < 8:
+    moment = _found(packet, MARK, hevc, least=8)
+    if moment is None:
         return None
     return (int.from_bytes(moment[:8], signed=True) + 500) // 1000
 
@@ -46,9 +46,12 @@ def phone_status(
     return dict(pair.split("=", 1) for pair in pairs if "=" in pair)
 
 
-def _found(packet: bytes | memoryview, mark: bytes, hevc: bool) -> bytes | None:
+def _found(
+    packet: bytes | memoryview, mark: bytes, hevc: bool, least: int = 0
+) -> bytes | None:
     """What follows ``mark`` in the first SEI message of that kind before the
-    packet's picture: H.264's units have a byte of header, H.265's two."""
+    packet's picture, of ``least`` bytes at least -- one cut shorter passed over:
+    H.264's units have a byte of header, H.265's two."""
     for start, end in _units(packet):
         if hevc:
             kind, header, picture, sei = (
@@ -63,7 +66,7 @@ def _found(packet: bytes | memoryview, mark: bytes, hevc: bool) -> bytes | None:
             return None
         if kind == sei:
             found = _message(_unescape(bytes(packet[start + header : end])), mark)
-            if found is not None:
+            if found is not None and len(found) >= least:
                 return found
     return None
 
