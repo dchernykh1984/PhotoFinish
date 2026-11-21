@@ -172,7 +172,11 @@ class FrameStore(
     /** Closed: handed over, its files left for a store made on the folder to send. */
     private var closed = false
 
-    /** A run the storage would not read back, its files left as they are: the folder not to be removed for it. */
+    /**
+     * A run the storage would not read back, its files left as they are when it reads: the folder left for Discard
+     * when nothing else is kept in it; else it goes with the frames read once they are sent -- a run whose index
+     * cannot be read cannot be told into frames.
+     */
     var unreadable = false
         private set
 
@@ -264,7 +268,6 @@ class FrameStore(
      * The cursor on to the first keyframe kept with a moment, at or after it, so that a connection's frames
      * all carry their moments; past every frame kept when none has one yet: on to the next keyframe.
      */
-
     fun skipToStamped() {
         lock.withLock {
             val at = cursorRun ?: runs.firstOrNull() ?: return
