@@ -51,6 +51,13 @@ def test_the_phones_status_is_read_from_a_keyframe_after_its_moment() -> None:
     assert frame_time.moment_ms(packet) == (MOMENT_US + 500) // 1000  # still read
 
 
+def test_a_moment_cut_short_is_passed_over_for_the_next() -> None:
+    payload = frame_time.UUID + b"PFT1" + b"\x01\x02"  # two bytes of the eight
+    short = b"\x06" + escape(bytes([5, len(payload)]) + payload + b"\x80")
+    packet = avcc(short, sei(MOMENT_US), IDR)
+    assert frame_time.moment_ms(packet) == (MOMENT_US + 500) // 1000
+
+
 def test_a_long_status_and_odd_pairs_are_read_as_they_come() -> None:
     line = b"battery=9;" + b"x" * 300 + b";k=v=w"
     assert frame_time.phone_status(memoryview(avcc(status_sei(line), IDR))) == {
