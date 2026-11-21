@@ -31,6 +31,7 @@ class BacklogTest {
     private val backlog by lazy {
         Backlog(
             root,
+            session = "run2",
             send = { header, store ->
                 started += store
                 val uplink = Uplink(header.address, header.format, { null }, {}, {}, store, alone = true)
@@ -171,14 +172,15 @@ class BacklogTest {
     }
 
     @Test
-    fun `a folder begun after the backlog was made is a live stream's, left alone by the read back`() {
-        val now = System.currentTimeMillis()
-        val live = File(root, "main-${now + 60_000}").apply { mkdirs() } // its header not written yet
+    fun `a folder of this run is a live stream's, left alone by the read back whatever the clock says`() {
+        val live = File(root, "main-100-run2").apply { mkdirs() } // its header not written yet
         File(live, "0.h264").writeBytes(ByteArray(5))
+        kept(began = 99_999_999_999_999) // a run before, its clock ahead: read back and sent all the same
         File(root, "main").mkdirs() // an older app's folder: read back, nothing in it, removed
         backlog.readBack()
         assertTrue(live.isDirectory)
         assertFalse(File(root, "main").exists())
+        assertTrue(backlog.holds(first))
     }
 
     @Test

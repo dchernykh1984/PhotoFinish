@@ -18,6 +18,13 @@ import java.io.File
 object Senders {
     val board = PriorityBoard()
 
+    /** This run of the app's: the end of its streams' folders, which the read back leaves alone. */
+    val session: String =
+        java.util.UUID
+            .randomUUID()
+            .toString()
+            .take(SESSION_CHARS)
+
     @Volatile private var started: Backlog? = null
 
     val backlog: Backlog get() = started ?: error("the senders are not started")
@@ -38,7 +45,7 @@ object Senders {
         status: (RtmpAddress, Long) -> String?,
     ): Backlog {
         started?.let { return it }
-        val backlog = Backlog(root, send = { header, store -> send(header, store, report, status) }, say = say)
+        val backlog = Backlog(root, send = { header, store -> send(header, store, report, status) }, say = say, session)
         started = backlog
         Thread({ tick(backlog) }, "backlog").apply {
             isDaemon = true
@@ -88,6 +95,7 @@ object Senders {
     }
 
     private const val TICK_MS = 1_000L
+    private const val SESSION_CHARS = 8
 
     /** The stores' folder in the app's files. */
     const val FOLDER = "kept"
