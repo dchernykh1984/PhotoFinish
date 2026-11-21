@@ -2013,18 +2013,21 @@ class MainWindow(QMainWindow):
             if len(index.paths) > listed:
                 self._play_sound()
 
-    def _sound_folder(self, camera_id: str) -> Path | None:
+    def _sound_folder(self, camera_id: str) -> tuple[Path, int] | None:
         """Whose sound a camera's exported file takes (013): another camera's of its
-        phone, when its own newest piece has none and that one's has; else None, its
-        own."""
+        phone, when its own newest piece has none and that one's has, with how much
+        later that sound goes -- the two offsets apart, as it plays --; else None,
+        its own."""
         camera = self.cameras.get(camera_id)
         if camera is None or _heard(folder_of(camera_id)):
             return None
         phone = camera.settings.get("phone")
+        own = int(camera.settings.get("offset_ms", 0))
         for other in self.cameras.values():
             if other is not camera and phone and other.settings.get("phone") == phone:
                 if _heard(folder_of(other.id)):
-                    return folder_of(other.id)
+                    shift = int(other.settings.get("offset_ms", 0)) - own
+                    return folder_of(other.id), shift
         return None
 
     def _sound_camera(self) -> Camera | None:

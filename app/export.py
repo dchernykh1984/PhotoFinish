@@ -88,7 +88,7 @@ def export_all(
     jobs: list[tuple[Path, Path]],
     progress: Callable[[int], None] = lambda share: None,
     cancelled: Callable[[], bool] = lambda: False,
-    sounds: Mapping[Path, Path] | None = None,
+    sounds: Mapping[Path, tuple[Path, int]] | None = None,
 ) -> tuple[list[Path], str, int]:
     """Each camera's ``(folder, target)`` exported in turn: the files written --
     those a stop leaves too --, what went wrong -- CANCELLED, or each camera's
@@ -96,7 +96,8 @@ def export_all(
     pieces could not be read. ``progress`` hears the share done, of STEPS. Each
     camera goes up to the last piece closed as the export began, not as its turn
     comes: the cameras' files end together. ``sounds`` names, by a camera's folder,
-    the folder whose sound its file takes: its own without (specs/013)."""
+    the folder whose sound its file takes -- its own without -- and the ms that sound
+    goes later than its own moments: the two cameras' offsets apart (specs/013)."""
     written: list[Path] = []
     skipped: list[Path] = []
     failed: list[str] = []
@@ -107,9 +108,11 @@ def export_all(
         def told(done: int, total: int, n: int = n) -> None:
             progress((n * STEPS + done * STEPS // max(total, 1)) // count)
 
-        heard = (sounds or {}).get(folder, folder)
+        heard, shift = (sounds or {}).get(folder, (folder, 0))
         try:
-            export(folder, target, told, cancelled, written, skipped, videos, heard)
+            export(
+                folder, target, told, cancelled, written, skipped, videos, heard, shift
+            )
         except CancelledError:
             return written, CANCELLED, len(skipped)
         except Exception as failure:
@@ -126,6 +129,7 @@ def export(
     skipped: list[Path] | None = None,
     videos: list[Path] | None = None,
     heard: Path | None = None,
+    shift: int = 0,
 ) -> list[Path]:
     """The camera's pieces in ``folder`` into ``target`` -- ``<stem>-2`` on beside it
     as the format changes --; the files written, also added to ``written`` as each
@@ -133,12 +137,14 @@ def export(
     between them stops it, the file under way removed (CancelledError), as a file a
     failure leaves is. A piece that cannot be read is skipped, added to
     ``skipped``: the rest of the camera's video still comes. The sound of ``heard``
-    -- the camera's own folder without -- goes beside the frames."""
+    -- the camera's own folder without -- goes beside the frames, ``shift`` ms later
+    than its own moments."""
     writer = _Writer(target, [] if written is None else written, skipped)
     heard = folder if heard is None else heard
     if _has_sound(heard):  # else hours of pieces are not opened again for none
         writer.heard = VideoIndex(heard)
         writer.heard.refresh()
+        writer.shift = shift
     if videos is None:  # its pieces as they are now; else as they were listed
         videos = pieces(folder)
     try:
@@ -166,6 +172,7 @@ class _Writer:
         # A piece skipped or cut short: the next frame written a keyframe.
         self.broken = False
         self.heard: VideoIndex | None = None  # whose sound the files take (013)
+        self.shift = 0  # how much later than its own moments that sound goes
 
     def copy(self, video: Path) -> None:
         """One piece's listed packets onto the file under way, or a new file when its
@@ -224,8 +231,12 @@ class _Writer:
                 self.first = path = free(self.target)
             else:
                 path = free(_part(self.first, len(self.mine) + 1))
-            found = sound.pieces(self.heard, moment) if self.heard else iter(())
-            self.out = _Out(path, stream, moment, _form(stream), found)
+            found = (
+                sound.pieces(self.heard, moment - self.shift)
+                if self.heard
+                else iter(())
+            )
+            self.out = _Out(path, stream, moment, _form(stream), found, self.shift)
         self.out.add(packet, moment, time_base)
 
     def _skip(self, video: Path) -> None:
@@ -279,8 +290,10 @@ class _Out:
         first: int,
         form: tuple[Any, ...],
         found: Iterator[sound.Piece] | None = None,
+        shift: int = 0,
     ):
         self.path, self.first, self.form = path, first, form
+        self.shift = shift  # its sound placed this much later than its own moments
         self.partial = path.with_name(path.name + ".part")
         self.container = av.open(str(self.partial), "w", format="mp4")
         self.found = iter(()) if found is None else found
@@ -315,18 +328,16 @@ class _Out:
         runs on --; those before the file's first frame left out."""
         while self.audio is not None and self.piece is not None:
             piece = self.piece
-            if piece.ms > up_to:
+            at = piece.ms + self.shift  # on the frames' moments
+            if at > up_to:
                 return
             self.piece = next(self.found, None)
-            if (
-                piece.ms < self.first
-                or piece.form.rate != self.audio.time_base.denominator
-            ):
+            if at < self.first or piece.form.rate != self.audio.time_base.denominator:
                 continue  # before the file, or of a rate its sound is not
             rate = piece.form.rate
             length = round((piece.end_ms - piece.ms) * rate / 1000)
             frame_size = int(self.audio.codec_context.frame_size or length)
-            pts = round((piece.ms - self.first) * rate / 1000)
+            pts = round((at - self.first) * rate / 1000)
             if (
                 self.heard_next is not None
                 and abs(pts - self.heard_next) <= frame_size // 2

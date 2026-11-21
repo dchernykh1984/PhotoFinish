@@ -3948,3 +3948,14 @@ def test_a_sound_that_ran_out_as_the_recording_grew_goes_on(
     win.poll()
     assert len(heard.calls) == plays + 1
     assert heard.calls[-1][:2] == ("play", index)
+
+
+def test_a_lens_exported_with_its_phones_sound_takes_it_on_their_offsets(
+    phone_with_sound: Path, make_window: Callable[[], mw.MainWindow]
+) -> None:
+    # The main lens aligned 30 ms later than the telephoto: its sound so in the file.
+    win = make_window()
+    win.cameras["cam1"].settings["offset_ms"] = 50
+    win.cameras["cam2"].settings["offset_ms"] = 20
+    assert win._sound_folder("cam2") == (mw.folder_of("cam1"), 30)
+    assert win._sound_folder("cam1") is None  # its own
