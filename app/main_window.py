@@ -1995,11 +1995,12 @@ class MainWindow(QMainWindow):
     def _play_sound(self) -> None:
         """The sound of what plays forwards, from where playing goes on from, at its
         rate; silent otherwise -- backwards, held, Live -- or switched off (013)."""
-        heard = self._sound_camera() if self.playing and not self.backwards else None
-        if heard is None or not self.sound_box.isChecked():
+        forwards = self.playing and not self.backwards and self.sound_box.isChecked()
+        due = playback.moment_due(self._play_start, time.monotonic(), self.rate)
+        heard = self._sound_camera(due) if forwards else None  # where it goes on
+        if heard is None:
             self.sound.stop()
             return
-        due = playback.moment_due(self._play_start, time.monotonic(), self.rate)
         own = due - int(heard.settings.get("offset_ms", 0))  # on its own times
         self.sound.play(heard.index, own, self.rate)
         self._sound_from = (heard.index, len(heard.index.paths))
@@ -2029,11 +2030,12 @@ class MainWindow(QMainWindow):
             return None
         return folder_of(str(found["id"])), shift_ms(camera.settings, found)
 
-    def _sound_camera(self) -> Camera | None:
-        """Whose sound plays (013): the camera shown, when its recording has sound
-        there; else a camera of its phone's whose has -- the main lens's."""
-        chosen, moment = self._camera(), self.moment
-        if chosen is None or moment is None:
+    def _sound_camera(self, moment: int) -> Camera | None:
+        """Whose sound plays from ``moment`` (013): the camera shown, when its
+        recording has sound there; else a camera of its phone's whose has -- the
+        main lens's."""
+        chosen = self._camera()
+        if chosen is None:
             return None
 
         def heard_there(settings: Mapping[str, Any]) -> bool:
