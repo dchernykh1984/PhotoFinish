@@ -74,6 +74,12 @@ class FrameStore(
     /** The newest run's file and its index, open until a write to either fails. */
     private var writer: FileOutputStream? = null
     private var indexWriter: FileOutputStream? = null
+
+    /** The run before's, to be synced and closed once the lock is let go ([retire]). */
+    private val retired = ArrayList<FileOutputStream>()
+
+    /** How a run's file is written through to the storage; a test's waits. */
+    internal var syncFile: (FileOutputStream) -> Unit = ::sync
     private var reader: RandomAccessFile? = null
     private var readerRun: Run? = null
 
@@ -104,14 +110,29 @@ class FrameStore(
         frame: EncodedFrame,
         momentUs: Long?,
     ): Int {
-        lock.withLock {
-            if (cleared || closed) return 0
-            var dropped = 0
-            if (frame.keyframe) {
-                prune()
-                while (runs.isNotEmpty() && full(frame.ptsUs)) dropped += removeOldest()
+        val dropped =
+            lock.withLock {
+                if (cleared || closed) return 0
+                var dropped = 0
+                if (frame.keyframe) {
+                    prune()
+                    while (runs.isNotEmpty() && full(frame.ptsUs)) dropped += removeOldest()
+                }
+                dropped + if (append(frame, momentUs)) 0 else 1
             }
-            return dropped + if (append(frame, momentUs)) 0 else 1
+        retire()
+        return dropped
+    }
+
+    /**
+     * The run before's files, the new one begun, synced to the storage and closed outside the lock: an fsync of a
+     * slow flash holds up no reader -- the uplink, the other lenses asking the first, the screen counting.
+     */
+    private fun retire() {
+        val files = lock.withLock { retired.toList().also { retired.clear() } }
+        files.forEach {
+            syncFile(it)
+            close(it)
         }
     }
 
@@ -282,14 +303,15 @@ class FrameStore(
         lock.withLock {
             if (cleared || closed) return
             closed = true
-            sync(writer)
-            sync(indexWriter)
+            (retired + listOfNotNull(writer, indexWriter)).forEach { syncFile(it) }
             closeFiles()
             more.signalAll()
         }
     }
 
     private fun closeFiles() {
+        retired.forEach { close(it) }
+        retired.clear()
         close(writer)
         writer = null
         close(indexWriter)
@@ -360,10 +382,7 @@ class FrameStore(
         momentUs: Long?,
     ): Boolean {
         if (frame.keyframe) {
-            sync(writer) // the run before on the storage: a power cut costs this run at most
-            sync(indexWriter)
-            close(writer)
-            close(indexWriter)
+            retired += listOfNotNull(writer, indexWriter) // synced once the lock is let go: a power cut costs a run
             writer = null
             indexWriter = null
             val run = Run(File(folder, "${named++}$DATA"))

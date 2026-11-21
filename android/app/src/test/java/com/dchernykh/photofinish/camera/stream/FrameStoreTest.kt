@@ -355,6 +355,26 @@ class FrameStoreTest {
     }
 
     @Test
+    fun `a run is synced outside the store's lock, holding no reader up`() {
+        val store = store()
+        val syncing = java.util.concurrent.CountDownLatch(1)
+        val release = java.util.concurrent.CountDownLatch(1)
+        store.syncFile = {
+            syncing.countDown()
+            release.await(5, java.util.concurrent.TimeUnit.SECONDS)
+        }
+        second(store, 0) // the first run: none before it to sync
+        val writer = Thread { store.keep(frame(1_000_000, keyframe = true), 1) }.apply { start() }
+        assertTrue(syncing.await(5, java.util.concurrent.TimeUnit.SECONDS)) // the run of 0 s being synced
+        val since = System.nanoTime()
+        assertEquals(1_000L, store.pending.ms)
+        assertTrue(System.nanoTime() - since < 1_000_000_000) // not held up by the sync
+        release.countDown()
+        writer.join(5_000)
+        assertEquals(2, runs())
+    }
+
+    @Test
     fun `a closed store keeps its files, its clear not the next store's to suffer`() {
         val store = store()
         second(store, 0)
