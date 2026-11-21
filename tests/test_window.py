@@ -3833,8 +3833,8 @@ class Heard:
     def stop(self) -> None:
         self.calls.append(("stop",))
 
-    def follow(self, grows: bool = True) -> None:
-        self.calls.append(("follow", grows))
+    def follow(self) -> None:
+        self.calls.append(("follow",))
 
 
 @pytest.fixture
@@ -3950,7 +3950,7 @@ def test_the_sound_follows_the_recording_as_the_window_polls(
     win.play()
     plays = sum(call[0] == "play" for call in heard.calls)
     win.poll()
-    assert heard.calls[-1] == ("follow", True)
+    assert heard.calls[-1] == ("follow",)
     assert sum(call[0] == "play" for call in heard.calls) == plays
 
 
@@ -3962,26 +3962,26 @@ def test_a_sound_that_cannot_be_played_is_said(win: mw.MainWindow) -> None:
     )
 
 
-def test_the_sound_of_a_recorder_gone_is_heard_to_its_end(
+def test_the_sound_follows_while_the_window_keeps_its_recorder(
     phone_with_sound: Path, make_window: Callable[[], mw.MainWindow], clock: list[float]
 ) -> None:
-    # No segment will come: none waited for, the last pieces heard (013).
+    # Kept, it records on whatever its beat says a moment -- one stopped as it is
+    # replaced is started again --; let go and ended, it grows no more: its last
+    # pieces heard, none waited for (013).
     win = make_window()
     wait_until(lambda: win.moment is not None and win.place is not None)
     heard = sounding(win)
     win.step(-40)
+    beating(phone_with_sound, state="stopped")
+    win.poll()
     win.play()
-    beat = phone_with_sound / "video" / "cam1" / "recorder.json"
-    late = json.loads(beat.read_text()) | {"heartbeat_ms": 0}  # 15 s and more
-    beat.write_text(json.dumps(late))
+    assert heard.calls[-1][0::4] == ("play", True)
     win.poll()
-    assert heard.calls[-1] == ("follow", True)  # a beat late: it may write on
-    beating(phone_with_sound, state="stopped")  # the race over, its recorder too
-    win.poll()
-    assert heard.calls[-1] == ("follow", False)
+    assert heard.calls[-1] == ("follow",)  # a poll never ends it
     win.pause()
+    win.cameras["cam1"].watchdog.stop()  # its recording switched off, and ended
     win.play()
-    assert heard.calls[-1][0::4] == ("play", False)  # nothing to follow
+    assert heard.calls[-1][0::4] == ("play", False)
 
 
 def test_a_lens_exported_with_its_phones_sound_takes_it_on_their_offsets(
@@ -4116,7 +4116,7 @@ def test_the_sound_hears_of_a_segment_in_the_poll_that_lists_it(
     seen: list[int] = []
     heard = sounding(win)
     monkeypatch.setattr(
-        heard, "follow", lambda grows: seen.append(len(index.paths)), raising=False
+        heard, "follow", lambda: seen.append(len(index.paths)), raising=False
     )
     real = index.refresh
 

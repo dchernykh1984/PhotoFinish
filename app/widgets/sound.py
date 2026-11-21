@@ -131,18 +131,15 @@ class SoundPlayer(QObject):
         self._thread.start()
         self._timer.start()
 
-    def follow(self, grows: bool = True) -> None:
+    def follow(self) -> None:
         """The segments the index has gained since, heard on: on the window's
-        thread, which refreshes it. A recording that no longer ``grows`` -- its
-        recorder gone -- is heard to its end, no segment waited for."""
+        thread, which refreshes it."""
         if self._pieces is None or self._index is None:
             return
         found = self._index.paths[self._listed :]
         self._listed = len(self._index.paths)
         if found:
             self._pieces.extend(found)
-        if not grows:
-            self._pieces.finish()
 
     def stop(self) -> None:
         """Silent from now on: the rendering told to end, the output stopped."""
