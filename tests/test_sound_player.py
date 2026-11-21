@@ -294,6 +294,21 @@ def test_a_recording_not_followed_is_heard_to_its_end(tmp_path: Path) -> None:
     played.stop()
 
 
+def test_a_recording_that_grows_no_more_is_heard_to_its_end(tmp_path: Path) -> None:
+    # Its recorder let go and ended as it played: the pieces a next segment's might
+    # have come before are heard, none waited for -- the last 200 ms too.
+    index, grow = growing(tmp_path)
+    output = Output()
+    made = (output, player.RATE, player.CHANNELS)
+    played = player.SoundPlayer(output=lambda: made, clock=still)
+    played.play(index, START, 1.0)
+    grow()
+    played.follow(grows=False)
+    wait_until(lambda: given(played))
+    assert len(heard(output)) / RATE > 2.95  # the 3 s recorded, to their end
+    played.stop()
+
+
 def test_the_time_the_output_ran_dry_is_left_out_so_the_sound_keeps_up(
     tmp_path: Path,
 ) -> None:
