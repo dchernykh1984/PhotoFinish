@@ -87,9 +87,8 @@ class CameraStreamer(
     /** Counts the opens: a callback of an earlier one says nothing. Read from the uplinks' threads too. */
     @Volatile private var generation = 0
 
-    /** Where the lenses keep their frames until sent (specs/007), and each one's share of the room. */
+    /** Where the lenses keep their frames until sent (specs/007), the phone's free space less 10 GB (specs/009). */
     private val kept = File(context.filesDir, KEPT)
-    private var share = FrameStore.SHARE_BYTES
 
     /** The lenses' streams, kept across the cameras' opens while the referee's choice lasts: the cameras' thread's. */
     private val keptStreams = KeptStreams<LensStream>()
@@ -184,13 +183,6 @@ class CameraStreamer(
         val plan =
             plan(lenses, targets.filter { it.lens !in failedWith })
                 ?: return onStatus(null, StreamerStatus.Failed("no back camera"))
-        // The room shared by the lenses planned and those whose streams are kept -- one idle still sending what it kept
-        // holds its share --: one left out of the plan leaves the others its share; a stream kept keeps the share it
-        // was made with, the streams made in this open take this one, 2 GB in all at most (FR-003).
-        // shortcut: one dropped when its camera is made, whose encoder will not start, or left out once its stream was
-        // made, keeps its share, the others not given it; share it out if a network break is seen to cost them frames.
-        val withStreams = plan.cameras.flatMap { camera -> camera.lenses.map { it.target.lens } } + keptStreams.lenses
-        share = FrameStore.SHARE_BYTES / withStreams.toSet().size.coerceAtLeast(1)
         failedWith.forEach { onStatus(it, StreamerStatus.Left(LeftOut.FAILED_WITH_THE_OTHERS)) }
         plan.left.forEach { (lens, why) -> onStatus(lens, StreamerStatus.Left(why)) }
         leftOut = (failedWith + plan.left.keys).map { it.code }
@@ -316,7 +308,7 @@ class CameraStreamer(
                 if (!stream.clocked) clockOfFrames(stream, ptsUs)
             },
             status = { dropped -> phone.read().copy(dropped = dropped, left = leftOut).line() },
-            store = FrameStore(File(kept, lens.code), share),
+            store = FrameStore(File(kept, lens.code)),
             log = log,
         )
     }
