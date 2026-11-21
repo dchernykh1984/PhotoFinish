@@ -55,6 +55,7 @@ class Piece:
     end_ms: int = field(compare=False)
     packet: av.Packet = field(compare=False)
     form: Form = field(compare=False)
+    path: Path = field(compare=False)  # the segment it came from
 
 
 def has_sound(path: Path) -> bool:
@@ -132,7 +133,7 @@ def _pieces_of(path: Path) -> list[Piece]:
                     key=lambda k: abs(int(by_pts[k, 0]) - pts),
                 )
                 ms = int(by_pts[near, 1]) + pts - int(by_pts[near, 0])
-                found.append(Piece(ms, ms + max(length, 1), packet, form))
+                found.append(Piece(ms, ms + max(length, 1), packet, form, path))
     except av.FFmpegError, OSError:
         return found  # what was read before the file gave out
     return found
