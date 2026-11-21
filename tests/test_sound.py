@@ -50,12 +50,16 @@ def beeping(path: Path, seconds: int) -> None:
 
 
 def recorded(
-    tmp_path: Path, seconds: int = 3, again: int = 0, gap: tuple[int, int] | None = None
+    tmp_path: Path,
+    seconds: int = 3,
+    again: int = 0,
+    gap: tuple[int, int] | None = None,
+    folder: Path | None = None,
 ) -> VideoIndex:
-    """The beeping stream recorded at its own moments from START, ``again`` pieces of
-    sound sent twice, none heard within ``gap`` (ms into it)."""
+    """The beeping stream recorded at its own moments from START into ``folder``,
+    ``again`` pieces of sound sent twice, none heard within ``gap`` (ms into it)."""
     beeping(tmp_path / "phone.mkv", seconds)
-    folder = tmp_path / "cam1"
+    folder = folder or tmp_path / "cam1"
     writer = SegmentWriter(folder, fps=30)
     with av.open(str(tmp_path / "phone.mkv")) as container:
         sent: list[tuple[av.Packet, int]] = []

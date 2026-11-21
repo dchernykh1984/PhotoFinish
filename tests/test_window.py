@@ -37,6 +37,7 @@ from app.recorder.testcam import read_time, render
 from app.version import version
 from app.widgets.camera_dialog import CameraDialog
 from tests.conftest import Zone, settled, wait_until
+from tests.test_sound import recorded
 
 
 def downloading(win: mw.MainWindow) -> models.Model | None:
@@ -3812,3 +3813,74 @@ def test_the_start_protocol_chosen_is_kept_and_its_numbers_counted(
     monkeypatch.setattr(QFileDialog, "getOpenFileName", lambda *a: ("", ""))
     win.protocol_button.click()  # cancelled: the one chosen stays
     assert session.load()["start_protocol"] == str(protocol)
+
+
+class Heard:
+    """Stands for the sound player: what it was asked to play, and to stop."""
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[Any, ...]] = []
+
+    def play(self, index: Any, from_ms: int, rate: float) -> None:
+        self.calls.append(("play", index, from_ms, rate))
+
+    def stop(self) -> None:
+        self.calls.append(("stop",))
+
+
+@pytest.fixture
+def phone_with_sound(base: Path) -> Path:
+    """A phone's main lens recorded with its sound, its telephoto without (013)."""
+    main = {**CAMERA, "phone": "p1", "lens": "main"}  # as the camera dialog notes
+    tele = {**CAMERA, "id": "cam2", "name": "Tele", "phone": "p1", "lens": "telephoto"}
+    session.save({**session.DEFAULTS, "cameras": [main, tele]})
+    recorded(base, folder=base / "video" / "cam1")
+    record(base, START, 90, "cam2")
+    beating(base)
+    beating(base, "cam2")
+    return base
+
+
+def sounding(win: mw.MainWindow) -> Heard:
+    heard = Heard()
+    win.sound = heard  # type: ignore[assignment]
+    return heard
+
+
+def test_the_sound_plays_forwards_at_the_speed_and_stops_when_held_or_backwards(
+    phone_with_sound: Path, make_window: Callable[[], mw.MainWindow], clock: list[float]
+) -> None:
+    win = make_window()
+    wait_until(lambda: win.moment is not None and win.place is not None)
+    heard = sounding(win)
+    win.step(-60)
+    win.play()
+    kind, index, from_ms, rate = heard.calls[-1]
+    assert (kind, index, rate) == ("play", win.cameras["cam1"].index, 1.0)
+    assert from_ms == win.moment
+    win.faster_button.click()  # at the new rate, from the frame shown
+    assert heard.calls[-1][0::3] == ("play", 2.0)
+    win.pause()
+    assert heard.calls[-1] == ("stop",)
+    win.back_button.click()
+    assert heard.calls[-1] == ("stop",)  # backwards: silent
+    win.pause()
+    win.sound_box.setChecked(False)
+    assert session.load()["sound"] is False
+    win.play()
+    assert heard.calls[-1] == ("stop",)  # switched off
+
+
+def test_a_lens_without_sound_plays_its_phones_main_lens_sound(
+    phone_with_sound: Path, make_window: Callable[[], mw.MainWindow], clock: list[float]
+) -> None:
+    win = make_window()
+    wait_until(lambda: win.moment is not None and win.place is not None)
+    win.camera_list.setCurrentRow(1)  # the telephoto
+    wait_until(lambda: win.current == "cam2")
+    heard = sounding(win)
+    win.step(-40)
+    win.play()
+    assert heard.calls[-1][:2] == ("play", win.cameras["cam1"].index)
+    win.go_live()
+    assert heard.calls[-1] == ("stop",)  # Live: silent

@@ -95,6 +95,7 @@ from app.recorder.launcher import (
     recording,
 )
 from app.recorder.phone_log import last_word
+from app.sound import has_sound
 from app.start_protocol import StartNumbers
 from app.video_index import FileIndex, Frame, VideoIndex
 from app.widgets import export_dialog
@@ -103,6 +104,7 @@ from app.widgets.camera_view import CameraView
 from app.widgets.decode_worker import DecodeWorker
 from app.widgets.lists import LinesView, input_rows, output_rows
 from app.widgets.number_field import NumberField
+from app.widgets.sound import SoundPlayer
 from app.widgets.timeline import Timeline
 
 POLL_MS = 500
@@ -170,6 +172,8 @@ class MainWindow(QMainWindow):
         self.backwards = False  # playing backwards
         self.slower_button, self.normal_button = QPushButton(), QPushButton("x1")
         self.faster_button, self.speed_label = QPushButton(), QLabel()
+        self.sound = SoundPlayer(self)  # the sound played forwards (013)
+        self.sound_box = QCheckBox("Sound")
         self.shared_event: shared_event.SharedEvent | None = None
 
         self.placeholder = CameraView()
@@ -320,6 +324,13 @@ class MainWindow(QMainWindow):
         self.faster_button.clicked.connect(lambda: self.set_rate(self.rate * 2))
         self.speed_label.setToolTip("The speed playing goes at")
         self._show_rate()
+        self.sound_box.setToolTip(
+            "Play the camera's sound -- or its phone's -- while playing forwards, the "
+            "pitch kept at every speed; none backwards, stepping or Live"
+        )
+        self.sound_box.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.sound_box.setChecked(bool(self.session.get("sound", True)))
+        self.sound_box.toggled.connect(self._sound_toggled)
         transport = QHBoxLayout()
         speeds = (self.slower_button, self.normal_button, self.faster_button)
         played = (self.back_button, self.play_button, stop)
@@ -327,6 +338,7 @@ class MainWindow(QMainWindow):
             button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             transport.addWidget(button)
         transport.addWidget(self.speed_label)
+        transport.addWidget(self.sound_box)
         transport.addStretch()
         transport.addWidget(self.source_label)
         transport.addWidget(self.time_label)
@@ -1953,6 +1965,7 @@ class MainWindow(QMainWindow):
         self._play_start = (time.monotonic(), self.moment)
         self.play_timer.start(PLAY_MS)
         self._show_play()
+        self._play_sound()
 
     def set_rate(self, rate: float) -> None:
         """The speed playing goes at, x1/16 to x16; while playing, from the frame
@@ -1963,6 +1976,43 @@ class MainWindow(QMainWindow):
             self._play_start = (time.monotonic(), self.moment)
         self.rate = rate
         self._show_rate()
+        self._play_sound()  # at the new rate, from the frame shown
+
+    def _sound_toggled(self, on: bool) -> None:
+        self.session["sound"] = on
+        self._save_session()
+        self._play_sound()
+
+    def _play_sound(self) -> None:
+        """The sound of what plays forwards, from where playing goes on from, at its
+        rate; silent otherwise -- backwards, held, Live -- or switched off (013)."""
+        heard = self._sound_camera() if self.playing and not self.backwards else None
+        if heard is None or not self.sound_box.isChecked():
+            self.sound.stop()
+            return
+        clock, moment = self._play_start
+        since = (time.monotonic() - clock) * 1000 * self.rate
+        own = round(moment + since) - int(heard.settings.get("offset_ms", 0))
+        self.sound.play(heard.index, own, self.rate)
+
+    def _sound_camera(self) -> Camera | None:
+        """Whose sound plays (013): the camera shown, when its recording has sound
+        there; else a camera of its phone's whose has -- the main lens's."""
+        chosen = self._camera()
+        if chosen is None or self.moment is None:
+            return None
+        phone = chosen.settings.get("phone")
+        siblings = [
+            other
+            for other in self.cameras.values()
+            if other is not chosen and phone and other.settings.get("phone") == phone
+        ]
+        for camera in (chosen, *siblings):
+            own = self.moment - int(camera.settings.get("offset_ms", 0))
+            place = camera.index.nearest(own, within=NEAR_MS)
+            if place is not None and has_sound(camera.index.frame(place).path):
+                return camera
+        return None
 
     def _show_rate(self) -> None:
         rate = self.rate
@@ -2004,6 +2054,7 @@ class MainWindow(QMainWindow):
                     camera.wanted, camera.pending = None, False
         self.playing = False
         self.play_timer.stop()
+        self.sound.stop()
         if forget:
             self.play_from = None
         self._show_play()
@@ -2017,9 +2068,12 @@ class MainWindow(QMainWindow):
             return
         offset, now = self._offset(), time.monotonic()
         rate = -self.rate if self.backwards else self.rate
+        started = self._play_start
         place, self._play_start = playback.play_on(
             camera.index, self._play_start, now, offset, rate
         )
+        if self._play_start != started:
+            self._play_sound()  # a gap jumped over: on from its far side
         if place is None and self.backwards:  # the first frame passed: held there
             self._halt()
             self._go(0)
@@ -2169,6 +2223,7 @@ class MainWindow(QMainWindow):
         """The window goes; the recorders keep recording."""
         self.timer.stop()
         self.play_timer.stop()
+        self.sound.stop()
         for job in (self._job, self._numbers_job):  # stopped, any answer ignored
             if job is not None:
                 job.cancel()
