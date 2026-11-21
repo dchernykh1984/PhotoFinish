@@ -578,9 +578,9 @@ class MainWindow(QMainWindow):
         error: str,
         skipped: int,
     ) -> None:
-        progress.close()
         if job is not self._export_job:
-            return  # the window closed meanwhile: nothing to tell
+            return  # the window closed meanwhile, its dialog with it: nothing told
+        progress.close()
         self._export_job = None
         files = "".join(f"\n{path}" for path in written)
         if skipped:
