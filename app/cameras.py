@@ -118,7 +118,12 @@ def lens_cameras(
     made = []
     for n, (lens, camera_id) in enumerate(zip(lenses, ids, strict=False)):
         settings = (
-            first if n == 0 else {"port": next(free), "path": f"live/{camera_id}"}
+            first
+            if n == 0
+            else {"port": next(free), "path": f"live/{camera_id}"}
+            | (
+                {"codec": first["codec"]} if "codec" in first else {}
+            )  # the phone's (010)
         )
         made.append((lens, camera_id, settings))
     return made
