@@ -148,15 +148,13 @@ def heard_somewhere(folder: Path) -> bool:
 def heard_later(index: VideoIndex, moment: int) -> bool:
     """Whether a camera kept sound in a segment from ``moment`` on, on its own times:
     one allowed the microphone later is heard in its turn, the pieces following as
-    it plays -- never one whose sound is all behind it."""
+    it plays -- never one whose sound is all behind it. Asked at each poll: no pass
+    over a day's frames, none for a camera that kept no sound."""
     kept = sounding(index.folder)
     place = index.at_or_before(moment)
-    if place is None:
+    if not kept or place is None or moment > int(index.ms[-1]):
         return False
-    later = index.segments_from(place)
-    if later[0] != index.frame(place).path:
-        later = later[1:]  # the one before, its sound behind the moment
-    return any(path.stem in kept for path in later)
+    return any(path.stem in kept for path in index.segments_on(place))
 
 
 def playing_from(
