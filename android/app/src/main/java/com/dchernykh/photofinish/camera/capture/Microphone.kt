@@ -18,6 +18,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  * [framesClock], unknown before the lens's first frame, when a piece is not kept: there is no run to keep it in.
  * Allowed the microphone or not is the caller's to know: one refused fails to open, and is said.
  */
+@Suppress("TooManyFunctions") // its start, stop, read and drain, each a step of its own
 internal class Microphone(
     private val onConfig: (ByteArray) -> Unit,
     private val onPiece: (EncodedFrame) -> Unit,
@@ -153,17 +154,7 @@ internal class Microphone(
         try {
             while (going.get()) {
                 val index = codec.dequeueInputBuffer(WAIT_US)
-                if (index >= 0) {
-                    val buffer = codec.getInputBuffer(index) ?: continue
-                    buffer.clear()
-                    val bytes = record.read(buffer, minOf(buffer.remaining(), READ_BYTES))
-                    // An error -- the audio server gone, the microphone taken -- comes at once at every read: stopped,
-                    // said, never read again and again for nothing.
-                    check(bytes >= 0) { "the microphone stopped (error $bytes)" }
-                    val read = bytes
-                    codec.queueInputBuffer(index, 0, read, heardUs(record, stamp, heard, read), 0)
-                    heard += read / 2
-                }
+                if (index >= 0) heard += fill(codec, index, record, stamp, heard)
                 drain(codec, info)
             }
         } catch (error: RuntimeException) {
@@ -177,6 +168,31 @@ internal class Microphone(
             runCatching { codec.stop() }
             runCatching { codec.release() }
         }
+    }
+
+    /**
+     * The encoder's input [index] filled with what the microphone gives, sample [heard] its first: the samples read.
+     * One the encoder gives no buffer for goes back empty -- kept, the encoder would run out of them one by one.
+     */
+    private fun fill(
+        codec: MediaCodec,
+        index: Int,
+        record: AudioRecord,
+        stamp: AudioTimestamp,
+        heard: Long,
+    ): Int {
+        val buffer = codec.getInputBuffer(index)
+        if (buffer == null) {
+            codec.queueInputBuffer(index, 0, 0, heardUs(record, stamp, heard, 0), 0)
+            return 0
+        }
+        buffer.clear()
+        val bytes = record.read(buffer, minOf(buffer.remaining(), READ_BYTES))
+        // An error -- the audio server gone, the microphone taken -- comes at once at every read: stopped, said,
+        // never read again and again for nothing.
+        check(bytes >= 0) { "the microphone stopped (error $bytes)" }
+        codec.queueInputBuffer(index, 0, bytes, heardUs(record, stamp, heard, bytes), 0)
+        return bytes / 2
     }
 
     /**
