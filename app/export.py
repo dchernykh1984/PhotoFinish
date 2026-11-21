@@ -145,8 +145,10 @@ class _Writer:
         moment = times.get(in_ms(packet.pts, time_base))
         if moment is None:
             return  # sent again: the piece before has it
-        if self.out is not None and moment <= self.out.last_moment:
-            self.finish()  # the clock set back: a file's time goes on, never back
+        if self.out is not None and packet.is_keyframe and moment <= self.out.newest:
+            # The clock set back: a file's time goes on, never back. Told at a keyframe,
+            # as a B-frame's moment comes before the frame it follows in decode order.
+            self.finish()
         if (self.out is None or self.broken) and not packet.is_keyframe:
             return  # a file starts, and goes on after a gap, where it can be decoded
         self.broken = False
@@ -209,7 +211,7 @@ class _Out:
             self.abandon()
             raise
         self.last_dts: int | None = None
-        self.last_moment = first - 1  # the newest frame's moment written
+        self.newest = first - 1  # the newest moment written
 
     def add(self, packet: av.Packet, moment: int, time_base: Fraction) -> None:
         """The packet at its moment; its decode time as far before as it was, never
@@ -223,7 +225,7 @@ class _Out:
         if self.last_dts is not None and dts <= self.last_dts:
             dts = self.last_dts + 1
         self.last_dts = dts
-        self.last_moment = moment
+        self.newest = max(self.newest, moment)
         packet.pts, packet.dts = max(pts, dts), dts
         packet.time_base = MS
         packet.stream = self.stream
