@@ -3965,6 +3965,11 @@ def test_the_sound_of_a_recorder_gone_is_heard_to_its_end(
     heard = sounding(win)
     win.step(-40)
     win.play()
+    beat = phone_with_sound / "video" / "cam1" / "recorder.json"
+    late = json.loads(beat.read_text()) | {"heartbeat_ms": 0}  # 15 s and more
+    beat.write_text(json.dumps(late))
+    win.poll()
+    assert heard.calls[-1] == ("follow", True)  # a beat late: it may write on
     beating(phone_with_sound, state="stopped")  # the race over, its recorder too
     win.poll()
     assert heard.calls[-1] == ("follow", False)

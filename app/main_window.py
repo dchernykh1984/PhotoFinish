@@ -91,6 +91,7 @@ from app.recorder.launcher import (
     child_environment,
     command,
     describe,
+    has_ended,
     heartbeat,
     recording,
 )
@@ -1728,10 +1729,10 @@ class MainWindow(QMainWindow):
             self._open_output(again=True)
         self._follow_files()
         self._refresh()
-        # Played behind live: the segments just listed heard on; its recorder gone,
+        # Played behind live: the segments just listed heard on; its recorder ended,
         # heard to its end.
         heard = self.cameras.get(self._sound_from or "")
-        self.sound.follow(grows=heard is not None and alive(heard.info))
+        self.sound.follow(grows=heard is not None and not has_ended(heard.info))
         current = self._camera()
         stretches = current.activity.stretches if current and finding else []
         offset = self._offset()
@@ -2006,8 +2007,8 @@ class MainWindow(QMainWindow):
             self.sound.stop()
             return
         own = due - int(heard.settings.get("offset_ms", 0))  # on its own times
-        # Followed while its recorder runs: a file, or one gone, ends where it does.
-        self.sound.play(heard.index, own, self.rate, follows=alive(heard.info))
+        # Followed until its recorder ends: a file, or one ended, ends where it does.
+        self.sound.play(heard.index, own, self.rate, follows=not has_ended(heard.info))
 
     def _sound_folder(self, camera_id: str) -> tuple[Path, int] | None:
         """Whose sound a camera's exported file takes, and how much later (013);
