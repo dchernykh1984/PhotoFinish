@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -181,6 +182,33 @@ def test_a_sound_that_cannot_be_rendered_ends_and_says_why(
     wait_until(lambda: given(played) and bool(said))  # its thread ended, unraised
     assert said == ["The sound cannot be played: a layout the filters refuse"]
     played.stop()
+
+
+def test_a_sound_replaced_says_nothing_of_its_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Stopped -- the speed changed, a gap jumped -- as it failed: the sound playing
+    # now plays on, said to fail by none.
+    index = recorded(tmp_path)
+    failing = threading.Event()
+
+    def broken(_: object) -> bytes:
+        failing.wait(5)
+        raise ValueError("a segment read as it was replaced")
+
+    monkeypatch.setattr(player.sound.Renderer, "read", broken)
+    made = (Output(), player.RATE, player.CHANNELS)
+    played = player.SoundPlayer(output=lambda: made, clock=still)
+    said: list[str] = []
+    played.failed.connect(said.append)
+    played.play(index, START, 1.0)
+    thread = played._thread
+    assert thread is not None
+    played.stop()
+    failing.set()
+    thread.join(5)
+    QApplication.processEvents()
+    assert said == []
 
 
 def test_the_time_an_output_takes_to_open_is_left_out_too(tmp_path: Path) -> None:
