@@ -1437,6 +1437,29 @@ def test_a_piece_of_sound_the_muxer_refuses_costs_the_sound_never_the_video(
     assert writer.frames == 60
 
 
+def test_a_segments_sound_is_listed_before_it_and_a_sound_list_refused_costs_it_alone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Listed first, a kill between the two leaves it to the recovery, which lists
+    # its sound again; a sound list the disk refuses is no segment unclosed.
+    with_sound(tmp_path / "phone.mkv", 3)
+    folder = tmp_path / "cam1"
+    real = segments_module.append
+    order: list[str] = []
+
+    def append(path: Path, data: bytes) -> None:
+        order.append(path.name)
+        if path.name == segments_module.SOUND and order.count(path.name) == 2:
+            raise OSError("refused")  # the second segment's
+        real(path, data)
+
+    monkeypatch.setattr(segments_module, "append", append)
+    writer, _ = recorded_with_sound(tmp_path / "phone.mkv", folder)
+    names = [n for n in order if n in (segments_module.SOUND, segments_module.SEGMENTS)]
+    assert names[:2] == [segments_module.SOUND, segments_module.SEGMENTS]
+    assert len(segments(folder)) == writer.segments  # each closed, each listed
+
+
 def test_the_segments_that_kept_sound_are_listed_beside_the_others(
     tmp_path: Path,
 ) -> None:
