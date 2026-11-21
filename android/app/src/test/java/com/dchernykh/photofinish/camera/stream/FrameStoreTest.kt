@@ -373,6 +373,18 @@ class FrameStoreTest {
     }
 
     @Test
+    fun `runs waiting for a slow flash's sync hold no file open`() {
+        val store = store()
+        val gate = java.util.concurrent.CountDownLatch(1)
+        store.syncFile = { gate.await(5, java.util.concurrent.TimeUnit.SECONDS) }
+        val before = File("/dev/fd").list()!!.size
+        repeat(50) { second(store, it) }
+        val open = File("/dev/fd").list()!!.size - before
+        gate.countDown()
+        assertTrue("$open files open", open < 10) // the newest run's two, not two for each run waiting its sync
+    }
+
+    @Test
     fun `a run is synced outside the store's lock, holding no reader up`() {
         val store = store()
         val syncing = java.util.concurrent.CountDownLatch(1)

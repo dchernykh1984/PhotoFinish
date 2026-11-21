@@ -6,6 +6,8 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.io.RandomAccessFile
 import java.nio.ByteBuffer
+import java.nio.channels.FileChannel
+import java.nio.file.StandardOpenOption
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
@@ -150,11 +152,14 @@ class FrameStore(
     private var writer: FileOutputStream? = null
     private var indexWriter: FileOutputStream? = null
 
-    /** The run before's, to be synced and closed once the lock is let go ([retire]). */
-    private val retired = ArrayList<FileOutputStream>()
+    /**
+     * The runs done's files, closed, to be synced once the lock is let go ([retire]): by name, so that a slow flash's
+     * syncs waited for elsewhere hold no file open.
+     */
+    private val retired = ArrayList<File>()
 
     /** How a run's file is written through to the storage; a test's waits. */
-    internal var syncFile: (FileOutputStream) -> Unit = ::sync
+    internal var syncFile: (File) -> Unit = ::sync
 
     /** Where a run done is synced and closed: the stores' own thread; a test's runs it at once. */
     internal var syncOff: (Runnable) -> Unit = { SYNCING.execute(it) }
@@ -220,10 +225,7 @@ class FrameStore(
         syncOff(
             Runnable {
                 // on a thread of its own: the encoder's drains on, an fsync of a slow flash waited for by none
-                files.forEach {
-                    syncFile(it)
-                    close(it)
-                }
+                files.forEach { syncFile(it) }
             },
         )
     }
@@ -395,7 +397,7 @@ class FrameStore(
             lock.withLock {
                 if (cleared || closed) return
                 closed = true
-                val open = retired + listOfNotNull(writer, indexWriter)
+                val open = retired + runs.lastOrNull()?.let { listOf(it.file, it.index) }.orEmpty()
                 retired.clear()
                 writer = null
                 indexWriter = null
@@ -403,11 +405,7 @@ class FrameStore(
                 more.signalAll()
                 open
             }
-        open.forEach {
-            // synced outside the lock, as a run is ([retire])
-            syncFile(it)
-            close(it)
-        }
+        open.forEach { syncFile(it) } // closed, synced outside the lock, as a run is ([retire])
         settle()
     }
 
@@ -419,7 +417,6 @@ class FrameStore(
     }
 
     private fun closeFiles() {
-        retired.forEach { close(it) }
         retired.clear()
         close(writer)
         writer = null
@@ -514,8 +511,12 @@ class FrameStore(
         momentUs: Long?,
     ): Boolean {
         if (frame.keyframe) {
-            runs.lastOrNull()?.frames?.trim() // the run before done: no room kept in it
-            retired += listOfNotNull(writer, indexWriter) // synced once the lock is let go: a power cut costs a run
+            runs.lastOrNull()?.let { done ->
+                done.frames.trim() // the run before done: no room kept in it
+                retired += listOf(done.file, done.index) // synced once the lock is let go: a power cut costs a run
+            }
+            close(writer)
+            close(indexWriter)
             writer = null
             indexWriter = null
             val run = Run(File(folder, "${named++}$DATA"))
@@ -680,11 +681,11 @@ class FrameStore(
         }
 
         /** [out] written through to the storage; a sync that fails leaves it to the system. */
-        private fun sync(out: FileOutputStream?) {
+        private fun sync(file: File) {
             try {
-                out?.fd?.sync()
+                FileChannel.open(file.toPath(), StandardOpenOption.WRITE).use { it.force(true) }
             } catch (_: IOException) {
-                // the storage failing: the frames are in the system's hands, as they were
+                // gone -- sent, discarded -- or the storage failing: the frames are in the system's hands, as they were
             }
         }
 
