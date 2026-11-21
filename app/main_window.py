@@ -524,7 +524,7 @@ class MainWindow(QMainWindow):
         names = {
             camera.id: self._name(camera.id)
             for camera in self.cameras.values()
-            if export.pieces(folder_of(camera.id))
+            if export.has_video(folder_of(camera.id))
         }
         if not names:
             QMessageBox.information(

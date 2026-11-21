@@ -200,3 +200,13 @@ def test_h265_is_tagged_hvc1_as_quicktime_wants(tmp_path: Path) -> None:
         assert stream.codec_context.name == "hevc"
         assert stream.codec_tag == "hvc1"
         assert len([p for p in container.demux(stream) if p.pts is not None]) == 12
+
+
+def test_a_camera_has_video_once_a_piece_listed_is_there(tmp_path: Path) -> None:
+    folder = tmp_path / "cam1"
+    assert not export.has_video(folder)
+    record(folder, START, 10)
+    assert export.has_video(folder)
+    for piece in export.pieces(folder):
+        piece.unlink()
+    assert not export.has_video(folder)
