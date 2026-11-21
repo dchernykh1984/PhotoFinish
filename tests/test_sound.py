@@ -342,3 +342,25 @@ def test_a_segment_held_a_moment_is_read_for_sound_again_not_taken_for_silent(
     monkeypatch.setattr(sound.av, "open", opening)
     assert not sound.has_sound(path)
     assert sound.has_sound(path)
+
+
+def test_whose_sound_plays_from_a_moment_is_one_with_it_there_else_later(
+    tmp_path: Path,
+) -> None:
+    index = recorded(tmp_path)
+    silent = VideoIndex(tmp_path / "none")
+    main: dict[str, object] = {"id": "cam1", "phone": "p1"}
+    tele: dict[str, object] = {"id": "cam2", "phone": "p1", "offset_ms": 0}
+    indexes = {"cam1": index, "cam2": silent}
+
+    def index_of(camera: Any) -> VideoIndex:
+        return indexes[str(camera["id"])]
+
+    found = sound.playing_from(tele, [main, tele], index_of, START + 1500, 1000)
+    assert found is main  # its phone's, with sound there
+    assert sound.playing_from(main, [main], index_of, START + 1500, 1000) is main
+    later = sound.playing_from(main, [main], index_of, START - 600_000, 1000)
+    assert later is main  # none there: its sound later, heard in its turn
+    assert sound.heard_at(index, START + 1500, 1000)
+    assert not sound.heard_at(index, START + 600_000, 1000)
+    assert not sound.heard_later(silent)

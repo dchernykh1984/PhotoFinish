@@ -88,6 +88,41 @@ def whose(
     return None
 
 
+def heard_at(index: VideoIndex, moment: int, within: int) -> bool:
+    """Whether a camera's recording has sound at ``moment``, on its own times: in
+    the segment of its frame within ``within`` ms of it."""
+    place = index.nearest(moment, within=within)
+    return place is not None and has_sound(index.frame(place).path)
+
+
+def heard_later(index: VideoIndex) -> bool:
+    """Whether a camera's newest segment, in time, has sound: one allowed the
+    microphone later is heard in its turn, the pieces following as it plays."""
+    newest = len(index) - 1
+    return newest >= 0 and has_sound(index.frame(newest).path)
+
+
+def playing_from(
+    chosen: Mapping[str, Any],
+    cameras: Iterable[Mapping[str, Any]],
+    index_of: Callable[[Mapping[str, Any]], VideoIndex],
+    moment: int,
+    within: int,
+) -> Mapping[str, Any] | None:
+    """Whose sound plays from ``moment`` on the video's time with ``chosen``: a
+    camera of its phone's with sound there -- its own first --, else one with sound
+    later; None."""
+    listed = list(cameras)
+
+    def there(camera: Mapping[str, Any]) -> bool:
+        own = moment - int(camera.get("offset_ms", 0))
+        return heard_at(index_of(camera), own, within)
+
+    return whose(chosen, listed, there) or whose(
+        chosen, listed, lambda camera: heard_later(index_of(camera))
+    )
+
+
 def shift_ms(own: Mapping[str, Any], heard: Mapping[str, Any]) -> int:
     """How much later than its own moments ``heard``'s sound goes in ``own``'s video:
     the two cameras' offsets apart, as it plays."""
