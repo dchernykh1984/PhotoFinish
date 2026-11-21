@@ -7,6 +7,7 @@
         android:required="true" />
 
     <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- The Wi-Fi signal the laptop is shown (specs/005-phone-status); granted at install. -->
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />

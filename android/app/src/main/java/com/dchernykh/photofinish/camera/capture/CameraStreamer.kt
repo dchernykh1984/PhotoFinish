@@ -1,7 +1,9 @@
 package com.dchernykh.photofinish.camera.capture
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.pm.PackageManager
 import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraDevice
 import android.hardware.camera2.CameraManager
@@ -14,6 +16,7 @@ import android.os.HandlerThread
 import android.os.SystemClock
 import android.util.Range
 import android.view.Surface
+import androidx.core.content.ContextCompat
 import com.dchernykh.photofinish.camera.diagnostics.Crashes
 import com.dchernykh.photofinish.camera.diagnostics.PhoneLog
 import com.dchernykh.photofinish.camera.pairing.Lens
@@ -277,6 +280,18 @@ class CameraStreamer(
     }
 
     /**
+     * Whether [lens]'s stream takes the phone's sound (specs/013): the first lens's, the microphone allowed -- said
+     * when it is not, as the stream starts.
+     */
+    private fun heard(lens: Lens): Boolean {
+        if (lens != order.firstOrNull()) return false
+        val asked = Manifest.permission.RECORD_AUDIO
+        val allowed = ContextCompat.checkSelfPermission(context, asked) == PackageManager.PERMISSION_GRANTED
+        if (!allowed) log.warning(lens.code, "no sound: the microphone is not allowed")
+        return allowed
+    }
+
+    /**
      * The clock the frames are stamped on, read from the first one the encoder gives: Android
      * moves an encoder's frames from boot time to monotonic time, whatever the camera says of
      * its own clock. Neither clock: the lens's frames go without their moments, and the screen says so.
@@ -337,6 +352,7 @@ class CameraStreamer(
             // A folder a stream: one kept from before and the new one of its lens never share files (specs/009).
             store = FrameStore(File(kept, "${lens.code}-${System.currentTimeMillis()}-${Senders.session}")),
             log = log,
+            heard = heard(lens),
         )
     }
 

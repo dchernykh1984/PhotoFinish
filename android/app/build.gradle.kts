@@ -111,6 +111,7 @@ kover {
                     "com.dchernykh.photofinish.camera.capture.CameraFormats*",
                     "com.dchernykh.photofinish.camera.capture.PhoneLenses*",
                     "com.dchernykh.photofinish.camera.capture.LensStream*",
+                    "com.dchernykh.photofinish.camera.capture.Microphone*",
                     "com.dchernykh.photofinish.camera.capture.SessionOutputs*",
                     "com.dchernykh.photofinish.camera.status.PhoneStatusReader*",
                     "com.dchernykh.photofinish.camera.Settings*",
