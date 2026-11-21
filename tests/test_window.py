@@ -791,6 +791,8 @@ def test_export_video_writes_a_file_for_each_camera_ticked(
     monkeypatch.setattr(mw.QFileDialog, "getExistingDirectory", lambda *_: str(out))
     monkeypatch.setattr(mw.QMessageBox, "information", lambda *a: told.append(a[2]))
     win.export_video()
+    (progress,) = win.findChildren(mw.QProgressDialog)
+    assert progress.windowModality() == Qt.WindowModality.NonModal  # the window on
     wait_until(lambda: bool(told))
     assert asked == [{"cam1": "Side"}]
     assert told == [f"Written:\n{out / 'Side.mp4'}"]
