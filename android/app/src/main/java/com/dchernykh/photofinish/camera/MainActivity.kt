@@ -11,7 +11,9 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import com.dchernykh.photofinish.camera.capture.CameraFormats
 import com.dchernykh.photofinish.camera.capture.CameraStreamer
+import com.dchernykh.photofinish.camera.capture.FormatChoice
 import com.dchernykh.photofinish.camera.capture.PhoneLenses
+import com.dchernykh.photofinish.camera.capture.Resolution
 import com.dchernykh.photofinish.camera.capture.Senders
 import com.dchernykh.photofinish.camera.capture.StreamerStatus
 import com.dchernykh.photofinish.camera.diagnostics.Diagnostics
@@ -32,6 +34,8 @@ class MainActivity : ComponentActivity() {
         // A debug build takes its lenses from the front camera on asking: the emulator's front
         // camera is the logical one of two lenses (`--es facing front`).
         val swapped = BuildConfig.DEBUG && intent.getStringExtra(EXTRA_FACING) == "front"
+        val trial = if (BuildConfig.DEBUG) intent.getStringExtra(EXTRA_SIZE)?.let { size(it) } else null
+        FormatChoice.trial = trial
         val lenses = PhoneLenses(this, swapped)
         val state = ScreenState(settings, CameraFormats(this, lenses.mainCameraId), lenses.found)
         // A debug build takes an address and starts on its own, so the app can be tried with
@@ -40,6 +44,7 @@ class MainActivity : ComponentActivity() {
         // of several lenses.
         if (BuildConfig.DEBUG) {
             intent.getStringExtra(EXTRA_ADDRESS)?.let { state.enterAddress(it.replace('|', '\n')) }
+            trial?.let { state.choose(it) }
             state.autostart = intent.getBooleanExtra(EXTRA_AUTOSTART, false)
         }
         // What the app meets goes to the recorders of the lenses the code names, streaming or not
@@ -95,5 +100,12 @@ class MainActivity : ComponentActivity() {
         const val EXTRA_ADDRESS = "address"
         const val EXTRA_AUTOSTART = "autostart"
         const val EXTRA_FACING = "facing"
+        const val EXTRA_SIZE = "size"
+
+        /** `WxH`, as the size extra gives it. */
+        fun size(text: String): Resolution? {
+            val (width, height) = text.split('x').mapNotNull { it.toIntOrNull() }.takeIf { it.size == 2 } ?: return null
+            return Resolution(width, height)
+        }
     }
 }
