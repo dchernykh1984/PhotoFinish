@@ -75,6 +75,7 @@ private fun linkText(status: UplinkStatus): String =
     when (status) {
         is UplinkStatus.Connecting -> stringResource(R.string.connecting, status.address)
         is UplinkStatus.Reconnecting -> stringResource(R.string.reconnecting, status.reason)
+        is UplinkStatus.Waiting -> stringResource(if (status.first) R.string.waiting_first else R.string.waiting_kept)
         is UplinkStatus.Streaming ->
             if (status.clockMs != null) {
                 stringResource(R.string.streaming_clock, status.fps, status.mbps, status.clockMs)
