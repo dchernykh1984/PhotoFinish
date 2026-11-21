@@ -319,3 +319,16 @@ def test_a_number_read_at_a_crossing_is_read_against_the_start_protocol(
     session.save(saved)
     watch._number(picture, box)
     assert asked == [{"37": "37"}, {}]
+
+
+def test_the_analyser_reading_the_start_protocol_never_moves_a_session_aside(
+    base: Path,
+) -> None:
+    # A session it cannot parse is the window's to see to, not a helper process's.
+    path = session.session_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("{ not json", encoding="utf-8")
+    numbers = analyzer.start_numbers()
+    assert numbers() == {}
+    assert path.read_text(encoding="utf-8") == "{ not json"
+    assert not list(path.parent.glob("session.json.broken-*"))
