@@ -373,6 +373,20 @@ class FrameStoreTest {
     }
 
     @Test
+    fun `a store closed closes its newest run's files`() {
+        val stores =
+            List(50) {
+                FrameStore(File(temporary.root, "store-$it"), freeBytes = { Long.MAX_VALUE }).apply {
+                    keep(frame(0, keyframe = true), 1)
+                }
+            }
+        val before = File("/dev/fd").list()!!.size
+        stores.forEach { it.close() }
+        val closed = before - File("/dev/fd").list()!!.size
+        assertTrue("$closed files closed", closed > 50) // two a store, 100; the test's other threads open a few
+    }
+
+    @Test
     fun `runs waiting for a slow flash's sync hold no file open`() {
         val store = store()
         val gate = java.util.concurrent.CountDownLatch(1)
