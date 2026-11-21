@@ -13,7 +13,6 @@ standard input closes.
 
 from __future__ import annotations
 
-import contextlib
 import copy
 import functools
 import json
@@ -244,8 +243,11 @@ def start_numbers() -> StartNumbers:
     last = [""]
 
     def chosen() -> str:
-        with contextlib.suppress(OSError):
-            last[0] = str(session.load().get("start_protocol") or "")
+        # Read, never loaded: a session it cannot parse is the window's to set aside,
+        # not this helper's; one held a moment keeps the protocol read before.
+        saved = read_json(session.session_path())
+        if saved is not None:
+            last[0] = str(saved.get("start_protocol") or "")
         return last[0]
 
     return StartNumbers(chosen)
