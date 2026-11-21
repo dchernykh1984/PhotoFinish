@@ -71,11 +71,13 @@ def pieces(index: VideoIndex, from_ms: int) -> Iterator[Piece]:
     """The camera's pieces of sound from ``from_ms`` on its own times, in order, each
     once -- and the one before it, PREROLL_MS, for a decoder to begin on --: from the
     segment before the one of the frame at ``from_ms``, whose sound may reach past
-    its end."""
+    its end. The segments are listed now, on the caller's thread, which refreshes
+    the index; their files are read as the pieces are asked for."""
     place = index.at_or_before(from_ms)
-    if place is None:
-        return
-    found = index.segments_from(place)
+    return _in_order([] if place is None else index.segments_from(place), from_ms)
+
+
+def _in_order(found: list[Path], from_ms: int) -> Iterator[Piece]:
     held: list[Piece] = []
     last_end: int | None = None
     for path, after in itertools.zip_longest(found, found[1:]):
