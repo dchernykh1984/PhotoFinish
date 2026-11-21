@@ -68,6 +68,14 @@ def test_the_peak_is_forgotten_once_the_phone_is_live_again() -> None:
     )
 
 
+def test_a_short_break_while_catching_up_keeps_the_bar_of_the_long_one() -> None:
+    catch_up = Heard()
+    catch_up.line(said(120_000, 0))
+    catch_up.line(said(40_000, 160_000))  # two thirds come
+    line = catch_up.line(said(43_000, 164_000))  # a Wi-Fi hiccup of 3 s
+    assert line.startswith(f"0:43 of video on the phone {FULL * 6}{EMPTY * 4} 64%")
+
+
 def test_a_span_reads_as_a_clock() -> None:
     assert span(0) == "0:00"
     assert span(59_999) == "0:59"
