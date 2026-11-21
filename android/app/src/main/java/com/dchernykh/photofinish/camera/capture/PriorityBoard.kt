@@ -38,6 +38,9 @@ class PriorityBoard {
         return { senders -= sender }
     }
 
+    /** Whether a sender is connected: a laptop takes what the phone sends. */
+    fun anyConnected(): Boolean = senders.any { it.connected() }
+
     /** Whether [lens] may send now to the laptop at [host]. */
     fun allows(
         lens: Lens,
