@@ -9,7 +9,7 @@ import av
 import numpy as np
 import pytest
 
-from app import export
+from app import export, video_index
 from app.recorder.segments import SegmentWriter
 from app.recorder.testcam import render
 from tests.test_sound import START as HEARD
@@ -392,6 +392,27 @@ def test_an_exported_file_has_its_sound_in_step_with_the_picture(
     beep, streams = track_beep(written)
     assert streams == 1
     assert beep == pytest.approx(1.5, abs=0.03)
+
+
+def test_a_piece_held_a_moment_as_the_export_begins_keeps_its_sound(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Its times held by their writer as the sound's pieces are listed: read again, as
+    # the window's polls would, never its sound -- the beep -- left out.
+    recorded(tmp_path)
+    real = video_index.read_times
+    held: set[Path] = set()
+
+    def read_times(path: Path) -> Any:
+        if path.stem.endswith("-0002") and path not in held:
+            held.add(path)
+            return None
+        return real(path)
+
+    monkeypatch.setattr(video_index, "read_times", read_times)
+    (written,) = export.export(tmp_path / "cam1", tmp_path / "Main.mp4")
+    assert held
+    assert track_beep(written)[0] == pytest.approx(1.5, abs=0.03)
 
 
 def test_a_lens_without_sound_is_exported_with_its_phones(tmp_path: Path) -> None:
