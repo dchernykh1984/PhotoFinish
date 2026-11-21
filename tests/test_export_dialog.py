@@ -36,6 +36,8 @@ def test_every_camera_is_ticked_at_first_and_those_left_ticked_are_chosen() -> N
 def test_a_camera_s_name_becomes_a_file_s() -> None:
     assert export_dialog.file_name('Mi 17: main/"wide"') == "Mi 17_ main_wide_"
     assert export_dialog.file_name("...") == "camera"
+    assert export_dialog.file_name("aux") == "aux_"
+    assert export_dialog.file_name("Tab\there") == "Tab_here"
 
 
 def test_the_job_writes_each_camera_and_says_how_far_it_is(tmp_path: Path) -> None:
