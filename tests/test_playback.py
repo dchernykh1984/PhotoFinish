@@ -54,6 +54,23 @@ def test_playing_jumps_over_a_gap_instead_of_holding_a_frame_through_it() -> Non
     assert play_on(frames, start, 2.033, 0) == (11, start)
 
 
+def test_a_gap_is_jumped_after_a_second_at_most_however_slow_it_plays() -> None:
+    # At x1/16 a second of the recording is sixteen of the clock: the frame before the
+    # gap held a second of the clock, as at x1, never sixteen; and a camera's own
+    # frames, however far apart, are never taken for a gap.
+    frames = Frames(20, gap_after=10)
+    start = (0.0, int(frames.ms[9]))
+    assert play_on(frames, start, 0.9, 0, rate=1 / 16)[0] == 9  # held
+    place, on = play_on(frames, start, 1.1, 0, rate=1 / 16)
+    assert (place, on) == (10, (1.1, int(frames.ms[10])))
+    back = (0.0, int(frames.ms[10]))
+    assert play_on(frames, back, 1.1, 0, rate=-1 / 16)[0] == 9  # backwards too
+    sparse = Frames(20)
+    sparse.ms = 1000 + 100 * np.arange(20, dtype=np.int64)  # 10 fps
+    slow = (0.0, 1000)
+    assert play_on(sparse, slow, 1.5, 0, rate=1 / 16) == (0, slow)  # 94 ms on
+
+
 def test_playing_from_before_the_cameras_first_frame_jumps_to_it() -> None:
     frames = Frames(10, first=300_000)  # a camera that started five minutes later
     place, start = play_on(frames, (0.0, 1000), 0.0, 0)
