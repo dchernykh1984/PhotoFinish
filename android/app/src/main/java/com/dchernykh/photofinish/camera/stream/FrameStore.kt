@@ -295,12 +295,28 @@ class FrameStore(
         withSound: Boolean,
     ): Boolean = fromKeyframe && !frames.keyframe(index) || !withSound && frames.sound(index)
 
-    /** The server has read the frame taken at [ptsUs], and every one before it: the runs sent go. */
+    /**
+     * The server has read the frame taken at [ptsUs], and every one before it: the runs sent go. Never past a frame
+     * not read yet -- one taken before a piece of sound kept, and read, first --: it has not been sent.
+     */
     fun confirm(ptsUs: Long) {
         lock.withLock {
-            confirmedUs = maxOf(confirmedUs ?: ptsUs, ptsUs)
+            val unread = unreadFrameUs()
+            val upTo = if (unread != null && unread <= ptsUs) unread - 1 else ptsUs
+            confirmedUs = maxOf(confirmedUs ?: upTo, upTo)
             if (!cleared && !closed) prune()
         }
+    }
+
+    /** The capture time of the first frame -- not a piece of sound -- not read yet; the caller holds the lock. */
+    private fun unreadFrameUs(): Long? {
+        val at = cursorRun ?: runs.firstOrNull() ?: return null
+        var from = if (cursorRun == null) 0 else cursorFrame
+        for (run in runs.subList(runs.indexOf(at), runs.size)) {
+            for (k in from until run.frames.size) if (!run.frames.sound(k)) return run.frames.ptsUs(k)
+            from = 0
+        }
+        return null
     }
 
     /**
