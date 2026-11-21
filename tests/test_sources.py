@@ -1020,3 +1020,18 @@ def push_with_sound(port: int, frames: int) -> None:
             time.sleep(1 / 30)
         for packet in video.encode(None):
             out.mux(packet)
+
+
+def test_a_stream_read_rather_than_pushed_gives_no_sound(tmp_path: Path) -> None:
+    # An RTSP camera's sound and frames share no clock until its first RTCP report:
+    # only a push's sound -- a phone's, a streaming app's -- is placed by its frames.
+    from tests.test_segments import with_sound
+
+    with_sound(tmp_path / "camera.mkv", 1)
+    source = sources.Stream(str(tmp_path / "camera.mkv"), {}, lambda: START)
+    kinds = [
+        item[0].stream.type
+        for item in source.frames()
+        if item is not None and isinstance(item[0], av.Packet)
+    ]
+    assert kinds and set(kinds) == {"video"}

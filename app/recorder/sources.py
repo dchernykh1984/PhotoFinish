@@ -292,9 +292,12 @@ class Stream:
             got = False
             before: tuple[int, int] | None = None  # the last frame's pts, ms; moment
             try:
-                # Its sound when it is AAC (013), what the segments keep: an IP
-                # camera's G.711 is not read at all.
-                heard = [s for s in container.streams.audio if _aac(s)][:1]
+                # Its sound when it is AAC and pushed (013): a phone's, a streaming
+                # app's, its timestamps on its frames' clock. An IP camera's G.711 is
+                # not kept, and its RTSP sound shares no clock with its frames until
+                # its first RTCP report.
+                aac = [s for s in container.streams.audio if _aac(s)][:1]
+                heard = aac if self.listen else []
                 for packet in container.demux(stream, *heard):
                     if packet.pts is None or packet.dts is None:
                         continue
