@@ -6,7 +6,10 @@ import com.dchernykh.photofinish.camera.capture.StreamFormat
 import com.dchernykh.photofinish.camera.pairing.Lens
 import com.dchernykh.photofinish.camera.pairing.RtmpAddress
 import java.io.File
+import java.io.FileOutputStream
 import java.io.IOException
+import java.nio.channels.FileChannel
+import java.nio.file.StandardOpenOption
 
 /**
  * What a kept stream needs to be sent by itself, the app started again since (specs/009, FR-001): its lens,
@@ -19,7 +22,10 @@ class StreamHeader(
     val format: StreamFormat,
     val record: ByteArray,
 ) {
-    /** Written into [folder], over the one there; false when the storage refuses it. */
+    /**
+     * Written into [folder], over the one there, synced to the storage with its folder before the stream's first
+     * run is: a power cut leaves the frames with their header (specs/009, FR-001); false when the storage refuses it.
+     */
     fun write(folder: File): Boolean {
         val lines =
             listOf(
@@ -35,10 +41,22 @@ class StreamHeader(
             ).joinToString("") { (key, value) -> "$key=$value\n" }
         val temporary = File(folder, "$FILE.new")
         return try {
-            temporary.writeText(lines, Charsets.US_ASCII)
-            temporary.renameTo(File(folder, FILE))
+            FileOutputStream(temporary).use { out ->
+                out.write(lines.toByteArray(Charsets.US_ASCII))
+                out.fd.sync()
+            }
+            temporary.renameTo(File(folder, FILE)).also { if (it) syncFolder(folder) }
         } catch (_: IOException) {
             false
+        }
+    }
+
+    /** The folder's names on the storage, the rename with them; a system that will not is left to its own pace. */
+    private fun syncFolder(folder: File) {
+        try {
+            FileChannel.open(folder.toPath(), StandardOpenOption.READ).use { it.force(true) }
+        } catch (_: IOException) {
+            // a folder that cannot be opened to sync: the rename is the system's to write
         }
     }
 

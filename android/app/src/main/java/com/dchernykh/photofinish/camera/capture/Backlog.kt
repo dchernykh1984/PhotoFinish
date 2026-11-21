@@ -90,9 +90,15 @@ class Backlog(
 
     private fun take(folder: File) {
         val header = StreamHeader.read(folder)
+        if (header == null && hasFrames(folder)) {
+            // Frames whose header a power cut took: not sent, not removed either -- Discard alone removes them.
+            val lens = Lens.named(folder.name.substringBefore('-')) ?: Lens.MAIN
+            say(lens, "${folder.name}: frames kept with no header to send them with; left on the phone")
+            return
+        }
         val store = header?.let { FrameStore(folder) }
         if (header == null || store == null || !store.unsent) {
-            folder.deleteRecursively() // no header to send it with, or nothing to send
+            folder.deleteRecursively() // nothing to send
             return
         }
         kept += Kept(folder, header, store)
@@ -159,7 +165,10 @@ class Backlog(
     @Synchronized
     fun pending(): FrameStore.Pending = sum(kept.map { it.store } + live.map { it.second })
 
-    /** Every stream kept stopped and dropped: the referee's Discard (specs/009, FR-004). */
+    /**
+     * Every stream kept stopped and dropped, and whatever else the stores' root holds but the streams a camera feeds
+     * -- frames whose header was lost --: the referee's Discard (specs/009, FR-004).
+     */
     @Synchronized
     fun discard() {
         kept.forEach {
@@ -168,6 +177,8 @@ class Backlog(
             say(it.header.lens, "what it kept for ${it.header.address} discarded")
         }
         kept.clear()
+        val fed = live.map { it.second.folder }.toSet()
+        root.listFiles { file -> file.isDirectory && file !in fed }?.forEach { it.deleteRecursively() }
     }
 
     companion object {
@@ -175,6 +186,9 @@ class Backlog(
         const val DONE_MS = 5_000L
         private const val MS_PER_S = 1_000
         private const val BYTES_PER_MB = 1_000_000
+
+        /** Whether [folder] holds a run of frames. */
+        private fun hasFrames(folder: File): Boolean = folder.list()?.any { it.endsWith(".h264") } == true
 
         /** When the stream of [folder] began, from its name: `<lens>-<ms>`; one named otherwise is older than any. */
         private fun began(folder: File): Long = folder.name.substringAfterLast('-').toLongOrNull() ?: 0L
