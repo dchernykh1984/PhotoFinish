@@ -16,6 +16,7 @@ from app.paths import app_path
 
 ENCODINGS = ("utf-8-sig", "cp1251", "latin-1")  # as the older tools wrote them
 SEPARATORS = re.compile("[#;,\t]")
+TABLE = re.compile("[;,\t]")  # a table's separators: a "#" after one is a field's
 DECIMAL = re.compile("[0-9]+")  # isdigit() takes a superscript two, int() does not
 MOST_STAGES = 20  # a relay's, at most: more in the fifth field is something else
 
@@ -40,8 +41,11 @@ def read_numbers(path: Path) -> dict[str, str]:
     numbers: dict[str, str] = {}
     for line in text.splitlines():
         # StartProtocolMaker's lines split at "#" alone: a comma in a name or a group
-        # is the referee's, and would move the stages' field.
-        fields = line.split("#") if "#" in line else SEPARATORS.split(line)
+        # is the referee's, and would move the stages' field. A table's line, a
+        # separator of its own before any "#", at all of them: "Team #3" is a name.
+        head = line.split("#", 1)[0]
+        own = "#" in line and not TABLE.search(head)
+        fields = line.split("#") if own else SEPARATORS.split(line)
         number = fields[0].strip().strip("\"'")
         if not re.search("[0-9]", number) or not number.isascii():
             continue  # no number: a header, an unpaid marker, a digit not 0 to 9
