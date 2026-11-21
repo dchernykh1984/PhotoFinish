@@ -173,3 +173,19 @@ def test_the_segments_from_a_frame_begin_with_the_one_before_it(
     assert index.segments_from(last) == [second, third]
     assert index.at_or_before(START - 10_000) == 0
     assert VideoIndex(tmp_path / "none").segments_from(0) == []
+
+
+def test_the_segments_are_listed_as_the_pieces_are_asked_for_not_later(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The window refreshes the index on its thread as the sound is read on another:
+    # the segments are listed where pieces() is called, the files read later.
+    index = recorded(tmp_path)
+    found = sound.pieces(index, START)
+
+    def refreshed(*_: object) -> list[Path]:
+        raise AssertionError("the index read on the sound's thread")
+
+    monkeypatch.setattr(index, "segments_from", refreshed)
+    monkeypatch.setattr(index, "at_or_before", refreshed)
+    assert len(list(found)) > 100
