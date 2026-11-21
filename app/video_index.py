@@ -52,6 +52,7 @@ class VideoIndex:
     def __init__(self, folder: Path) -> None:
         self.folder = folder
         self.paths: list[Path] = []
+        self._ends: list[int] = []  # each segment's newest frame's moment, as paths
         self.gaps: list[Gap] = []
         # Every frame's moment ascending, its pts, its segment (into paths): views of
         # buffers that double as they fill, so a new segment copies only itself.
@@ -106,6 +107,7 @@ class VideoIndex:
             return False
         first = len(self.paths)
         self.paths += [path for path, _ in added]
+        self._ends += [int(times[:, 1].max()) for _, times in added]
         segment = np.concatenate(
             [
                 np.full(len(times), first + k, np.int32)
@@ -177,16 +179,10 @@ class VideoIndex:
         found = np.nonzero((self._segment == segment) & (self._pts == frame.pts))[0]
         return int(found[0]) if found.size else None
 
-    def segments_on(self, place: int) -> Iterator[Path]:
-        """The segments of the frames from ``place`` on, each once, in the frames'
-        order -- a segment closed late with earlier frames in its place --: a pass
-        over those frames, none before ``place``."""
-        if not len(self):
-            return
-        tail = self._segment[min(max(place, 0), len(self) - 1) :]
-        firsts = tail[np.concatenate(([0], np.flatnonzero(np.diff(tail)) + 1))]
-        _, seen = np.unique(firsts, return_index=True)
-        for k in firsts[np.sort(seen)]:
+    def segments_ending_from(self, ms: int) -> Iterator[Path]:
+        """The segments with a frame at or after ``ms``, in the order they closed: a
+        look at each segment's newest frame, never at the frames."""
+        for k in np.flatnonzero(np.asarray(self._ends, np.int64) >= ms):
             yield self.paths[int(k)]
 
     def frame(self, place: int) -> Frame:
@@ -269,6 +265,7 @@ class FileIndex(VideoIndex):
             return False  # not a video: shown as a camera without frames
         ms, pts = self._found
         self.paths = [self.file]
+        self._ends = [int(ms.max())] if ms.size else []
         self._append(ms, pts, np.zeros(pts.size, np.int32))
         return True
 

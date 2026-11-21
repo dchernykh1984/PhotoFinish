@@ -487,6 +487,14 @@ def test_the_sound_later_is_looked_for_without_listing_a_days_frames(
         raise AssertionError("every frame looked over")
 
     monkeypatch.setattr(index, "segments_from", listed)
+
+    class Untouched:
+        """The frames' segments, looked over by nothing: each segment's end tells."""
+
+        def __getitem__(self, _: object) -> object:
+            raise AssertionError("a frame looked at")
+
+    monkeypatch.setattr(index, "_segment", Untouched())
     assert sound.heard_later(index, START)
     assert not sound.heard_later(index, START + 600_000)
     silent = VideoIndex(tmp_path / "none")
