@@ -454,3 +454,14 @@ def test_a_files_sound_holds_one_form_of_it_another_left_out(
     with av.open(str(written)) as container:
         heard = [p for p in container.demux(container.streams.audio[0]) if p.size]
     assert len(heard) == 60
+
+
+def test_a_gap_in_an_exported_files_sound_is_silence_so_it_stays_in_step(
+    tmp_path: Path,
+) -> None:
+    # A player plays a file's sound piece after piece: a gap left as a jump of time
+    # would put what comes after it early by the gap's length (specs/013).
+    recorded(tmp_path, gap=(500, 1000))
+    (written,) = export.export(tmp_path / "cam1", tmp_path / "Main.mp4")
+    beep, _ = track_beep(written)  # its samples counted one after another
+    assert beep == pytest.approx(1.5, abs=0.03)
