@@ -557,16 +557,23 @@ class MainWindow(QMainWindow):
         job.progress.connect(progress.setValue)
         job.done.connect(
             lambda written, error, skipped: self._exported(
-                progress, written, error, skipped
+                job, progress, written, error, skipped
             )
         )
         self._export_job = job  # kept while it runs
         job.start()
 
     def _exported(
-        self, progress: QProgressDialog, written: list[Path], error: str, skipped: int
+        self,
+        job: export_dialog.ExportJob,
+        progress: QProgressDialog,
+        written: list[Path],
+        error: str,
+        skipped: int,
     ) -> None:
         progress.close()
+        if job is not self._export_job:
+            return  # the window closed meanwhile: nothing to tell
         self._export_job = None
         files = "".join(f"\n{path}" for path in written)
         if skipped:
@@ -576,6 +583,10 @@ class MainWindow(QMainWindow):
         elif error:
             QMessageBox.warning(
                 self, "Export video", f"The export stopped: {error}{files}"
+            )
+        elif not written:
+            QMessageBox.warning(
+                self, "Export video", f"No video could be written.{files}"
             )
         else:
             QMessageBox.information(self, "Export video", f"Written:{files}")
