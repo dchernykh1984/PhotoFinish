@@ -145,10 +145,12 @@ internal class Microphone(
         } catch (error: RuntimeException) {
             failed("no sound from now on: ${error.message ?: error.javaClass.simpleName}")
         } finally {
-            record.stop()
-            record.release()
-            codec.stop()
-            codec.release()
+            // Each let go on its own: an encoder in its error state throws at stop, and an exception out of this
+            // thread would end the app -- both lenses' streams with it. Released whatever came before.
+            runCatching { record.stop() }
+            runCatching { record.release() }
+            runCatching { codec.stop() }
+            runCatching { codec.release() }
         }
     }
 
