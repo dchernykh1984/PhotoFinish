@@ -14,11 +14,12 @@ from pathlib import Path
 from typing import Any
 
 import av
+import numpy as np
 import pytest
 
 from app import files
 from app.recorder import segments as segments_module
-from app.recorder.segments import SegmentWriter
+from app.recorder.segments import SegmentWriter, fraction, in_ms
 from app.recorder.testcam import read_time, render
 
 START = 1_761_716_129_587
@@ -1089,3 +1090,178 @@ def test_a_restart_on_a_clock_set_back_records_rather_than_waits(
     again.close()
     assert again.frames == 5
     assert not (tmp_path / "gaps.txt").exists()  # no gap backwards
+
+
+def with_sound(path: Path, seconds: int) -> None:
+    """A phone's stream with its sound (specs/013): H.264 without B-frames, a keyframe
+    a second, and AAC, mono, 48 kHz, each piece where it was captured."""
+    with av.open(str(path), "w", format="matroska") as out:
+        video = out.add_stream("libx264", rate=30, options={"g": "30", "bf": "0"})
+        video.width, video.height, video.pix_fmt = 640, 360, "yuv420p"
+        sound = out.add_stream("aac", rate=48000)
+        sound.layout = "mono"
+        heard = 0
+        for k in range(30 * seconds):
+            frame = av.VideoFrame.from_ndarray(render(START + k * 33, 640, 360))
+            frame.pts = k
+            for packet in video.encode(frame):
+                out.mux(packet)
+            while heard * 1024 * 1000 < (k + 1) * 33 * 48000:  # sound to this frame
+                tone = np.full((1, 1024), 0.1 if heard % 2 else -0.1, np.float32)
+                piece = av.AudioFrame.from_ndarray(tone, format="fltp", layout="mono")
+                piece.sample_rate, piece.pts = 48000, heard * 1024
+                for packet in sound.encode(piece):
+                    out.mux(packet)
+                heard += 1
+        for stream in (video, sound):
+            for packet in stream.encode(None):
+                out.mux(packet)
+
+
+def recorded_with_sound(
+    source: Path, folder: Path, again: int = 0
+) -> tuple[SegmentWriter, list[int]]:
+    """The stream into a writer at its own moments, from START; the sound's moments
+    given. The last ``again`` pieces of sound sent again, as after a loss."""
+    writer = SegmentWriter(folder, fps=30)
+    moments: list[int] = []
+    sent: list[tuple[av.Packet, int]] = []
+    with av.open(str(source)) as container:
+        for packet in container.demux():
+            if packet.pts is None or packet.dts is None:
+                continue
+            ms = START + in_ms(packet.pts or 0, fraction(packet.time_base))
+            if packet.stream.type == "audio":
+                writer.write_audio(packet, ms)
+                if writer.frames:  # before the first frame: no segment to keep it
+                    moments.append(ms)
+                    sent.append((packet, ms))
+            else:
+                writer.write_packet(packet, ms)
+        for packet, ms in sent[len(sent) - again :] if again else []:
+            writer.write_audio(packet, ms)
+    writer.close()
+    return writer, moments
+
+
+def sound_moments(path: Path) -> list[int]:
+    """A segment's pieces of sound, each placed by the frame its timestamp is nearest
+    in its times, as the readers place them."""
+    listed = times(path)
+    found = []
+    with av.open(str(path)) as container:
+        audio = container.streams.audio[0]
+        for packet in container.demux(audio):
+            if packet.pts is None:
+                continue
+            pts = in_ms(packet.pts or 0, fraction(audio.time_base))
+            frame_pts, frame_ms = min(listed, key=lambda pair: abs(pair[0] - pts))
+            found.append(frame_ms + pts - frame_pts)
+    return found
+
+
+def test_a_streams_sound_is_kept_beside_its_video_on_its_moments(
+    tmp_path: Path,
+) -> None:
+    with_sound(tmp_path / "phone.mkv", 3)
+    folder = tmp_path / "cam1"
+    _, moments = recorded_with_sound(tmp_path / "phone.mkv", folder)
+    closed = segments(folder)
+    assert len(closed) == 3
+    kept = sorted(ms for path in closed for ms in sound_moments(path))
+    assert kept == sorted(moments)  # every piece once, where it was heard
+    for path in closed:
+        listed = [pts for pts, _ in times(path)]
+        assert min(listed) >= segments_module.LEAD_MS  # no timestamp below 0
+        with av.open(str(path)) as container:  # the frames listed are the file's
+            assert [f.pts for f in container.decode(video=0)] == sorted(listed)
+
+
+def test_sound_heard_before_a_segments_first_frame_goes_into_it_unshifted(
+    tmp_path: Path,
+) -> None:
+    # A piece captured before the keyframe that opens a segment, come after it: a
+    # Matroska muxer given a negative timestamp shifts every stream (specs/013).
+    with_sound(tmp_path / "phone.mkv", 2)
+    folder = tmp_path / "cam1"
+    writer = SegmentWriter(folder, fps=30)
+    with av.open(str(tmp_path / "phone.mkv")) as container:
+        demuxed = [p for p in container.demux() if p.pts is not None]
+        video = [p for p in demuxed if p.stream.type == "video"]
+        audio = [p for p in demuxed if p.stream.type == "audio"]
+        first = video[30]  # the second second's keyframe
+        assert first.is_keyframe
+        at = in_ms(first.pts or 0, fraction(first.time_base))
+        early = [p for p in audio if in_ms(p.pts or 0, fraction(p.time_base)) < at][-3:]
+        writer.write_packet(first, START + at)
+        for packet in early:
+            writer.write_audio(
+                packet, START + in_ms(packet.pts or 0, fraction(packet.time_base))
+            )
+        for packet in video[31:40]:
+            writer.write_packet(
+                packet, START + in_ms(packet.pts or 0, fraction(packet.time_base))
+            )
+    writer.close()
+    (path,) = segments(folder)
+    listed = [pts for pts, _ in times(path)]
+    with av.open(str(path)) as container:
+        assert [f.pts for f in container.decode(video=0)] == listed
+    assert sound_moments(path) == [
+        START + in_ms(p.pts or 0, fraction(p.time_base)) for p in early
+    ]
+
+
+def test_sound_sent_again_is_kept_once_and_sound_before_any_frame_none(
+    tmp_path: Path,
+) -> None:
+    with_sound(tmp_path / "phone.mkv", 2)
+    folder = tmp_path / "cam1"
+    _, moments = recorded_with_sound(tmp_path / "phone.mkv", folder, again=20)
+    kept = sorted(ms for path in segments(folder) for ms in sound_moments(path))
+    assert kept == sorted(moments)
+    lone = SegmentWriter(tmp_path / "cam2", fps=30)
+    with av.open(str(tmp_path / "phone.mkv")) as container:
+        audio = next(p for p in container.demux() if p.stream.type == "audio")
+        lone.write_audio(audio, START)  # no frame yet: no segment to keep it in
+    lone.close()
+    assert not segments(tmp_path / "cam2")
+
+
+KILLED_WITH_SOUND = """
+import os, sys
+from pathlib import Path
+import av
+from app.recorder.segments import SegmentWriter, fraction, in_ms
+writer = SegmentWriter(Path(sys.argv[1]), fps=30)
+with av.open(sys.argv[2]) as container:
+    for packet in container.demux():
+        if packet.pts is None:
+            continue
+        ms = int(sys.argv[3]) + in_ms(packet.pts, fraction(packet.time_base))
+        if packet.stream.type == "audio":
+            writer.write_audio(packet, ms)
+        else:
+            writer.write_packet(packet, ms)
+os._exit(1)  # killed: nothing closed, nothing flushed on the way out
+"""
+
+
+def test_a_crash_keeps_the_sound_it_left_whole_with_its_frames(tmp_path: Path) -> None:
+    with_sound(tmp_path / "phone.mkv", 1)  # one segment, left open by the kill
+    folder = tmp_path / "cam1"
+    run = [
+        sys.executable,
+        "-c",
+        KILLED_WITH_SOUND,
+        str(folder),
+        str(tmp_path / "phone.mkv"),
+        str(START),
+    ]
+    subprocess.run(run, cwd=ROOT, check=False)  # noqa: S603 - this interpreter
+    assert (folder / "current.mkv").exists()
+    (name,) = segments_module.recover(folder)
+    with av.open(str(folder / f"{name}.mkv")) as container:
+        assert container.streams.audio
+        heard = [p for p in container.demux(container.streams.audio[0]) if p.size]
+    assert len(heard) > 30  # most of a second of it, a cluster cut short aside
