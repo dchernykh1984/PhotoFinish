@@ -106,10 +106,14 @@ def sounding(folder: Path) -> frozenset[str]:
     """The names of a camera's segments that kept sound, as its recorder lists them
     as they close (SOUND): followed as the list grows, a line a second all day, the
     lines added since the last ask read alone. A list begun anew -- its folder
-    cleared -- begins with another line, or is shorter: read from its start."""
+    cleared -- begins with another line, or is shorter: read from its start. One
+    held a moment, unreadable, gives what it listed so far."""
     with _SOUNDING_LOCK:
-        file = _first_line(folder / SOUND)
         follower, names, seen = _SOUNDING.get(folder, (None, set(), None))
+        try:
+            file = _first_line(folder / SOUND)
+        except OSError:
+            return frozenset(names)  # held by a scanner a moment (Windows): not gone
         if follower is None or file != seen:
             follower, names = Appended(folder / SOUND), set()
         before = follower.offset
@@ -123,11 +127,12 @@ def sounding(folder: Path) -> frozenset[str]:
 
 def _first_line(path: Path) -> bytes | None:
     """A list's first line: another, the list begun anew, whatever its inode -- which
-    a filesystem may give a file made again."""
+    a filesystem may give a file made again; None when there is none. Raises when it
+    is there and cannot be read."""
     try:
         with path.open("rb") as f:
             return f.readline(64)
-    except OSError:
+    except FileNotFoundError:
         return None
 
 
