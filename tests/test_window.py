@@ -3820,9 +3820,11 @@ class Heard:
 
     def __init__(self) -> None:
         self.calls: list[tuple[Any, ...]] = []
+        self.ended = False
 
     def play(self, index: Any, from_ms: int, rate: float) -> None:
         self.calls.append(("play", index, from_ms, rate))
+        self.ended = False
 
     def stop(self) -> None:
         self.calls.append(("stop",))
@@ -3926,3 +3928,23 @@ def test_another_camera_chosen_while_playing_plays_its_own_sound(
     assert heard.calls[-1] == ("stop",)
     win.camera_list.setCurrentRow(1)  # the main lens's phone again: its sound
     assert heard.calls[-1][:2] == ("play", win.cameras["cam1"].index)
+
+
+def test_a_sound_that_ran_out_as_the_recording_grew_goes_on(
+    phone_with_sound: Path, make_window: Callable[[], mw.MainWindow], clock: list[float]
+) -> None:
+    # Playing behind live: the segments closed since the sound began are heard too.
+    win = make_window()
+    wait_until(lambda: win.moment is not None and win.place is not None)
+    heard = sounding(win)
+    win.step(-40)
+    win.play()
+    plays = len(heard.calls)
+    heard.ended = True
+    win.poll()
+    assert len(heard.calls) == plays  # the recording no longer: its sound is over
+    index = win.cameras["cam1"].index
+    index.paths.append(index.paths[-1])  # a segment closed meanwhile
+    win.poll()
+    assert len(heard.calls) == plays + 1
+    assert heard.calls[-1][:2] == ("play", index)
