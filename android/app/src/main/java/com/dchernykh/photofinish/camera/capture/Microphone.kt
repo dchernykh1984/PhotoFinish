@@ -10,6 +10,7 @@ import android.media.MediaFormat
 import android.media.MediaRecorder
 import com.dchernykh.photofinish.camera.stream.EncodedFrame
 import com.dchernykh.photofinish.camera.stream.SoundTime
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * The phone's microphone into AAC, mono, 48 kHz, 128 kbit/s (specs/013-sound), on a thread of its own while it
@@ -23,25 +24,38 @@ internal class Microphone(
     private val framesClock: () -> (() -> Long)?,
     private val failed: (String) -> Unit,
 ) {
-    @Volatile private var running = false
+    /** The thread reading the microphone now, and its own word to go on: one stopped never runs again. */
+    private var running: AtomicBoolean? = null
     private var thread: Thread? = null
 
-    /** Started, unless it runs: whether it runs; said when the microphone or its encoder cannot be opened. */
+    /**
+     * Started, unless it runs: whether it runs; said when the microphone or its encoder cannot be opened. Not while
+     * the thread of a stop before still reads -- the audio server stalled --: two would send each piece twice.
+     */
     @Synchronized
     fun start(): Boolean {
-        if (running) return true
-        val opened = open() ?: return false
-        running = true
-        thread = Thread({ run(opened.first, opened.second) }, "microphone").apply { start() }
+        if (running?.get() == true) return true
+        val opened = if (stillReading()) null else open() // the next feed tries again
+        if (opened == null) return false
+        val going = AtomicBoolean(true)
+        running = going
+        thread = Thread({ run(opened.first, opened.second, going) }, "microphone").apply { start() }
         return true
+    }
+
+    /** The thread of a stop before still reads after a moment more: the audio server stalled. */
+    private fun stillReading(): Boolean {
+        val before = thread ?: return false
+        before.join(JOIN_MS)
+        return before.isAlive
     }
 
     /** Stopped, its thread waited for a moment: a piece on its way is let go. */
     @Synchronized
     fun stop() {
-        running = false
+        running?.set(false)
+        running = null
         thread?.join(JOIN_MS)
-        thread = null
     }
 
     @SuppressLint("MissingPermission") // the caller asks; one refused fails to open, and is said
@@ -89,12 +103,13 @@ internal class Microphone(
     private fun run(
         record: AudioRecord,
         codec: MediaCodec,
+        going: AtomicBoolean,
     ) {
         val stamp = AudioTimestamp()
         val info = MediaCodec.BufferInfo()
         var heard = 0L // samples read so far
         try {
-            while (running) {
+            while (going.get()) {
                 val index = codec.dequeueInputBuffer(WAIT_US)
                 if (index >= 0) {
                     val buffer = codec.getInputBuffer(index) ?: continue
