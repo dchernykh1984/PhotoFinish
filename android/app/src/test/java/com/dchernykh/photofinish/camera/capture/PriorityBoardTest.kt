@@ -56,6 +56,15 @@ class PriorityBoardTest {
     }
 
     @Test
+    fun `the board tells whether any sender is connected`() {
+        var connected = false
+        board.register(Lens.MAIN, LAPTOP, { connected }, { 0 })
+        assertFalse(board.anyConnected())
+        connected = true
+        assertTrue(board.anyConnected())
+    }
+
+    @Test
     fun `a lens of several senders waits while any of the first's is behind`() {
         board.register(Lens.MAIN, LAPTOP, { true }, { 0 })
         board.register(Lens.MAIN, LAPTOP, { true }, { 3_000 }) // what it kept before, sent alone

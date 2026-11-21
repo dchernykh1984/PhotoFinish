@@ -23,4 +23,10 @@ class SendingServiceTest {
             SendingService.refusedMs = Long.MIN_VALUE / 2
         }
     }
+
+    @Test
+    fun `the processor is let sleep once no laptop has taken a connection for ten minutes`() {
+        assertTrue(SendingService.awake(heardMs = 0, nowMs = SendingService.UNHEARD_MS - 1))
+        assertFalse(SendingService.awake(heardMs = 0, nowMs = SendingService.UNHEARD_MS))
+    }
 }
