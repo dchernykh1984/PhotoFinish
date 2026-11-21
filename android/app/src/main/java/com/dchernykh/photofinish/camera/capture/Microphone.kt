@@ -147,6 +147,7 @@ internal class Microphone(
         } finally {
             // Each let go on its own: an encoder in its error state throws at stop, and an exception out of this
             // thread would end the app -- both lenses' streams with it. Released whatever came before.
+            going.set(false) // the next start opens the microphone again
             runCatching { record.stop() }
             runCatching { record.release() }
             runCatching { codec.stop() }
