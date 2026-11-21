@@ -280,10 +280,11 @@ class CameraStreamer(
     }
 
     /**
-     * Whether [lens]'s stream takes the phone's sound (specs/013): the first lens's, the microphone allowed -- said
-     * when it is not, as the stream starts.
+     * Whether [lens]'s stream takes the phone's sound now (specs/013): the first lens's that is not left out, the
+     * microphone allowed -- said when it is not, as the stream starts. Asked at each feed: a kept stream fed again
+     * after the lenses changed hears, or lets the microphone go, as it is now.
      */
-    private fun heard(lens: Lens): Boolean = lens == order.firstOrNull()
+    private fun heard(lens: Lens): Boolean = lens == hearingLens(order, leftOut)
 
     /** The microphone allowed, asked at each start of it: allowed while a stream runs, that stream hears it then. */
     private fun microphoneAllowed(): Boolean =
@@ -292,7 +293,7 @@ class CameraStreamer(
 
     /** The microphone allowed now, the screen told (specs/013): the first lens's stream hears from now on. */
     fun microphoneGranted() {
-        handler.post { order.firstOrNull()?.let { keptStreams.of(it) }?.hear() }
+        handler.post { hearingLens(order, leftOut)?.let { keptStreams.of(it) }?.hear() }
     }
 
     /**
@@ -356,7 +357,7 @@ class CameraStreamer(
             // A folder a stream: one kept from before and the new one of its lens never share files (specs/009).
             store = FrameStore(File(kept, "${lens.code}-${System.currentTimeMillis()}-${Senders.session}")),
             log = log,
-            withSound = heard(lens),
+            hears = { heard(lens) },
             allowed = ::microphoneAllowed,
         )
     }

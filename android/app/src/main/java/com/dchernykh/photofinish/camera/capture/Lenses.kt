@@ -4,6 +4,15 @@ import com.dchernykh.photofinish.camera.pairing.Lens
 import com.dchernykh.photofinish.camera.pairing.LensTarget
 import kotlin.math.abs
 
+/**
+ * The lens whose stream takes the phone's sound (specs/013): the first of those asked for, in the code's order, that
+ * is not left out -- by the fallback, the plan or an encoder that would not start --; none when all are.
+ */
+fun hearingLens(
+    order: List<Lens>,
+    leftOut: Collection<String>,
+): Lens? = order.firstOrNull { it.code !in leftOut }
+
 /** A camera the phone gives an app: a camera device, or one physical camera of a logical one. */
 data class LensInfo(
     val cameraId: String,

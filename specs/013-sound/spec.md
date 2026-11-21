@@ -61,8 +61,9 @@ the flash in QuickTime.
 - The microphone not allowed on the phone: video only, the phone saying so in its log, which the
   laptop shows.
 - A streaming app that sends sound (Larix): recorded and played the same way; one without, none.
-- A phone with several lenses sends its sound once, with its main lens; another lens of the same
-  phone plays and exports that sound.
+- A phone with several lenses sends its sound once, with its main lens -- the first lens asked for
+  that is not left out, as it is at each open --; another lens of the same phone plays and exports
+  that sound.
 - The main lens's camera lost a moment, or the screen away: the sound stops with the camera and
   comes back with it, what was heard before and after kept and sent with the main lens.
 - USB cameras, files played as live, the test camera and a camera's own file opened as it is:
