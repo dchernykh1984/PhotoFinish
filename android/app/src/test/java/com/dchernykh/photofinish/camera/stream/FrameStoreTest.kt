@@ -355,6 +355,24 @@ class FrameStoreTest {
     }
 
     @Test
+    fun `a store closed waits for what was asked of the stores' thread before it, the stream's header among it`() {
+        val store = store()
+        second(store, 0)
+        val gate = java.util.concurrent.CountDownLatch(1)
+        store.syncOff(Runnable { gate.await(5, java.util.concurrent.TimeUnit.SECONDS) }) // a slow flash's sync
+        val written =
+            java.util.concurrent.atomic
+                .AtomicBoolean(false)
+        store.syncOff(Runnable { written.set(true) }) // the stream's header, asked after it
+        val closing = Thread { store.close() }.apply { start() }
+        closing.join(300)
+        assertTrue(closing.isAlive) // the hand-over would read the folder back before its header is there
+        gate.countDown()
+        closing.join(5_000)
+        assertTrue(written.get())
+    }
+
+    @Test
     fun `a run is synced outside the store's lock, holding no reader up`() {
         val store = store()
         val syncing = java.util.concurrent.CountDownLatch(1)
