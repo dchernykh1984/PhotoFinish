@@ -287,10 +287,19 @@ class Stream:
             self.fps = float(stream.average_rate or stream.guessed_rate or 30)
             phone = container.metadata.get("encoder") == PHONE_APP
             place = self._placing(stream, phone, held_ms(container.metadata), opened)
-            for packet in container.demux(stream):
-                if packet.pts is None or packet.dts is None:
-                    continue
-                yield packet, place(packet, packet.pts)
+            try:
+                for packet in container.demux(stream):
+                    if packet.pts is None or packet.dts is None:
+                        continue
+                    yield packet, place(packet, packet.pts)
+            except av.FFmpegError, OSError:
+                if not self.listen:
+                    raise
+                # A phone that hung up without a word -- its socket closed with an
+                # acknowledgement unread, a Wi-Fi gone --: listened for again at once,
+                # as one that hung up cleanly is, never after a pause growing with each
+                # short connection -- a lens held for the first, a stream kept sent.
+                return
 
     def _placing(
         self,
