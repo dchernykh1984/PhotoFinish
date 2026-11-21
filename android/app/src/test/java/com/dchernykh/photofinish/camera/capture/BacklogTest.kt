@@ -141,6 +141,24 @@ class BacklogTest {
     }
 
     @Test
+    fun `a stream handed over is kept before its live count goes, never idle in between`() {
+        backlog.readBack()
+        val folder = File(root, "main-900")
+        val store = FrameStore(folder, freeBytes = { Long.MAX_VALUE })
+        store.keep(EncodedFrame(ByteArray(10), 0, true), 1)
+        StreamHeader(Lens.MAIN, first, format, byteArrayOf(1)).write(folder)
+        val off = backlog.live(first, store)
+        var activeAtOff: Boolean? = null
+        backlog.handOver(store) {
+            activeAtOff = backlog.active
+            off()
+        }
+        assertEquals(true, activeAtOff)
+        assertTrue(backlog.active)
+        assertTrue(backlog.holds(first))
+    }
+
+    @Test
     fun `discard stops and drops every stream kept`() {
         kept(began = 100)
         kept(began = 200, address = second)

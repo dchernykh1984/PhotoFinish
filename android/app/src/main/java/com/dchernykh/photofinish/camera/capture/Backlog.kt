@@ -15,6 +15,7 @@ import java.io.File
  * ([holds]), so the recorder gets a camera's frames in the order taken. A stream sent whole -- nothing unsent for
  * [DONE_MS] -- is removed with its folder; [discard] drops them all.
  */
+@Suppress("TooManyFunctions") // its steps: read back, hand over, tick, the counts, discard
 class Backlog(
     private val root: File,
     /** An uplink for a kept stream, started on a thread of its own, and what stops it. */
@@ -57,6 +58,20 @@ class Backlog(
         } finally {
             ready = true
         }
+    }
+
+    /**
+     * A stream that stopped: its [store] handed over -- sent alone when it holds anything unsent, else removed --
+     * before [off] takes its live count away, so the backlog never looks idle in between and the foreground
+     * service is not let go (specs/009, FR-006).
+     */
+    @Synchronized
+    fun handOver(
+        store: FrameStore,
+        off: () -> Unit,
+    ) {
+        if (store.handOver()) adopt(store.folder)
+        off()
     }
 
     /** A stream handed over, its store closed: sent if it holds anything unsent, else removed. */

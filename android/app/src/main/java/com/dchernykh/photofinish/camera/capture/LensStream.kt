@@ -95,13 +95,14 @@ internal class LensStream private constructor(
     /** Stopped, what it kept and has not sent handed to the backlog to send alone (specs/009, FR-003). */
     override fun stop() {
         end()
-        if (store.handOver()) Senders.backlog.adopt(store.folder) // all sent: nothing to send again
+        Senders.backlog.handOver(store, off) // kept before its live count goes: never idle in between
     }
 
     /** Stopped, what it kept dropped: the referee's Discard (specs/009, FR-004). */
     override fun discard() {
         end()
         store.clear()
+        off()
     }
 
     private fun end() {
@@ -112,7 +113,6 @@ internal class LensStream private constructor(
             it.join(DRAIN_JOIN_MS)
         }
         uplink.stop()
-        off()
         sync.getAndSet(null)?.close()
         try {
             codec.stop()

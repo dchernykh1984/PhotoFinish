@@ -267,17 +267,22 @@ private fun ControlPanel(
     }
 }
 
-/** What the phone holds, each second; frames to send keep the app's process, in the background too (specs/009). */
+/**
+ * What the phone holds, each second; frames to send keep the app's process, in the background too (specs/009) --
+ * the service started while the screen is shown, as Android lets an app in the foreground alone start one.
+ */
 @Composable
 private fun WatchUnsent(state: ScreenState) {
     val context = LocalContext.current
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
     LaunchedEffect(Unit) {
-        var active = false
+        var started = false
         while (true) {
             val (held, sending) = withContext(Dispatchers.IO) { Senders.backlog.pending() to Senders.active }
             state.unsent = held
-            if (sending && !active) SendingService.start(context)
-            active = sending
+            val shown = lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+            if (sending && !started && shown) started = SendingService.start(context)
+            if (!sending) started = false
             delay(UNSENT_EVERY_MS)
         }
     }
