@@ -112,6 +112,9 @@ class FrameStore(
         /** Whether the frame at [index] is a keyframe: no entry made for it. */
         fun keyframe(index: Int): Boolean = flags[index].toInt() and KEYFRAME != 0
 
+        /** Whether the entry at [index] is a piece of sound: no entry made for it. */
+        fun sound(index: Int): Boolean = flags[index].toInt() and SOUND != 0
+
         fun last(): Entry = get(count - 1)
 
         fun firstOrNull(): Entry? = getOrNull(0)
@@ -665,12 +668,14 @@ class FrameStore(
         }
         run.file.delete()
         run.index.delete()
-        val unread =
+        val from =
             when {
-                cursorRun == null -> run.frames.size
-                cursorRun === run -> run.frames.size - cursorFrame
-                else -> 0
+                cursorRun == null -> 0
+                cursorRun === run -> cursorFrame
+                else -> run.frames.size
             }
+        // Its frames not read: its pieces of sound are no frames lost (specs/013).
+        val unread = (from until run.frames.size).count { !run.frames.sound(it) }
         if (cursorRun === run) {
             cursorRun = null
             cursorFrame = 0
