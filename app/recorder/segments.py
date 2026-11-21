@@ -43,6 +43,7 @@ CLOSED = "[0-9]*-[0-9]*-[0-9]*"  # a closed segment's name, without its suffix
 NAMED = re.compile(r"\d{8}-\d{6}-\d{4,}")  # the same, exactly
 SEGMENTS = "segments.txt"  # the closed segments' names, in the order they closed
 SOUND = "sound.txt"  # those of them that kept sound (013): found without opening any
+LAST_LOOKED = 3  # the newest closed looked at for sound as a recorder starts
 KEYFRAME_SLACK_MS = 100  # a camera's keyframe this much short of a second still cuts
 CLOSING = "closing.name"  # the name a close gives, written before its two renames
 READING = "reading.crash"  # there while a crash is read: one that kills is read once
@@ -426,6 +427,19 @@ def _list_missing(folder: Path) -> list[str]:
     return listed + missing
 
 
+def _list_unheard(folder: Path, names: list[str]) -> None:
+    """The newest closed segments that kept sound and are not listed as such -- the
+    line of a recorder's last close refused, kept for a close that never came --
+    listed now."""
+    try:
+        heard = set((folder / SOUND).read_bytes().decode("ascii", "replace").split())
+    except FileNotFoundError:
+        heard = set()
+    except OSError:
+        return  # held a moment: the next start looks again
+    _list_sound(folder, [name for name in names if name not in heard])
+
+
 def _list_sound(folder: Path, names: list[str]) -> None:
     """Those of ``names`` -- closed by a recovery, not by their own close -- whose
     video kept sound, listed as a close lists them. A list refused costs their sound
@@ -462,6 +476,7 @@ def recover(folder: Path) -> list[str]:
     folder.mkdir(parents=True, exist_ok=True)
     _finish_recovery(folder)  # one a kill cut short; listed with the others just below
     closed = _list_missing(folder)
+    _list_unheard(folder, closed[-LAST_LOOKED:])
     if names := _see_to(folder, len(closed) + 1):
         listed = "".join(f"{name}\n" for name in names)
         append(folder / SEGMENTS, listed.encode("ascii"))  # else at the next start
