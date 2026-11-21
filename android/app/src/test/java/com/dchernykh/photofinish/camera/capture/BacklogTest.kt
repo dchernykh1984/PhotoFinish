@@ -246,6 +246,21 @@ class BacklogTest {
     }
 
     @Test
+    fun `frames the storage would not read are left, though those it read hold no moment`() {
+        val folder = File(root, "main-100")
+        val store = FrameStore(folder, freeBytes = { Long.MAX_VALUE })
+        repeat(10) { store.keep(EncodedFrame(ByteArray(10), it * 100_000L, it == 0), null) } // before the clock
+        repeat(10) { store.keep(EncodedFrame(ByteArray(10), 1_000_000L + it * 100_000L, it == 0), 5_000_000L) }
+        store.close()
+        StreamHeader(Lens.MAIN, first, format, byteArrayOf(1)).write(folder)
+        File(folder, "1.idx").setReadable(false) // the run with moments: the storage fails it
+        backlog.readBack()
+        assertTrue(folder.exists()) // Discard alone removes it
+        assertTrue(said.any { it.contains("would not read") })
+        File(folder, "1.idx").setReadable(true)
+    }
+
+    @Test
     fun `frames kept with no moment are dropped and said so, never told sent`() {
         val folder = File(root, "main-100")
         val store = FrameStore(folder, freeBytes = { Long.MAX_VALUE })
