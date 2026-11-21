@@ -276,6 +276,14 @@ helps find the moments to look at.
   downloaded, crossings come without numbers, and each camera's line says so: "numbers: the
   reader is downloading", or "is not here" -- the model chosen again in the list tries again --
   or, there but not loaded by the camera's analyser, why.
+- **Start protocol...** beside the switches (`specs/014-start-protocol`) chooses the race's start
+  protocol -- StartProtocolMaker's `start.txt`, or a table with the number first --, kept in the
+  session and only read; the button names it and how many numbers it holds, or says it cannot
+  be read. Its numbers are the first field of each line with a digit, a relay of N stages adding
+  the N - 1 after its number. With one, the number read is the surest reading of a start number --
+  compared without leading zeros, given as the protocol spells it --: a sticker read surer than
+  the bib is passed over, and a number nobody starts with names none; the 0.8 stands. The
+  analysers read it again when it changes, from their next crossing on.
 
 ## Exporting video
 
