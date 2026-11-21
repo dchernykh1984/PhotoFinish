@@ -734,6 +734,20 @@ class UplinkTest {
     }
 
     @Test
+    fun `a stream with sound waits a moment for its config before it publishes, so the recorder hears of it`() {
+        // FFmpeg takes a stream's sound only when its first piece comes as it looks the stream over (specs/013).
+        val sink = FakeSink()
+        val link = uplink(listOf(sink))
+        link.sounded = true
+        start(link)
+        Thread.sleep(300)
+        assertTrue(sink.metadata.isEmpty()) // waiting for the sound's config
+        link.configureSound(byteArrayOf(0x11, 0x88.toByte()))
+        awaitConnected()
+        assertEquals(10, sink.metadata.single()["audiocodecid"])
+    }
+
+    @Test
     fun `sound with no config to decode it by is not sent`() {
         val sink = FakeSink()
         val link = uplink(listOf(sink))
