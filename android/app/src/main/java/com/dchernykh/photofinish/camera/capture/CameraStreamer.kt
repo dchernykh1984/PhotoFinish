@@ -352,7 +352,7 @@ class CameraStreamer(
             // A folder a stream: one kept from before and the new one of its lens never share files (specs/009).
             store = FrameStore(File(kept, "${lens.code}-${System.currentTimeMillis()}-${Senders.session}")),
             log = log,
-            heard = heard(lens),
+            withSound = heard(lens),
         )
     }
 

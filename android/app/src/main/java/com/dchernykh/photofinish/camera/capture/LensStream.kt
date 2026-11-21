@@ -137,7 +137,7 @@ internal class LensStream private constructor(
          * [onFirstFrame] the presentation time of the first frame each feed; [status] gives the phone's status
          * line for each keyframe;
          * [store] keeps the frames until they are sent; [log] hears of an encoder that fails while it streams
-         * (specs/008-phone-log); [heard]: the phone's sound goes with it (specs/013).
+         * (specs/008-phone-log); [withSound]: the phone's sound goes with it (specs/013).
          */
         @Suppress("LongParameterList") // a stream's parts, each its own: the camera streamer's to give
         fun start(
@@ -149,7 +149,7 @@ internal class LensStream private constructor(
             status: (Long) -> String?,
             store: FrameStore,
             log: PhoneLog,
-            heard: Boolean = false,
+            withSound: Boolean = false,
         ): LensStream {
             val media = mediaFormat(format)
             val codec = encoderFor(media)
@@ -196,7 +196,7 @@ internal class LensStream private constructor(
                 offCount()
             }
             val name = planned.target.lens.code
-            val microphone = microphoneOf(uplink, name, log).takeIf { heard }
+            val microphone = microphoneOf(uplink, name, log).takeIf { withSound }
             val stream = LensStream(planned, format, codec, surface, uplink, sync, words, store, off, microphone)
             Thread({ uplink.run() }, "uplink-$name").start()
             val failed = { error: RuntimeException ->
@@ -208,6 +208,7 @@ internal class LensStream private constructor(
                     { drain(codec, format.codec, uplink, failed, heard) { onFirstFrame(stream, it) } },
                     "encoder-$name",
                 ).apply { start() }
+            microphone?.start() // a stream starts fed: feed() is a camera's after the first
             return stream
         }
 
