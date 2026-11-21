@@ -89,6 +89,7 @@ class SoundPlayer(QObject):
         self._listed = 0  # the index's segments the pieces know of
         self._drained: float | None = None  # when the output ran dry, the picture on
         self._said = ""  # the output's failure said last, until one starts
+        self._render_said = ""  # a rendering's failure said last, until one renders
         self._timer = QTimer(self)
         self._timer.setInterval(PUMP_MS)
         self._timer.timeout.connect(self._pump)
@@ -184,9 +185,13 @@ class SoundPlayer(QObject):
                         return
                     self._chunks.append(chunk)
                     self._held += len(chunk)
+                    self._render_said = ""  # rendered: a failure after it said again
         except Exception as error:  # a sound that cannot be played is not heard
-            if not stopped.is_set():  # replaced: the one playing now has not failed
-                self.failed.emit(f"The sound cannot be played: {error}")
+            why = f"The sound cannot be played: {error}"
+            # Replaced, the one playing now has not failed; said once, not at each play.
+            if not stopped.is_set() and why != self._render_said:
+                self._render_said = why
+                self.failed.emit(why)
 
     def _pump(self) -> None:
         """What the output has room for, given it; the first time, the time since
