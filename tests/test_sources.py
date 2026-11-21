@@ -334,6 +334,45 @@ def test_a_push_that_hangs_up_ends_its_stream_without_an_error() -> None:
     assert told == [20]  # listened for again at once, no pause before it
 
 
+class Failing:
+    """A listened stream taken, then failing before its first packet: one FFmpeg
+    cannot read."""
+
+    streams = SimpleNamespace(
+        video=[
+            SimpleNamespace(
+                average_rate=None,
+                guessed_rate=None,
+                time_base=Fraction(1, 1000),
+                codec_context=SimpleNamespace(name="hevc"),
+            )
+        ]
+    )
+
+    def __init__(self) -> None:
+        self.metadata: dict[str, str] = {}
+
+    def __enter__(self) -> Failing:
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        return None
+
+    def demux(self, _stream: object) -> Iterator[av.Packet]:
+        raise OSError(5, "Input/output error")
+
+
+def test_a_listened_stream_that_gives_no_frame_says_why_as_it_is_listened_for_again(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(av, "open", lambda *_, **__: Failing())
+    camera = {"connection": "rtmp", "settings": {"port": free_port(), "path": "x/y"}}
+    source = open_source(camera, lambda: START)
+    assert list(source.frames()) == []  # ended: listened for again at once
+    assert "the last connection gave no frame" in source.waiting
+    assert "Input/output error" in source.waiting
+
+
 def receive_phone(moment_us: Any) -> list[int]:
     """The moments the frames of a phone stamping ``moment_us(frame)`` get."""
     port = free_port()
