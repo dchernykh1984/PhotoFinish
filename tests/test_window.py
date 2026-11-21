@@ -164,7 +164,7 @@ def test_play_runs_the_video_at_its_own_speed_and_pause_holds_it(
     wait_until(showing(win, START + 69 * 33))
     assert win.play_button.text() == "Pause"  # live, the video plays on
     win.step(-60)
-    assert win.play_button.text() == "Play"
+    assert win.play_button.text() == "Play >"
     win.play()
     assert win.play_timer.isActive()
     assert win.play_button.text() == "Pause"
@@ -174,7 +174,7 @@ def test_play_runs_the_video_at_its_own_speed_and_pause_holds_it(
     assert not win._frame_on_screen()  # no crossing timed on a moving picture
     win.pause()
     assert not win.play_timer.isActive()
-    assert win.play_button.text() == "Play"
+    assert win.play_button.text() == "Play >"
     clock[0] += 1.0
     win._play_tick()  # a tick already on its way moves nothing
     settled(win)
@@ -194,7 +194,7 @@ def test_a_file_played_to_its_end_stops_on_its_last_frame(
     win._play_tick()
     assert not win.live
     assert not win.playing
-    assert win.play_button.text() == "Play"
+    assert win.play_button.text() == "Play >"
     assert not win.time_label.text().endswith("LIVE")
     settled(win)
     assert shown(win) == START + 69 * 33
@@ -215,7 +215,7 @@ def test_stop_stops_playing_even_with_no_frame_to_go_back_to(
     win.stop()
     assert not win.playing
     assert not win.play_timer.isActive()
-    assert win.play_button.text() == "Play"
+    assert win.play_button.text() == "Play >"
 
 
 def test_play_starts_from_the_moment_shown_where_the_camera_has_no_frame(
@@ -245,7 +245,7 @@ def test_stop_goes_back_to_where_play_started_and_playing_on_reaches_live(
     win.stop()
     wait_until(showing(win, START + 9 * 33))
     assert not win.playing
-    assert win.play_button.text() == "Play"
+    assert win.play_button.text() == "Play >"
     win.play()
     clock[0] += 5.0  # past the newest frame
     win._play_tick()
@@ -253,6 +253,108 @@ def test_stop_goes_back_to_where_play_started_and_playing_on_reaches_live(
     assert not win.play_timer.isActive()
     assert win.play_button.text() == "Pause"
     wait_until(showing(win, START + 69 * 33))
+
+
+def test_the_speed_buttons_halve_and_double_it_x1_always_there(
+    recording: Path, make_window: Callable[[], mw.MainWindow]
+) -> None:
+    win = make_window()
+    names = lambda: (  # noqa: E731
+        win.slower_button.text(),
+        win.normal_button.isEnabled(),
+        win.faster_button.text(),
+        win.speed_label.text(),
+    )
+    assert names() == ("x0.5", False, "x2", "x1")
+    win.faster_button.click()
+    assert names() == ("x1", True, "x4", "x2")
+    for _ in range(4):
+        win.faster_button.click()
+    assert win.speed_label.text() == "x16"
+    assert not win.faster_button.isEnabled()  # x16 at most
+    win.normal_button.click()
+    assert names() == ("x0.5", False, "x2", "x1")
+    for _ in range(4):
+        win.slower_button.click()
+    assert names() == ("x1/32", True, "x1/8", "x1/16")
+    assert not win.slower_button.isEnabled()  # x1/16 at least
+    win.slower_button.click()
+    assert win.speed_label.text() == "x1/16"
+
+
+def test_play_at_a_speed_and_a_speed_changed_while_playing_goes_on_from_the_frame(
+    recording: Path, make_window: Callable[[], mw.MainWindow], clock: list[float]
+) -> None:
+    win = make_window()
+    wait_until(showing(win, START + 69 * 33))
+    win.step(-60)
+    win.faster_button.click()  # x2
+    win.play()
+    clock[0] += 0.165  # ten frames on at x2
+    win._play_tick()
+    wait_until(showing(win, START + 19 * 33))
+    win.slower_button.click()  # x1, from the frame shown
+    clock[0] += 0.33
+    win._play_tick()
+    wait_until(showing(win, START + 29 * 33))
+    win.stop()
+    wait_until(showing(win, START + 9 * 33))
+    assert win.speed_label.text() == "x1"  # kept through Stop, until changed
+
+
+def test_play_backwards_and_back_to_forwards_and_pause(
+    recording: Path, make_window: Callable[[], mw.MainWindow], clock: list[float]
+) -> None:
+    win = make_window()
+    wait_until(showing(win, START + 69 * 33))
+    assert win.back_button.text() == "< Play"
+    win.step(-29)  # frame 40
+    win.back_button.click()
+    assert win.playing
+    assert (win.back_button.text(), win.play_button.text()) == ("Pause", "Play >")
+    clock[0] += 0.33  # ten frames back
+    win._play_tick()
+    wait_until(showing(win, START + 30 * 33))
+    win.play_button.click()  # forwards from the frame shown
+    assert (win.back_button.text(), win.play_button.text()) == ("< Play", "Pause")
+    clock[0] += 0.33
+    win._play_tick()
+    wait_until(showing(win, START + 40 * 33))
+    win.back_button.click()
+    win.back_button.click()  # pressed again: held
+    assert not win.playing
+    assert (win.back_button.text(), win.play_button.text()) == ("< Play", "Play >")
+    win.stop()  # back to where playing started
+    wait_until(showing(win, START + 40 * 33))
+
+
+def test_backwards_past_the_first_frame_the_first_is_held(
+    recording: Path, make_window: Callable[[], mw.MainWindow], clock: list[float]
+) -> None:
+    win = make_window()
+    wait_until(showing(win, START + 69 * 33))
+    win.step(-64)  # frame 5
+    win.back_button.click()
+    clock[0] += 1.0
+    win._play_tick()
+    assert not win.playing
+    assert not win.play_timer.isActive()
+    assert win.back_button.text() == "< Play"
+    wait_until(showing(win, START))
+
+
+def test_playing_backwards_from_live_leaves_live(
+    recording: Path, make_window: Callable[[], mw.MainWindow], clock: list[float]
+) -> None:
+    win = make_window()
+    wait_until(showing(win, START + 69 * 33))
+    assert win.live
+    win.back_button.click()
+    assert not win.live
+    assert win.playing
+    clock[0] += 0.33
+    win._play_tick()
+    wait_until(showing(win, START + 59 * 33))
 
 
 def test_stop_after_the_video_was_moved_only_holds_it(
@@ -406,7 +508,7 @@ def test_pause_holds_the_live_picture_while_recording_goes_on(
     wait_until(showing(win, START + 69 * 33))
     win.play_or_pause()
     assert not win.live
-    assert win.play_button.text() == "Play"
+    assert win.play_button.text() == "Play >"
     record(recording, START + 5000, 10)
     win.poll()
     settled(win)
