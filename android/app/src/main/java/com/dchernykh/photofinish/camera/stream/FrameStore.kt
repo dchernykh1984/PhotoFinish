@@ -398,10 +398,7 @@ class FrameStore(
                 if (cleared || closed) return
                 closed = true
                 val open = retired + runs.lastOrNull()?.let { listOf(it.file, it.index) }.orEmpty()
-                retired.clear()
-                writer = null
-                indexWriter = null
-                closeFiles()
+                closeFiles() // the newest run's files closed with the rest
                 more.signalAll()
                 open
             }
