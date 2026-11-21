@@ -426,10 +426,17 @@ def _list_sound(folder: Path, names: list[str]) -> None:
 
 def _keeps_audio(path: Path) -> bool:
     try:
-        with av.open(str(path)) as container:
-            return bool(container.streams.audio)
+        return kept_sound(path)
     except av.FFmpegError, OSError:
         return False
+
+
+def kept_sound(path: Path) -> bool:
+    """Whether a closed segment holds a piece of sound -- a track alone, of a stream
+    that said AAC and sent none, is no sound --; raises as ``av.open`` does."""
+    with av.open(str(path)) as container:
+        heard = container.streams.audio
+        return bool(heard) and any(p.size for p in container.demux(heard[0]))
 
 
 def recover(folder: Path) -> list[str]:
