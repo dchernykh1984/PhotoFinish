@@ -438,6 +438,19 @@ def test_a_segment_whose_sound_line_came_late_is_heard_as_it_comes(
     assert any(START + 1400 <= piece.ms < START + 1600 for piece in found)
 
 
+def test_a_sound_list_begun_anew_in_a_cleared_folder_is_read_from_its_start(
+    tmp_path: Path,
+) -> None:
+    listed = tmp_path / sound.SOUND
+    listed.write_text("".join(f"20251029-1030{k:02d}-{k:04d}\n" for k in range(3)))
+    assert len(sound.sounding(tmp_path)) == 3
+    listed.unlink()  # the folder cleared, the recording on: its new list longer
+    listed.write_text("".join(f"20251030-0900{k:02d}-{k:04d}\n" for k in range(9)))
+    assert sound.sounding(tmp_path) == {
+        f"20251030-0900{k:02d}-{k:04d}" for k in range(9)
+    }
+
+
 def test_the_segments_that_kept_no_sound_are_never_opened_for_it(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
