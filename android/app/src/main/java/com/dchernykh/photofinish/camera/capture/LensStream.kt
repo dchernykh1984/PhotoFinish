@@ -196,8 +196,7 @@ internal class LensStream private constructor(
                 offCount()
             }
             val name = planned.target.lens.code
-            val microphone = microphoneOf(uplink, name, log).takeIf { withSound }
-            uplink.sounded = microphone != null
+            val microphone = microphoneOf(uplink, name, log).takeIf { withSound }.also { uplink.sounded = it != null }
             val stream = LensStream(planned, format, codec, surface, uplink, sync, words, store, off, microphone)
             Thread({ uplink.run() }, "uplink-$name").start()
             val failed = { error: RuntimeException ->

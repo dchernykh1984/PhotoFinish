@@ -114,6 +114,7 @@ private class FakeSink(
     fun next(): Sent = frames.poll(5, TimeUnit.SECONDS) ?: error("no frame sent")
 }
 
+@Suppress("LargeClass") // the uplink's ways, a test each, on its helpers
 class UplinkTest {
     @get:Rule
     val temporary = TemporaryFolder()
