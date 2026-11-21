@@ -828,6 +828,16 @@ def test_a_cancelled_export_s_progress_stays_hidden(win: mw.MainWindow) -> None:
     assert progress.value() != 500
 
 
+def test_no_second_export_starts_while_one_is_ending(
+    win: mw.MainWindow, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    told: list[str] = []
+    monkeypatch.setattr(mw.QMessageBox, "information", lambda *a: told.append(a[2]))
+    win._export_job = mw.export_dialog.ExportJob([])
+    win.export_video()
+    assert told == ["An export is still ending: try again in a moment."]
+
+
 def test_export_video_with_nothing_recorded_says_so(
     win: mw.MainWindow, monkeypatch: pytest.MonkeyPatch
 ) -> None:
