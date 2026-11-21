@@ -46,3 +46,5 @@ request.
   to x16.
 - [013-sound](013-sound/spec.md): the phone's sound, kept and sent with the main lens, recorded,
   played with the pitch kept and exported.
+- [014-start-protocol](014-start-protocol/spec.md): the start protocol's numbers for the number
+  reader.
