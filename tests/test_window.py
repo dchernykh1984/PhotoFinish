@@ -3821,14 +3821,14 @@ class Heard:
     def __init__(self) -> None:
         self.calls: list[tuple[Any, ...]] = []
 
-    def play(self, index: Any, from_ms: int, rate: float) -> None:
-        self.calls.append(("play", index, from_ms, rate))
+    def play(self, index: Any, from_ms: int, rate: float, follows: bool = True) -> None:
+        self.calls.append(("play", index, from_ms, rate, follows))
 
     def stop(self) -> None:
         self.calls.append(("stop",))
 
-    def follow(self) -> None:
-        self.calls.append(("follow",))
+    def follow(self, grows: bool = True) -> None:
+        self.calls.append(("follow", grows))
 
 
 @pytest.fixture
@@ -3858,8 +3858,9 @@ def test_the_sound_plays_forwards_at_the_speed_and_stops_when_held_or_backwards(
     heard = sounding(win)
     win.step(-60)
     win.play()
-    kind, index, from_ms, rate = heard.calls[-1]
+    kind, index, from_ms, rate, follows = heard.calls[-1]
     assert (kind, index, rate) == ("play", win.cameras["cam1"].index, 1.0)
+    assert follows  # its recorder records: the segments it closes heard on
     assert from_ms == win.moment
     win.faster_button.click()  # at the new rate, from the frame shown
     assert heard.calls[-1][0::3] == ("play", 2.0)
@@ -3943,8 +3944,25 @@ def test_the_sound_follows_the_recording_as_the_window_polls(
     win.play()
     plays = sum(call[0] == "play" for call in heard.calls)
     win.poll()
-    assert heard.calls[-1] == ("follow",)
+    assert heard.calls[-1] == ("follow", True)
     assert sum(call[0] == "play" for call in heard.calls) == plays
+
+
+def test_the_sound_of_a_recorder_gone_is_heard_to_its_end(
+    phone_with_sound: Path, make_window: Callable[[], mw.MainWindow], clock: list[float]
+) -> None:
+    # No segment will come: none waited for, the last pieces heard (013).
+    win = make_window()
+    wait_until(lambda: win.moment is not None and win.place is not None)
+    heard = sounding(win)
+    win.step(-40)
+    win.play()
+    beating(phone_with_sound, state="stopped")  # the race over, its recorder too
+    win.poll()
+    assert heard.calls[-1] == ("follow", False)
+    win.pause()
+    win.play()
+    assert heard.calls[-1][0::4] == ("play", False)  # nothing to follow
 
 
 def test_a_lens_exported_with_its_phones_sound_takes_it_on_their_offsets(
@@ -4079,7 +4097,7 @@ def test_the_sound_hears_of_a_segment_in_the_poll_that_lists_it(
     seen: list[int] = []
     heard = sounding(win)
     monkeypatch.setattr(
-        heard, "follow", lambda: seen.append(len(index.paths)), raising=False
+        heard, "follow", lambda grows: seen.append(len(index.paths)), raising=False
     )
     real = index.refresh
 
