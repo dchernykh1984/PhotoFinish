@@ -771,6 +771,42 @@ def test_the_list_says_how_much_video_the_phone_still_holds_and_when_it_is_in(
     assert win.camera_list.item(0).text() == "Side: recording, 70 frames"
 
 
+def test_export_video_writes_a_file_for_each_camera_ticked(
+    recording: Path,
+    make_window: Callable[[], mw.MainWindow],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    win = make_window()
+    out = tmp_path / "out"
+    out.mkdir()
+    asked: list[dict[str, str]] = []
+    told: list[str] = []
+
+    def choose(_parent: object, names: dict[str, str]) -> list[str]:
+        asked.append(names)
+        return list(names)
+
+    monkeypatch.setattr(mw.export_dialog, "choose_cameras", choose)
+    monkeypatch.setattr(mw.QFileDialog, "getExistingDirectory", lambda *_: str(out))
+    monkeypatch.setattr(mw.QMessageBox, "information", lambda *a: told.append(a[2]))
+    win.export_video()
+    wait_until(lambda: bool(told))
+    assert asked == [{"cam1": "Side"}]
+    assert told == [f"Written:\n{out / 'Side.mp4'}"]
+    assert (out / "Side.mp4").stat().st_size > 0
+    assert win._export_job is None
+
+
+def test_export_video_with_nothing_recorded_says_so(
+    win: mw.MainWindow, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    told: list[str] = []
+    monkeypatch.setattr(mw.QMessageBox, "information", lambda *a: told.append(a[2]))
+    win.export_video()
+    assert told == ["No camera has video to export."]
+
+
 def test_the_list_says_how_each_recorder_is(
     recording: Path, make_window: Callable[[], mw.MainWindow]
 ) -> None:
