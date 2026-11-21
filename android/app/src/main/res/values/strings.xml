@@ -32,4 +32,11 @@
     <string name="left_failed">the camera failed with it beside the others</string>
     <string name="unread">Not read: %1$s</string>
     <string name="starting">starting</string>
+    <string name="sending_channel">Sending video</string>
+    <string name="sending_left">Sending to the laptop: %1$s of video (%2$d MB) left</string>
+    <string name="sending_live">Streaming to the laptop</string>
+    <string name="unsent">Not sent yet: %1$s of video (%2$d MB)</string>
+    <string name="discard">Discard unsent</string>
+    <string name="discard_title">Discard the video not sent?</string>
+    <string name="discard_text">%1$s of video (%2$d MB) the laptop has not got will be dropped for good.</string>
 </resources>

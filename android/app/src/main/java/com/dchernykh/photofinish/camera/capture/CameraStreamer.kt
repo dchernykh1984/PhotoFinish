@@ -88,7 +88,7 @@ class CameraStreamer(
     @Volatile private var generation = 0
 
     /** Where the lenses keep their frames until sent (specs/007), the phone's free space less 10 GB (specs/009). */
-    private val kept = File(context.filesDir, KEPT)
+    private val kept = File(context.filesDir, Senders.FOLDER)
 
     /** The lenses' streams, kept across the cameras' opens while the referee's choice lasts: the cameras' thread's. */
     private val keptStreams = KeptStreams<LensStream>()
@@ -97,8 +97,7 @@ class CameraStreamer(
     private var aloneTry: Runnable? = null
 
     init {
-        handler.post { kept.deleteRecursively() } // what a killed app kept: never sent (specs/007, FR-004)
-        handler.post { sweep() }
+        handler.post { sweep() } // what a killed app kept is the backlog's to send (specs/009, FR-002)
     }
 
     /**
@@ -152,8 +151,16 @@ class CameraStreamer(
     fun release() {
         handler.post {
             closeCameras()
-            keptStreams.stopAll()
+            keptStreams.stopAll() // what they kept handed to the backlog, which outlives the screen (specs/009)
             thread.quitSafely()
+        }
+    }
+
+    /** What the lenses kept and the backlog holds, dropped: the referee's Discard, confirmed (specs/009, FR-004). */
+    fun discard() {
+        handler.post {
+            keptStreams.discardAll()
+            Senders.backlog.discard()
         }
     }
 
@@ -179,6 +186,7 @@ class CameraStreamer(
         closeCameras()
         val mine = ++generation
         order = targets.map { it.lens }
+        Senders.board.order = order // the code's first lens sends first (specs/009, FR-007)
         val failedWith = fallback.leftOut
         val plan =
             plan(lenses, targets.filter { it.lens !in failedWith })
@@ -307,8 +315,16 @@ class CameraStreamer(
                 // Fed again, its frames still on the clock told: a first frame drained late is not "no clock".
                 if (!stream.clocked) clockOfFrames(stream, ptsUs)
             },
-            status = { dropped -> phone.read().copy(dropped = dropped, left = leftOut).line() },
-            store = FrameStore(File(kept, lens.code)),
+            status = { dropped ->
+                val held = Senders.backlog.pendingFor(planned.target.address)
+                phone
+                    .read()
+                    .copy(dropped = dropped, left = leftOut)
+                    .holding(held.ms, held.bytes)
+                    .line()
+            },
+            // A folder a stream: one kept from before and the new one of its lens never share files (specs/009).
+            store = FrameStore(File(kept, "${lens.code}-${System.currentTimeMillis()}")),
             log = log,
         )
     }
@@ -642,8 +658,6 @@ class CameraStreamer(
         private const val AWAY_WAIT_MS = 1_000L
 
         private const val WATCH_MS = 1_000L
-
-        private const val KEPT = "kept"
 
         // The screen's words, the laptop's last word of the phone too: the error told whole, for whoever looks
         // into it, is logged beside them where it is caught (specs/008-phone-log, FR-001).

@@ -127,6 +127,20 @@ class BacklogTest {
     }
 
     @Test
+    fun `every address is held until what was kept is read back, and a stream fed or kept is activity`() {
+        assertTrue(backlog.holds(second))
+        assertFalse(backlog.active)
+        backlog.readBack()
+        assertFalse(backlog.holds(second))
+        val off = backlog.live(second, FrameStore(File(root, "main-900"), freeBytes = { Long.MAX_VALUE }))
+        assertTrue(backlog.active)
+        off()
+        assertFalse(backlog.active)
+        backlog.adopt(kept(began = 100))
+        assertTrue(backlog.active)
+    }
+
+    @Test
     fun `discard stops and drops every stream kept`() {
         kept(began = 100)
         kept(began = 200, address = second)

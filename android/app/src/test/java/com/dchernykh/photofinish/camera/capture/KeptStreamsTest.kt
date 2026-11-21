@@ -28,6 +28,10 @@ class KeptStreamsTest {
         override fun stop() {
             said += "stopped"
         }
+
+        override fun discard() {
+            said += "discarded"
+        }
     }
 
     private val kept = KeptStreams<Fake>()
@@ -143,7 +147,7 @@ class KeptStreamsTest {
     }
 
     @Test
-    fun `another choice stops every stream once, what they kept dropped`() {
+    fun `another choice stops every stream once, what they kept handed over`() {
         val main = feed(Lens.MAIN)
         val tele = feed(Lens.TELEPHOTO)
         tele.unsent = true
@@ -153,6 +157,17 @@ class KeptStreamsTest {
         assertEquals(listOf("idle", "stopped"), tele.said)
         assertNotSame(tele, feed(Lens.TELEPHOTO))
         assertEquals(emptyList<Lens>(), kept.sweep(60_000)) // nothing left to stop again
+    }
+
+    @Test
+    fun `discard drops what every stream kept, once`() {
+        val main = feed(Lens.MAIN)
+        main.unsent = true
+        kept.discardAll()
+        assertEquals(listOf("discarded"), main.said)
+        assertEquals(emptySet<Lens>(), kept.lenses)
+        kept.discardAll()
+        assertEquals(listOf("discarded"), main.said)
     }
 }
 

@@ -14,6 +14,7 @@ import com.dchernykh.photofinish.camera.pairing.Lens
 import com.dchernykh.photofinish.camera.stream.Avc
 import com.dchernykh.photofinish.camera.stream.EncodedFrame
 import com.dchernykh.photofinish.camera.stream.FrameStore
+import com.dchernykh.photofinish.camera.stream.StreamHeader
 import com.dchernykh.photofinish.camera.stream.Uplink
 import com.dchernykh.photofinish.camera.stream.UplinkStatus
 import com.dchernykh.photofinish.camera.sync.ClockSync
@@ -24,7 +25,8 @@ import java.util.concurrent.atomic.AtomicReference
  * its input [surface], an uplink to the lens's address, a thread draining the encoder into the
  * uplink, and the clock exchange with the lens's recorder, made once the first frame tells which
  * clock the frames are stamped on. It outlives the cameras' opens ([KeptStreams]): a camera opened again feeds
- * the same encoder's [surface] at its [format].
+ * the same encoder's [surface] at its [format]. Stopped, what it kept and has not sent is handed to the backlog
+ * ([Senders]) to send alone (specs/009); only [discard] drops it.
  */
 @Suppress("LongParameterList") // a stream's parts, each its own, made together in start
 internal class LensStream private constructor(
@@ -37,6 +39,9 @@ internal class LensStream private constructor(
     private val sync: AtomicReference<ClockSync?>,
     /** What its link says, said on the screen and to the laptop while a camera feeds it. */
     private val words: LinkWords,
+    private val store: FrameStore,
+    /** What takes it off the first lens's board and the backlog's count of what the phone holds. */
+    private val off: () -> Unit,
 ) : KeptStream {
     private var drainer: Thread? = null
 
@@ -85,7 +90,20 @@ internal class LensStream private constructor(
 
     override fun idle() = words.idle()
 
+    /** Stopped, what it kept and has not sent handed to the backlog to send alone (specs/009, FR-003). */
     override fun stop() {
+        end()
+        store.close()
+        Senders.backlog.adopt(store.folder)
+    }
+
+    /** Stopped, what it kept dropped: the referee's Discard (specs/009, FR-004). */
+    override fun discard() {
+        end()
+        store.clear()
+    }
+
+    private fun end() {
         words.idle() // its link's last words, on their way as it stops, said no more: its lens's word stands
         stopped = true
         drainer?.let {
@@ -93,6 +111,7 @@ internal class LensStream private constructor(
             it.join(DRAIN_JOIN_MS)
         }
         uplink.stop()
+        off()
         sync.getAndSet(null)?.close()
         try {
             codec.stop()
@@ -106,6 +125,7 @@ internal class LensStream private constructor(
     companion object {
         private const val DEQUEUE_TIMEOUT_US = 10_000L
         private const val DRAIN_JOIN_MS = 500L
+        private const val CODEC = "avc"
 
         /**
          * [planned]'s stream at [format], started, fed: [report] hears its uplink while a camera feeds it, [logged]
@@ -147,17 +167,30 @@ internal class LensStream private constructor(
                 }
             val sync = AtomicReference<ClockSync?>()
             val words = LinkWords(report, logged)
+            val address = planned.target.address
+            val lens = planned.target.lens
             val uplink =
                 Uplink(
-                    address = planned.target.address,
+                    address = address,
                     format = format,
                     clock = { sync.get()?.offset?.best() },
                     requestKeyframe = { requestKeyframe(codec) },
                     report = words::heard,
                     store = store,
+                    // What was kept for its camera before goes first; the first lens before the others (specs/009).
+                    turn = { !Senders.backlog.holds(address) },
+                    firstLens = { Senders.board.allows(lens) },
                 )
             uplink.status = status
-            val stream = LensStream(planned, format, codec, surface, uplink, sync, words)
+            // Its header kept with its frames, as they are to be sent after a restart (specs/009, FR-001).
+            uplink.onConfigured = { record -> StreamHeader(lens, address, format, CODEC, record).write(store.folder) }
+            val offBoard = Senders.board.register(lens, { uplink.connected }, { store.pending.ms })
+            val offCount = Senders.backlog.live(address, store)
+            val off = {
+                offBoard()
+                offCount()
+            }
+            val stream = LensStream(planned, format, codec, surface, uplink, sync, words, store, off)
             val name = planned.target.lens.code
             Thread({ uplink.run() }, "uplink-$name").start()
             val failed = { error: IllegalStateException ->

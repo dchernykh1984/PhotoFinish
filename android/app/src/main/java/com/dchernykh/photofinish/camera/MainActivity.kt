@@ -1,18 +1,25 @@
 package com.dchernykh.photofinish.camera
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import com.dchernykh.photofinish.camera.capture.CameraFormats
 import com.dchernykh.photofinish.camera.capture.CameraStreamer
 import com.dchernykh.photofinish.camera.capture.PhoneLenses
+import com.dchernykh.photofinish.camera.capture.Senders
 import com.dchernykh.photofinish.camera.capture.StreamerStatus
 import com.dchernykh.photofinish.camera.diagnostics.Diagnostics
 import com.dchernykh.photofinish.camera.pairing.Lens
 import com.dchernykh.photofinish.camera.status.PhoneStatusReader
 import com.dchernykh.photofinish.camera.ui.CameraScreen
 import com.dchernykh.photofinish.camera.ui.ScreenState
+import java.io.File
 import kotlin.math.roundToInt
 
 class MainActivity : ComponentActivity() {
@@ -47,12 +54,36 @@ class MainActivity : ComponentActivity() {
         val statuses = Diagnostics.statuses
         // A lens's link while its camera is closed: in the log, the screen keeping the camera's word.
         val logged = { lens: Lens?, status: StreamerStatus -> statuses.heard(lens, status, shown = false) }
+        val phone = PhoneStatusReader(this)
+        // What a crash, Android or a dead battery left is sent before anything new, without Start (specs/009).
+        Senders.start(
+            File(filesDir, Senders.FOLDER),
+            report = { lens, status -> logged(lens, StreamerStatus.Link(status)) },
+            say = { lens, text -> log.info(lens.code, text) },
+            status = { address, dropped ->
+                val held = Senders.backlog.pendingFor(address)
+                phone
+                    .read()
+                    .copy(dropped = dropped)
+                    .holding(held.ms, held.bytes)
+                    .line()
+            },
+        )
+        askToNotify()
         streamer =
-            CameraStreamer(this, lenses, PhoneStatusReader(this), log, logged) { lens, status ->
+            CameraStreamer(this, lenses, phone, log, logged) { lens, status ->
                 statuses.heard(lens, status)
                 runOnUiThread { state.hear(lens, status) }
             }
         setContent { CameraScreen(state, streamer) }
+    }
+
+    /** The notification that says what is left to send (specs/009, FR-006): Android 13 asks for it. */
+    private fun askToNotify() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        val permission = Manifest.permission.POST_NOTIFICATIONS
+        if (ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED) return
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) {}.launch(permission)
     }
 
     override fun onDestroy() {

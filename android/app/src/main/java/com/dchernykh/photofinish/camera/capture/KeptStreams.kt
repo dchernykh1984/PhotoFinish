@@ -17,8 +17,11 @@ internal interface KeptStream {
     /** Its encoder still takes the camera's frames: one that failed mid-race is made anew, not fed again. */
     val alive: Boolean
 
-    /** Stopped, what it kept dropped. */
+    /** Stopped, what it kept and has not sent handed over to be sent alone (specs/009). */
     fun stop()
+
+    /** Stopped, what it kept dropped: the referee's Discard (specs/009, FR-004). */
+    fun discard()
 }
 
 /**
@@ -87,9 +90,16 @@ internal class KeptStreams<S : KeptStream> {
         return done.keys.toList()
     }
 
-    /** Every stream stopped, what they kept dropped: the referee's choice changed, or the app ends (FR-004). */
+    /** Every stream stopped, what they kept handed over: the referee's stop or choice, the app closing (009). */
     fun stopAll() {
         streams.values.forEach { it.stop() }
+        streams.clear()
+        idleSince.clear()
+    }
+
+    /** Every stream stopped, what they kept dropped: the referee's Discard (specs/009, FR-004). */
+    fun discardAll() {
+        streams.values.forEach { it.discard() }
         streams.clear()
         idleSince.clear()
     }

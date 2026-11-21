@@ -42,11 +42,21 @@ class Backlog(
     /** The stores of streams a camera feeds, by address: what the phone holds for a camera, all told. */
     private val live = mutableListOf<Pair<RtmpAddress, FrameStore>>()
 
+    /** Read back: until then every address is held ([holds]), so nothing a camera feeds goes before what was kept. */
+    @Volatile private var ready = false
+
+    /** A lens streams, or a stream is kept: there are frames to send. */
+    val active: Boolean @Synchronized get() = kept.isNotEmpty() || live.isNotEmpty()
+
     /** What the stores' root holds, read back: streams to send, or folders of nothing to send, removed. */
     @Synchronized
     fun readBack() {
-        val folders = root.listFiles { file -> file.isDirectory }?.sortedBy { began(it) } ?: return
-        folders.filter { folder -> kept.none { it.folder == folder } }.forEach { take(it) }
+        try {
+            val folders = root.listFiles { file -> file.isDirectory }?.sortedBy { began(it) } ?: return
+            folders.filter { folder -> kept.none { it.folder == folder } }.forEach { take(it) }
+        } finally {
+            ready = true
+        }
     }
 
     /** A stream handed over, its store closed: sent if it holds anything unsent, else removed. */
@@ -99,9 +109,9 @@ class Backlog(
         return true
     }
 
-    /** Streams kept for [address], sending or waiting: a stream a camera feeds waits for them. */
+    /** Streams kept for [address], sending or waiting -- or not read back yet: a stream a camera feeds waits. */
     @Synchronized
-    fun holds(address: RtmpAddress): Boolean = kept.any { it.header.address == address }
+    fun holds(address: RtmpAddress): Boolean = !ready || kept.any { it.header.address == address }
 
     /** A store a camera feeds, for [address]: counted in what the phone holds for it. Returns what takes it off. */
     @Synchronized
