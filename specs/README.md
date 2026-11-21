@@ -42,3 +42,5 @@ request.
 - [010-hevc](010-hevc/spec.md): H.265 as an experimental choice for PhotoFinish Camera, at 0.7 of
   H.264's bitrate.
 - [011-video-export](011-video-export/spec.md): a camera's video exported as one MP4 file.
+- [012-playback-speed](012-playback-speed/spec.md): playing faster, slower and backwards, x1/16
+  to x16.
