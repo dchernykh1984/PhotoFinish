@@ -32,4 +32,11 @@
     <string name="left_failed">камера отказала, снимая им вместе с остальными</string>
     <string name="unread">Не прочитано: %1$s</string>
     <string name="starting">запуск</string>
+    <string name="sending_channel">Отправка видео</string>
+    <string name="sending_left">Отправка на ноутбук: осталось %1$s видео (%2$d МБ)</string>
+    <string name="sending_live">Трансляция на ноутбук</string>
+    <string name="unsent">Ещё не отправлено: %1$s видео (%2$d МБ)</string>
+    <string name="discard">Удалить неотправленное</string>
+    <string name="discard_title">Удалить неотправленное видео?</string>
+    <string name="discard_text">%1$s видео (%2$d МБ), которых ещё нет на ноутбуке, будут удалены безвозвратно.</string>
 </resources>

@@ -37,6 +37,12 @@ class ScreenState(
 
     var dimmed by mutableStateOf(false)
 
+    /** The video the phone holds and has not sent, kept and fed, all told (specs/009). */
+    var unsent by mutableStateOf(
+        com.dchernykh.photofinish.camera.stream.FrameStore
+            .Pending(0, 0),
+    )
+
     /** What the cameras as a whole last said. */
     var status by mutableStateOf<StreamerStatus?>(null)
 

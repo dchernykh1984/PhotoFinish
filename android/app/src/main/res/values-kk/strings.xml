@@ -32,4 +32,11 @@
     <string name="left_failed">оны басқалармен бірге түсіргенде камера істен шықты</string>
     <string name="unread">Оқылмады: %1$s</string>
     <string name="starting">іске қосылуда</string>
+    <string name="sending_channel">Бейне жіберу</string>
+    <string name="sending_left">Ноутбукке жіберу: %1$s бейне (%2$d МБ) қалды</string>
+    <string name="sending_live">Ноутбукке трансляция</string>
+    <string name="unsent">Әлі жіберілмеген: %1$s бейне (%2$d МБ)</string>
+    <string name="discard">Жіберілмегенді жою</string>
+    <string name="discard_title">Жіберілмеген бейнені жою керек пе?</string>
+    <string name="discard_text">Ноутбукке әлі жетпеген %1$s бейне (%2$d МБ) біржола жойылады.</string>
 </resources>
