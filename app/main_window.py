@@ -2054,7 +2054,7 @@ class MainWindow(QMainWindow):
     def _sound_camera(self, moment: int) -> Camera | None:
         """Whose sound plays from ``moment`` (013): the camera shown, when its
         recording has sound there; else a camera of its phone's whose has -- the
-        main lens's."""
+        lens that kept it then."""
         chosen = self._camera()
         if chosen is None:
             return None

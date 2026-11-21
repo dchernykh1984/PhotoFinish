@@ -44,7 +44,8 @@ recorder is down and at most the 0.1 s before it.
 
 - USB cameras, files played as live and the test camera are encoded (mpeg4, a keyframe every 15
   frames); RTSP and RTMP streams are kept as the camera encoded them, cut at its keyframes.
-- A stream's sound (`specs/013-sound`) -- PhotoFinish Camera's main lens's, or a streaming app's --
+- A stream's sound (`specs/013-sound`) -- PhotoFinish Camera's hearing lens's, or a streaming
+  app's --
   is kept in the segments beside its frames, on their timestamps, which start a second after a
   segment's base: a piece captured just before the keyframe that opens a segment comes after it,
   and Matroska shifts every stream for a negative timestamp. A piece is placed at the moment of the
@@ -124,11 +125,12 @@ experiment (`specs/010-hevc`): about 0.7 of H.264's bitrate for the same picture
 RTMP, the phone saying when its encoder does not take it at the size and rate and streaming H.264
 then; tried on the emulator at 320x240, every frame with its moment -- without sound at the size and rate
 chosen (60 fps first), a keyframe a second and a bitrate that follows the size, and connects again
-on its own after a loss; it keeps the screen on, and can dim it while it streams. Its main lens
+on its own after a loss; it keeps the screen on, and can dim it while it streams. Its first lens not
+left out -- the main lens, unless the fallback or the plan left it out; decided at each open --
 sends the phone's sound too (`specs/013-sound`): AAC, mono, 48 kHz, 128 kbit/s -- under 1% of the
-lens's bitrate --, kept with the main lens's frames and sent with them, oldest first, through breaks,
-restarts and Stop as they are, the other lenses waiting for the main lens as before; it records
-while a camera feeds the main lens, stopping with the camera -- lost a moment, the screen away --
+lens's bitrate --, kept with that lens's frames and sent with them, oldest first, through breaks,
+restarts and Stop as they are, the other lenses waiting for the first as before; it records
+while a camera feeds that lens, stopping with the camera -- lost a moment, the screen away --
 and starting again with it. The microphone is asked for after the camera; refused, the lens
 streams video alone, its log saying so. A streaming app
 is set to 60 fps, about 10 Mbit/s and a keyframe a second: the newest frame waits for the next
@@ -217,8 +219,9 @@ or a swaying patch.
   while recording goes on -- and asks for it again, so a crossing is timed on the frame on
   screen; while playing, timing waits for Pause. Stop goes back to the frame playing started
   from.
-- **Sound.** Playing forwards, the camera shown's sound plays -- or, a lens without, its phone's
-  main lens's -- at every speed with its pitch kept (FFmpeg's `atempo`), from where playing goes
+- **Sound.** Playing forwards, the camera shown's sound plays -- or, where it has none, the
+  phone's lens's that kept it then, followed as the microphone goes from one to another -- at
+  every speed with its pitch kept (FFmpeg's `atempo`), from where playing goes
   on from, started again where it jumps, its output's buffer skipped so it is heard as the picture
   shows: within 100 ms of the recording's time from x1/16 to x4. Backwards, stepping, paused and Live
   there is none. **Sound** beside the speeds switches it, kept with the session; a computer without
