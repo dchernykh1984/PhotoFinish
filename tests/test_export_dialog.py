@@ -91,6 +91,20 @@ def test_a_job_tells_whatever_fails_never_leaving_the_window_waiting(
     assert heard == [([], "a: list index out of range", 0)]
 
 
+def test_a_job_whose_cameras_cannot_even_be_listed_still_says_so(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def broken(*_: object, **__: object) -> object:
+        raise MemoryError
+
+    monkeypatch.setattr(export_dialog.export, "export_all", broken)
+    job = export_dialog.ExportJob([(tmp_path, tmp_path / "a.mp4")])
+    heard = finished(job)
+    job.start()
+    wait(heard)
+    assert heard == [([], "MemoryError", 0)]
+
+
 def test_a_camera_that_fails_is_told_and_the_next_still_exported(
     tmp_path: Path,
 ) -> None:
