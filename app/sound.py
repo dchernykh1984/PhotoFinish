@@ -13,7 +13,6 @@ keeps the pitch.
 
 from __future__ import annotations
 
-import functools
 import heapq
 import threading
 from collections.abc import Callable, Iterable, Iterator, Mapping
@@ -27,7 +26,7 @@ import numpy as np
 
 from app.files import Appended
 from app.recorder import folder_of
-from app.recorder.segments import LEAD_MS, SOUND, fraction, in_ms, kept_sound
+from app.recorder.segments import LEAD_MS, SOUND, fraction, in_ms
 from app.video_index import VideoIndex, read_times
 
 # A piece this much after the end of the one before: silence between. Under a piece's
@@ -93,9 +92,10 @@ def whose(
 
 def heard_at(index: VideoIndex, moment: int, within: int) -> bool:
     """Whether a camera's recording has sound at ``moment``, on its own times: in
-    the segment of its frame within ``within`` ms of it."""
+    the segment of its frame within ``within`` ms of it, as its recorder lists those
+    that kept sound -- the pieces played are those alone."""
     place = index.nearest(moment, within=within)
-    return place is not None and has_sound(index.frame(place).path)
+    return place is not None and index.frame(place).path.stem in sounding(index.folder)
 
 
 _SOUNDING: dict[Path, tuple[Appended, set[str], int | None]] = {}
@@ -189,22 +189,6 @@ def exported_sound(
     if found is None or found is own:
         return None
     return folder_of(str(found["id"])), shift_ms(own, found)
-
-
-def has_sound(path: Path) -> bool:
-    """Whether a segment keeps sound beside its frames: read once, as a closed one
-    never changes -- the window asks at each play, a file opened on its thread --;
-    one that cannot be read now counts as silent for this ask alone, never kept so."""
-    try:
-        return _keeps_sound(path)
-    except av.FFmpegError, OSError:
-        return False
-
-
-@functools.lru_cache(maxsize=4096)
-def _keeps_sound(path: Path) -> bool:
-    """Read, and kept only when read: lru_cache keeps no exception."""
-    return kept_sound(path)
 
 
 def pieces(
