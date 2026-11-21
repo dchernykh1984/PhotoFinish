@@ -4,18 +4,24 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from app.widgets import export_dialog
 from tests.conftest import wait_until
 from tests.test_export import START, record
 
+Heard = list[tuple[list[Path], str, int]]
 
-def finished(job: export_dialog.ExportJob) -> list[tuple[list[Path], str]]:
-    heard: list[tuple[list[Path], str]] = []
-    job.done.connect(lambda written, error: heard.append((written, error)))
+
+def finished(job: export_dialog.ExportJob) -> Heard:
+    heard: Heard = []
+    job.done.connect(
+        lambda written, error, skipped: heard.append((written, error, skipped))
+    )
     return heard
 
 
-def wait(heard: list[tuple[list[Path], str]]) -> None:
+def wait(heard: Heard) -> None:
     """The signals come through Qt's events, the job's thread being another."""
     wait_until(lambda: bool(heard))
 
@@ -42,7 +48,7 @@ def test_the_job_writes_each_camera_and_says_how_far_it_is(tmp_path: Path) -> No
     heard = finished(job)
     job.start()
     wait(heard)
-    assert heard == [([tmp_path / "cam1.mp4", tmp_path / "cam2.mp4"], "")]
+    assert heard == [([tmp_path / "cam1.mp4", tmp_path / "cam2.mp4"], "", 0)]
     assert steps[-1] == export_dialog.STEPS
     assert steps == sorted(steps)
 
@@ -54,9 +60,23 @@ def test_a_job_cancelled_says_so_and_one_that_fails_says_why(tmp_path: Path) -> 
     job.cancel()
     job.start()
     wait(heard)
-    assert heard == [([], export_dialog.CANCELLED)]
+    assert heard == [([], export_dialog.CANCELLED, 0)]
     gone = export_dialog.ExportJob([(tmp_path / "cam1", tmp_path / "no" / "a.mp4")])
     failed = finished(gone)
     gone.start()
     wait(failed)
     assert failed[0][0] == [] and failed[0][1]
+
+
+def test_a_job_tells_whatever_fails_never_leaving_the_window_waiting(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def broken(*_: object) -> list[Path]:
+        raise IndexError("list index out of range")
+
+    monkeypatch.setattr(export_dialog.export, "export", broken)
+    job = export_dialog.ExportJob([(tmp_path, tmp_path / "a.mp4")])
+    heard = finished(job)
+    job.start()
+    wait(heard)
+    assert heard == [([], "list index out of range", 0)]

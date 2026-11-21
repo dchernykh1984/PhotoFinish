@@ -7,7 +7,6 @@ import re
 import threading
 from pathlib import Path
 
-import av
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -67,7 +66,8 @@ class ExportJob(QObject):
     through signals, which Qt hands to the window's thread."""
 
     progress = Signal(int)  # the share done, of STEPS
-    done = Signal(object, str)  # the files written; what went wrong, "" for nothing
+    # The files written; what went wrong, "" for nothing; the pieces left unreadable.
+    done = Signal(object, str, int)
 
     def __init__(self, jobs: list[tuple[Path, Path]]) -> None:
         super().__init__()
@@ -81,7 +81,8 @@ class ExportJob(QObject):
         self._stop.set()
 
     def _run(self) -> None:
-        written: list[Path] = []
+        written: list[Path] = []  # each file as it is done: those a stop leaves too
+        skipped: list[Path] = []
         error = ""
         count = len(self.jobs)
         try:
@@ -92,13 +93,9 @@ class ExportJob(QObject):
                         (n * STEPS + done * STEPS // max(total, 1)) // count
                     )
 
-                written += export.export(folder, target, told, self._stop.is_set)
+                export.export(folder, target, told, self._stop.is_set, written, skipped)
         except export.CancelledError:
             error = CANCELLED
-        except (
-            OSError,
-            ValueError,
-            av.FFmpegError,
-        ) as failure:  # a disk full, a piece unreadable
-            error = str(failure)
-        self.done.emit(written, error)
+        except Exception as failure:
+            error = str(failure) or type(failure).__name__
+        self.done.emit(written, error, len(skipped))
