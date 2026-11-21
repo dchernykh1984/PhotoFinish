@@ -754,6 +754,23 @@ def test_a_removed_camera_stops_recording_and_keeps_its_video(
     assert free_ids(win.cameras, 1) == ["cam2"]  # cam1's recording is still on disk
 
 
+def test_the_list_says_how_much_video_the_phone_still_holds_and_when_it_is_in(
+    recording: Path, make_window: Callable[[], mw.MainWindow]
+) -> None:
+    win = make_window()
+    now = time.time_ns() // 1_000_000
+    beating(recording, phone={"unsent_ms": "600000", "heard_ms": str(now - 30_000)})
+    win.poll()
+    text = win.camera_list.item(0).text()
+    assert text.startswith("Side: recording, 70 frames; 10:00 of video on the phone")
+    beating(recording, phone={"unsent_ms": "540000", "heard_ms": str(now)})
+    win.poll()
+    assert win.camera_list.item(0).text().endswith("10%, in about 5 min")
+    beating(recording, phone={"unsent_ms": "0", "heard_ms": str(now + 1)})
+    win.poll()
+    assert win.camera_list.item(0).text() == "Side: recording, 70 frames"
+
+
 def test_the_list_says_how_each_recorder_is(
     recording: Path, make_window: Callable[[], mw.MainWindow]
 ) -> None:
