@@ -304,6 +304,8 @@ def test_a_camera_s_name_becomes_a_file_s() -> None:
     assert export.file_name("NUL .x") == "NUL_.x"
     assert export.file_name("Con.1.2") == "Con_.1.2"
     assert export.file_name("Auxiliary") == "Auxiliary"
+    assert export.file_name("COM0") == "COM0_"
+    assert export.file_name("lpt\u00b9.x") == "lpt\u00b9_.x"
     assert export.file_name("Tab\there") == "Tab_here"
 
 

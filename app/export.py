@@ -25,8 +25,11 @@ from app.recorder.segments import NAMED, SEGMENTS, frame_times, in_ms
 MS = Fraction(1, 1000)
 CANCELLED = "cancelled"  # what an export of the cameras stopped by the referee tells
 STEPS = 1000  # the whole of its progress
+# Windows's device names: COM and LPT with a digit, or a superscript one, 1 to 3.
 RESERVED = {"CON", "PRN", "AUX", "NUL"} | {
-    f"{d}{n}" for d in ("COM", "LPT") for n in range(1, 10)
+    f"{d}{n}"
+    for d in ("COM", "LPT")
+    for n in [*range(10), "\u00b9", "\u00b2", "\u00b3"]
 }
 
 
