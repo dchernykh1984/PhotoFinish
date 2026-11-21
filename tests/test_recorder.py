@@ -1221,6 +1221,7 @@ class WithSound:
     fps = 30.0
     clock_note = ""
     waiting = ""
+    listen = True  # pushed, as a phone's: its sound read
 
     def __init__(self, path: Path) -> None:
         self.path = path
@@ -1247,6 +1248,32 @@ def test_a_sources_sound_is_kept_beside_its_frames_and_counted_as_none(
                 heard += sum(1 for p in container.demux(audio=0) if p.size)
     assert heard > 80  # two seconds' pieces, but for the first's before any frame
     assert heartbeat(folder)["frames"] == 60 + 1  # the frames alone, and the stop's
+
+
+class FromRtsp(WithSound):
+    """An IP camera's RTSP, its AAC unread (013): its frames alone come."""
+
+    listen = False
+
+    def frames(self) -> Iterator[tuple[av.Packet, int]]:
+        for packet, ms in super().frames():
+            if packet.stream.type == "video":
+                yield packet, ms
+
+
+def test_an_rtsp_cameras_segments_keep_no_track_for_a_sound_never_read(
+    folder: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # An empty track would be taken for sound, played and searched for in export.
+    with_sound(tmp_path / "camera.mkv", 2)
+    stop = Camera(folder, START + 10_000, 1, stop_after=0)
+    cameras(monkeypatch, FromRtsp(tmp_path / "camera.mkv"), stop)
+    assert run("cam1") == 0
+    found = sorted(folder.glob("*-*-*.mkv"))
+    assert found
+    for path in found:
+        with av.open(str(path)) as container:
+            assert not container.streams.audio, path.name
 
 
 class SoundAlone(WithSound):
