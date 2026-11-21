@@ -766,6 +766,23 @@ class UplinkTest {
     }
 
     @Test
+    fun `sound a stream has no config for is passed over, never held unsent for good`() {
+        // A kept stream whose header was written before its sound's config: its pieces cannot go, and are not
+        // read -- read, they would never be confirmed, the stream never done and its lens's live one never sent.
+        val sink = FakeSink(answersPings = true)
+        val link = uplink(listOf(sink))
+        start(link)
+        awaitConnected()
+        link.offer(frame(100_000, keyframe = true))
+        link.offerSound(sound(121_000, 2))
+        link.offerSound(sound(142_000, 3)) // the last kept: after every frame
+        sink.next()
+        val done = System.nanoTime() + 5_000_000_000L
+        while (link.unsent && System.nanoTime() < done) Thread.sleep(50)
+        assertFalse(link.unsent)
+    }
+
+    @Test
     fun `sound with no config to decode it by is not sent`() {
         val sink = FakeSink()
         val link = uplink(listOf(sink))
