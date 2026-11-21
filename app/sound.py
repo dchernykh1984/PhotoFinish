@@ -109,7 +109,11 @@ def sounding(folder: Path) -> frozenset[str]:
         follower, names = _SOUNDING.setdefault(
             folder, (Appended(folder / SOUND), set())
         )
-        names.update(follower.new_lines())
+        before = follower.offset
+        found = follower.new_lines()
+        if follower.offset < before:
+            names.clear()  # a list begun anew, shorter: its folder cleared
+        names.update(found)
         return frozenset(names)
 
 

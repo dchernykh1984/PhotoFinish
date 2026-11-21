@@ -400,6 +400,8 @@ def test_the_list_of_segments_that_kept_sound_is_followed_never_read_again(
         "20251029-103001-0002",
         "20251029-103002-0003",
     }
+    listed.write_text("20251030-090000-0001\n")  # the folder cleared, a list anew
+    assert sound.sounding(tmp_path) == {"20251030-090000-0001"}
 
 
 def test_the_segments_that_kept_no_sound_are_never_opened_for_it(
