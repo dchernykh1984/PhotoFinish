@@ -27,13 +27,14 @@ import numpy as np
 
 from app import sound
 from app.recorder.segments import NAMED, SEGMENTS, frame_times, in_ms
-from app.video_index import TRIES, VideoIndex
+from app.video_index import VideoIndex
 
 MS = Fraction(1, 1000)
 CANCELLED = "cancelled"  # what an export of the cameras stopped by the referee tells
 STEPS = 1000  # the whole of its progress
 FRAME_SLACK_MS = 50  # the sound heard this long after a file's last frame goes in it
 HELD_S = 0.1  # a piece whose times are held a moment, read again this much later
+HELD_TRIES = 5  # and so often: times a crash garbled hold each export no longer
 # Windows's device names: COM and LPT with a digit, or a superscript one, 1 to 3.
 RESERVED = {"CON", "PRN", "AUX", "NUL"} | {
     f"{d}{n}"
@@ -268,7 +269,7 @@ def _listed(folder: Path, cancelled: Callable[[], bool]) -> VideoIndex:
     given up -- never its sound left out for that moment."""
     index = VideoIndex(folder)
     index.refresh()
-    for _ in range(TRIES):
+    for _ in range(HELD_TRIES):
         if not index.pending or cancelled():
             break
         time.sleep(HELD_S)
