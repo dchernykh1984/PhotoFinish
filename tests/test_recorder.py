@@ -1109,6 +1109,51 @@ def test_why_a_phone_s_connection_gave_no_frame_is_said_as_it_is_listened_for(
     assert any(s.endswith("gave no frame: [Errno 5] I/O error") for s in said)
 
 
+def test_why_a_connection_gave_no_frame_is_not_said_after_a_failure_since(
+    folder: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    phone_session()
+    monkeypatch.setattr(recorder, "ClockResponder", Responder)
+    url = "rtmp://0.0.0.0:1999/live/x"
+
+    class NoFrame(sources.Stream):
+        def __init__(self) -> None:
+            super().__init__(url, {}, lambda: START, listen=True, waiting=lambda: "w")
+
+        def frames(self) -> Iterator[Any]:
+            self.ended = "the last connection gave no frame: [Errno 5] I/O error"
+            return iter(())
+
+    class Fails(sources.Stream):
+        def __init__(self) -> None:
+            super().__init__(url, {}, lambda: START, listen=True, waiting=lambda: "w")
+
+        def frames(self) -> Iterator[Any]:
+            raise OSError("the port is taken")
+
+    class Waits(sources.Stream):
+        def __init__(self) -> None:
+            super().__init__(url, {}, lambda: START, listen=True, waiting=lambda: "w")
+
+        def frames(self) -> Iterator[Any]:
+            yield None
+            (folder / "stop.request").touch()
+            yield None
+
+    cameras(monkeypatch, NoFrame(), Fails(), Waits())
+    said: list[str] = []
+    real = Heartbeat.beat
+
+    def beat(self: Heartbeat, **changes: Any) -> None:
+        real(self, **changes)
+        said.append(str(self.info.get("detail", "")))
+
+    monkeypatch.setattr(Heartbeat, "beat", beat)
+    assert run("cam1") == 0
+    failed = next(k for k, s in enumerate(said) if "the port is taken" in s)
+    assert not [s for s in said[failed:] if "gave no frame" in s]  # no longer stands
+
+
 def test_another_camera_gets_no_clock_exchange(
     folder: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
