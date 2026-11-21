@@ -1035,3 +1035,46 @@ def test_a_stream_read_rather_than_pushed_gives_no_sound(tmp_path: Path) -> None
         if item is not None and isinstance(item[0], av.Packet)
     ]
     assert kinds and set(kinds) == {"video"}
+
+
+class SoundingContainer(PhoneContainer):
+    """A phone's connection whose frames stall after the first, its sound going on."""
+
+    def __init__(self, packets: list[Any]) -> None:
+        super().__init__(packets)
+        audio = SimpleNamespace(codec_context=SimpleNamespace(name="aac"))
+        self.streams = SimpleNamespace(video=self.streams.video, audio=[audio])
+
+
+def test_sound_alone_past_the_read_timeout_is_a_connection_stalled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The frames stalled, the sound keeping the read alive: listened for again, as a
+    # stream that stops sending is, never shown recording.
+    clock = {"s": 1000.0}
+    frame = av.Packet(avcc(sei((START + 1_000) * 1000), b"\x65\x88"))
+    frame.pts = frame.dts = 0
+
+    def piece(n: int) -> Any:
+        clock["s"] += 1.0  # a second of sound a piece: the frames gone
+        return SimpleNamespace(
+            pts=n * 21,
+            dts=n * 21,
+            time_base=Fraction(1, 1000),
+            size=6,
+            stream=SimpleNamespace(type="audio"),
+        )
+
+    class Stalled(SoundingContainer):
+        def demux(self, *_: object) -> Iterator[Any]:
+            yield frame
+            for n in range(1, 30):
+                yield piece(n)
+
+    monkeypatch.setattr(av, "open", lambda *a, **k: Stalled([]))
+    monkeypatch.setattr(sources.time, "monotonic", lambda: clock["s"])
+    source = sources.Stream(
+        "rtmp://0.0.0.0:1935/live/x", {}, lambda: START, listen=True
+    )
+    given = [item for item in source.frames() if item is not None]
+    assert len(given) < 10  # a frame and the sound of its first seconds, then ended

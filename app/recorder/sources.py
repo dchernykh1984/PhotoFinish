@@ -289,29 +289,9 @@ class Stream:
             self.fps = float(stream.average_rate or stream.guessed_rate or 30)
             phone = container.metadata.get("encoder") == PHONE_APP
             place = self._placing(stream, phone, held_ms(container.metadata), opened)
-            got = False
-            before: tuple[int, int] | None = None  # the last frame's pts, ms; moment
+            given = [False]  # a frame given on this connection
             try:
-                # Its sound when it is AAC and pushed (013): a phone's, a streaming
-                # app's, its timestamps on its frames' clock. An IP camera's G.711 is
-                # not kept, and its RTSP sound shares no clock with its frames until
-                # its first RTCP report.
-                aac = [s for s in container.streams.audio if _aac(s)][:1]
-                heard = aac if self.listen else []
-                for packet in container.demux(stream, *heard):
-                    if packet.pts is None or packet.dts is None:
-                        continue
-                    pts_ms = in_ms(packet.pts, fraction(packet.time_base))
-                    if getattr(packet.stream, "type", "video") == "audio":
-                        # Its sound (specs/013), placed by the frame before it, the
-                        # two stamped on one clock; one before any frame, by none.
-                        if before is not None:
-                            yield packet, before[1] + pts_ms - before[0]
-                        continue
-                    got = True
-                    moment = place(packet, packet.pts)
-                    before = (pts_ms, moment)
-                    yield packet, moment
+                yield from self._given(container, stream, place, given)
             except (av.FFmpegError, OSError) as error:
                 if not self.listen:
                     raise
@@ -321,10 +301,42 @@ class Stream:
                 # short connection -- a lens held for the first, a stream kept sent.
                 # One that gave no frame says why, as it is listened for again.
                 self.ended = (
-                    "" if got else f"the last connection gave no frame: {error}"
+                    "" if given[0] else f"the last connection gave no frame: {error}"
                 )
                 return
             self.ended = ""
+
+    def _given(
+        self,
+        container: Any,
+        stream: Any,
+        place: Callable[[av.Packet, int], int],
+        given: list[bool],
+    ) -> Iterator[Item]:
+        """A connection's frames at their moments, and its sound placed by the frame
+        before it (specs/013); ``given`` told once a frame is."""
+        # Its sound when it is AAC and pushed: a phone's, a streaming app's, its
+        # timestamps on its frames' clock. An IP camera's G.711 is not kept, and its
+        # RTSP sound shares no clock with its frames until its first RTCP report.
+        aac = [s for s in container.streams.audio if _aac(s)][:1]
+        before: tuple[int, int] | None = None  # the last frame's pts, ms; moment
+        framed_at = time.monotonic()  # when the last frame came, or the connection
+        for packet in container.demux(stream, *(aac if self.listen else [])):
+            if packet.pts is None or packet.dts is None:
+                continue
+            pts_ms = in_ms(packet.pts, fraction(packet.time_base))
+            if getattr(packet.stream, "type", "video") != "audio":
+                framed_at = time.monotonic()
+                given[0] = True
+                moment = place(packet, packet.pts)
+                before = (pts_ms, moment)
+                yield packet, moment
+            elif time.monotonic() - framed_at > READ_TIMEOUT_S:
+                # Sound alone past the read timeout is a stream stalled, as one that
+                # stops sending is: it keeps the read alive.
+                raise TimeoutError("no frame, the sound alone")
+            elif before is not None:  # placed by the frame before it; none, by none
+                yield packet, before[1] + pts_ms - before[0]
 
     def _placing(
         self,
