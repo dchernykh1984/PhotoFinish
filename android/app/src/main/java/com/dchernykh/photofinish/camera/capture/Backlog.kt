@@ -22,8 +22,11 @@ class Backlog(
     private val send: (StreamHeader, FrameStore) -> Sending,
     /** What the backlog says to the phone's log, of a lens. */
     private val say: (Lens, String) -> Unit = { _, _ -> },
-    /** When it was made: a stream's folder begun since is a live stream's, not one to read back. */
-    private val madeMs: Long = System.currentTimeMillis(),
+    /**
+     * The app's run it belongs to, the end of the folders the streams of this run make -- `<lens>-<ms>-<session>` --:
+     * those are live streams', not to read back, whatever the phone's clock did meanwhile.
+     */
+    private val session: String = "",
 ) {
     /** A kept stream's uplink, running, and how it is stopped. */
     class Sending(
@@ -52,16 +55,17 @@ class Backlog(
     val active: Boolean @Synchronized get() = kept.isNotEmpty() || live.isNotEmpty()
 
     /**
-     * What the stores' root held before the backlog was made, read back: streams to send, or folders of nothing to
-     * send, removed. A folder begun since is a stream a camera feeds, perhaps its header not written yet: not its.
+     * What the stores' root holds from the app's runs before, read back: streams to send, or folders of nothing to
+     * send, removed. A folder of this run is a stream a camera feeds, perhaps its header not written yet: not its.
      */
     @Synchronized
     fun readBack() {
         try {
             val folders =
                 root
-                    .listFiles { file -> file.isDirectory && began(file) < madeMs }
-                    ?.sortedBy { began(it) } ?: return
+                    .listFiles { file ->
+                        file.isDirectory && !(session.isNotEmpty() && file.name.endsWith("-$session"))
+                    }?.sortedBy { began(it) } ?: return
             folders.filter { folder -> kept.none { it.folder == folder } }.forEach { take(it) }
         } finally {
             ready = true
@@ -190,8 +194,12 @@ class Backlog(
         /** Whether [folder] holds a run of frames. */
         private fun hasFrames(folder: File): Boolean = folder.list()?.any { it.endsWith(".h264") } == true
 
-        /** When the stream of [folder] began, from its name: `<lens>-<ms>`; one named otherwise is older than any. */
-        private fun began(folder: File): Long = folder.name.substringAfterLast('-').toLongOrNull() ?: 0L
+        /** When the stream of [folder] began, from its name: `<lens>-<ms>[-<session>]`; one named otherwise first. */
+        private fun began(folder: File): Long =
+            folder.name
+                .split('-')
+                .getOrNull(1)
+                ?.toLongOrNull() ?: 0L
 
         private fun sum(stores: List<FrameStore>): FrameStore.Pending =
             stores.map { it.pending }.fold(FrameStore.Pending(0, 0)) { all, one ->
