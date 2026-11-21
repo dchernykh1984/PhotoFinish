@@ -117,8 +117,10 @@ class BacklogTest {
         assertTrue(started.isEmpty())
         assertTrue(headless.isDirectory)
         assertTrue(said.any { it.contains("no header") })
+        assertTrue(backlog.pending().bytes >= 1_000) // counted: the screen offers Discard for them
         backlog.discard()
         assertFalse(headless.exists())
+        assertEquals(FrameStore.Pending(0, 0), backlog.pending())
     }
 
     @Test
