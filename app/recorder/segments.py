@@ -262,7 +262,12 @@ class _Remuxed:
         self.base = (first.dts or 0) - round(LEAD_MS * MS_SCALE / self.time_base)
         self.container = _video(folder)
         self.stream = self.container.add_stream_from_template(template)
-        heard = template.container.streams.audio
+        # Its sound kept when it is AAC (specs/013): what the phones and streaming
+        # apps send, played and exported; an IP camera's G.711, which Matroska will
+        # not hold, costs the sound alone, never the video.
+        heard = [
+            s for s in template.container.streams.audio if s.codec_context.name == "aac"
+        ]
         self.audio = (
             self.container.add_stream_from_template(heard[0]) if heard else None
         )
