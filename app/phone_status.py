@@ -58,7 +58,8 @@ def readings(status: dict[str, Any]) -> list[tuple[str, str]]:
     if free is not None:
         gb = free / 1000
         level = BAD if gb < FREE_BAD_GB else WARN if gb < FREE_WARN_GB else OK
-        found.append((f"{STORAGE} {gb:.0f} GB free", level))
+        # Whole gigabytes down: what is shown is under a line exactly when it is.
+        found.append((f"{STORAGE} {math.floor(gb)} GB free", level))
     return found
 
 
