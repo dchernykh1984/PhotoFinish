@@ -15,6 +15,10 @@ fun span(ms: Long): String {
     }
 }
 
+/** [bytes] in MB, rounded up: a little video held is not "0 MB" (specs/009). */
+fun megabytes(bytes: Long): Long = (maxOf(bytes, 0) + BYTES_PER_MB - 1) / BYTES_PER_MB
+
+private const val BYTES_PER_MB = 1_000_000L
 private const val MS_PER_S = 1_000L
 private const val S_PER_MIN = 60L
 private const val S_PER_H = 3_600L

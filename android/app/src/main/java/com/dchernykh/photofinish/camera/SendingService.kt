@@ -17,6 +17,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import com.dchernykh.photofinish.camera.capture.Senders
+import com.dchernykh.photofinish.camera.ui.megabytes
 import com.dchernykh.photofinish.camera.ui.span
 
 /**
@@ -75,7 +76,7 @@ class SendingService : Service() {
         val held = Senders.backlog.pending()
         val text =
             if (held.bytes > 0) {
-                getString(R.string.sending_left, span(held.ms), held.bytes / BYTES_PER_MB)
+                getString(R.string.sending_left, span(held.ms), megabytes(held.bytes))
             } else {
                 getString(R.string.sending_live)
             }
@@ -107,7 +108,6 @@ class SendingService : Service() {
         private const val ID = 9
         private const val CHANNEL = "sending"
         private const val TICK_MS = 2_000L
-        private const val BYTES_PER_MB = 1_000_000
 
         /** Started from the screen, in the foreground, as there are frames to send. */
         fun start(context: Context) {

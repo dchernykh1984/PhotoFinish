@@ -291,8 +291,8 @@ private fun Unsent(
     onDiscard: () -> Unit,
 ) {
     if (held.bytes <= 0) return
-    val megabytes = (held.bytes / BYTES_PER_MB).toInt()
-    Text(stringResource(R.string.unsent, span(held.ms), megabytes), color = Color(UNSENT_COLOR))
+    val mb = megabytes(held.bytes).toInt()
+    Text(stringResource(R.string.unsent, span(held.ms), mb), color = Color(UNSENT_COLOR))
     if (!stopped) return
     var asking by remember { mutableStateOf(false) }
     OutlinedButton(onClick = { asking = true }) { Text(stringResource(R.string.discard)) }
@@ -300,7 +300,7 @@ private fun Unsent(
     AlertDialog(
         onDismissRequest = { asking = false },
         title = { Text(stringResource(R.string.discard_title)) },
-        text = { Text(stringResource(R.string.discard_text, span(held.ms), megabytes)) },
+        text = { Text(stringResource(R.string.discard_text, span(held.ms), mb)) },
         confirmButton = {
             TextButton(onClick = {
                 asking = false
@@ -362,5 +362,4 @@ private const val ADDRESS_LINES = 8 // four lenses, a line each, wrapped in two
 private const val DIM_BRIGHTNESS = 0.01f
 
 private const val UNSENT_EVERY_MS = 1_000L
-private const val BYTES_PER_MB = 1_000_000L
 private const val UNSENT_COLOR = 0xFFFFB300

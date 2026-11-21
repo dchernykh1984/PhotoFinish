@@ -12,4 +12,12 @@ class UnsentTest {
         assertEquals("1:02:03", span(3_723_000))
         assertEquals("0:00", span(-5))
     }
+
+    @Test
+    fun `a little video held is a megabyte, not none`() {
+        assertEquals(0L, megabytes(0))
+        assertEquals(1L, megabytes(250_000))
+        assertEquals(1L, megabytes(1_000_000))
+        assertEquals(2L, megabytes(1_000_001))
+    }
 }
