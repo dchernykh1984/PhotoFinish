@@ -37,7 +37,7 @@ from app.recorder.testcam import read_time, render
 from app.version import version
 from app.widgets.camera_dialog import CameraDialog
 from tests.conftest import Zone, settled, wait_until
-from tests.test_sound import recorded
+from tests.test_sound import beeping, recorded
 
 
 def downloading(win: mw.MainWindow) -> models.Model | None:
@@ -3995,5 +3995,31 @@ def test_play_from_before_the_sound_began_plays_it_as_it_comes(
     wait_until(lambda: win.moment is not None and win.place is not None)
     heard = sounding(win)
     win.seek_ms(START - 4000)
+    win.play()
+    assert heard.calls[-1][:2] == ("play", win.cameras["cam1"].index)
+
+
+def test_a_phones_lens_with_sound_at_the_moment_comes_before_one_with_it_later(
+    phone_with_sound: Path, make_window: Callable[[], mw.MainWindow], clock: list[float]
+) -> None:
+    # The telephoto's microphone came later: at a moment before it, the main lens's.
+    beeping(phone_with_sound / "late.mkv", 1)
+    writer = SegmentWriter(phone_with_sound / "video" / "cam2", fps=30)
+    with av.open(str(phone_with_sound / "late.mkv")) as container:
+        for packet in container.demux():
+            if packet.pts is None:
+                continue
+            ms = START + 10_000 + round((packet.pts or 0) * 1000 * packet.time_base)
+            if packet.stream.type == "video":
+                writer.write_packet(packet, ms)
+            else:
+                writer.write_audio(packet, ms)
+    writer.close()
+    win = make_window()
+    wait_until(lambda: win.moment is not None and win.place is not None)
+    win.camera_list.setCurrentRow(1)  # the telephoto
+    wait_until(lambda: win.current == "cam2")
+    heard = sounding(win)
+    win.seek_ms(START + 1500)
     win.play()
     assert heard.calls[-1][:2] == ("play", win.cameras["cam1"].index)

@@ -2028,18 +2028,21 @@ class MainWindow(QMainWindow):
             return None
 
         def heard_there(settings: Mapping[str, Any]) -> bool:
-            # Sound there, or in its newest segment: one allowed the microphone
-            # later is heard in its turn, the pieces following as it plays.
             index = self.cameras[str(settings["id"])].index
             own = moment - int(settings.get("offset_ms", 0))
             place = index.nearest(own, within=NEAR_MS)
-            if place is not None and has_sound(index.frame(place).path):
-                return True
-            newest = len(index) - 1  # in time, not in the order the segments closed
+            return place is not None and has_sound(index.frame(place).path)
+
+        def heard_later(settings: Mapping[str, Any]) -> bool:
+            # In its newest segment, in time: one allowed the microphone later is
+            # heard in its turn, the pieces following as it plays.
+            index = self.cameras[str(settings["id"])].index
+            newest = len(index) - 1
             return newest >= 0 and has_sound(index.frame(newest).path)
 
-        found = whose(
-            chosen.settings, [c.settings for c in self.cameras.values()], heard_there
+        cameras = [c.settings for c in self.cameras.values()]
+        found = whose(chosen.settings, cameras, heard_there) or whose(
+            chosen.settings, cameras, heard_later
         )
         return None if found is None else self.cameras[str(found["id"])]
 
