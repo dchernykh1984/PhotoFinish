@@ -349,7 +349,7 @@ def test_the_segments_followed_go_in_the_order_they_closed_never_by_name(
                 tmp_path / "20261025-025959-9999.mkv",
                 tmp_path / "20261025-020000-10000.mkv",
             ]
-            self.pending = False
+            self.pending: frozenset[str] = frozenset()
 
     class Taken:
         def extend(self, paths: list[Path]) -> None:
@@ -359,6 +359,34 @@ def test_the_segments_followed_go_in_the_order_they_closed_never_by_name(
     played._index, played._pieces = listed, Taken()  # type: ignore[assignment]
     played.follow()
     assert given == [listed.paths]
+
+
+def test_a_segment_whose_times_never_come_holds_the_ones_after_it_once(
+    tmp_path: Path,
+) -> None:
+    # Times a crash garbled stay unread twenty polls: the sound waits for them two
+    # polls, then the segments come as they close, never two polls late each.
+    played = player.SoundPlayer(output=lambda: None, clock=still)
+    given: list[list[Path]] = []
+
+    class Listed:
+        def __init__(self) -> None:
+            self.paths = [tmp_path / "a.mkv"]
+            self.pending = frozenset({"garbled"})
+
+    class Taken:
+        def extend(self, paths: list[Path]) -> None:
+            given.append(list(paths))
+
+    listed = Listed()
+    played._index, played._pieces = listed, Taken()  # type: ignore[assignment]
+    for _ in range(player.HELD_POLLS):
+        played.follow()
+    assert given == []  # waited for it
+    played.follow()
+    listed.paths.append(tmp_path / "b.mkv")
+    played.follow()  # the next as it closes
+    assert given == [[tmp_path / "a.mkv"], [tmp_path / "b.mkv"]]
 
 
 def test_a_recording_that_grows_no_more_is_heard_to_its_end(tmp_path: Path) -> None:
