@@ -389,7 +389,24 @@ def _list_missing(folder: Path) -> list[str]:
     )
     if missing:
         append(folder / SEGMENTS, "".join(f"{n}\n" for n in missing).encode("ascii"))
+        _list_sound(folder, missing)
     return listed + missing
+
+
+def _list_sound(folder: Path, names: list[str]) -> None:
+    """Those of ``names`` -- closed by a recovery, not by their own close -- whose
+    video kept sound, listed as a close lists them."""
+    heard = "".join(f"{n}\n" for n in names if _keeps_audio(folder / f"{n}.mkv"))
+    if heard:
+        append(folder / SOUND, heard.encode("ascii"))
+
+
+def _keeps_audio(path: Path) -> bool:
+    try:
+        with av.open(str(path)) as container:
+            return bool(container.streams.audio)
+    except av.FFmpegError, OSError:
+        return False
 
 
 def recover(folder: Path) -> list[str]:
@@ -410,14 +427,18 @@ def _see_to(folder: Path, n: int) -> list[str]:
     """What a crash or a failed close left: a recovery not yet named named first,
     then a close cut between its renames finished, else the whole frames of
     ``current.*`` made a closed segment numbered ``n`` or after, the rest kept
-    aside. The names of the segments it closed, in order, for the caller to list."""
+    aside. The names of the segments it closed, in order, for the caller to list;
+    those that kept sound listed as such already."""
     pending = (folder / RECOVERED_NAME).exists()  # its copy refused its name
     finished = _finish_recovery(folder) if pending else None
     if not (folder / "current.mkv").exists():
-        return [finished] if finished else []  # the usual case: two looks, no more
-    name = _finish_close(folder) or _recover(folder, n)
-    _keep_aside(folder)
-    return [closed for closed in (finished, name) if closed]
+        closed = [finished] if finished else []  # the usual case: two looks, no more
+    else:
+        name = _finish_close(folder) or _recover(folder, n)
+        _keep_aside(folder)
+        closed = [c for c in (finished, name) if c]
+    _list_sound(folder, closed)
+    return closed
 
 
 def _finish_close(folder: Path) -> str | None:

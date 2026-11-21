@@ -1267,6 +1267,7 @@ def test_a_crash_keeps_the_sound_it_left_whole_with_its_frames(tmp_path: Path) -
         assert container.streams.audio
         heard = [p for p in container.demux(container.streams.audio[0]) if p.size]
     assert len(heard) > 30  # most of a second of it, a cluster cut short aside
+    assert (folder / segments_module.SOUND).read_text().split() == [name]
 
 
 def test_a_cameras_sound_matroska_will_not_hold_costs_the_sound_alone(
@@ -1450,3 +1451,8 @@ def test_the_segments_that_kept_sound_are_listed_beside_the_others(
     record(lone, START, 40)
     lone.close()
     assert not (silent / segments_module.SOUND).exists()
+    # Closed, and the lists lost to a kill before they took them: listed as it starts.
+    (folder / segments_module.SEGMENTS).unlink()
+    (folder / segments_module.SOUND).unlink()
+    segments_module.recover(folder)
+    assert (folder / segments_module.SOUND).read_text().split() == listed
