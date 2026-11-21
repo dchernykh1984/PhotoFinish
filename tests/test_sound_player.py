@@ -166,3 +166,19 @@ def test_a_sound_that_cannot_be_rendered_has_ended_for_the_window_to_play_on(
     played.play(index, START, 1.0)
     wait_until(lambda: played.ended)
     played.stop()
+
+
+def test_the_time_an_output_takes_to_open_is_left_out_too(tmp_path: Path) -> None:
+    index = recorded(tmp_path)
+    output = Output()
+    now = [100.0]
+
+    def opened() -> tuple[Output, int, int]:
+        now[0] += 0.2  # a sound card opening, as macOS and Windows take a while
+        return output, player.RATE, player.CHANNELS
+
+    played = player.SoundPlayer(output=opened, clock=lambda: now[0])
+    played.play(index, START + 500, 1.0)
+    wait_until(lambda: len(output.taken) > 4 * RATE * 1.5)
+    assert beep_at(heard(output)) == pytest.approx(0.8, abs=0.05)
+    played.stop()

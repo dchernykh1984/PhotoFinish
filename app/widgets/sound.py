@@ -100,6 +100,7 @@ class SoundPlayer(QObject):
     def play(self, index: VideoIndex, from_ms: int, rate: float) -> None:
         """The camera's sound from ``from_ms`` on its own times, at ``rate``; what
         was playing stopped first. Nothing without an output."""
+        asked = self._clock()  # the time opening the output takes left out too
         self.stop()
         made = self._make()
         if made is None:
@@ -111,7 +112,7 @@ class SoundPlayer(QObject):
             return
         self._ahead = round(AHEAD_S * out_rate) * channels * 2
         self._frame, self._out_rate = channels * 2, out_rate
-        self._asked = self._clock()
+        self._asked = asked
         layout = LAYOUTS.get(channels, "stereo")
         renderer = sound.Renderer(
             sound.pieces(index, from_ms), from_ms, rate, out_rate, layout
