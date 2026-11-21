@@ -248,10 +248,15 @@ class FrameStore(
         )
     }
 
-    /** The next frame to send, waiting up to [waitMs] for one; null when none came, or the store was cleared. */
+    /**
+     * The next frame to send, waiting up to [waitMs] for one; null when none came, or the store was cleared. Without
+     * [withSound] -- no config to send it by --, the pieces of sound are passed over unread: read, they would wait
+     * for a confirmation that never comes, the stream never done (specs/013).
+     */
     fun next(
         waitMs: Long,
         fromKeyframe: Boolean = false,
+        withSound: Boolean = true,
     ): KeptFrame? {
         lock.withLock {
             var left = TimeUnit.MILLISECONDS.toNanos(waitMs)
@@ -262,7 +267,7 @@ class FrameStore(
                 when {
                     // A connection starts at a keyframe: the frames before it passed over, never read -- a frame
                     // read is one to be confirmed, and these never go.
-                    here != null && fromKeyframe && !here.frames.keyframe(cursorFrame) -> {
+                    here != null && passedOver(here.frames, cursorFrame, fromKeyframe, withSound) -> {
                         cursorRun = here
                         cursorFrame++
                     }
@@ -278,6 +283,17 @@ class FrameStore(
             return null
         }
     }
+
+    /**
+     * Whether the entry at [index] is passed over unread: a connection starts at a keyframe, and a piece of sound with
+     * no config to send it by never goes.
+     */
+    private fun passedOver(
+        frames: Frames,
+        index: Int,
+        fromKeyframe: Boolean,
+        withSound: Boolean,
+    ): Boolean = fromKeyframe && !frames.keyframe(index) || !withSound && frames.sound(index)
 
     /** The server has read the frame taken at [ptsUs], and every one before it: the runs sent go. */
     fun confirm(ptsUs: Long) {
