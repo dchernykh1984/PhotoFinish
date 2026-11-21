@@ -335,6 +335,32 @@ def test_a_segment_whose_times_are_held_a_poll_is_heard_in_its_place(
     played.stop()
 
 
+def test_the_segments_followed_go_in_the_order_they_closed_never_by_name(
+    tmp_path: Path,
+) -> None:
+    # A name is a local time and a count: an hour told twice in autumn, a count past
+    # four digits, sort it wrong. The order the recording closed them is the one.
+    played = player.SoundPlayer(output=lambda: None, clock=still)
+    given: list[list[Path]] = []
+
+    class Listed:
+        def __init__(self) -> None:
+            self.paths = [
+                tmp_path / "20261025-025959-9999.mkv",
+                tmp_path / "20261025-020000-10000.mkv",
+            ]
+            self.pending = False
+
+    class Taken:
+        def extend(self, paths: list[Path]) -> None:
+            given.append(list(paths))
+
+    listed = Listed()
+    played._index, played._pieces = listed, Taken()  # type: ignore[assignment]
+    played.follow()
+    assert given == [listed.paths]
+
+
 def test_a_recording_that_grows_no_more_is_heard_to_its_end(tmp_path: Path) -> None:
     # Its recorder let go and ended as it played: the pieces a next segment's might
     # have come before are heard, none waited for -- the last 200 ms too.
