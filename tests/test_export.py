@@ -210,3 +210,31 @@ def test_a_camera_has_video_once_a_piece_listed_is_there(tmp_path: Path) -> None
     for piece in export.pieces(folder):
         piece.unlink()
     assert not export.has_video(folder)
+
+
+def test_a_second_export_names_its_parts_after_its_own_first_file(
+    tmp_path: Path,
+) -> None:
+    folder = tmp_path / "cam1"
+    record(folder, START, 40)
+    record(folder, START + 5_000, 40, width=256)
+    export.export(folder, tmp_path / "Side.mp4")
+    again = export.export(folder, tmp_path / "Side.mp4")
+    assert again == [tmp_path / "Side (2).mp4", tmp_path / "Side (2)-2.mp4"]
+
+
+def test_a_file_that_cannot_be_set_up_leaves_nothing_half_made(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    folder = tmp_path / "cam1"
+    record(folder, START, 10)
+
+    def refused(*_: object) -> None:
+        raise ValueError("no such codec in MP4")
+
+    monkeypatch.setattr(
+        av.container.OutputContainer, "add_stream_from_template", refused
+    )
+    with pytest.raises(ValueError, match="no such codec"):
+        export.export(folder, tmp_path / "Side.mp4")
+    assert not list(tmp_path.glob("Side*"))
