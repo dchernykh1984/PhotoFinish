@@ -24,8 +24,13 @@ internal class Microphone(
     private val framesClock: () -> (() -> Long)?,
     /** The microphone allowed, asked at each start: allowed after the stream began, it starts at the next. */
     private val allowed: () -> Boolean,
+    /** Told whether it runs: as it starts, before its thread can fail, and as it fails. */
+    private val sounded: (Boolean) -> Unit,
     private val failed: (String) -> Unit,
 ) {
+    /** Started and not stopped since: a start put off for a thread still reading is made then. */
+    @Volatile private var wanted = false
+
     /** Its refusal said already: once, not at each camera opened again. */
     private var refusalSaid = false
 
@@ -39,18 +44,36 @@ internal class Microphone(
      */
     @Synchronized
     fun start(): Boolean {
+        wanted = true
         if (running?.get() == true) return true
         val opened =
             when {
                 !allowed() -> refused()
-                stillReading() -> null // the next feed tries again
+                stillReading() -> later()
                 else -> open()
             }
-        if (opened == null) return false
+        if (opened == null) return false.also { sounded(false) }
         val going = AtomicBoolean(true)
         running = going
+        sounded(true) // before its thread runs: a failure of its told after
         thread = Thread({ run(opened.first, opened.second, going) }, "microphone").apply { start() }
         return true
+    }
+
+    /** Started once the thread of a stop before has stopped reading, if still wanted then. */
+    private fun later(): Pair<AudioRecord, MediaCodec>? {
+        val before = thread
+        Thread(
+            {
+                before?.join(LATER_MS)
+                if (wanted) start()
+            },
+            "microphone-later",
+        ).apply {
+            isDaemon = true
+            start()
+        }
+        return null
     }
 
     /** Not allowed the microphone: said the first time, the stream going without sound; nothing opened. */
@@ -70,6 +93,7 @@ internal class Microphone(
     /** Stopped, its thread waited for a moment: a piece on its way is let go. */
     @Synchronized
     fun stop() {
+        wanted = false
         running?.set(false)
         running = null
         thread?.join(JOIN_MS)
@@ -212,6 +236,7 @@ internal class Microphone(
         private const val BUFFER_BYTES = RATE / 5 * 2 // a fifth of a second: a slow thread loses nothing
         private const val WAIT_US = 10_000L
         private const val JOIN_MS = 500L
+        private const val LATER_MS = 5_000L
         private const val NANOS = 1_000_000_000L
     }
 }
