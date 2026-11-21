@@ -82,7 +82,7 @@ fun CameraScreen(
     state: ScreenState,
     streamer: CameraStreamer,
 ) {
-    val granted = rememberCameraPermission()
+    val granted = rememberCameraPermission(streamer::microphoneGranted)
     val started = rememberStarted()
     var preview by remember { mutableStateOf<PreviewSurface?>(null) }
     val format = state.format
@@ -130,7 +130,7 @@ fun CameraScreen(
 }
 
 @Composable
-private fun rememberCameraPermission(): Boolean {
+private fun rememberCameraPermission(microphoneGranted: () -> Unit): Boolean {
     val context = LocalContext.current
     var granted by remember {
         mutableStateOf(
@@ -148,7 +148,11 @@ private fun rememberCameraPermission(): Boolean {
         }
     }
     // The microphone, for the sound the first lens sends (specs/013), asked after the camera, before the notification.
-    val askMicrophone = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { notify() }
+    val askMicrophone =
+        rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { allowed ->
+            if (allowed) microphoneGranted() // a stream that began meanwhile hears from now on
+            notify()
+        }
     val microphone = {
         val asked = Manifest.permission.RECORD_AUDIO
         if (ContextCompat.checkSelfPermission(context, asked) != PackageManager.PERMISSION_GRANTED) {

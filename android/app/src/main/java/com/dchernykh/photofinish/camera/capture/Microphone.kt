@@ -22,8 +22,13 @@ internal class Microphone(
     private val onConfig: (ByteArray) -> Unit,
     private val onPiece: (EncodedFrame) -> Unit,
     private val framesClock: () -> (() -> Long)?,
+    /** The microphone allowed, asked at each start: allowed after the stream began, it starts at the next. */
+    private val allowed: () -> Boolean,
     private val failed: (String) -> Unit,
 ) {
+    /** Its refusal said already: once, not at each camera opened again. */
+    private var refusalSaid = false
+
     /** The thread reading the microphone now, and its own word to go on: one stopped never runs again. */
     private var running: AtomicBoolean? = null
     private var thread: Thread? = null
@@ -35,12 +40,24 @@ internal class Microphone(
     @Synchronized
     fun start(): Boolean {
         if (running?.get() == true) return true
-        val opened = if (stillReading()) null else open() // the next feed tries again
+        val opened =
+            when {
+                !allowed() -> refused()
+                stillReading() -> null // the next feed tries again
+                else -> open()
+            }
         if (opened == null) return false
         val going = AtomicBoolean(true)
         running = going
         thread = Thread({ run(opened.first, opened.second, going) }, "microphone").apply { start() }
         return true
+    }
+
+    /** Not allowed the microphone: said the first time, the stream going without sound; nothing opened. */
+    private fun refused(): Pair<AudioRecord, MediaCodec>? {
+        if (!refusalSaid) failed("no sound: the microphone is not allowed")
+        refusalSaid = true
+        return null
     }
 
     /** The thread of a stop before still reads after a moment more: the audio server stalled. */
@@ -61,6 +78,7 @@ internal class Microphone(
     @SuppressLint("MissingPermission") // the caller asks; one refused fails to open, and is said
     @Suppress("TooGenericExceptionCaught") // a microphone the phone will not open costs the sound, never the app
     private fun open(): Pair<AudioRecord, MediaCodec>? {
+        refusalSaid = false // allowed again: a refusal after it said again
         var record: AudioRecord? = null
         var codec: MediaCodec? = null
         return try {

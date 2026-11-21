@@ -101,6 +101,11 @@ internal class LensStream private constructor(
         words.idle()
     }
 
+    /** The microphone allowed since the stream began (specs/013): heard from now on, while a camera feeds it. */
+    fun hear() {
+        if (fed && !stopped) microphone?.let { uplink.sounded = it.start() }
+    }
+
     /** Stopped, what it kept and has not sent handed to the backlog to send alone (specs/009, FR-003). */
     override fun stop() {
         end()
@@ -143,7 +148,8 @@ internal class LensStream private constructor(
          * [onFirstFrame] the presentation time of the first frame each feed; [status] gives the phone's status
          * line for each keyframe;
          * [store] keeps the frames until they are sent; [log] hears of an encoder that fails while it streams
-         * (specs/008-phone-log); [withSound]: the phone's sound goes with it (specs/013).
+         * (specs/008-phone-log); [withSound]: the phone's sound goes with it (specs/013), the microphone
+         * [allowed].
          */
         @Suppress("LongParameterList") // a stream's parts, each its own: the camera streamer's to give
         fun start(
@@ -156,6 +162,7 @@ internal class LensStream private constructor(
             store: FrameStore,
             log: PhoneLog,
             withSound: Boolean = false,
+            allowed: () -> Boolean = { false },
         ): LensStream {
             val media = mediaFormat(format)
             val codec = encoderFor(media)
@@ -202,7 +209,7 @@ internal class LensStream private constructor(
                 offCount()
             }
             val name = planned.target.lens.code
-            val microphone = microphoneOf(uplink, name, log).takeIf { withSound }
+            val microphone = microphoneOf(uplink, name, log, allowed).takeIf { withSound }
             val stream = LensStream(planned, format, codec, surface, uplink, sync, words, store, off, microphone)
             Thread({ uplink.run() }, "uplink-$name").start()
             val failed = { error: RuntimeException ->
@@ -225,7 +232,8 @@ internal class LensStream private constructor(
             uplink: Uplink,
             lens: String,
             log: PhoneLog,
-        ) = Microphone(uplink::configureSound, uplink::offerSound, { uplink.captureClock }) {
+            allowed: () -> Boolean,
+        ) = Microphone(uplink::configureSound, uplink::offerSound, { uplink.captureClock }, allowed) {
             log.warning(lens, it)
             uplink.sounded = false // no sound to wait for
         }

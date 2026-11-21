@@ -283,12 +283,16 @@ class CameraStreamer(
      * Whether [lens]'s stream takes the phone's sound (specs/013): the first lens's, the microphone allowed -- said
      * when it is not, as the stream starts.
      */
-    private fun heard(lens: Lens): Boolean {
-        if (lens != order.firstOrNull()) return false
-        val asked = Manifest.permission.RECORD_AUDIO
-        val allowed = ContextCompat.checkSelfPermission(context, asked) == PackageManager.PERMISSION_GRANTED
-        if (!allowed) log.warning(lens.code, "no sound: the microphone is not allowed")
-        return allowed
+    private fun heard(lens: Lens): Boolean = lens == order.firstOrNull()
+
+    /** The microphone allowed, asked at each start of it: allowed while a stream runs, that stream hears it then. */
+    private fun microphoneAllowed(): Boolean =
+        ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
+            PackageManager.PERMISSION_GRANTED
+
+    /** The microphone allowed now, the screen told (specs/013): the first lens's stream hears from now on. */
+    fun microphoneGranted() {
+        handler.post { order.firstOrNull()?.let { keptStreams.of(it) }?.hear() }
     }
 
     /**
@@ -353,6 +357,7 @@ class CameraStreamer(
             store = FrameStore(File(kept, "${lens.code}-${System.currentTimeMillis()}-${Senders.session}")),
             log = log,
             withSound = heard(lens),
+            allowed = ::microphoneAllowed,
         )
     }
 
