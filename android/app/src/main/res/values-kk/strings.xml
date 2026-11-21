@@ -39,4 +39,6 @@
     <string name="discard">Жіберілмегенді жою</string>
     <string name="discard_title">Жіберілмеген бейнені жою керек пе?</string>
     <string name="discard_text">Ноутбукке әлі жетпеген %1$s бейне (%2$d МБ) біржола жойылады.</string>
+    <string name="codec_hevc">, H.265</string>
+    <string name="codec_no_hevc">; бұл өлшем мен жиілікте H.265 қолданылмайды: H.264</string>
 </resources>
