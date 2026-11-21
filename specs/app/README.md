@@ -126,8 +126,10 @@ chosen (60 fps first), a keyframe a second and a bitrate that follows the size, 
 on its own after a loss; it keeps the screen on, and can dim it while it streams. Its main lens
 sends the phone's sound too (`specs/013-sound`): AAC, mono, 48 kHz, 128 kbit/s -- under 1% of the
 lens's bitrate --, kept with the main lens's frames and sent with them, oldest first, through breaks,
-restarts and Stop as they are, the other lenses waiting for the main lens as before. The
-microphone is asked for after the camera; refused, the lens streams video alone, its log saying so. A streaming app
+restarts and Stop as they are, the other lenses waiting for the main lens as before; it records
+while a camera feeds the main lens, stopping with the camera -- lost a moment, the screen away --
+and starting again with it. The microphone is asked for after the camera; refused, the lens
+streams video alone, its log saying so. A streaming app
 is set to 60 fps, about 10 Mbit/s and a keyframe a second: the newest frame waits for the next
 keyframe. Tried: a Xiaomi
 17 Ultra with Larix Broadcaster sent 2560x1440 at 59.9 fps, 9 Mbit/s, 0.15 s without frames in a
