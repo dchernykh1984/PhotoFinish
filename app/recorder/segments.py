@@ -214,9 +214,12 @@ class SegmentWriter:
         (self.folder / "current.times").replace(self.folder / f"{name}.times")
         (self.folder / "current.mkv").replace(self.folder / f"{name}.mkv")
         _forget(meant)
-        self._closed(name)
         if isinstance(segment, _Remuxed) and segment.heard:
-            append(self.folder / SOUND, f"{name}\n".encode("ascii"))
+            # Listed before it: a kill between the two leaves it to the recovery,
+            # which lists its sound again. A sound list refused costs that alone.
+            with contextlib.suppress(OSError):
+                append(self.folder / SOUND, f"{name}\n".encode("ascii"))
+        self._closed(name)
 
     def _closed(self, name: str) -> None:
         """``name`` is a closed segment now: counted, and listed with any the list
