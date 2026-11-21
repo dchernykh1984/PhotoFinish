@@ -1138,6 +1138,8 @@ def recorded_with_sound(
                     sent.append((packet, ms))
             else:
                 writer.write_packet(packet, ms)
+        if again:  # a new connection, as after a loss, sending them again
+            writer.hung_up()
         for packet, ms in sent[len(sent) - again :] if again else []:
             writer.write_audio(packet, ms)
     writer.close()
@@ -1349,3 +1351,47 @@ def test_a_crash_keeps_the_frames_of_a_stream_whose_sound_went_silent(
     subprocess.run(run, cwd=ROOT, check=False)  # noqa: S603 - this interpreter
     (name,) = segments_module.recover(folder)
     assert len(packets(folder / f"{name}.mkv")) >= 20  # all but the last 0.1 s
+
+
+def test_sound_placed_a_little_back_within_a_connection_is_kept(tmp_path: Path) -> None:
+    # A frame placed late moves the pieces after it by as much: within a connection
+    # the phone sends each piece once, so none is taken for one sent again.
+    with_sound(tmp_path / "phone.mkv", 2)
+    folder = tmp_path / "cam1"
+    writer = SegmentWriter(folder, fps=30)
+    kept: list[int] = []
+    with av.open(str(tmp_path / "phone.mkv")) as container:
+        for n, packet in enumerate(p for p in container.demux() if p.pts is not None):
+            ms = START + in_ms(packet.pts or 0, fraction(packet.time_base))
+            if packet.stream.type == "video":
+                writer.write_packet(packet, ms)
+                continue
+            jitter = -15 if n % 7 == 0 else 0  # now and then 15 ms back
+            writer.write_audio(packet, ms + jitter)
+            if writer.frames:
+                kept.append(ms)
+    writer.close()
+    heard = [ms for path in segments(folder) for ms in sound_moments(path)]
+    assert len(heard) == len(kept)
+
+
+def test_a_piece_of_sound_out_of_order_is_passed_over_never_muxed(
+    tmp_path: Path,
+) -> None:
+    # A muxer handed a time gone back refuses it: the recorder would end with it.
+    with_sound(tmp_path / "phone.mkv", 1)
+    folder = tmp_path / "cam1"
+    writer = SegmentWriter(folder, fps=30)
+    with av.open(str(tmp_path / "phone.mkv")) as container:
+        demuxed = [p for p in container.demux() if p.pts is not None]
+        heard = [p for p in demuxed if p.stream.type == "audio"]
+        for packet in demuxed:
+            ms = START + in_ms(packet.pts or 0, fraction(packet.time_base))
+            if packet.stream.type == "video":
+                writer.write_packet(packet, ms)
+            else:
+                writer.write_audio(packet, ms)
+                if packet is heard[20]:
+                    writer.write_audio(heard[10], ms + 100)  # an older one, placed on
+    writer.close()
+    assert len(segments(folder)) == 1

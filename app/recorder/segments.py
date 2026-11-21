@@ -86,6 +86,8 @@ class SegmentWriter:
         self.gap_reason = "restart" if self._before_ms is not None else "no frames"
         self._open: _Encoded | _Remuxed | None = None
         self._heard_ms: int | None = None  # the newest piece of sound kept (013)
+        # A connection's first pieces may be ones sent again, until its first new one.
+        self._heard_again = True
         # A connection's first frames may be ones sent again: a restart's, or after
         # the camera hung up (``hung_up``), until the first new one.
         self._resending = True
@@ -133,16 +135,20 @@ class SegmentWriter:
 
     def write_audio(self, packet: av.Packet, ms: int) -> None:
         """A piece of a network camera's sound, placed at ``ms`` by the frame before
-        it (specs/013): into the open segment beside its frames; one not after the
-        newest kept by half its length -- sent again after a loss -- is not, nor one
-        before any segment, which has no frame to be placed by."""
+        it (specs/013): into the open segment beside its frames. A connection's first
+        pieces not after the newest kept by half their length -- sent again after a
+        loss -- are not, until its first new one: after it each piece comes once,
+        though placed a little back by a frame placed late. Nor one before any
+        segment, which has no frame to be placed by."""
         if packet.pts is None or packet.dts is None or packet.stream is None:
             return
         half = in_ms(packet.duration or 0, fraction(packet.time_base)) // 2
-        if self._heard_ms is not None and ms < self._heard_ms + max(half, 1):
+        heard = self._heard_ms
+        if self._heard_again and heard is not None and ms < heard + max(half, 1):
             return
         if isinstance(self._open, _Remuxed) and self._open.add_audio(packet):
-            self._heard_ms = ms
+            self._heard_again = False
+            self._heard_ms = ms if heard is None else max(heard, ms)
 
     @property
     def newest_ms(self) -> int | None:
@@ -154,6 +160,7 @@ class SegmentWriter:
         a reconnect's, and its next connection may begin with frames sent again."""
         self.gap_reason = "reconnect"
         self._resending = True
+        self._heard_again = True
 
     def _segment[T: (_Encoded, _Remuxed)](
         self, kind: type[T], begun: Callable[[], T]
@@ -278,6 +285,7 @@ class _Remuxed:
         self.audio = (
             self.container.add_stream_from_template(heard[0]) if heard else None
         )
+        self.audio_dts: int | None = None  # the newest piece's: the muxer wants order
         self.times: TextIO = _times(folder)
 
     def add_audio(self, packet: av.Packet) -> bool:
@@ -289,6 +297,9 @@ class _Remuxed:
         pts, dts = packet.pts - base, packet.dts - base
         if pts < 0 or dts < 0:
             return False
+        if self.audio_dts is not None and dts <= self.audio_dts:
+            return False  # out of order: a muxer refuses it, and the recorder with it
+        self.audio_dts = dts
         packet.pts, packet.dts = pts, dts
         packet.stream = self.audio
         self.container.mux(packet)
