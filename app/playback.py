@@ -55,7 +55,7 @@ def play_on(
         return None, started
     after = int(np.searchsorted(frames.ms, due, side="right"))
     if after == 0:  # before the camera's first frame: the same as a gap
-        if int(frames.ms[0]) - due > SKIP_MS:
+        if int(frames.ms[0]) - due > held:
             return 0, (now, int(frames.ms[0]) + offset)
         return 0, started
     last, following = int(frames.ms[after - 1]), int(frames.ms[after])
@@ -74,7 +74,7 @@ def _back(
         return None, started
     before = int(np.searchsorted(frames.ms, due, side="left"))
     if before == len(frames):  # after the newest frame: as forwards before the first
-        if due - int(frames.ms[-1]) > SKIP_MS:
+        if due - int(frames.ms[-1]) > held:
             return before - 1, (now, int(frames.ms[-1]) + offset)
         return before - 1, started
     first, previous = int(frames.ms[before]), int(frames.ms[before - 1])
