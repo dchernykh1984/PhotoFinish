@@ -1548,6 +1548,25 @@ def test_a_segments_sound_is_listed_before_it_and_a_sound_list_refused_costs_it_
     assert len(segments(folder)) == writer.segments  # each closed, each listed
 
 
+def test_a_sound_track_without_a_piece_is_no_sound(tmp_path: Path) -> None:
+    # A phone whose microphone failed, its stream still saying AAC: its tracks empty.
+    with_sound(tmp_path / "phone.mkv", 2)
+    folder = tmp_path / "cam1"
+    writer = SegmentWriter(folder, fps=30)
+    with av.open(str(tmp_path / "phone.mkv")) as container:
+        for packet in container.demux(container.streams.video[0]):
+            if packet.pts is not None:
+                ms = START + in_ms(packet.pts, fraction(packet.time_base))
+                writer.write_packet(packet, ms)
+    writer.close()
+    found = segments(folder)
+    assert found
+    assert not any(segments_module.kept_sound(path) for path in found)
+    (folder / segments_module.SEGMENTS).unlink()
+    segments_module.recover(folder)  # listed again as it starts: none as sounding
+    assert not (folder / segments_module.SOUND).exists()
+
+
 def test_the_segments_that_kept_sound_are_listed_beside_the_others(
     tmp_path: Path,
 ) -> None:
