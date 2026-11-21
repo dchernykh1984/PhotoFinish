@@ -189,3 +189,20 @@ def test_the_segments_are_listed_as_the_pieces_are_asked_for_not_later(
     monkeypatch.setattr(index, "segments_from", refreshed)
     monkeypatch.setattr(index, "at_or_before", refreshed)
     assert len(list(found)) > 100
+
+
+def test_a_long_gap_is_silence_made_a_little_at_a_time(tmp_path: Path) -> None:
+    # Two minutes with no sound -- a microphone lost, a recorder down -- is never
+    # held whole: silence comes a tenth of a second at a time.
+    index = recorded(tmp_path)
+    found = list(sound.pieces(index, START))
+    half = len(found) // 2
+    for piece in found[half:]:
+        piece.ms += 120_000
+        piece.end_ms += 120_000
+    renderer = sound.Renderer(iter(found), START, 1.0)
+    sizes: list[int] = []
+    while chunk := renderer.read():
+        sizes.append(len(chunk))
+    assert sum(sizes) / 4 / RATE == pytest.approx(3.0 + 120.0, abs=0.2)
+    assert max(sizes) <= 4 * RATE * 0.15
