@@ -98,7 +98,7 @@ def heard_at(index: VideoIndex, moment: int, within: int) -> bool:
     return place is not None and index.frame(place).path.stem in sounding(index.folder)
 
 
-_SOUNDING: dict[Path, tuple[Appended, set[str], int | None]] = {}
+_SOUNDING: dict[Path, tuple[Appended, set[str], bytes | None]] = {}
 _SOUNDING_LOCK = threading.Lock()  # the window's thread and an export's ask
 
 
@@ -106,9 +106,9 @@ def sounding(folder: Path) -> frozenset[str]:
     """The names of a camera's segments that kept sound, as its recorder lists them
     as they close (SOUND): followed as the list grows, a line a second all day, the
     lines added since the last ask read alone. A list begun anew -- its folder
-    cleared -- is another file, or a shorter one: read from its start."""
+    cleared -- begins with another line, or is shorter: read from its start."""
     with _SOUNDING_LOCK:
-        file = _inode(folder / SOUND)
+        file = _first_line(folder / SOUND)
         follower, names, seen = _SOUNDING.get(folder, (None, set(), None))
         if follower is None or file != seen:
             follower, names = Appended(folder / SOUND), set()
@@ -121,9 +121,12 @@ def sounding(folder: Path) -> frozenset[str]:
         return frozenset(names)
 
 
-def _inode(path: Path) -> int | None:
+def _first_line(path: Path) -> bytes | None:
+    """A list's first line: another, the list begun anew, whatever its inode -- which
+    a filesystem may give a file made again."""
     try:
-        return path.stat().st_ino
+        with path.open("rb") as f:
+            return f.readline(64)
     except OSError:
         return None
 
