@@ -11,12 +11,13 @@ import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.Handler
+import android.os.HandlerThread
 import android.os.IBinder
-import android.os.Looper
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import com.dchernykh.photofinish.camera.capture.Senders
+import com.dchernykh.photofinish.camera.stream.FrameStore
 import com.dchernykh.photofinish.camera.ui.megabytes
 import com.dchernykh.photofinish.camera.ui.span
 
@@ -27,12 +28,14 @@ import com.dchernykh.photofinish.camera.ui.span
  * start of the app.
  */
 class SendingService : Service() {
-    private val handler = Handler(Looper.getMainLooper())
+    /** Its own thread: what is held is counted under the stores' locks, never on the main thread. */
+    private val thread = HandlerThread("sending").apply { start() }
+    private val handler = Handler(thread.looper)
     private val tick =
         object : Runnable {
             override fun run() {
                 if (!Senders.active) return stopSelf()
-                notify(notification())
+                notify(notification(Senders.backlog.pending()))
                 handler.postDelayed(this, TICK_MS)
             }
         }
@@ -53,7 +56,7 @@ class SendingService : Service() {
                 0
             }
         try {
-            ServiceCompat.startForeground(this, ID, notification(), type)
+            ServiceCompat.startForeground(this, ID, notification(null), type) // counted at its first tick
         } catch (_: IllegalStateException) {
             // Android refusing it -- the day's time for sending in the background spent --: the app goes on unkept,
             // never ended for it; what is kept is sent at its next start.
@@ -74,17 +77,18 @@ class SendingService : Service() {
     override fun onDestroy() {
         running = false
         handler.removeCallbacks(tick)
+        thread.quitSafely()
         super.onDestroy()
     }
 
-    private fun notification(): Notification {
+    /** The notification, saying what is [held] to send; streaming alone said before it is counted. */
+    private fun notification(held: FrameStore.Pending?): Notification {
         val manager = getSystemService(NotificationManager::class.java)
         val channel =
             NotificationChannel(CHANNEL, getString(R.string.sending_channel), NotificationManager.IMPORTANCE_LOW)
         manager?.createNotificationChannel(channel)
-        val held = Senders.backlog.pending()
         val text =
-            if (held.bytes > 0) {
+            if (held != null && held.bytes > 0) {
                 getString(R.string.sending_left, span(held.ms), megabytes(held.bytes))
             } else {
                 getString(R.string.sending_live)
