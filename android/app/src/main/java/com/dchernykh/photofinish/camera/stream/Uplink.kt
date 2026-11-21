@@ -142,6 +142,9 @@ class Uplink(
     /** The connection under way has sent the sound's config; the uplink's thread alone keeps it. */
     private var soundHeaderSent = false
 
+    /** The connection under way was published telling of its sound; the uplink's thread alone keeps it. */
+    private var publishedSound = false
+
     /**
      * The stream takes the phone's sound (specs/013): a connection waits a moment for the sound's config before it
      * publishes, as FFmpeg takes a stream's sound only when its first piece comes while it looks the stream over.
@@ -257,6 +260,8 @@ class Uplink(
                 stream() // returns once stopped; a lost connection throws
             } catch (_: Holding) {
                 lost(held = true) // let go to wait for the first lens: no pause, nothing lost
+            } catch (_: SoundBegan) {
+                lost() // a new connection that tells of its sound: no pause
             } catch (error: Exception) {
                 lost()
                 if (running) pause = reconnectAfter(error, pause)
@@ -312,6 +317,7 @@ class Uplink(
         streamed = false
         stamped = false
         soundHeaderSent = false
+        publishedSound = false
         unacknowledged.clear()
         askedNs = 0L
         heardBytes = 0L
@@ -328,7 +334,8 @@ class Uplink(
         // as what was kept would be placed late by all the time it was kept. Kept frames sent alone carry theirs.
         if (alone || clock() != null) store.skipToStamped() else store.skipKept()
         // Then how long the frame it starts at was kept is known, the wait for the clock in it too (contract).
-        connected.publish(metadata(format, store.heldMs(captureClock?.invoke()), soundConfig != null))
+        publishedSound = soundConfig != null
+        connected.publish(metadata(format, store.heldMs(captureClock?.invoke()), publishedSound))
         // Connected once the recorder took it: a lens waiting for its clock, or connecting in vain, holds no other
         // lens back (PriorityBoard) and keeps no phone awake for a laptop that is not there.
         this.connected = true
@@ -374,6 +381,9 @@ class Uplink(
         val throughput = Throughput(nanos)
         var waitingSince = 0L
         while (running) {
+            // Sound begun on a connection that did not tell of it -- the microphone allowed mid-stream --: FFmpeg
+            // takes a stream's sound only from its start, so a new connection, from what this one may have swallowed.
+            if (soundConfig != null && !publishedSound) throw SoundBegan()
             // A connection starts on a keyframe. Idle, the server's late acknowledgements are taken all the same:
             // no frame after them, they say what it read of the last sent (FrameStore.unsent).
             val kept = nextAllowed(first)
@@ -543,6 +553,9 @@ class Uplink(
 
     /** The connection let go while the first lens catches up: connected again once it lets this one send. */
     private class Holding : IOException("waiting for the first lens")
+
+    /** The connection let go as its sound began: the next tells of it (specs/013). */
+    private class SoundBegan : IOException("the sound began")
 
     /** Frames and megabits per second, once a second, on the clock of [nanos]. */
     internal class Throughput(

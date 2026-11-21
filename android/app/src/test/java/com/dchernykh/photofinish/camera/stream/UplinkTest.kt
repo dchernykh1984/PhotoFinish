@@ -749,6 +749,23 @@ class UplinkTest {
     }
 
     @Test
+    fun `sound that begins on a connection published without it makes a new one that tells of it`() {
+        // The microphone allowed mid-stream: FFmpeg takes a stream's sound only from its start (specs/013).
+        val first = FakeSink()
+        val second = FakeSink()
+        val link = uplink(listOf(first, second))
+        start(link)
+        awaitConnected()
+        link.offer(frame(0, keyframe = true))
+        first.next()
+        assertNull(first.metadata.single()["audiocodecid"])
+        link.configureSound(byteArrayOf(0x11, 0x88.toByte()))
+        assertTrue(first.closed.await(5, TimeUnit.SECONDS))
+        awaitConnected()
+        assertEquals(10, second.metadata.single()["audiocodecid"])
+    }
+
+    @Test
     fun `sound with no config to decode it by is not sent`() {
         val sink = FakeSink()
         val link = uplink(listOf(sink))
