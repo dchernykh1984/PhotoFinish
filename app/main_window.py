@@ -91,7 +91,6 @@ from app.recorder.launcher import (
     child_environment,
     command,
     describe,
-    has_ended,
     heartbeat,
     recording,
 )
@@ -2024,9 +2023,9 @@ class MainWindow(QMainWindow):
     @staticmethod
     def _grows(camera: Camera) -> bool:
         """Whether a camera's recording may grow as its sound plays: while the window
-        keeps its recorder, which records on whatever its beat says a moment; not a
-        file's, nor one let go and ended."""
-        return camera.watchdog.wanted or not has_ended(camera.info)
+        keeps its recorder, which records on whatever its beat says a moment; one let
+        go while it beats still; not a file's, nor one let go that ended or died."""
+        return camera.watchdog.wanted or alive(camera.info)
 
     def _sound_folder(self, camera_id: str) -> tuple[Path, int] | None:
         """Whose sound a camera's exported file takes, and how much later (013);
