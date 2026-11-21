@@ -797,12 +797,15 @@ class UplinkWaitsTest {
         assertTrue(held.closed.await(Uplink.HOLD_MS + 2_000, TimeUnit.MILLISECONDS))
         assertTrue(held.frames.isEmpty())
         assertFalse(link.connected)
+        // Said before it is let on: on a busy machine the test would otherwise let it on before it waits.
+        val deadline = System.nanoTime() + 5_000_000_000L
+        while (UplinkStatus.Waiting(first = true) !in statuses && System.nanoTime() < deadline) Thread.sleep(10)
+        assertTrue(UplinkStatus.Waiting(first = true) in statuses)
         allowed.set(true)
         awaitConnected()
         assertEquals(0L, again.next().timestampMs) // sent again from its keyframe: nothing lost
         assertEquals(100L, again.next().timestampMs)
         assertTrue(statuses.none { it is UplinkStatus.Reconnecting })
-        assertTrue(UplinkStatus.Waiting(first = true) in statuses)
     }
 
     @Test
