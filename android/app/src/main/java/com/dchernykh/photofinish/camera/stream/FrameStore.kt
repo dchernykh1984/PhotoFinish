@@ -285,14 +285,9 @@ class FrameStore(
      * a new stream to the camera would wait for that (specs/009, FR-003).
      */
     fun handOver(): Boolean {
-        lock.withLock {
-            if (unsent) {
-                close()
-                return true
-            }
-        }
-        clear()
-        return false
+        val keep = lock.withLock { unsent } // its uplink stopped: nothing changes it now
+        if (keep) close() else clear()
+        return keep
     }
 
     /**
@@ -300,12 +295,22 @@ class FrameStore(
      * kept or read from now on.
      */
     fun close() {
-        lock.withLock {
-            if (cleared || closed) return
-            closed = true
-            (retired + listOfNotNull(writer, indexWriter)).forEach { syncFile(it) }
-            closeFiles()
-            more.signalAll()
+        val open =
+            lock.withLock {
+                if (cleared || closed) return
+                closed = true
+                val open = retired + listOfNotNull(writer, indexWriter)
+                retired.clear()
+                writer = null
+                indexWriter = null
+                closeFiles()
+                more.signalAll()
+                open
+            }
+        open.forEach {
+            // synced outside the lock, as a run is ([retire])
+            syncFile(it)
+            close(it)
         }
     }
 

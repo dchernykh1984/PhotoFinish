@@ -184,6 +184,30 @@ class BacklogTest {
     }
 
     @Test
+    fun `a stream handed over is synced and read back outside the backlog's lock, the counts not held up`() {
+        backlog.readBack()
+        val folder = File(root, "main-900")
+        val store = FrameStore(folder, freeBytes = { Long.MAX_VALUE })
+        store.keep(EncodedFrame(ByteArray(10), 0, true), 1)
+        StreamHeader(Lens.MAIN, first, format, byteArrayOf(1)).write(folder)
+        val syncing = java.util.concurrent.CountDownLatch(1)
+        val release = java.util.concurrent.CountDownLatch(1)
+        store.syncFile = {
+            syncing.countDown()
+            release.await(5, java.util.concurrent.TimeUnit.SECONDS)
+        }
+        val off = backlog.live(first, store)
+        val handing = Thread { backlog.handOver(store, off) }.apply { start() }
+        assertTrue(syncing.await(5, java.util.concurrent.TimeUnit.SECONDS))
+        val since = System.nanoTime()
+        backlog.pending()
+        assertTrue(System.nanoTime() - since < 1_000_000_000)
+        release.countDown()
+        handing.join(5_000)
+        assertTrue(backlog.holds(first))
+    }
+
+    @Test
     fun `discard stops and drops every stream kept`() {
         kept(began = 100)
         kept(began = 200, address = second)

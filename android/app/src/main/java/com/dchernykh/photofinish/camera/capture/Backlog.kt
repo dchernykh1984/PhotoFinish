@@ -58,7 +58,6 @@ class Backlog(
      * What the stores' root holds from the app's runs before, read back: streams to send, or folders of nothing to
      * send, removed. A folder of this run is a stream a camera feeds, perhaps its header not written yet: not its.
      */
-    @Synchronized
     fun readBack() {
         try {
             val folders =
@@ -66,7 +65,7 @@ class Backlog(
                     .listFiles { file ->
                         file.isDirectory && !(session.isNotEmpty() && file.name.endsWith("-$session"))
                     }?.sortedBy { began(it) } ?: return
-            folders.filter { folder -> kept.none { it.folder == folder } }.forEach { take(it) }
+            folders.forEach { adopt(it) }
         } finally {
             ready = true
         }
@@ -77,37 +76,50 @@ class Backlog(
      * before [off] takes its live count away, so the backlog never looks idle in between and the foreground
      * service is not let go (specs/009, FR-006).
      */
-    @Synchronized
     fun handOver(
         store: FrameStore,
         off: () -> Unit,
     ) {
-        if (store.handOver()) adopt(store.folder)
-        off()
+        // Synced and read back outside the backlog's lock: the other lenses' status and the screen wait for none.
+        val read = if (store.handOver()) read(store.folder) else null
+        synchronized(this) {
+            read?.let { admit(it) }
+            off()
+        }
     }
 
     /** A stream handed over, its store closed: sent if it holds anything unsent, else removed. */
-    @Synchronized
     fun adopt(folder: File) {
-        if (kept.none { it.folder == folder }) take(folder)
+        if (synchronized(this) { kept.any { it.folder == folder } }) return
+        read(folder)?.let { synchronized(this) { admit(it) } }
     }
 
-    private fun take(folder: File) {
+    /** [folder] read back, outside the lock: a stream to send, or null -- removed, or left as it is. */
+    private fun read(folder: File): Kept? {
         val header = StreamHeader.read(folder)
         if (header == null && hasFrames(folder)) {
             // Frames whose header a power cut took: not sent, not removed either -- Discard alone removes them.
             val lens = Lens.named(folder.name.substringBefore('-')) ?: Lens.MAIN
             say(lens, "${folder.name}: frames kept with no header to send them with; left on the phone")
-            return
+            return null
         }
         val store = header?.let { FrameStore(folder) }
         if (header == null || store == null || !store.unsent) {
             folder.deleteRecursively() // nothing to send
-            return
+            return null
         }
-        kept += Kept(folder, header, store)
-        val (ms, bytes) = store.pending
-        say(header.lens, "kept to send to ${header.address}: ${ms / MS_PER_S} s of video, ${bytes / BYTES_PER_MB} MB")
+        return Kept(folder, header, store)
+    }
+
+    /** A stream read back, kept to send, under the lock; one kept already is not taken twice. */
+    private fun admit(stream: Kept) {
+        if (kept.any { it.folder == stream.folder }) return
+        kept += stream
+        val (ms, bytes) = stream.store.pending
+        say(
+            stream.header.lens,
+            "kept to send to ${stream.header.address}: ${ms / MS_PER_S} s of video, ${bytes / BYTES_PER_MB} MB",
+        )
     }
 
     /**
