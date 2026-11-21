@@ -67,7 +67,7 @@ internal class Microphone(
         Thread(
             {
                 before?.join(LATER_MS)
-                if (wanted) start()
+                resume()
             },
             "microphone-later",
         ).apply {
@@ -75,6 +75,12 @@ internal class Microphone(
             start()
         }
         return null
+    }
+
+    /** Started if still wanted, asked under the lock a stop takes: a stop meanwhile is never undone. */
+    @Synchronized
+    private fun resume() {
+        if (wanted) start()
     }
 
     /** Not allowed the microphone: said the first time, the stream going without sound; nothing opened. */
