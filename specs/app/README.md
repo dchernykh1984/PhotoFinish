@@ -269,6 +269,17 @@ helps find the moments to look at.
   reader is downloading", or "is not here" -- the model chosen again in the list tries again --
   or, there but not loaded by the camera's analyser, why.
 
+## Exporting video
+
+"Export video..." under the cameras (`specs/011-video-export`) lists the cameras with video
+recorded, all ticked; each ticked becomes one MP4 in a folder chosen, named after the camera, a
+number added when the name is taken. The frames are copied as recorded, not encoded again, timed
+by their moments, each once -- a frame the phone sent again is skipped --, from the first keyframe;
+a gap stays a gap. Where the stream's format changes, the file ends and `<name>-2.mp4` goes on.
+H.265 is tagged `hvc1`, as QuickTime wants it. It runs in the background with a progress bar;
+Cancel removes the file under way. A camera still recording is exported up to its last piece
+closed.
+
 ## Known limits
 
 - One PhotoFinish to a computer, and one PhotoFinish Camera to a phone: a second at the same
