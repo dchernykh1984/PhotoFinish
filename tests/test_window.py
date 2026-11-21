@@ -796,6 +796,8 @@ def test_export_video_writes_a_file_for_each_camera_ticked(
     assert told == [f"Written:\n{out / 'Side.mp4'}"]
     assert (out / "Side.mp4").stat().st_size > 0
     assert win._export_job is None
+    QApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    assert not win.findChildren(mw.QProgressDialog)  # gone with the export
 
 
 def test_an_export_that_wrote_nothing_says_so_and_one_ended_by_the_close_says_nothing(
