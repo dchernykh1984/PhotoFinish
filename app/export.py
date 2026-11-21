@@ -135,8 +135,10 @@ def export(
     ``skipped``: the rest of the camera's video still comes. The sound of ``heard``
     -- the camera's own folder without -- goes beside the frames."""
     writer = _Writer(target, [] if written is None else written, skipped)
-    writer.heard = VideoIndex(folder if heard is None else heard)
-    writer.heard.refresh()
+    heard = folder if heard is None else heard
+    if _has_sound(heard):  # else hours of pieces are not opened again for none
+        writer.heard = VideoIndex(heard)
+        writer.heard.refresh()
     if videos is None:  # its pieces as they are now; else as they were listed
         videos = pieces(folder)
     try:
@@ -242,6 +244,13 @@ class _Writer:
         if self.out is not None:
             out, self.out = self.out, None
             out.abandon()
+
+
+def _has_sound(folder: Path) -> bool:
+    """Whether a camera's first piece or its newest keeps sound (013): a microphone
+    refused at the start, or lost on the way, is found by one or the other."""
+    found = pieces(folder)
+    return bool(found) and (sound.has_sound(found[0]) or sound.has_sound(found[-1]))
 
 
 def _part(target: Path, n: int) -> Path:

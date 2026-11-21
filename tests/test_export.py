@@ -406,3 +406,17 @@ def test_a_lens_without_sound_is_exported_with_its_phones(tmp_path: Path) -> Non
     beep, streams = track_beep(written[0])
     assert streams == 1
     assert beep == pytest.approx(1.5, abs=0.03)
+
+
+def test_a_camera_without_sound_is_exported_without_looking_for_it_piece_by_piece(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Hours of pieces are not opened again for a sound none of them keeps (013).
+    record(tmp_path / "cam1", START, 70)
+
+    def looked(*_: object) -> object:
+        raise AssertionError("looked for sound piece by piece")
+
+    monkeypatch.setattr(export.sound, "pieces", looked)
+    (written,) = export.export(tmp_path / "cam1", tmp_path / "Side.mp4")
+    assert read(written)[1]  # its frames all the same
