@@ -13,11 +13,13 @@ but for a gap (specs/013).
 
 from __future__ import annotations
 
+import dataclasses
 import datetime
 import functools
+import heapq
 import re
 import time
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from fractions import Fraction
 from pathlib import Path
 from typing import Any
@@ -93,7 +95,7 @@ def export_all(
     jobs: list[tuple[Path, Path]],
     progress: Callable[[int], None] = lambda share: None,
     cancelled: Callable[[], bool] = lambda: False,
-    sounds: Mapping[Path, tuple[Path, int]] | None = None,
+    sounds: Mapping[Path, Sequence[tuple[Path, int]]] | None = None,
 ) -> tuple[list[Path], str, int]:
     """Each camera's ``(folder, target)`` exported in turn: the files written --
     those a stop leaves too --, what went wrong -- CANCELLED, or each camera's
@@ -101,20 +103,21 @@ def export_all(
     pieces could not be read. ``progress`` hears the share done, of STEPS. Each
     camera goes up to the last piece closed as the export began, not as its turn
     comes: the cameras' files end together. ``sounds`` names, by a camera's folder,
-    the folder whose sound its file takes -- its own without -- and the ms that sound
-    goes later than its own moments: the two cameras' offsets apart (specs/013)."""
+    the folders whose sound its file takes -- its own without -- each with the ms
+    that sound goes later than its own moments: the two cameras' offsets apart
+    (specs/013)."""
     written: list[Path] = []
     skipped: list[Path] = []
     failed: list[str] = []
     count = len(jobs)
     listed = [pieces(folder) for folder, _ in jobs]
-    heards: dict[Path, VideoIndex] = {}  # a sound's pieces listed once for all
+    indexes: dict[Path, VideoIndex] = {}  # a sound's pieces listed once for all
     for n, ((folder, target), videos) in enumerate(zip(jobs, listed, strict=True)):
 
         def told(done: int, total: int, n: int = n) -> None:
             progress((n * STEPS + done * STEPS // max(total, 1)) // count)
 
-        heard, shift = (sounds or {}).get(folder, (folder, 0))
+        heard = list((sounds or {}).get(folder, [(folder, 0)]))
         try:
             export(
                 folder,
@@ -125,8 +128,7 @@ def export_all(
                 skipped,
                 videos,
                 heard,
-                shift,
-                heards,
+                indexes,
             )
         except CancelledError:
             return written, CANCELLED, len(skipped)
@@ -143,27 +145,26 @@ def export(
     written: list[Path] | None = None,
     skipped: list[Path] | None = None,
     videos: list[Path] | None = None,
-    heard: Path | None = None,
-    shift: int = 0,
-    heards: dict[Path, VideoIndex] | None = None,
+    heard: Sequence[tuple[Path, int]] | None = None,
+    indexes: dict[Path, VideoIndex] | None = None,
 ) -> list[Path]:
     """The camera's pieces in ``folder`` into ``target`` -- ``<stem>-2`` on beside it
     as the format changes --; the files written, also added to ``written`` as each
     is done. ``progress`` hears of the pieces done of all; ``cancelled`` asked
     between them stops it, the file under way removed (CancelledError), as a file a
     failure leaves is. A piece that cannot be read is skipped, added to
-    ``skipped``: the rest of the camera's video still comes. The sound of ``heard``
-    -- the camera's own folder without -- goes beside the frames, ``shift`` ms later
-    than its own moments."""
+    ``skipped``: the rest of the camera's video still comes. The sound of each of
+    ``heard``'s folders -- the camera's own without -- goes beside the frames, as
+    many ms later than its own moments as it says: a phone's, whichever of its
+    lenses kept it at each moment."""
     writer = _Writer(target, [] if written is None else written, skipped)
     writer.cancelled = cancelled  # asked as its sound is looked for too
-    heard = folder if heard is None else heard
-    if has_sound(heard):  # else hours of pieces are not opened again for none
-        known = {} if heards is None else heards  # listed once for a phone's lenses
-        if heard not in known:
-            known[heard] = _listed(heard, cancelled)
-        writer.heard = known[heard]
-        writer.shift = shift
+    known = {} if indexes is None else indexes  # listed once for a phone's lenses
+    for source, shift in [(folder, 0)] if heard is None else heard:
+        if has_sound(source):  # else hours of pieces are not opened again for none
+            if source not in known:
+                known[source] = _listed(source, cancelled)
+            writer.sounds.append((known[source], shift))
     if videos is None:  # its pieces as they are now; else as they were listed
         videos = pieces(folder)
     try:
@@ -190,8 +191,8 @@ class _Writer:
         self.first: Path | None = None
         # A piece skipped or cut short: the next frame written a keyframe.
         self.broken = False
-        self.heard: VideoIndex | None = None  # whose sound the files take (013)
-        self.shift = 0  # how much later than its own moments that sound goes
+        # Whose sound the files take, each how much later than its own moments (013).
+        self.sounds: list[tuple[VideoIndex, int]] = []
         self.cancelled: Callable[[], bool] = lambda: False
 
     def copy(self, video: Path) -> None:
@@ -251,12 +252,8 @@ class _Writer:
                 self.first = path = free(self.target)
             else:
                 path = free(_part(self.first, len(self.mine) + 1))
-            found = (
-                sound.pieces(self.heard, moment - self.shift, cancelled=self.cancelled)
-                if self.heard
-                else iter(())
-            )
-            self.out = _Out(path, stream, moment, _form(stream), found, self.shift)
+            found = _merged(self.sounds, moment, self.cancelled)
+            self.out = _Out(path, stream, moment, _form(stream), found)
         self.out.add(packet, moment, time_base)
 
     def _skip(self, video: Path) -> None:
@@ -289,6 +286,26 @@ def _listed(folder: Path, cancelled: Callable[[], bool]) -> VideoIndex:
         time.sleep(HELD_S)
         index.refresh()
     return index
+
+
+def _merged(
+    sounds: list[tuple[VideoIndex, int]], moment: int, cancelled: Callable[[], bool]
+) -> Iterator[sound.Piece]:
+    """The pieces of each sound from ``moment``, on the file's moments -- each its
+    ms later --, in the order heard: a phone's sound, whichever lens kept it then."""
+    return heapq.merge(
+        *(
+            _shifted(sound.pieces(index, moment - shift, cancelled=cancelled), shift)
+            for index, shift in sounds
+        )
+    )
+
+
+def _shifted(found: Iterator[sound.Piece], shift: int) -> Iterator[sound.Piece]:
+    for piece in found:
+        yield dataclasses.replace(
+            piece, ms=piece.ms + shift, end_ms=piece.end_ms + shift
+        )
 
 
 def has_sound(folder: Path) -> bool:
@@ -344,15 +361,13 @@ class _Out:
         first: int,
         form: tuple[Any, ...],
         found: Iterator[sound.Piece] | None = None,
-        shift: int = 0,
     ):
         self.path, self.first, self.form = path, first, form
-        self.shift = shift  # its sound placed this much later than its own moments
         self.partial = path.with_name(path.name + ".part")
         self.container = av.open(str(self.partial), "w", format="mp4")
         self.found = iter(()) if found is None else found
         self.piece = next(self.found, None)
-        while self.piece is not None and self.piece.ms + shift < first:
+        while self.piece is not None and self.piece.ms < first:
             self.piece = next(self.found, None)  # before the file: its form no matter
         self.audio: Any = None
         self.heard_form: sound.Form | None = None
@@ -389,7 +404,7 @@ class _Out:
         runs on --; those before the file's first frame left out."""
         while self.audio is not None and self.piece is not None:
             piece = self.piece
-            at = piece.ms + self.shift  # on the frames' moments
+            at = piece.ms  # on the frames' moments
             if at > up_to:
                 return
             self.piece = next(self.found, None)

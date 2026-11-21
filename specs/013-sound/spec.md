@@ -89,7 +89,7 @@ the flash in QuickTime.
   playing forwards at any speed, the pitch kept; silent backwards, stepping, paused and Live; a
   "Sound" switch beside the speeds, remembered with the session.
 - **FR-005**: An exported MP4 carries the camera's sound -- or its phone's main lens's -- in step
-  with the picture.
+  with the picture: at each moment whichever of the phone's lenses kept it, as it plays.
 - **FR-006**: Played sound and picture agree within 100 ms on the recording's time -- what a
   frame shows against what is heard of that moment -- from x1/16 to x4, and within 15 ms of the
   time played faster; a gap is silence of its length.
