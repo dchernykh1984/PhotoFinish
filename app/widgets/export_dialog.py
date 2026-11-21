@@ -64,11 +64,15 @@ class ExportJob(QObject):
     done = Signal(object, str, int)
 
     def __init__(
-        self, jobs: list[tuple[Path, Path]], sounds: dict[Path, Path] | None = None
+        self,
+        jobs: list[tuple[Path, Path]],
+        sounds: dict[Path, tuple[Path, int]] | None = None,
     ) -> None:
         super().__init__()
         self.jobs = jobs
-        self.sounds = sounds or {}  # whose sound a camera's file takes (013)
+        self.sounds = (
+            sounds or {}
+        )  # whose sound a camera's file takes, how much later (013)
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._run, daemon=True)
 

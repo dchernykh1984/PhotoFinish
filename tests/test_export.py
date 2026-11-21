@@ -400,12 +400,19 @@ def test_a_lens_without_sound_is_exported_with_its_phones(tmp_path: Path) -> Non
     assert track_beep(alone)[1] == 0  # no sound of its own
     written, error, _ = export.export_all(
         [(tmp_path / "cam2", tmp_path / "Tele2.mp4")],
-        sounds={tmp_path / "cam2": tmp_path / "cam1"},
+        sounds={tmp_path / "cam2": (tmp_path / "cam1", 0)},
     )
     assert error == ""
     beep, streams = track_beep(written[0])
     assert streams == 1
     assert beep == pytest.approx(1.5, abs=0.03)
+    # The main lens aligned 200 ms later than the telephoto on an event: its sound
+    # goes that much later in the telephoto's file, as it plays.
+    later, _, _ = export.export_all(
+        [(tmp_path / "cam2", tmp_path / "Tele3.mp4")],
+        sounds={tmp_path / "cam2": (tmp_path / "cam1", 200)},
+    )
+    assert track_beep(later[0])[0] == pytest.approx(1.7, abs=0.03)
 
 
 def test_a_camera_without_sound_is_exported_without_looking_for_it_piece_by_piece(
