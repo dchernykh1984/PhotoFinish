@@ -17,15 +17,22 @@ object Sei {
     private const val UUID_BYTES = 16
     private const val FULL_SIZE = 255
 
-    fun frameMoment(momentUs: Long): ByteArray =
-        unit(ByteBuffer.allocate(Long.SIZE_BYTES).putLong(momentUs).array(), momentTag)
+    /** The frame's moment, in an SEI unit of [codec]'s: H.265's prefix SEI has two bytes of header (010). */
+    fun frameMoment(
+        momentUs: Long,
+        codec: Codec = Codec.AVC,
+    ): ByteArray = unit(ByteBuffer.allocate(Long.SIZE_BYTES).putLong(momentUs).array(), momentTag, codec)
 
     /** The phone's status, `key=value;...` in ASCII (specs/005-phone-status). */
-    fun phoneStatus(line: String): ByteArray = unit(line.toByteArray(Charsets.US_ASCII), statusTag)
+    fun phoneStatus(
+        line: String,
+        codec: Codec = Codec.AVC,
+    ): ByteArray = unit(line.toByteArray(Charsets.US_ASCII), statusTag, codec)
 
     private fun unit(
         data: ByteArray,
         tag: ByteArray,
+        codec: Codec,
     ): ByteArray {
         val payload =
             ByteBuffer
@@ -45,7 +52,12 @@ object Sei {
         rbsp.write(size)
         rbsp.write(payload)
         rbsp.write(0x80) // rbsp trailing bits
-        return byteArrayOf(Avc.NAL_SEI.toByte()) + escape(rbsp.toByteArray())
+        val header =
+            when (codec) {
+                Codec.AVC -> byteArrayOf(Avc.NAL_SEI.toByte())
+                Codec.HEVC -> byteArrayOf((Hevc.NAL_PREFIX_SEI shl 1).toByte(), 1) // layer 0, temporal id 0 + 1
+            }
+        return header + escape(rbsp.toByteArray())
     }
 
     /** The payload with an emulation-prevention byte wherever two zeros meet 0-3. */

@@ -12,8 +12,10 @@ import com.dchernykh.photofinish.camera.diagnostics.Crashes
 import com.dchernykh.photofinish.camera.diagnostics.PhoneLog
 import com.dchernykh.photofinish.camera.pairing.Lens
 import com.dchernykh.photofinish.camera.stream.Avc
+import com.dchernykh.photofinish.camera.stream.Codec
 import com.dchernykh.photofinish.camera.stream.EncodedFrame
 import com.dchernykh.photofinish.camera.stream.FrameStore
+import com.dchernykh.photofinish.camera.stream.Hevc
 import com.dchernykh.photofinish.camera.stream.StreamHeader
 import com.dchernykh.photofinish.camera.stream.Uplink
 import com.dchernykh.photofinish.camera.stream.UplinkStatus
@@ -125,7 +127,6 @@ internal class LensStream private constructor(
     companion object {
         private const val DEQUEUE_TIMEOUT_US = 10_000L
         private const val DRAIN_JOIN_MS = 500L
-        private const val CODEC = "avc"
 
         /**
          * [planned]'s stream at [format], started, fed: [report] hears its uplink while a camera feeds it, [logged]
@@ -183,7 +184,7 @@ internal class LensStream private constructor(
                 )
             uplink.status = status
             // Its header kept with its frames, as they are to be sent after a restart (specs/009, FR-001).
-            uplink.onConfigured = { record -> StreamHeader(lens, address, format, CODEC, record).write(store.folder) }
+            uplink.onConfigured = { record -> StreamHeader(lens, address, format, record).write(store.folder) }
             val offBoard = Senders.board.register(lens, { uplink.connected }, { store.pending.ms })
             val offCount = Senders.backlog.live(address, store)
             val off = {
@@ -198,14 +199,16 @@ internal class LensStream private constructor(
             }
             val heard = { ptsUs: Long -> stream.frames.heard(ptsUs, SystemClock.elapsedRealtime()) }
             stream.drainer =
-                Thread({ drain(codec, uplink, failed, heard) { onFirstFrame(stream, it) } }, "encoder-$name")
-                    .apply { start() }
+                Thread(
+                    { drain(codec, format.codec, uplink, failed, heard) { onFirstFrame(stream, it) } },
+                    "encoder-$name",
+                ).apply { start() }
             return stream
         }
 
         private fun mediaFormat(format: StreamFormat): MediaFormat =
             MediaFormat
-                .createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, format.resolution.width, format.resolution.height)
+                .createVideoFormat(format.codec.mime, format.resolution.width, format.resolution.height)
                 .apply {
                     setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
                     setInteger(MediaFormat.KEY_BIT_RATE, format.bitrate)
@@ -220,7 +223,9 @@ internal class LensStream private constructor(
             MediaCodecList(MediaCodecList.REGULAR_CODECS)
                 .findEncoderForFormat(format)
                 ?.let { MediaCodec.createByCodecName(it) }
-                ?: MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
+                ?: MediaCodec.createEncoderByType(
+                    format.getString(MediaFormat.KEY_MIME) ?: MediaFormat.MIMETYPE_VIDEO_AVC,
+                )
 
         private fun requestKeyframe(codec: MediaCodec) {
             try {
@@ -236,6 +241,7 @@ internal class LensStream private constructor(
          */
         private fun drain(
             codec: MediaCodec,
+            kind: Codec,
             link: Uplink,
             failed: (IllegalStateException) -> Unit,
             heard: (Long) -> Boolean,
@@ -248,7 +254,7 @@ internal class LensStream private constructor(
             }
             var more = true
             try {
-                while (more && !Thread.currentThread().isInterrupted) more = deliver(codec, link, info, offer)
+                while (more && !Thread.currentThread().isInterrupted) more = deliver(codec, kind, link, info, offer)
             } catch (error: IllegalStateException) {
                 failed(error) // the encoder was stopped, the stream over -- or it failed, and is said
             }
@@ -257,12 +263,13 @@ internal class LensStream private constructor(
         /** One output of the encoder to the uplink; false once the stream has ended. */
         private fun deliver(
             codec: MediaCodec,
+            kind: Codec,
             link: Uplink,
             info: MediaCodec.BufferInfo,
             offer: (EncodedFrame) -> Unit,
         ): Boolean {
             val index = codec.dequeueOutputBuffer(info, DEQUEUE_TIMEOUT_US)
-            if (index == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) configureLink(link, codec.outputFormat)
+            if (index == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) configureLink(link, kind, codec.outputFormat)
             if (index < 0) return true
             val bytes = ByteArray(info.size)
             codec.getOutputBuffer(index)?.apply {
@@ -272,7 +279,12 @@ internal class LensStream private constructor(
             codec.releaseOutputBuffer(index, false)
             val flags = info.flags
             when {
-                flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0 -> configureFromUnits(link, Avc.splitAnnexB(bytes))
+                flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0 ->
+                    configureFromUnits(
+                        link,
+                        kind,
+                        Avc.splitAnnexB(bytes),
+                    )
                 bytes.isNotEmpty() -> {
                     val keyframe = flags and MediaCodec.BUFFER_FLAG_KEY_FRAME != 0
                     offer(EncodedFrame(bytes, info.presentationTimeUs, keyframe))
@@ -283,19 +295,29 @@ internal class LensStream private constructor(
 
         private fun configureLink(
             link: Uplink,
+            kind: Codec,
             format: MediaFormat,
         ) {
             val units =
                 listOf("csd-0", "csd-1").mapNotNull { key ->
                     format.getByteBuffer(key)?.let { buffer -> ByteArray(buffer.remaining()).also { buffer.get(it) } }
                 }
-            configureFromUnits(link, units.flatMap { Avc.splitAnnexB(it) })
+            configureFromUnits(link, kind, units.flatMap { Avc.splitAnnexB(it) })
         }
 
+        /** The stream's header from the encoder's units: SPS and PPS, H.265's VPS too (specs/010-hevc). */
         private fun configureFromUnits(
             link: Uplink,
+            kind: Codec,
             units: List<ByteArray>,
         ) {
+            if (kind == Codec.HEVC) {
+                val vps = units.firstOrNull { Hevc.type(it) == Hevc.NAL_VPS }
+                val sps = units.firstOrNull { Hevc.type(it) == Hevc.NAL_SPS }
+                val pps = units.firstOrNull { Hevc.type(it) == Hevc.NAL_PPS }
+                if (vps != null && sps != null && pps != null) link.configure(Hevc.configurationRecord(vps, sps, pps))
+                return
+            }
             val sps = units.firstOrNull { Avc.type(it) == Avc.NAL_SPS }
             val pps = units.firstOrNull { Avc.type(it) == Avc.NAL_PPS }
             if (sps != null && pps != null) link.configure(sps, pps)

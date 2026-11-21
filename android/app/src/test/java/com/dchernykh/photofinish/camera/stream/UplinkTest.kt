@@ -806,6 +806,26 @@ class UplinkWaitsTest {
     }
 
     @Test
+    fun `an h265 stream's frames carry its sei units, and its metadata names hvc1`() {
+        val sink = FakeSink()
+        val hevc = StreamFormat(Resolution(1920, 1080), 30, FpsRange(30, 30), 3_500_000, Codec.HEVC)
+        val link =
+            Uplink(address, hevc, {
+                exchange(1_000_000)
+            }, { keyframesAsked.release() }, { statuses += it }, FrameStore(kept, freeBytes = { Long.MAX_VALUE }))
+        link.connect = { sink }
+        link.configure(byteArrayOf(1, 2, 3))
+        link.status = { "battery=9" }
+        running += link
+        start(link)
+        awaitConnected()
+        link.offer(EncodedFrame(byteArrayOf(0, 0, 0, 1, 0x26, 0x01, 7), 0, keyframe = true))
+        val sent = sink.next()
+        assertEquals(listOf(Hevc.NAL_PREFIX_SEI, Hevc.NAL_PREFIX_SEI, 19), sent.units.map { Hevc.type(it) })
+        assertEquals(0x68766331, sink.metadata.single()["videocodecid"])
+    }
+
+    @Test
     fun `the stream's header is told once a new one comes, to be kept with the frames`() {
         val told = mutableListOf<ByteArray>()
         val link = Uplink(address, format, { null }, {}, {}, FrameStore(kept, freeBytes = { Long.MAX_VALUE }))
