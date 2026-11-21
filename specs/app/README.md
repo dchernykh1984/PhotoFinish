@@ -82,10 +82,11 @@ recorder is down and at most the 0.1 s before it.
   too: a foreground service runs while anything is unsent, its notification saying how much video
   is left. Only "Discard unsent" on the phone, offered once the streams are stopped and confirmed
   with how much video goes, drops it. The first lens of the code sends first: while it is
-  connected and more than 2 s behind, the others to its laptop wait, holding no connection. The
-  phone's screen says what is not sent yet (while it streams, from 2 s); the camera list says
-  "M:SS of video on the phone", a bar of what came since it began falling behind and about when
-  the rest is in; the phone's readings add its free storage, amber under 30 GB, red under 10 GB.
+  connected and more than 2 s behind, the others to its laptop wait, holding no connection, until
+  it is within 1 s again. The phone's screen says what is not sent yet (while it streams, from
+  2 s); the camera list says "M:SS of video on the phone", a bar of what came since it began
+  falling behind and about when the rest is in; the phone's readings add its free storage, amber
+  under 30 GB, red under 10 GB.
   Tried on the emulator: the app killed with 15 s kept, then started -- every frame in, once;
   closed with Back with 10 s kept -- sent in the background, the service ending after; two lenses,
   the first's recorder frozen -- the second waited while the first was connected and behind.
