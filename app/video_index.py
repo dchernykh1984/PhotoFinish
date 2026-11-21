@@ -10,6 +10,7 @@ its place in that order. Gaps come from ``gaps.txt``.
 from __future__ import annotations
 
 import threading
+from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from fractions import Fraction
@@ -175,6 +176,18 @@ class VideoIndex:
             return None
         found = np.nonzero((self._segment == segment) & (self._pts == frame.pts))[0]
         return int(found[0]) if found.size else None
+
+    def segments_on(self, place: int) -> Iterator[Path]:
+        """The segments of the frames from ``place`` on, each once, in the frames'
+        order -- a segment closed late with earlier frames in its place --: a pass
+        over those frames alone, the paths given as they are asked for."""
+        if not len(self):
+            return
+        tail = self._segment[min(max(place, 0), len(self) - 1) :]
+        firsts = tail[np.concatenate(([0], np.flatnonzero(np.diff(tail)) + 1))]
+        _, seen = np.unique(firsts, return_index=True)
+        for k in firsts[np.sort(seen)]:
+            yield self.paths[int(k)]
 
     def frame(self, place: int) -> Frame:
         place = min(max(place, 0), len(self) - 1)
