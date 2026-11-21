@@ -3833,8 +3833,8 @@ class Heard:
     def stop(self) -> None:
         self.calls.append(("stop",))
 
-    def follow(self) -> None:
-        self.calls.append(("follow",))
+    def follow(self, grows: bool = True) -> None:
+        self.calls.append(("follow", grows))
 
 
 @pytest.fixture
@@ -3950,7 +3950,7 @@ def test_the_sound_follows_the_recording_as_the_window_polls(
     win.play()
     plays = sum(call[0] == "play" for call in heard.calls)
     win.poll()
-    assert heard.calls[-1] == ("follow",)
+    assert heard.calls[-1] == ("follow", True)
     assert sum(call[0] == "play" for call in heard.calls) == plays
 
 
@@ -3977,9 +3977,11 @@ def test_the_sound_follows_while_the_window_keeps_its_recorder(
     win.play()
     assert heard.calls[-1][0::4] == ("play", True)
     win.poll()
-    assert heard.calls[-1] == ("follow",)  # a poll never ends it
-    win.pause()
+    assert heard.calls[-1] == ("follow", True)  # kept: never ended at a poll
     win.cameras["cam1"].watchdog.stop()  # its recording switched off, and ended
+    win.poll()
+    assert heard.calls[-1] == ("follow", False)  # heard to its end
+    win.pause()
     win.play()
     assert heard.calls[-1][0::4] == ("play", False)
 
@@ -4116,7 +4118,7 @@ def test_the_sound_hears_of_a_segment_in_the_poll_that_lists_it(
     seen: list[int] = []
     heard = sounding(win)
     monkeypatch.setattr(
-        heard, "follow", lambda: seen.append(len(index.paths)), raising=False
+        heard, "follow", lambda grows: seen.append(len(index.paths)), raising=False
     )
     real = index.refresh
 
