@@ -411,7 +411,9 @@ def test_a_far_frame_of_a_long_file_is_sought_not_decoded_to(tmp_path: Path) -> 
     index = FileIndex(path)
     assert read(index)
     decoder = Decoder()
-    for place, seeks in ((0, 1), (1, 1), (10, 1), (240, 2), (241, 2), (5, 3)):
+    # Frame 5 was decoded on the way to 10, and is kept (specs/012); 120 was not.
+    steps = ((0, 1), (1, 1), (10, 1), (240, 2), (241, 2), (5, 2), (120, 3))
+    for place, seeks in steps:
         frame = index.frame(place)
         decoded = decoder.decode(frame.path, frame.pts)
         assert decoded is not None
