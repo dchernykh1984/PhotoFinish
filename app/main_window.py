@@ -555,17 +555,21 @@ class MainWindow(QMainWindow):
         progress.canceled.connect(job.cancel)
         job.progress.connect(progress.setValue)
         job.done.connect(
-            lambda written, error: self._exported(progress, written, error)
+            lambda written, error, skipped: self._exported(
+                progress, written, error, skipped
+            )
         )
         self._export_job = job  # kept while it runs
         job.start()
 
     def _exported(
-        self, progress: QProgressDialog, written: list[Path], error: str
+        self, progress: QProgressDialog, written: list[Path], error: str, skipped: int
     ) -> None:
         progress.close()
         self._export_job = None
         files = "".join(f"\n{path}" for path in written)
+        if skipped:
+            files += f"\n{skipped} pieces could not be read and were left out."
         if error == export_dialog.CANCELLED:
             QMessageBox.information(self, "Export video", f"Cancelled.{files}")
         elif error:
