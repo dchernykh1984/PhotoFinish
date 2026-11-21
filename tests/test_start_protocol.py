@@ -80,3 +80,15 @@ def test_a_lines_fields_are_split_at_hashes_alone_a_comma_in_a_group_kept(
         "102": "102",
         "103": "103",
     }
+
+
+def test_a_digit_that_is_not_0_to_9_is_no_number_and_stops_nothing(
+    tmp_path: Path,
+) -> None:
+    # A superscript two passes isdigit() and fails int(): the window would not start.
+    sup = "\u00b2"  # a superscript two
+    lines = [f"{sup}#Name#M##3#", f"5#Name#M##{sup}#", "7#Rider"]
+    assert read_numbers(protocol(tmp_path, lines)) == {"5": "5", "7": "7"}
+    path = tmp_path / "start.txt"
+    numbers = StartNumbers(lambda: str(path))
+    assert numbers() == {"5": "5", "7": "7"}

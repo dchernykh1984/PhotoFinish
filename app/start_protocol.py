@@ -16,6 +16,7 @@ from app.paths import app_path
 
 ENCODINGS = ("utf-8-sig", "cp1251", "latin-1")  # as the older tools wrote them
 SEPARATORS = re.compile("[#;,\t]")
+DECIMAL = re.compile("[0-9]+")  # isdigit() takes a superscript two, int() does not
 
 
 def loose(number: str) -> str:
@@ -41,8 +42,8 @@ def read_numbers(path: Path) -> dict[str, str]:
         # is the referee's, and would move the stages' field.
         fields = line.split("#") if "#" in line else SEPARATORS.split(line)
         number = fields[0].strip().strip("\"'")
-        if not any(c.isdigit() for c in number):
-            continue
+        if not re.search("[0-9]", number) or not number.isascii():
+            continue  # no number: a header, an unpaid marker, a digit not 0 to 9
         numbers.setdefault(loose(number), number)
         for stage in _stages(line, fields, number):
             numbers.setdefault(loose(stage), stage)
@@ -52,10 +53,10 @@ def read_numbers(path: Path) -> dict[str, str]:
 def _stages(line: str, fields: list[str], number: str) -> list[str]:
     """A relay's numbers after its first: a StartProtocolMaker line's fifth field of
     N > 1 stages, its number a number."""
-    if not number.isdigit() or line.count("#") < 5 or len(fields) < 5:
+    if not DECIMAL.fullmatch(number) or line.count("#") < 5 or len(fields) < 5:
         return []
     stages = fields[4].strip()
-    count = int(stages) if stages.isdigit() else 1
+    count = int(stages) if DECIMAL.fullmatch(stages) else 1
     return [str(int(number) + k) for k in range(1, count)]
 
 
@@ -82,7 +83,7 @@ class StartNumbers:
             if seen != self._seen:
                 self._numbers, self._seen = read_numbers(file), seen
             self.problem = ""
-        except OSError as error:
+        except (OSError, ValueError) as error:  # a protocol never stops the window
             self._seen, self._numbers = None, {}
             self.problem = f"the start protocol cannot be read: {error}"
         return self._numbers
