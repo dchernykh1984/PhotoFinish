@@ -185,4 +185,15 @@ class LensesTest {
         val found = LensChoice.classify(LensInfo("0", null, 0.0), listOf(ultra, main, long), null)
         assertEquals(mapOf(Lens.MAIN to main, Lens.ULTRAWIDE to ultra, Lens.TELEPHOTO to long), found)
     }
+
+    @Test
+    fun `the lens that hears is the first asked for that is not left out`() {
+        // Left out by the fallback, the plan or its encoder, the main lens's sound goes with the next (specs/013).
+        val asked = listOf(Lens.MAIN, Lens.TELEPHOTO, Lens.FRONT)
+        assertEquals(Lens.MAIN, hearingLens(asked, emptyList()))
+        assertEquals(Lens.TELEPHOTO, hearingLens(asked, listOf("main")))
+        assertEquals(Lens.FRONT, hearingLens(asked, listOf("main", "telephoto")))
+        assertEquals(null, hearingLens(asked, listOf("main", "telephoto", "front")))
+        assertEquals(Lens.TELEPHOTO, hearingLens(listOf(Lens.TELEPHOTO), emptyList())) // the lenses chosen anew
+    }
 }

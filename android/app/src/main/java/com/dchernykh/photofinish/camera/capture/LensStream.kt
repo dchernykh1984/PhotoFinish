@@ -45,10 +45,12 @@ internal class LensStream private constructor(
     /** What takes it off the first lens's board and the backlog's count of what the phone holds. */
     private val off: () -> Unit,
     /**
-     * The phone's microphone, the first lens's alone (specs/013): it runs while a camera feeds the stream -- one
+     * The phone's microphone (specs/013): it runs while a camera feeds the stream and the stream [hears] -- one
      * left running with the screen away would keep the stream from ever being sent whole, and the phone awake.
      */
     private val microphone: Microphone? = null,
+    /** Whether this stream takes the phone's sound now, asked at each feed: the lenses asked for, or left out, say. */
+    private val hears: () -> Boolean = { false },
 ) : KeptStream {
     private var drainer: Thread? = null
 
@@ -90,7 +92,9 @@ internal class LensStream private constructor(
     fun keyframe() = requestKeyframe(codec)
 
     override fun feed() {
-        microphone?.start() // the sound with the camera that feeds the stream again
+        // The sound with the camera that feeds the stream again, while it is this stream's: another lens's now, the
+        // microphone let go for it.
+        if (hears()) microphone?.start() else microphone?.stop()
         frames.feed(uplink.captureClock?.invoke()) // its frames watched from the camera's next, its first told
         uplink.stampAgain() // a connection without moments, its clock come since, made anew with them
         words.feed()
@@ -103,7 +107,7 @@ internal class LensStream private constructor(
 
     /** The microphone allowed since the stream began (specs/013): heard from now on, while a camera feeds it. */
     fun hear() {
-        if (fed && !stopped) microphone?.start()
+        if (fed && !stopped && hears()) microphone?.start()
     }
 
     /** Stopped, what it kept and has not sent handed to the backlog to send alone (specs/009, FR-003). */
@@ -148,7 +152,7 @@ internal class LensStream private constructor(
          * [onFirstFrame] the presentation time of the first frame each feed; [status] gives the phone's status
          * line for each keyframe;
          * [store] keeps the frames until they are sent; [log] hears of an encoder that fails while it streams
-         * (specs/008-phone-log); [withSound]: the phone's sound goes with it (specs/013), the microphone
+         * (specs/008-phone-log); [hears]: whether the phone's sound goes with it now (specs/013), the microphone
          * [allowed].
          */
         @Suppress("LongParameterList") // a stream's parts, each its own: the camera streamer's to give
@@ -161,7 +165,7 @@ internal class LensStream private constructor(
             status: (Long) -> String?,
             store: FrameStore,
             log: PhoneLog,
-            withSound: Boolean = false,
+            hears: () -> Boolean = { false },
             allowed: () -> Boolean = { false },
         ): LensStream {
             val media = mediaFormat(format)
@@ -209,8 +213,8 @@ internal class LensStream private constructor(
                 offCount()
             }
             val name = planned.target.lens.code
-            val microphone = microphoneOf(uplink, name, log, allowed).takeIf { withSound }
-            val stream = LensStream(planned, format, codec, surface, uplink, sync, words, store, off, microphone)
+            val microphone = microphoneOf(uplink, name, log, allowed)
+            val stream = LensStream(planned, format, codec, surface, uplink, sync, words, store, off, microphone, hears)
             Thread({ uplink.run() }, "uplink-$name").start()
             val failed = { error: RuntimeException ->
                 if (!stream.stopped) log.error(name, "its encoder stopped: ${Crashes.describe(error)}")
@@ -223,7 +227,7 @@ internal class LensStream private constructor(
                 ).apply { start() }
             // A stream starts fed: feed() is a camera's after the first. Its connection waits for the sound's config
             // only while the microphone runs, as it tells.
-            microphone?.start()
+            if (hears()) microphone.start()
             return stream
         }
 
