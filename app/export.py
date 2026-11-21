@@ -92,6 +92,9 @@ class _Writer:
         self.target, self.done, self.skipped = target, done, skipped
         self.mine: list[Path] = []  # this export's, of ``done``
         self.out: _Out | None = None
+        self.first: Path | None = (
+            None  # the first file's name, free: the parts' after it
+        )
 
     def copy(self, video: Path) -> None:
         """One piece's listed packets onto the file under way, or a new file when its
@@ -116,16 +119,17 @@ class _Writer:
             if self.out is not None and self.out.form != _form(stream):
                 self.finish()
             demuxed = source.demux(stream)
+            read = 0
             while True:
                 try:
                     packet = next(demuxed)
                 except StopIteration:
                     return None
-                except (
-                    av.FFmpegError,
-                    OSError,
-                ):  # the piece cut short: what was read stays
-                    return self._skip(video)
+                except av.FFmpegError, OSError:
+                    # The piece cut short: what was read stays; one read not at all
+                    # is told as left out.
+                    return None if read else self._skip(video)
+                read += 1
                 self._add(packet, times, stream, time_base)
 
     def _add(
@@ -139,7 +143,10 @@ class _Writer:
         if self.out is None:
             if not packet.is_keyframe:
                 return  # a file starts where it can be decoded
-            path = free(_part(self.target, len(self.mine) + 1))
+            if self.first is None:
+                self.first = path = free(self.target)
+            else:
+                path = free(_part(self.first, len(self.mine) + 1))
             self.out = _Out(path, stream, moment, _form(stream))
         self.out.add(packet, moment, time_base)
 
@@ -182,12 +189,16 @@ class _Out:
         self.path, self.first, self.form = path, first, form
         self.partial = path.with_name(path.name + ".part")
         self.container = av.open(str(self.partial), "w", format="mp4")
-        when = datetime.datetime.fromtimestamp(first / 1000, datetime.UTC)
-        self.container.metadata["creation_time"] = when.isoformat()
-        self.stream = self.container.add_stream_from_template(template)
-        self.stream.time_base = MS
-        if form[0] == "hevc":
-            self.stream.codec_tag = "hvc1"  # QuickTime opens H.265 tagged so
+        try:
+            when = datetime.datetime.fromtimestamp(first / 1000, datetime.UTC)
+            self.container.metadata["creation_time"] = when.isoformat()
+            self.stream = self.container.add_stream_from_template(template)
+            self.stream.time_base = MS
+            if form[0] == "hevc":
+                self.stream.codec_tag = "hvc1"  # QuickTime opens H.265 tagged so
+        except BaseException:  # a codec MP4 will not hold: no file left half made
+            self.abandon()
+            raise
         self.last_dts: int | None = None
 
     def add(self, packet: av.Packet, moment: int, time_base: Fraction) -> None:
