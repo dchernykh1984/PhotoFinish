@@ -45,7 +45,7 @@ def test_the_sound_plays_from_the_moment_its_buffer_ahead(
 ) -> None:
     index = recorded(tmp_path)
     output = Output()
-    played = player.SoundPlayer(output=lambda rate, channels: output)
+    played = player.SoundPlayer(output=lambda: (output, player.RATE, player.CHANNELS))
     played.play(index, START + 500, rate)
     assert played.playing
     wait_until(lambda: len(output.taken) > 4 * RATE * (2.0 / rate))  # past the beep
@@ -63,7 +63,7 @@ def test_stopped_it_gives_no_more_and_without_an_output_it_plays_none(
     index = recorded(tmp_path)
     output = Output()
     output.free = 4 * 4800  # a tenth of a second at a time
-    played = player.SoundPlayer(output=lambda rate, channels: output)
+    played = player.SoundPlayer(output=lambda: (output, player.RATE, player.CHANNELS))
     played.play(index, START, 1.0)
     wait_until(lambda: len(output.taken) > 0)
     played.stop()
@@ -71,11 +71,26 @@ def test_stopped_it_gives_no_more_and_without_an_output_it_plays_none(
     output.free = 10**8
     played._pump()  # a tick already on its way
     assert len(output.taken) == taken
-    silent = player.SoundPlayer(output=lambda rate, channels: None)
+    silent = player.SoundPlayer(output=lambda: None)
     silent.play(index, START, 1.0)
     assert not silent.playing
 
 
 def test_qts_output_is_made_or_none_without_a_device() -> None:
-    made = player.default_output(player.RATE, player.CHANNELS)
-    assert made is None or hasattr(made, "bytesFree")  # CI's machine has no device
+    made = player.default_output()
+    assert made is None or hasattr(made[0], "bytesFree")  # CI's machine has no device
+
+
+def test_an_output_that_takes_another_rate_and_channels_is_played_in_them(
+    tmp_path: Path,
+) -> None:
+    # A sound card that will not take 48 kHz stereo: what it prefers.
+    index = recorded(tmp_path)
+    output = Output()
+    played = player.SoundPlayer(output=lambda: (output, 44100, 1))
+    played.play(index, START + 500, 1.0)
+    wait_until(lambda: len(output.taken) > 2 * 44100 * 2.0)
+    samples = np.frombuffer(bytes(output.taken), np.int16)  # one channel
+    loud = np.flatnonzero(np.abs(samples) > 3000)
+    assert loud[0] / 44100 == pytest.approx(1.0 - player.BUFFER_S, abs=0.05)
+    played.stop()

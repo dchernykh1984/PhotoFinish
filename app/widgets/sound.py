@@ -23,10 +23,14 @@ CHANNELS = 2
 BUFFER_S = 0.15  # the output's own: what is heard lags what is written by this much
 AHEAD_S = 0.5  # rendered ahead of what the output has taken
 PUMP_MS = 10
+# FFmpeg's layout for a device's channels: one it prefers past these is not played.
+LAYOUTS = {1: "mono", 2: "stereo", 3: "2.1", 4: "quad", 5: "5.0", 6: "5.1", 8: "7.1"}
 
 
-def default_output(rate: int, channels: int) -> Any:
-    """Qt's audio output at ``rate`` and ``channels``, 16-bit; None without one."""
+def default_output() -> tuple[Any, int, int] | None:
+    """Qt's audio output, 16-bit, with its rate and channels: 48 kHz stereo, else
+    the rate and channels the device prefers -- a sound card that takes no other --;
+    None without one."""
     try:
         from PySide6.QtMultimedia import QAudioFormat, QAudioSink, QMediaDevices
     except ImportError:  # pragma: no cover - a Qt without multimedia
@@ -34,15 +38,20 @@ def default_output(rate: int, channels: int) -> Any:
     device = QMediaDevices.defaultAudioOutput()
     if device.isNull():
         return None
-    form = QAudioFormat()
-    form.setSampleRate(rate)
-    form.setChannelCount(channels)
-    form.setSampleFormat(QAudioFormat.SampleFormat.Int16)
-    if not device.isFormatSupported(form):
-        return None
-    output = QAudioSink(device, form)
-    output.setBufferSize(round(BUFFER_S * rate) * channels * 2)
-    return output
+    preferred = device.preferredFormat()
+    for rate, channels in (
+        (RATE, CHANNELS),
+        (preferred.sampleRate(), preferred.channelCount()),
+    ):
+        form = QAudioFormat()
+        form.setSampleRate(rate)
+        form.setChannelCount(channels)
+        form.setSampleFormat(QAudioFormat.SampleFormat.Int16)
+        if rate > 0 and channels in LAYOUTS and device.isFormatSupported(form):
+            output = QAudioSink(device, form)
+            output.setBufferSize(round(BUFFER_S * rate) * channels * 2)
+            return output, rate, channels
+    return None
 
 
 class SoundPlayer(QObject):
@@ -52,7 +61,7 @@ class SoundPlayer(QObject):
     def __init__(
         self,
         parent: QObject | None = None,
-        output: Callable[[int, int], Any] = default_output,
+        output: Callable[[], tuple[Any, int, int] | None] = default_output,
     ) -> None:
         super().__init__(parent)
         self._make = output
@@ -60,6 +69,7 @@ class SoundPlayer(QObject):
         self._device: Any = None
         self._chunks: deque[bytes] = deque()
         self._held = 0  # bytes rendered and not yet given to the output
+        self._ahead = 0  # bytes rendered ahead at most, at the output's rate
         self._lock = threading.Lock()
         self._room = threading.Condition(self._lock)
         self._thread: threading.Thread | None = None
@@ -76,16 +86,19 @@ class SoundPlayer(QObject):
         """The camera's sound from ``from_ms`` on its own times, at ``rate``; what
         was playing stopped first. Nothing without an output."""
         self.stop()
-        self._output = self._make(RATE, CHANNELS)
-        if self._output is None:
+        made = self._make()
+        if made is None:
             return
+        self._output, out_rate, channels = made
         self._device = self._output.start()
         if self._device is None:
             self.stop()
             return
+        self._ahead = round(AHEAD_S * out_rate) * channels * 2
         skipped = round(from_ms + BUFFER_S * rate * 1000)  # heard as the picture shows
+        layout = LAYOUTS.get(channels, "stereo")
         renderer = sound.Renderer(
-            sound.pieces(index, skipped), skipped, rate, RATE, "stereo"
+            sound.pieces(index, skipped), skipped, rate, out_rate, layout
         )
         stopped = self._stopped = threading.Event()
         self._thread = threading.Thread(
@@ -110,7 +123,7 @@ class SoundPlayer(QObject):
     def _render(self, renderer: sound.Renderer, stopped: threading.Event) -> None:
         """The sound rendered ahead of the output by AHEAD_S at most, until stopped
         or ended; a recording that cannot be read ends it."""
-        ahead = round(AHEAD_S * RATE) * CHANNELS * 2
+        ahead = self._ahead
         try:
             while not stopped.is_set():
                 chunk = renderer.read()
