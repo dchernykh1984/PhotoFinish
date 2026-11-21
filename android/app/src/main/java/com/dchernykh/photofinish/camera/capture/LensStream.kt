@@ -90,7 +90,7 @@ internal class LensStream private constructor(
     fun keyframe() = requestKeyframe(codec)
 
     override fun feed() {
-        microphone?.start() // the sound with the camera that feeds the stream again
+        microphone?.let { uplink.sounded = it.start() } // the sound with the camera that feeds the stream again
         frames.feed(uplink.captureClock?.invoke()) // its frames watched from the camera's next, its first told
         uplink.stampAgain() // a connection without moments, its clock come since, made anew with them
         words.feed()
@@ -202,7 +202,7 @@ internal class LensStream private constructor(
                 offCount()
             }
             val name = planned.target.lens.code
-            val microphone = microphoneOf(uplink, name, log).takeIf { withSound }.also { uplink.sounded = it != null }
+            val microphone = microphoneOf(uplink, name, log).takeIf { withSound }
             val stream = LensStream(planned, format, codec, surface, uplink, sync, words, store, off, microphone)
             Thread({ uplink.run() }, "uplink-$name").start()
             val failed = { error: RuntimeException ->
@@ -214,7 +214,9 @@ internal class LensStream private constructor(
                     { drain(codec, format.codec, uplink, failed, heard) { onFirstFrame(stream, it) } },
                     "encoder-$name",
                 ).apply { start() }
-            microphone?.start() // a stream starts fed: feed() is a camera's after the first
+            // A stream starts fed: feed() is a camera's after the first. Its connection waits for the sound's config
+            // only while the microphone runs.
+            microphone?.let { uplink.sounded = it.start() }
             return stream
         }
 
@@ -223,7 +225,10 @@ internal class LensStream private constructor(
             uplink: Uplink,
             lens: String,
             log: PhoneLog,
-        ) = Microphone(uplink::configureSound, uplink::offerSound, { uplink.captureClock }) { log.warning(lens, it) }
+        ) = Microphone(uplink::configureSound, uplink::offerSound, { uplink.captureClock }) {
+            log.warning(lens, it)
+            uplink.sounded = false // no sound to wait for
+        }
 
         /** The stream's header kept with its frames as the encoder gives it, a failure said (specs/009, FR-001). */
         private fun keepHeader(
