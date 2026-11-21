@@ -33,7 +33,7 @@ loses the motion.
 
 ### User Story 2 - Back over a crossing (Priority: P1)
 
-The referee passed a crossing while playing; "Play <" plays the video backwards from the frame
+The referee passed a crossing while playing; "< Play" plays the video backwards from the frame
 shown, at the speed chosen, until Pause, or the recording's first frame.
 
 **Why this priority**: going back over a moment is as common as going forward to it.
@@ -43,7 +43,7 @@ reached 2 s later and the video holds there.
 
 **Acceptance Scenarios**:
 
-1. **Given** the video held, **When** "Play <" is pressed, **Then** it plays backwards and the
+1. **Given** the video held, **When** "< Play" is pressed, **Then** it plays backwards and the
    button reads "Pause"; pressed again, the frame shown is held.
 2. **Given** playing backwards, **When** "Play >" is pressed, **Then** it plays forwards from the
    frame shown.
@@ -66,7 +66,8 @@ reached 2 s later and the video holds there.
 - **FR-001**: Beside Stop, three buttons: half the speed, x1, and twice the speed, the first and
   the last naming the speed they set; the speed in use is said beside them. Speeds go from x1/16
   to x16, doubling and halving; a button past them is disabled; x1 is disabled at x1.
-- **FR-002**: "Play >" plays forwards and "Play <" backwards, at the speed chosen, every camera
+- **FR-002**: "Play >" plays forwards and "< Play" backwards -- each arrow on the side it plays
+  to --, at the speed chosen, every camera
   following; the button of the direction playing reads "Pause".
 - **FR-003**: Playing backwards ends at the first frame, held; forwards ends as it does today.
 - **FR-004**: Timing waits for Pause at every speed and in both directions, as it does today.

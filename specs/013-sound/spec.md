@@ -75,7 +75,9 @@ the flash in QuickTime.
 
 - **FR-001**: PhotoFinish Camera records the phone's microphone while its main lens streams --
   AAC, mono, 48 kHz where the phone takes it --, each piece stamped on the clock its frames are
-  stamped on, and asks for the microphone once; refused, it streams video alone and says so.
+  stamped on, and asks for the microphone after the camera, as Android lets an app ask -- until
+  refused twice --; refused, it streams video alone and says so, and allowed later, it is heard
+  from then on.
 - **FR-002**: The sound is kept on the phone with the main lens's frames, in the order captured,
   and sent with them on the main lens's connection, oldest first: through breaks, restarts and
   Stop as its video is (`specs/009-nothing-lost`); the other lenses wait for the main lens, sound
