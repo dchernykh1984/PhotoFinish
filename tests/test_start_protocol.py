@@ -36,7 +36,9 @@ def test_a_start_protocol_gives_its_numbers_and_a_relays_stages(tmp_path: Path) 
 
 def test_a_table_with_the_number_first_is_read_too(tmp_path: Path) -> None:
     lines = ["Number;Name", "5;Sidorov", "6,Smirnov", '"8"\tKuznetsov']
-    assert read_numbers(protocol(tmp_path, lines)) == {"5": "5", "6": "6", "8": "8"}
+    lines.append("7;Ivanov;Team #3")  # a "#" of the referee's, in a table
+    numbers = read_numbers(protocol(tmp_path, lines))
+    assert numbers == {"5": "5", "6": "6", "8": "8", "7": "7"}
 
 
 def test_cp1251_is_read_as_the_older_tools_wrote_it(tmp_path: Path) -> None:
