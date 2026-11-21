@@ -5,8 +5,8 @@ import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.media.MediaCodec
 import android.media.MediaCodecList
-import android.media.MediaFormat
 import android.util.Size
+import com.dchernykh.photofinish.camera.stream.Codec
 import kotlin.math.roundToInt
 
 /**
@@ -42,38 +42,49 @@ class CameraFormats(
             ?.map { FpsRange(it.lower, it.upper) }
             .orEmpty()
 
-    private val encoders =
-        MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos.filter { info ->
-            info.isEncoder && info.supportedTypes.any { it.equals(MediaFormat.MIMETYPE_VIDEO_AVC, ignoreCase = true) }
-        }
+    private val codecs = MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos.filter { it.isEncoder }
 
-    /** Asked of the camera and the codecs once for each size and rate: the screen asks at every redraw. */
-    private val taken = HashMap<Pair<Resolution, Int>, Boolean>()
+    /** Asked of the camera and the codecs once for each size, rate and codec: the screen asks at every redraw. */
+    private val taken = HashMap<Triple<Resolution, Int, Codec>, Boolean>()
 
     /**
-     * The camera gives [size] at [fps] -- its fastest for that size, not only its ranges -- and
-     * an H.264 encoder takes it.
+     * The camera gives [size] at [fps] -- its fastest for that size, not only its ranges -- and an encoder of
+     * [codec] takes it.
      */
     fun takes(
         size: Resolution,
         fps: Int,
+        codec: Codec = Codec.AVC,
     ): Boolean =
-        taken.getOrPut(size to fps) {
+        taken.getOrPut(Triple(size, fps, codec)) {
             val fastestNs = map?.getOutputMinFrameDuration(MediaCodec::class.java, Size(size.width, size.height)) ?: 0L
             val cameraGives = fastestNs <= 0L || fps <= (1e9 / fastestNs).roundToInt()
             cameraGives &&
-                encoders.any { info ->
-                    info
-                        .getCapabilitiesForType(MediaFormat.MIMETYPE_VIDEO_AVC)
-                        .videoCapabilities
-                        ?.areSizeAndRateSupported(size.width, size.height, fps.toDouble()) == true
+                codecs.any { info ->
+                    info.supportedTypes.any { it.equals(codec.mime, ignoreCase = true) } &&
+                        info
+                            .getCapabilitiesForType(codec.mime)
+                            .videoCapabilities
+                            ?.areSizeAndRateSupported(size.width, size.height, fps.toDouble()) == true
                 }
         }
 
+    /**
+     * The format to stream, chosen as H.264 gives it; in [codec] when an encoder of it takes the size and rate, else
+     * in H.264 -- the screen says so (specs/010-hevc).
+     */
     fun choose(
         wanted: Resolution? = null,
         wantedFps: Int? = null,
-    ): StreamFormat? = FormatChoice.choose(sizes, ranges, ::takes, wanted, wantedFps)
+        codec: Codec = Codec.AVC,
+    ): StreamFormat? {
+        val chosen = FormatChoice.choose(sizes, ranges, { size, fps -> takes(size, fps) }, wanted, wantedFps)
+        return if (chosen != null && codec != Codec.AVC && takes(chosen.resolution, chosen.fps, codec)) {
+            FormatChoice.inCodec(chosen, codec)
+        } else {
+            chosen
+        }
+    }
 
     companion object {
         /**
@@ -87,7 +98,9 @@ class CameraFormats(
             val first = lenses.firstOrNull() ?: return null
             val sizes = lenses.map { it.sizes.toSet() }.reduce { all, these -> all intersect these }
             val takes = { size: Resolution, fps: Int -> lenses.all { it.takes(size, fps) } }
-            return FormatChoice.choose(sizes, first.ranges, takes, wanted.resolution, wanted.fps)
+            return FormatChoice
+                .choose(sizes, first.ranges, takes, wanted.resolution, wanted.fps)
+                ?.let { FormatChoice.inCodec(it, wanted.codec) } // the codec the wanted one was found to take
         }
     }
 }

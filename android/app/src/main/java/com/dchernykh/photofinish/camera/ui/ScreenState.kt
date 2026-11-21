@@ -67,7 +67,7 @@ class ScreenState(
     val pairing: Pairing get() = Pairing.parse(address)
 
     /** What to stream: the chosen size and rate, the fastest rate when the chosen one is gone. */
-    val format: StreamFormat? get() = formats.choose(resolution, fps)
+    val format: StreamFormat? get() = formats.choose(resolution, fps, pairing.codec)
 
     fun enterAddress(text: String) {
         address = text.trim()
