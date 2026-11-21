@@ -122,9 +122,16 @@ class Backlog(
 
     /** A stream handed over, its store closed: sent if it holds anything unsent, else removed. */
     fun adopt(folder: File) {
-        if (synchronized(this) { kept.any { it.folder == folder } }) return
-        read(folder)?.let { synchronized(this) { admit(it) } }
+        val before = synchronized(this) { if (kept.any { it.folder == folder }) return else discards }
+        val read = read(folder) ?: return
+        reading()
+        // A Discard come while it was read back: dropped, never kept with its files gone, its address held for good.
+        val dropped = synchronized(this) { (discards != before).also { if (!it) admit(read) } }
+        if (dropped) folder.deleteRecursively()
     }
+
+    /** Between a folder read back and taken: a test's Discard lands here. */
+    internal var reading: () -> Unit = {}
 
     /** [folder] read back, outside the lock: a stream to send, or null -- removed, or left as it is. */
     private fun read(folder: File): Kept? {

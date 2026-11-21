@@ -333,6 +333,17 @@ class BacklogTest {
     }
 
     @Test
+    fun `a folder read back as Discard comes is dropped, never kept with its files gone`() {
+        val folder = kept(began = 100)
+        backlog.reading = { backlog.discard() }
+        backlog.readBack()
+        backlog.tick()
+        assertFalse(backlog.holds(first))
+        assertTrue(started.isEmpty())
+        assertFalse(folder.exists())
+    }
+
+    @Test
     fun `discard stops and drops every stream kept`() {
         kept(began = 100)
         kept(began = 200, address = second)
