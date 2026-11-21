@@ -184,7 +184,7 @@ internal class LensStream private constructor(
             uplink.status = status
             // Its header kept with its frames, as they are to be sent after a restart (specs/009, FR-001).
             uplink.onConfigured = keepHeader(planned, format, store, log)
-            val offBoard = Senders.board.register(lens, address.host, { uplink.connected }, { store.pending.ms })
+            val offBoard = Senders.board.register(lens, address.host, { uplink.connected }, { store.behindMs })
             val offCount = Senders.backlog.live(address, store)
             val off = {
                 offBoard()

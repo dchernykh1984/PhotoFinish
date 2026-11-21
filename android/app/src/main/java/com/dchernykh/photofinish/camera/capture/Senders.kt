@@ -104,7 +104,7 @@ object Senders {
             )
         uplink.status = { dropped -> status(header.address, dropped) }
         uplink.configure(header.record)
-        val off = board.register(lens, header.address.host, { uplink.connected }, { store.pending.ms })
+        val off = board.register(lens, header.address.host, { uplink.connected }, { store.behindMs })
         Thread({ uplink.run() }, "kept-${lens.code}").start()
         return Backlog.Sending(uplink) {
             uplink.stop()
