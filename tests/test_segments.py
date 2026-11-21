@@ -1486,6 +1486,45 @@ def test_a_piece_of_sound_the_muxer_refuses_costs_the_sound_never_the_video(
     assert writer.frames == 60
 
 
+class RefusingHeader:
+    """A segment's file whose header will not take its sound, as a muxer refuses a
+    config it cannot read."""
+
+    def __init__(self, real: Any) -> None:
+        self.real, self.sound = real, False
+
+    def add_stream_from_template(self, template: Any) -> Any:
+        self.sound = self.sound or template.type == "audio"
+        return self.real.add_stream_from_template(template)
+
+    def start_encoding(self) -> None:
+        if self.sound:
+            raise av.FFmpegError(22, "Invalid argument")
+        self.real.start_encoding()
+
+    def mux(self, packet: av.Packet) -> None:
+        self.start_encoding()  # the header, written at the first packet
+        self.real.mux(packet)
+
+    def close(self) -> None:
+        self.real.close()
+
+
+def test_a_sound_the_header_refuses_costs_the_sound_never_the_video(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    with_sound(tmp_path / "phone.mkv", 2)
+    folder = tmp_path / "cam1"
+    real = segments_module._video
+    monkeypatch.setattr(segments_module, "_video", lambda f: RefusingHeader(real(f)))
+    writer, _ = recorded_with_sound(tmp_path / "phone.mkv", folder)
+    monkeypatch.undo()
+    assert writer.frames == 60
+    for path in segments(folder):
+        with av.open(str(path)) as container:
+            assert not container.streams.audio
+
+
 def test_a_segments_sound_is_listed_before_it_and_a_sound_list_refused_costs_it_alone(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
