@@ -143,6 +143,36 @@ recorder's acknowledgements, which the phone asks for every 64 KiB, tell what to
 send again. FFmpeg's default is one a megabyte: on the emulator's slow stream
 none came for 15 s.
 
+## Nothing lost, on the emulator
+
+What the phone kept survives the app (`specs/009-nothing-lost`). Freeze the
+recorder (`kill -STOP`) for 15 s so the phone keeps, then:
+
+```
+adb shell am force-stop com.dchernykh.photofinish.camera   # a crash: the store stays
+adb shell run-as com.dchernykh.photofinish.camera ls files/kept   # <lens>-<ms>/ with .h264, .idx, stream.txt
+kill -CONT <pid>; adb shell am start -n com.dchernykh.photofinish.camera/.MainActivity
+```
+
+The phone's log (`video/<camera>/phone.log`) says `kept to send to ...: N s of
+video`, then `all it kept sent ...: removed`; every frame of the frozen stretch
+comes once. `KEYCODE_BACK` instead of the force-stop closes the screen: the
+streams are handed to the backlog and sent in the background, the foreground
+service (`dumpsys activity services com.dchernykh.photofinish.camera`,
+`isForeground=true`) ending once all is sent. An `am start` with extras while the
+app runs reaches the running screen, not its extras: force-stop it first.
+
+The emulator has about 2 GB free, under the 10 GB the store leaves: what it keeps
+there is a stream's gigabyte while 1 GB stays free. Tap the screen through
+`uiautomator dump`: the panel scrolls (`input swipe 2080 1000 2080 250`), then
+find a button's `bounds` by its text and `input tap` its middle -- Stop, then
+"Discard unsent" and its confirmation.
+
+The first lens first: two lenses (below), the first's recorder frozen. The
+second waits while the first is connected and behind -- a few seconds, until the
+first's hung send is cut after 5 s -- and goes on meanwhile; once the first's
+recorder is back, the first catches up before the second sends.
+
 ## Reading what came
 
 ```python
