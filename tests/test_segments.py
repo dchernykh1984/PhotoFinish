@@ -1395,3 +1395,42 @@ def test_a_piece_of_sound_out_of_order_is_passed_over_never_muxed(
                     writer.write_audio(heard[10], ms + 100)  # an older one, placed on
     writer.close()
     assert len(segments(folder)) == 1
+
+
+def test_a_piece_of_sound_the_muxer_refuses_costs_the_sound_never_the_video(
+    tmp_path: Path,
+) -> None:
+    with_sound(tmp_path / "phone.mkv", 2)
+    folder = tmp_path / "cam1"
+    writer = SegmentWriter(folder, fps=30)
+
+    class Refusing:
+        """The segment's video, refusing its sound."""
+
+        def __init__(self, real: Any, audio: Any) -> None:
+            self.real, self.audio = real, audio
+
+        def mux(self, packet: av.Packet) -> None:
+            if packet.stream is self.audio:
+                raise av.FFmpegError(22, "refused")
+            self.real.mux(packet)
+
+        def close(self) -> None:
+            self.real.close()
+
+    with av.open(str(tmp_path / "phone.mkv")) as container:
+        for packet in container.demux():
+            if packet.pts is None:
+                continue
+            ms = START + in_ms(packet.pts, fraction(packet.time_base))
+            if packet.stream.type == "video":
+                writer.write_packet(packet, ms)
+                opened = writer._open
+                assert isinstance(opened, segments_module._Remuxed)
+                if not isinstance(opened.container, Refusing):
+                    refusing = Refusing(opened.container, opened.audio)
+                    opened.container = refusing  # type: ignore[assignment]
+            else:
+                assert not writer.write_audio(packet, ms)
+    writer.close()
+    assert writer.frames == 60

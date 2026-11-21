@@ -465,3 +465,17 @@ def test_a_gap_in_an_exported_files_sound_is_silence_so_it_stays_in_step(
     (written,) = export.export(tmp_path / "cam1", tmp_path / "Main.mp4")
     beep, _ = track_beep(written)  # its samples counted one after another
     assert beep == pytest.approx(1.5, abs=0.03)
+
+
+def test_a_sound_mp4_will_not_take_costs_the_sound_never_the_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    recorded(tmp_path)
+
+    def refused(*_: object) -> object:
+        raise av.FFmpegError(22, "refused")
+
+    monkeypatch.setattr(export._Out, "_sound_stream", refused)
+    (written,) = export.export(tmp_path / "cam1", tmp_path / "Main.mp4")
+    assert track_beep(written)[1] == 0
+    assert read(written)[1]  # its frames all the same
