@@ -155,6 +155,9 @@ class FrameStore(
 
     /** How a run's file is written through to the storage; a test's waits. */
     internal var syncFile: (FileOutputStream) -> Unit = ::sync
+
+    /** Where a run done is synced and closed: the stores' own thread; a test's runs it at once. */
+    internal var syncOff: (Runnable) -> Unit = { SYNCING.execute(it) }
     private var reader: RandomAccessFile? = null
     private var readerRun: Run? = null
 
@@ -213,10 +216,16 @@ class FrameStore(
      */
     private fun retire() {
         val files = lock.withLock { retired.toList().also { retired.clear() } }
-        files.forEach {
-            syncFile(it)
-            close(it)
-        }
+        if (files.isEmpty()) return
+        syncOff(
+            Runnable {
+                // on a thread of its own: the encoder's drains on, an fsync of a slow flash waited for by none
+                files.forEach {
+                    syncFile(it)
+                    close(it)
+                }
+            },
+        )
     }
 
     /** The next frame to send, waiting up to [waitMs] for one; null when none came, or the store was cleared. */
@@ -618,6 +627,11 @@ class FrameStore(
          * the uplink gives the connection up, and keyframes come every second.
          */
         const val KEEP_SENT_US = 6_000_000L
+
+        /** The thread the runs done are synced on, the stores' one: never the encoders'. */
+        private val SYNCING =
+            java.util.concurrent.Executors
+                .newSingleThreadExecutor { Thread(it, "syncing").apply { isDaemon = true } }
 
         /** Left free on the phone (specs/009, FR-005): the stores take the rest. */
         const val RESERVE_BYTES = 10L shl 30

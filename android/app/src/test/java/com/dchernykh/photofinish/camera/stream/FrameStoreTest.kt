@@ -364,13 +364,12 @@ class FrameStoreTest {
             release.await(5, java.util.concurrent.TimeUnit.SECONDS)
         }
         second(store, 0) // the first run: none before it to sync
-        val writer = Thread { store.keep(frame(1_000_000, keyframe = true), 1) }.apply { start() }
-        assertTrue(syncing.await(5, java.util.concurrent.TimeUnit.SECONDS)) // the run of 0 s being synced
         val since = System.nanoTime()
-        assertEquals(1_000L, store.pending.ms)
-        assertTrue(System.nanoTime() - since < 1_000_000_000) // not held up by the sync
+        store.keep(frame(1_000_000, keyframe = true), 1) // the encoder's thread: on at once
+        assertTrue(System.nanoTime() - since < 1_000_000_000)
+        assertTrue(syncing.await(5, java.util.concurrent.TimeUnit.SECONDS)) // the run of 0 s being synced elsewhere
+        assertEquals(1_000L, store.pending.ms) // not held up by the sync
         release.countDown()
-        writer.join(5_000)
         assertEquals(2, runs())
     }
 
