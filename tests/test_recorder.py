@@ -24,9 +24,9 @@ import app.recorder as recorder
 from app import paths, session
 from app.recorder import Backoff, Heartbeat, SteadyClock, free_ids, run, sources
 from app.recorder import segments as segments_module
-from app.recorder.segments import SegmentWriter
+from app.recorder.segments import SegmentWriter, fraction, in_ms
 from app.recorder.testcam import read_time, render
-from tests.test_segments import killed_while_recording, make_h264
+from tests.test_segments import killed_while_recording, make_h264, with_sound
 
 ROOT = Path(__file__).resolve().parents[1]
 START = 1_761_716_129_587
@@ -1212,3 +1212,38 @@ def test_new_camera_ids_skip_those_taken_and_those_with_video(base: Path) -> Non
     (base / "video" / "cam2").mkdir(parents=True)  # a camera removed: its video stays
     assert free_ids({"cam1"}, 3) == ["cam3", "cam4", "cam5"]
     assert free_ids(set(), 0) == []
+
+
+class WithSound:
+    """A phone's source with its sound (specs/013): a file's packets, frames and
+    sound, at their own moments from START."""
+
+    fps = 30.0
+    clock_note = ""
+    waiting = ""
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+        self.phone: dict[str, Any] = {}
+
+    def frames(self) -> Iterator[tuple[av.Packet, int]]:
+        with av.open(str(self.path)) as container:
+            for packet in container.demux():
+                if packet.pts is not None:
+                    yield packet, START + in_ms(packet.pts, fraction(packet.time_base))
+
+
+def test_a_sources_sound_is_kept_beside_its_frames_and_counted_as_none(
+    folder: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    with_sound(tmp_path / "phone.mkv", 2)
+    stop = Camera(folder, START + 10_000, 1, stop_after=0)
+    cameras(monkeypatch, WithSound(tmp_path / "phone.mkv"), stop)
+    assert run("cam1") == 0
+    heard = 0
+    for path in sorted(folder.glob("*-*-*.mkv")):
+        with av.open(str(path)) as container:
+            if container.streams.audio:
+                heard += sum(1 for p in container.demux(audio=0) if p.size)
+    assert heard > 80  # two seconds' pieces, but for the first's before any frame
+    assert heartbeat(folder)["frames"] == 60 + 1  # the frames alone, and the stop's

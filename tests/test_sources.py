@@ -346,7 +346,8 @@ class Failing:
                 time_base=Fraction(1, 1000),
                 codec_context=SimpleNamespace(name="hevc"),
             )
-        ]
+        ],
+        audio=[],
     )
 
     def __init__(self) -> None:
@@ -358,7 +359,7 @@ class Failing:
     def __exit__(self, *_: object) -> None:
         return None
 
-    def demux(self, _stream: object) -> Iterator[av.Packet]:
+    def demux(self, *_streams: object) -> Iterator[av.Packet]:
         raise OSError(5, "Input/output error")
 
 
@@ -447,6 +448,13 @@ def test_a_push_s_first_frames_are_given_soon_not_after_seconds_of_look_over() -
     assert first and first[0] < 1500  # the first frame, read well within its seconds
 
 
+def video_moment(item: Any) -> int | None:
+    """A frame's moment, of an item a source gives; None for sound (013) or a wait."""
+    if item is None or not isinstance(item[0], av.Packet) or item[0].stream is None:
+        return None
+    return int(item[1]) if item[0].stream.type == "video" else None
+
+
 def test_a_push_whose_sound_comes_first_is_still_recorded() -> None:
     # A streaming app may send a second of sound before its first picture: half a
     # second's look-over must still find the video.
@@ -458,8 +466,8 @@ def test_a_push_whose_sound_comes_first_is_still_recorded() -> None:
     def receive() -> None:
         try:
             for item in source.frames():
-                if item is not None:
-                    got.append(item[1])
+                if (ms := video_moment(item)) is not None:  # its sound given too
+                    got.append(ms)
         except OSError:
             pass  # the app hung up
 
@@ -573,7 +581,7 @@ class PhoneContainer:
             average_rate=60,
             guessed_rate=60,
         )
-        self.streams = SimpleNamespace(video=[video])
+        self.streams = SimpleNamespace(video=[video], audio=[])
         self.metadata = {"encoder": sources.PHONE_APP}
 
     def __enter__(self) -> PhoneContainer:
@@ -582,7 +590,7 @@ class PhoneContainer:
     def __exit__(self, *_: object) -> None:
         return None
 
-    def demux(self, _: object) -> Iterator[av.Packet]:
+    def demux(self, *_: object) -> Iterator[av.Packet]:
         return iter(self.packets)
 
 
@@ -943,3 +951,72 @@ def test_moments_follow_a_camera_whose_clock_drifts_from_the_computers() -> None
             assert moment >= last
             last = moment
         assert abs(last - now["ms"]) < 60  # within the jitter, not 1.4 s off
+
+
+def test_a_pushs_sound_is_given_placed_by_the_frame_before_it() -> None:
+    # specs/013: a piece of sound's moment is the frame before it's, moved by the
+    # distance between their timestamps; one before any frame has none to go by.
+    port = free_port()
+    camera = {"connection": "rtmp", "settings": {"port": port, "path": "live/test"}}
+    source = open_source(camera, lambda: time.time_ns() // 1_000_000)
+    got: list[tuple[str, int, int]] = []
+
+    def receive() -> None:
+        try:
+            for item in source.frames():
+                if item is not None:
+                    packet, ms = item
+                    assert isinstance(packet, av.Packet)
+                    rate = packet.time_base
+                    pts = round(
+                        (packet.pts or 0) * 1000 * rate.numerator / rate.denominator
+                    )
+                    got.append((packet.stream.type, ms, pts))
+        except OSError:
+            pass  # the app hung up
+
+    thread = threading.Thread(target=receive)
+    thread.start()
+    time.sleep(1.5)
+    push_with_sound(port, 60)
+    thread.join(timeout=30)
+    kinds = [kind for kind, _, _ in got]
+    assert kinds.count("video") == 60
+    assert kinds.index("audio") > kinds.index("video")  # none before the first frame
+    assert kinds.count("audio") > 60
+    before: tuple[int, int] | None = None
+    for kind, ms, pts in got:
+        if kind == "video":
+            before = (ms, pts)
+        else:
+            assert before is not None
+            assert ms == before[0] + pts - before[1]
+
+
+def push_with_sound(port: int, frames: int) -> None:
+    """A streaming app's push with its sound: H.264 at 30 fps and AAC, mono, 48 kHz,
+    each piece sent with the frame it was heard by."""
+    url = f"rtmp://127.0.0.1:{port}/live/test"
+    with av.open(url, "w", format="flv") as out:
+        options = {"g": "30", "tune": "zerolatency", "preset": "ultrafast"}
+        video = out.add_stream("libx264", rate=30, options=options)
+        video.width, video.height, video.pix_fmt = 640, 360, "yuv420p"
+        sound = out.add_stream("aac", rate=48000)
+        sound.layout = "mono"
+        heard = 0
+        for k in range(frames):
+            picture = av.VideoFrame.from_ndarray(render(START + k * 33, 640, 360))
+            picture.pts = k
+            for packet in video.encode(picture):
+                out.mux(packet)
+            while heard * 1024 * 30 < (k + 1) * 48000:
+                piece = av.AudioFrame.from_ndarray(
+                    np.zeros((1, 1024), np.float32), format="fltp", layout="mono"
+                )
+                piece.sample_rate, piece.pts = 48000, heard * 1024
+                for packet in sound.encode(piece):
+                    out.mux(packet)
+                heard += 1
+            time.sleep(1 / 30)
+        for packet in video.encode(None):
+            out.mux(packet)
