@@ -554,7 +554,7 @@ class MainWindow(QMainWindow):
         progress.setWindowModality(Qt.WindowModality.WindowModal)
         progress.setMinimumDuration(0)
         progress.canceled.connect(job.cancel)
-        job.progress.connect(progress.setValue)
+        job.progress.connect(lambda value: _progressed(progress, value))
         job.done.connect(
             lambda written, error, skipped: self._exported(
                 job, progress, written, error, skipped
@@ -2087,6 +2087,13 @@ class _Fetch(QObject):
         job = models.Download(model, self.progress.emit, self.done.emit)
         job.start()
         return job
+
+
+def _progressed(progress: QProgressDialog, value: int) -> None:
+    """An export's progress shown, unless Cancel was pressed: a cancelled dialog
+    set again shows itself again until the export ends."""
+    if not progress.wasCanceled():
+        progress.setValue(value)
 
 
 def _same_file(chosen: object, path: str) -> bool:
