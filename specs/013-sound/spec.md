@@ -86,12 +86,14 @@ the flash in QuickTime.
   "Sound" switch beside the speeds, remembered with the session.
 - **FR-005**: An exported MP4 carries the camera's sound -- or its phone's main lens's -- in step
   with the picture.
-- **FR-006**: Played sound and picture agree within 100 ms; a gap is silence of its length.
+- **FR-006**: Played sound and picture agree within 100 ms on the recording's time -- what a
+  frame shows against what is heard of that moment -- from x1/16 to x4, and within 15 ms of the
+  time played faster; a gap is silence of its length.
 
 ## Success Criteria *(mandatory)*
 
-- **SC-001**: A tone that starts at a flash is heard within 100 ms of the flash, played and
-  exported.
+- **SC-001**: A tone that starts at a flash is heard within 100 ms of the flash on the
+  recording's time, played and exported.
 - **SC-002**: 30 s of break cost no sound: sent after it, recorded once.
 - **SC-003**: The sound adds under 1% to a lens's bitrate (128 kbit/s against 16 Mbit/s).
 
@@ -102,3 +104,6 @@ the flash in QuickTime.
 - AAC at 128 kbit/s mono: speech and a pistol clear; stereo tells nothing more at a finish line.
 - The sound's moments come from the video's: the recorder places a piece by the frame beside it,
   as both are stamped on one clock in one connection.
+- Slowed or sped, the sound keeps its pitch by overlapping windows of it (WSOLA): a sound comes
+  up to 40 ms of the recording's time early at x1/16 to x4, which at x1/16 is a frame's worth
+  of the picture; faster, the lag grows with the speed, under 15 ms of the time played.
