@@ -309,3 +309,34 @@ def test_a_camera_whose_list_names_no_piece_has_no_video(tmp_path: Path) -> None
     (folder / "odd.mkv").write_bytes(b"x")
     (folder / "segments.txt").write_text("odd\n")
     assert not export.has_video(folder)
+
+
+def test_the_cameras_are_exported_in_turn_their_progress_told_as_a_share(
+    tmp_path: Path,
+) -> None:
+    record(tmp_path / "cam1", START, 40)
+    record(tmp_path / "cam2", START, 40)
+    jobs = [(tmp_path / c, tmp_path / f"{c}.mp4") for c in ("cam1", "cam2")]
+    shares: list[int] = []
+    written, error, skipped = export.export_all(jobs, shares.append)
+    assert (written, error, skipped) == (
+        [tmp_path / "cam1.mp4", tmp_path / "cam2.mp4"],
+        "",
+        0,
+    )
+    assert shares == sorted(shares) and shares[-1] == export.STEPS
+
+
+def test_a_camera_that_fails_is_told_the_next_exported_and_a_stop_ends_them_all(
+    tmp_path: Path,
+) -> None:
+    record(tmp_path / "cam2", START, 40)
+    jobs = [
+        (tmp_path / "cam2", tmp_path / "missing" / "Main.mp4"),  # no such folder
+        (tmp_path / "cam2", tmp_path / "Tele.mp4"),
+    ]
+    written, error, _ = export.export_all(jobs)
+    assert written == [tmp_path / "Tele.mp4"]
+    assert error.startswith("Main: ")
+    stopped = export.export_all(jobs[1:], cancelled=lambda: True)
+    assert stopped == ([], export.CANCELLED, 0)
