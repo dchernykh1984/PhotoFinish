@@ -150,3 +150,19 @@ def test_a_start_longer_than_the_sound_rendered_ahead_is_left_out_whole(
     wait_until(lambda: played.ended)
     assert beep_at(heard(output)) == pytest.approx(0.5, abs=0.05)  # 1.5 s in, less 1
     played.stop()
+
+
+def test_a_sound_that_cannot_be_rendered_has_ended_for_the_window_to_play_on(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    index = recorded(tmp_path)
+
+    def broken(_: object) -> bytes:
+        raise ValueError("a layout the filters refuse")
+
+    monkeypatch.setattr(player.sound.Renderer, "read", broken)
+    made = (Output(), player.RATE, player.CHANNELS)
+    played = player.SoundPlayer(output=lambda: made, clock=still)
+    played.play(index, START, 1.0)
+    wait_until(lambda: played.ended)
+    played.stop()

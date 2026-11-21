@@ -156,8 +156,9 @@ class SoundPlayer(QObject):
                         return
                     self._chunks.append(chunk)
                     self._held += len(chunk)
-        except Exception:
-            return
+        except Exception:  # a sound that cannot be played is not heard
+            with self._lock:  # ended: the window plays on as the recording grows
+                self._rendered = not stopped.is_set()
 
     def _pump(self) -> None:
         """What the output has room for, given it; the first time, the time since
