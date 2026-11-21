@@ -4023,3 +4023,27 @@ def test_a_phones_lens_with_sound_at_the_moment_comes_before_one_with_it_later(
     win.seek_ms(START + 1500)
     win.play()
     assert heard.calls[-1][:2] == ("play", win.cameras["cam1"].index)
+
+
+def test_removing_the_camera_whose_sound_plays_stops_that_sound(
+    phone_with_sound: Path,
+    make_window: Callable[[], mw.MainWindow],
+    clock: list[float],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The telephoto playing its main lens's sound: the main lens removed, none.
+    monkeypatch.setattr(
+        mw.QMessageBox, "question", lambda *a, **k: mw.QMessageBox.StandardButton.Yes
+    )
+    win = make_window()
+    wait_until(lambda: win.moment is not None and win.place is not None)
+    win.camera_list.setCurrentRow(1)
+    wait_until(lambda: win.current == "cam2")
+    heard = sounding(win)
+    win.step(-40)
+    win.play()
+    assert heard.calls[-1][:2] == ("play", win.cameras["cam1"].index)
+    win.camera_list.setCurrentRow(0)
+    win.remove_camera()  # the main lens
+    assert "cam1" not in win.cameras
+    assert heard.calls[-1] == ("stop",)
