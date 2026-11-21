@@ -14,6 +14,8 @@ import collections
 import math
 from typing import Any
 
+from app import phone_status
+
 SAID_MS = 2_000
 LOOK_BACK_MS = 60_000  # the estimate's: a minute of what the phone said
 FULL, EMPTY = chr(0x2588), chr(0x2591)
@@ -29,9 +31,11 @@ class CatchUp:
         self.peak = 0
         self.said: collections.deque[tuple[int, int]] = collections.deque()
 
-    def line(self, status: object) -> str:
+    def line(self, status: object, now_ms: int) -> str:
         """What the phone holds for the camera, as its line says it: "" for little --
-        or for a status that is no table, from a heartbeat of another version."""
+        or for a status that is no table, from a heartbeat of another version. A
+        status not heard for a while -- the phone gone quiet -- is told as last heard,
+        with no estimate: nothing comes in meanwhile."""
         readings: dict[str, Any] = status if isinstance(status, dict) else {}
         held = _number(readings.get("unsent_ms"))
         heard = _number(readings.get("heard_ms"))
@@ -48,6 +52,8 @@ class CatchUp:
         cells = round(done * CELLS)
         bar = FULL * cells + EMPTY * (CELLS - cells)
         text = f"{span(held)} of video on the phone {bar} {done:.0%}"
+        if phone_status.stale(readings, now_ms):
+            return text + ", as last heard"
         return text + self._estimate(held)
 
     def _estimate(self, held: int) -> str:

@@ -1667,7 +1667,8 @@ class MainWindow(QMainWindow):
         )
         if said and alive(info) and not recording(info) and not left:
             words += f"; {said}"
-        held = camera.catch_up.line((info or {}).get("phone"))
+        now = QDateTime.currentMSecsSinceEpoch()
+        held = camera.catch_up.line((info or {}).get("phone"), now)
         if held:
             words += f"; {held}"
         return words
