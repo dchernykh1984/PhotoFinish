@@ -16,6 +16,7 @@ from __future__ import annotations
 import datetime
 import functools
 import re
+import time
 from collections.abc import Callable, Iterator, Mapping
 from fractions import Fraction
 from pathlib import Path
@@ -26,12 +27,13 @@ import numpy as np
 
 from app import sound
 from app.recorder.segments import NAMED, SEGMENTS, frame_times, in_ms
-from app.video_index import VideoIndex
+from app.video_index import TRIES, VideoIndex
 
 MS = Fraction(1, 1000)
 CANCELLED = "cancelled"  # what an export of the cameras stopped by the referee tells
 STEPS = 1000  # the whole of its progress
 FRAME_SLACK_MS = 50  # the sound heard this long after a file's last frame goes in it
+HELD_S = 0.1  # a piece whose times are held a moment, read again this much later
 # Windows's device names: COM and LPT with a digit, or a superscript one, 1 to 3.
 RESERVED = {"CON", "PRN", "AUX", "NUL"} | {
     f"{d}{n}"
@@ -145,8 +147,7 @@ def export(
     writer.cancelled = cancelled  # asked as its sound is looked for too
     heard = folder if heard is None else heard
     if has_sound(heard):  # else hours of pieces are not opened again for none
-        writer.heard = VideoIndex(heard)
-        writer.heard.refresh()
+        writer.heard = _listed(heard, cancelled)
         writer.shift = shift
     if videos is None:  # its pieces as they are now; else as they were listed
         videos = pieces(folder)
@@ -259,6 +260,20 @@ class _Writer:
         if self.out is not None:
             out, self.out = self.out, None
             out.abandon()
+
+
+def _listed(folder: Path, cancelled: Callable[[], bool]) -> VideoIndex:
+    """A camera's recording as its sound is read from: a piece whose times are held
+    by their writer a moment read again, as the window's polls would, before it is
+    given up -- never its sound left out for that moment."""
+    index = VideoIndex(folder)
+    index.refresh()
+    for _ in range(TRIES):
+        if not index.pending or cancelled():
+            break
+        time.sleep(HELD_S)
+        index.refresh()
+    return index
 
 
 def has_sound(folder: Path) -> bool:

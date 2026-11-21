@@ -73,6 +73,11 @@ class VideoIndex:
     def __len__(self) -> int:
         return int(self.ms.size)
 
+    @property
+    def pending(self) -> bool:
+        """Segments listed whose times could not be read yet: read at a refresh on."""
+        return bool(self._unread)
+
     def refresh(self) -> bool:
         """Segments closed since the last refresh added; True when any was."""
         self._read_gaps()
