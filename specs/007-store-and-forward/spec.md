@@ -119,6 +119,7 @@ out, shows the front camera as left out and the banner green.
   all of them, the live ones too, late by what the first was kept: PhotoFinish is updated with
   PhotoFinish Camera, and a window replaces the recorders of an older one (User Story 3).
 - The app killed or closed during a break: what it kept is gone; it is not sent at the next Start.
+  Superseded by `specs/009-nothing-lost`: it is sent at the app's next start.
 
 ## Requirements *(mandatory)*
 
@@ -140,7 +141,8 @@ out, shows the front camera as left out and the banner green.
   frames dropped (`specs/005-phone-status`, `dropped`). A keyframe is asked for when a frame could
   not be kept, not for the runs given way: the next run starts with its own.
 - **FR-004**: Stop empties the store -- the referee's, or a start for other lenses or another
-  format --, and so does the app's start (what a killed app left).
+  format --, and so does the app's start (what a killed app left). Superseded by
+  `specs/009-nothing-lost`: these send what was kept; only Discard drops it.
 - **FR-005**: Each connection's metadata says how long its first frame was kept, `held_ms`
   (contract).
 - **FR-006**: The recorder believes a phone's frame moment up to `held_ms` older than it would
@@ -196,7 +198,8 @@ out, shows the front camera as left out and the banner green.
 
 ## Assumptions
 
-- Stop is the referee's word that the stream is over: nothing kept is sent after it.
+- Stop is the referee's word that the stream is over: nothing kept is sent after it. Superseded
+  by `specs/009-nothing-lost`: Stop ends the filming; what was kept is still sent.
 - Guessing what a dead connection took failed on the emulator: its network held 10 s of video
   while the recorder was frozen, more than the 6 s a send hangs before the uplink gives up. The
   recorder's acknowledgements say it exactly; 6 s is kept for a server that gives none.

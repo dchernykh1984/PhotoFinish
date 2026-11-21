@@ -64,16 +64,30 @@ recorder is down and at most the 0.1 s before it.
   seconds late.
 - PhotoFinish Camera keeps every frame on the phone until the recorder has acknowledged reading
   it (`specs/007-store-and-forward`): a network break, a network slower than the stream or the
-  recorder starting again costs no frame while the phone has room -- 2 GB for all its lenses,
-  1 GB left free, and the last 2 s however full the phone. A connection whose frames carry no
+  recorder starting again costs no frame while the phone has room -- its free space less 10 GB,
+  and a gigabyte a stream while 1 GB stays free, the last 2 s however full the phone. A connection whose frames carry no
   moments starts at the next keyframe and sends nothing again: they would be placed by their
   arrival. After a loss it sends again from 2 s before the newest frame acknowledged, then
   what it kept, then live, as fast as the network takes them; the recorder writes a connection's
   first frames whose moments it listed in the last 10 s, this run's or the last's, for the frames
   after them to decode, without listing them twice or noting a gap for them. While a phone catches up the camera list says
   how many seconds behind live it is, from 2 s on. Tried on the emulator: the recorder killed for
-  10 s and started again, or frozen for 10 s: no frame missing, none listed twice. Stop on the
-  phone drops what it kept.
+  10 s and started again, or frozen for 10 s: no frame missing, none listed twice.
+- What the phone kept outlives the app and the phone (`specs/009-nothing-lost`): each stream's
+  frames, their index and what it needs to be sent are on the phone's storage, a second at a
+  time. A crash, Android, a dead battery: at the app's next start, without Start, what it kept
+  goes to the recorders it was going to, before anything new, each address one stream at a time
+  and the oldest first; frames without their moments are not sent then. Stop, another choice,
+  the screen closed or an encoder that dies send what was kept all the same, with the screen off
+  too: a foreground service runs while anything is unsent, its notification saying how much video
+  is left. Only "Discard unsent" on the phone, confirmed with how much video goes, drops it. The
+  first lens of the code sends first: while it is connected and more than 2 s behind, the others
+  wait, holding no connection. The phone's screen says what is not sent yet; the camera list says
+  "M:SS of video on the phone", a bar of what came since it began falling behind and about when
+  the rest is in; the phone's readings add its free storage, amber under 30 GB, red under 10 GB.
+  Tried on the emulator: the app killed with 15 s kept, then started -- every frame in, once;
+  closed with Back with 10 s kept -- sent in the background, the service ending after; two lenses,
+  the first's recorder frozen -- the second waited while the first was connected and behind.
 - PhotoFinish Camera sends what it meets to the recorder of each lens it is paired with, on the
   port of its clock exchange, streaming or not (`specs/008-phone-log`): its start, the cameras and
   sizes it opens, every status its screen shows, the camera's error codes, the exceptions it
@@ -257,8 +271,8 @@ helps find the moments to look at.
 - One PhotoFinish to a computer, and one PhotoFinish Camera to a phone: a second at the same
   time is not provided for. Two windows from one folder would share its session, its output and
   its recorders, and from two folders the cameras' ports. The phone app opened twice (started
-  from adb, then from the launcher) keeps both copies' unsent frames in one folder, and the
-  second deletes what the first had kept.
+  from adb, then from the launcher) streams each lens twice to its one recorder, which takes one
+  connection at a time.
 - The Linux builds cannot capture USB cameras (PyAV's Linux wheels have no video4linux2): the
   camera dialog says so, and a camera's stream or a file is used there instead.
 - A network camera's timestamps follow its own clock, which can drift from the computer's by a few

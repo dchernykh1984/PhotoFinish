@@ -120,6 +120,9 @@ Each keyframe -- one a second -- carries, after the frame's moment, a second SEI
 | `wifi` | the Wi-Fi signal, dBm |
 | `dropped` | the frames the phone could not keep for sending -- its store full, its storage failing (`specs/007-store-and-forward`) -- in the last minute |
 | `left` | the lenses asked for and not streamed -- the phone lacks them, cannot run them beside the others or at a size they give -- by their codes, `,` between; left out when none is |
+| `free` | the phone's free storage where it keeps frames, MB (`specs/009-nothing-lost`) |
+| `unsent_ms` | the video the phone holds for this camera and has not sent, its span, ms: what it kept and what it is sending now |
+| `unsent_mb` | the same video's size, MB |
 
 A reading the phone cannot tell is left out; a key the recorder does not know is kept and not
 shown. The message's size is written as SEI sizes are (a 255 for each full 255).
@@ -133,7 +136,9 @@ audio), the AVC sequence header and the frames. Chunk size 65536. Timestamps are
 the connection's first frame; from 0xFFFFFF on they are sent as extended timestamps.
 
 `onMetaData` also holds `held_ms`: how long the frame the connection begins with was kept on the
-phone (`specs/007-store-and-forward`), told once it is known; the recorder believes that frame's
+phone (`specs/007-store-and-forward`), told once it is known -- for frames kept before the app or
+the phone started again, sent at its next start (`specs/009-nothing-lost`), by the phone's wall
+clock, their own clock having started again; the recorder believes that frame's
 moment as much older, and a connection it does not believe it places from that long before the
 first frame came, a frame sent again where that one placed it. Once
 publishing, the phone sends a Window Acknowledgement Size of 131072: FFmpeg acknowledges every
