@@ -95,6 +95,7 @@ from app.recorder.launcher import (
     recording,
 )
 from app.recorder.phone_log import last_word
+from app.start_protocol import StartNumbers
 from app.video_index import FileIndex, Frame, VideoIndex
 from app.widgets import export_dialog
 from app.widgets.camera_dialog import CameraDialog
@@ -235,6 +236,13 @@ class MainWindow(QMainWindow):
         )
         self.crossings_box.setChecked(analysis.settings(self.session)["crossings"])
         self.crossings_box.toggled.connect(self._crossings_on)
+        self.protocol_button = QPushButton()  # the race's start numbers (014)
+        self.protocol_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.protocol_button.clicked.connect(self.choose_protocol)
+        self.protocol = StartNumbers(
+            lambda: str(self.session.get("start_protocol") or "")
+        )
+        self._show_protocol()
         self.model_box = _StillCombo()
         self.model_box.setFocusPolicy(Qt.FocusPolicy.NoFocus)  # the keys move video
         self.model_box.setToolTip(
@@ -366,6 +374,7 @@ class MainWindow(QMainWindow):
         finding.addWidget(next_rider)
         finding.addWidget(self.analysis_box)
         finding.addWidget(self.crossings_box)
+        finding.addWidget(self.protocol_button)
         finding.addWidget(zone_button)
         finding.addWidget(self.model_box)
         finding.addStretch()
@@ -721,6 +730,39 @@ class MainWindow(QMainWindow):
         return None if self.current is None else self.cameras.get(self.current)
 
     # -- the input and the output ----------------------------------------------
+
+    def choose_protocol(self) -> None:
+        """The race's start protocol: the number reader names its numbers alone
+        (014). The file is only read."""
+        path, _ = QFileDialog.getOpenFileName(
+            self, "The start protocol", "", "Text (*.txt);;All (*)"
+        )
+        if not path:
+            return
+        self.session["start_protocol"] = path
+        self._save_session()
+        self._show_protocol()
+
+    def _show_protocol(self) -> None:
+        """The protocol chosen named on its button, with how many numbers it holds,
+        or why it cannot be read."""
+        numbers = self.protocol()
+        chosen = str(self.session.get("start_protocol") or "")
+        name = Path(chosen).name
+        if not chosen:
+            text = "Start protocol..."
+        elif self.protocol.problem:
+            text = f"Start protocol: {name} cannot be read"
+        else:
+            text = f"Start protocol: {name}, {len(set(numbers.values()))} numbers"
+        tip = (
+            "The race's start protocol, StartProtocolMaker's start.txt: the number "
+            "reader names only its numbers, passing over stickers and writing"
+        )
+        self.protocol_button.setText(text)
+        self.protocol_button.setToolTip(
+            f"{tip}\n{self.protocol.problem}" if self.protocol.problem else tip
+        )
 
     def choose_input(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
@@ -1659,6 +1701,7 @@ class MainWindow(QMainWindow):
             camera.info = self._label(camera)
         self._show_recording()
         self._show_phones()
+        self._show_protocol()  # a late entry, or the file gone
         if suggested:
             self._show_suggestions()
         if self.output is None and self.session.get("output"):

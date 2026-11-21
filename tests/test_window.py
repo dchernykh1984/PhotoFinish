@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import threading
 import time
 from collections.abc import Callable
@@ -3787,3 +3788,27 @@ def test_every_button_shows_its_whole_label_at_the_opening_size(
         if button.isVisible() and button.width() < button.sizeHint().width()
     ]
     assert cut == []
+
+
+def test_the_start_protocol_chosen_is_kept_and_its_numbers_counted(
+    win: mw.MainWindow, base: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    assert win.protocol_button.text() == "Start protocol..."
+    protocol = base / "start.txt"
+    protocol.write_text("1#A\n2#B\n", encoding="utf-8")
+    monkeypatch.setattr(QFileDialog, "getOpenFileName", lambda *a: (str(protocol), ""))
+    win.protocol_button.click()
+    assert session.load()["start_protocol"] == str(protocol)
+    assert win.protocol_button.text() == "Start protocol: start.txt, 2 numbers"
+    protocol.write_text("1#A\n2#B\n3#C\n", encoding="utf-8")  # a late entry
+    stat = protocol.stat()
+    os.utime(protocol, ns=(stat.st_atime_ns, stat.st_mtime_ns + 10**9))
+    win.poll()
+    assert win.protocol_button.text() == "Start protocol: start.txt, 3 numbers"
+    protocol.unlink()
+    win.poll()
+    assert win.protocol_button.text() == "Start protocol: start.txt cannot be read"
+    assert "cannot be read" in win.protocol_button.toolTip()
+    monkeypatch.setattr(QFileDialog, "getOpenFileName", lambda *a: ("", ""))
+    win.protocol_button.click()  # cancelled: the one chosen stays
+    assert session.load()["start_protocol"] == str(protocol)
