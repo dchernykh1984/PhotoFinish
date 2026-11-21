@@ -181,6 +181,9 @@ def test_a_sound_that_cannot_be_rendered_ends_and_says_why(
     played.failed.connect(said.append)
     played.play(index, START, 1.0)
     wait_until(lambda: given(played) and bool(said))  # its thread ended, unraised
+    played.play(index, START, 2.0)  # a speed changed, a gap jumped: said once
+    wait_until(lambda: given(played))
+    QApplication.processEvents()
     assert said == ["The sound cannot be played: a layout the filters refuse"]
     played.stop()
 
