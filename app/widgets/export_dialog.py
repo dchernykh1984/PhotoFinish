@@ -105,6 +105,8 @@ class ExportJob(QObject):
                 cancelled = True
                 break
             except Exception as failure:
-                failed.append(f"{target.stem}: {failure or type(failure).__name__}")
+                failed.append(
+                    f"{target.stem}: {str(failure) or type(failure).__name__}"
+                )
         error = CANCELLED if cancelled else "; ".join(failed)
         self.done.emit(written, error, len(skipped))
