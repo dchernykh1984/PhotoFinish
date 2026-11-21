@@ -712,6 +712,30 @@ class UplinkTest {
     ) = EncodedFrame(byteArrayOf(mark), ptsUs, keyframe = false, sound = true)
 
     @Test
+    fun `a piece of sound read before a frame taken earlier confirms nothing past that frame`() {
+        // Kept as they come: a piece encoded sooner than a frame taken before it goes first. The server's word on the
+        // piece alone leaves the frame unconfirmed -- a stream is done, and let go, only once its recorder has it.
+        val sink = FakeSink()
+        val link = uplink(listOf(sink))
+        link.configureSound(byteArrayOf(0x11, 0x88.toByte()))
+        start(link)
+        awaitConnected()
+        link.offer(frame(100_000, keyframe = true))
+        link.offerSound(sound(150_000, 1))
+        link.offer(frame(133_333, keyframe = false)) // taken before the piece, encoded after it
+        sink.next()
+        sink.sounds.poll(5, TimeUnit.SECONDS) ?: error("no sound sent")
+        val last = sink.next()
+        sink.acknowledgedBytes = sink.sentBytes - last.units.sumOf { it.size } // read up to the piece alone
+        Thread.sleep(1_500) // asked, and its word taken, while idle
+        assertTrue(link.unsent)
+        sink.acknowledgedBytes = sink.sentBytes
+        val until = System.nanoTime() + 3_000_000_000L
+        while (link.unsent && System.nanoTime() < until) Thread.sleep(20)
+        assertFalse(link.unsent)
+    }
+
+    @Test
     fun `sound goes after its config, timed from the connection's first frame, none heard before it`() {
         val sink = FakeSink()
         val link = uplink(listOf(sink))
