@@ -340,3 +340,19 @@ def test_a_camera_that_fails_is_told_the_next_exported_and_a_stop_ends_them_all(
     assert error.startswith("Main: ")
     stopped = export.export_all(jobs[1:], cancelled=lambda: True)
     assert stopped == ([], export.CANCELLED, 0)
+
+
+def test_each_camera_goes_up_to_the_last_piece_closed_as_the_export_began(
+    tmp_path: Path,
+) -> None:
+    record(tmp_path / "cam1", START, 40)
+    record(tmp_path / "cam2", START, 40)
+    jobs = [(tmp_path / c, tmp_path / f"{c}.mp4") for c in ("cam1", "cam2")]
+    more = {"to": True}
+
+    def recording(_share: int) -> None:  # cam2 records on while cam1 is exported
+        if more.pop("to", False):
+            record(tmp_path / "cam2", START + 60_000, 40)
+
+    written, _, _ = export.export_all(jobs, recording)
+    assert read(written[1])[1] == [k * 33 for k in range(40)]  # not the minute after

@@ -80,18 +80,21 @@ def export_all(
     """Each camera's ``(folder, target)`` exported in turn: the files written --
     those a stop leaves too --, what went wrong -- CANCELLED, or each camera's
     failure, the cameras after it exported still; "" for nothing -- and how many
-    pieces could not be read. ``progress`` hears the share done, of STEPS."""
+    pieces could not be read. ``progress`` hears the share done, of STEPS. Each
+    camera goes up to the last piece closed as the export began, not as its turn
+    comes: the cameras' files end together."""
     written: list[Path] = []
     skipped: list[Path] = []
     failed: list[str] = []
     count = len(jobs)
-    for n, (folder, target) in enumerate(jobs):
+    listed = [pieces(folder) for folder, _ in jobs]
+    for n, ((folder, target), videos) in enumerate(zip(jobs, listed, strict=True)):
 
         def told(done: int, total: int, n: int = n) -> None:
             progress((n * STEPS + done * STEPS // max(total, 1)) // count)
 
         try:
-            export(folder, target, told, cancelled, written, skipped)
+            export(folder, target, told, cancelled, written, skipped, videos)
         except CancelledError:
             return written, CANCELLED, len(skipped)
         except Exception as failure:
@@ -106,6 +109,7 @@ def export(
     cancelled: Callable[[], bool] = lambda: False,
     written: list[Path] | None = None,
     skipped: list[Path] | None = None,
+    videos: list[Path] | None = None,
 ) -> list[Path]:
     """The camera's pieces in ``folder`` into ``target`` -- ``<stem>-2`` on beside it
     as the format changes --; the files written, also added to ``written`` as each
@@ -114,7 +118,8 @@ def export(
     failure leaves is. A piece that cannot be read is skipped, added to
     ``skipped``: the rest of the camera's video still comes."""
     writer = _Writer(target, [] if written is None else written, skipped)
-    videos = pieces(folder)
+    if videos is None:  # its pieces as they are now; else as they were listed
+        videos = pieces(folder)
     try:
         for done, video in enumerate(videos):
             if cancelled():
