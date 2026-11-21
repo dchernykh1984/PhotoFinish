@@ -48,6 +48,7 @@ internal class Microphone(
     @Suppress("TooGenericExceptionCaught") // a microphone the phone will not open costs the sound, never the app
     private fun open(): Pair<AudioRecord, MediaCodec>? {
         var record: AudioRecord? = null
+        var codec: MediaCodec? = null
         return try {
             record = recorder()
             val format =
@@ -56,13 +57,14 @@ internal class Microphone(
                     setInteger(MediaFormat.KEY_BIT_RATE, BITRATE)
                     setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, READ_BYTES)
                 }
-            val codec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_AUDIO_AAC)
+            codec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_AUDIO_AAC)
             codec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
             codec.start()
             record.startRecording()
             record to codec
         } catch (error: Exception) {
             record?.release()
+            codec?.release() // made, perhaps started: an encoder leaked is one the video may not get
             failed("no sound: ${error.message ?: error.javaClass.simpleName}")
             null
         }
