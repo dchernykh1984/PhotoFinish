@@ -387,7 +387,8 @@ class FrameStore(
 
     /**
      * Its files synced and closed, kept for a store made on the folder to send (specs/009, FR-003): nothing is
-     * kept or read from now on.
+     * kept or read from now on; what was asked of the stores' thread before -- the stream's header written, the runs
+     * before synced -- done when it returns, so the folder reads back whole.
      */
     fun close() {
         val open =
@@ -407,6 +408,14 @@ class FrameStore(
             syncFile(it)
             close(it)
         }
+        settle()
+    }
+
+    /** Waits for what was asked of the stores' thread so far: it runs its work in turn. */
+    private fun settle() {
+        val done = java.util.concurrent.CountDownLatch(1)
+        syncOff(Runnable { done.countDown() })
+        done.await()
     }
 
     private fun closeFiles() {
