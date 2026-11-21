@@ -101,8 +101,8 @@ internal class LensStream private constructor(
     /** Stopped, what it kept dropped: the referee's Discard (specs/009, FR-004). */
     override fun discard() {
         end()
+        off() // out of the counts before its files go: nobody counting waits for the deletion
         store.clear()
-        off()
     }
 
     private fun end() {

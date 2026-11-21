@@ -199,7 +199,6 @@ class Backlog(
      * Every stream kept stopped and dropped, and whatever else the stores' root holds but the streams a camera feeds
      * -- frames whose header was lost --: the referee's Discard (specs/009, FR-004).
      */
-    @Synchronized
     fun discard() {
         val (dropped, folders) =
             synchronized(this) {

@@ -222,6 +222,29 @@ class BacklogTest {
     }
 
     @Test
+    fun `discard removes the folders outside the backlog's lock, the counts not held up`() {
+        kept(began = 100)
+        backlog.readBack()
+        val removing = java.util.concurrent.CountDownLatch(1)
+        val release = java.util.concurrent.CountDownLatch(1)
+        val slow =
+            Backlog(root, { _, _ -> error("not sent") }, { _, text ->
+                if ("discarded" in text) {
+                    removing.countDown()
+                    release.await(5, java.util.concurrent.TimeUnit.SECONDS)
+                }
+            })
+        slow.readBack()
+        val discarding = Thread { slow.discard() }.apply { start() }
+        assertTrue(removing.await(5, java.util.concurrent.TimeUnit.SECONDS))
+        val since = System.nanoTime()
+        slow.pending()
+        assertTrue(System.nanoTime() - since < 1_000_000_000)
+        release.countDown()
+        discarding.join(5_000)
+    }
+
+    @Test
     fun `discard stops and drops every stream kept`() {
         kept(began = 100)
         kept(began = 200, address = second)
