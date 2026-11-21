@@ -375,6 +375,19 @@ class FrameStoreTest {
     }
 
     @Test
+    fun `a run of more frames than its first room grows, and reads back whole`() {
+        val before = store()
+        repeat(150) { before.keep(frame(it * 16_667L, keyframe = it % 70 == 0), it * 16_667L + 5) }
+        assertEquals((0 until 150).map { it * 16_667L }, read(before, 150))
+        before.close()
+        val store = store()
+        val back = (0 until 150).map { store.next(0)!! }
+        assertEquals((0 until 150).map { it * 16_667L }, back.map { it.ptsUs })
+        assertEquals((0 until 150).map { it * 16_667L + 5 }, back.map { it.momentUs })
+        assertEquals(listOf(0, 70, 140), back.withIndex().filter { it.value.keyframe }.map { it.index })
+    }
+
+    @Test
     fun `a closed store keeps its files, its clear not the next store's to suffer`() {
         val store = store()
         second(store, 0)
