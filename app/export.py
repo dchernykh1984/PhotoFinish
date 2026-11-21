@@ -332,8 +332,11 @@ class _Out:
             if form[0] == "hevc":
                 self.stream.codec_tag = "hvc1"  # QuickTime opens H.265 tagged so
             if self.piece is not None:
-                self.audio = self._sound_stream(self.piece)
-                self.heard_form = self.piece.form  # the one form its track holds
+                try:
+                    self.audio = self._sound_stream(self.piece)
+                    self.heard_form = self.piece.form  # the one form its track holds
+                except av.FFmpegError:
+                    self.audio = None  # a sound MP4 will not take: the file without it
         except BaseException:  # a codec MP4 will not hold: no file left half made
             self.abandon()
             raise
@@ -392,7 +395,11 @@ class _Out:
         packet.duration = size
         packet.time_base = Fraction(1, rate)
         packet.stream = self.audio
-        self.container.mux(packet)
+        try:
+            self.container.mux(packet)
+        except av.FFmpegError:
+            self.audio = None  # a piece the muxer refuses: the sound ends there
+            return
         self.heard_next = pts + size
 
     def add(self, packet: av.Packet, moment: int, time_base: Fraction) -> None:

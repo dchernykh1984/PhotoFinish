@@ -304,7 +304,11 @@ class _Remuxed:
         self.audio_dts = dts
         packet.pts, packet.dts = pts, dts
         packet.stream = self.audio
-        self.container.mux(packet)
+        try:
+            self.container.mux(packet)
+        except av.FFmpegError:
+            self.audio = None  # a sound the muxer refuses costs the sound alone
+            return False
         return True
 
     def add(self, packet: av.Packet, pts: int, dts: int, ms: int | None) -> None:
