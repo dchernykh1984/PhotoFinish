@@ -95,6 +95,7 @@ class SegmentWriter:
         # the camera hung up (``hung_up``), until the first new one.
         self._resending = True
         self._unlisted: list[str] = []  # closed, the list refused their names so far
+        self._unheard: list[str] = []  # kept sound, the sound list refused them so far
 
     def write(self, image: np.ndarray | av.VideoFrame, ms: int) -> None:
         """A frame taken at ``ms``; frames must come in time order."""
@@ -215,11 +216,20 @@ class SegmentWriter:
         (self.folder / "current.mkv").replace(self.folder / f"{name}.mkv")
         _forget(meant)
         if isinstance(segment, _Remuxed) and segment.heard:
-            # Listed before it: a kill between the two leaves it to the recovery,
-            # which lists its sound again. A sound list refused costs that alone.
-            with contextlib.suppress(OSError):
-                append(self.folder / SOUND, f"{name}\n".encode("ascii"))
+            self._unheard.append(name)
+        self._heard_listed()
         self._closed(name)
+
+    def _heard_listed(self) -> None:
+        """The segments that kept sound listed, with any the list refused before:
+        before their own lines, so a kill between the two leaves them to the recovery,
+        which lists their sound again. A sound list refused costs no close."""
+        if not self._unheard:
+            return
+        heard = "".join(f"{closed}\n" for closed in self._unheard)
+        with contextlib.suppress(OSError):  # the next close takes them
+            append(self.folder / SOUND, heard.encode("ascii"))
+            self._unheard = []
 
     def _closed(self, name: str) -> None:
         """``name`` is a closed segment now: counted, and listed with any the list

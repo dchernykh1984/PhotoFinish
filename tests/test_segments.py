@@ -1546,6 +1546,9 @@ def test_a_segments_sound_is_listed_before_it_and_a_sound_list_refused_costs_it_
     names = [n for n in order if n in (segments_module.SOUND, segments_module.SEGMENTS)]
     assert names[:2] == [segments_module.SOUND, segments_module.SEGMENTS]
     assert len(segments(folder)) == writer.segments  # each closed, each listed
+    # The one refused listed with the next: its sound played and exported all the same.
+    listed = (folder / segments_module.SOUND).read_text().split()
+    assert sorted(listed) == [path.stem for path in segments(folder)]
 
 
 def test_a_sound_track_without_a_piece_is_no_sound(tmp_path: Path) -> None:
