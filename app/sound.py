@@ -94,15 +94,21 @@ def shift_ms(own: Mapping[str, Any], heard: Mapping[str, Any]) -> int:
     return int(heard.get("offset_ms", 0)) - int(own.get("offset_ms", 0))
 
 
-@functools.lru_cache(maxsize=4096)
 def has_sound(path: Path) -> bool:
     """Whether a segment keeps sound beside its frames: read once, as a closed one
-    never changes -- the window asks at each play, a file opened on its thread."""
+    never changes -- the window asks at each play, a file opened on its thread --;
+    one that cannot be read now is asked again, not taken for silent."""
     try:
-        with av.open(str(path)) as container:
-            return bool(container.streams.audio)
+        return _keeps_sound(path)
     except av.FFmpegError, OSError:
         return False
+
+
+@functools.lru_cache(maxsize=4096)
+def _keeps_sound(path: Path) -> bool:
+    """Read, and kept only when read: lru_cache keeps no exception."""
+    with av.open(str(path)) as container:
+        return bool(container.streams.audio)
 
 
 def pieces(
