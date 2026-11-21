@@ -147,8 +147,9 @@ class SoundPlayer(QObject):
             while not stopped.is_set():
                 chunk = renderer.read()
                 if not chunk:
-                    with self._lock:
-                        self._rendered = not stopped.is_set()
+                    with self._lock:  # a stopped one's end is not the next play's
+                        if not stopped.is_set():
+                            self._rendered = True
                     return
                 with self._lock:
                     while self._held > ahead and not stopped.is_set():
@@ -159,7 +160,8 @@ class SoundPlayer(QObject):
                     self._held += len(chunk)
         except Exception:  # a sound that cannot be played is not heard
             with self._lock:  # ended: the window plays on as the recording grows
-                self._rendered = not stopped.is_set()
+                if not stopped.is_set():
+                    self._rendered = True
 
     def _pump(self) -> None:
         """What the output has room for, given it; the first time, the time since

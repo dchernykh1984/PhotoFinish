@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 
 import numpy as np
@@ -182,3 +183,19 @@ def test_the_time_an_output_takes_to_open_is_left_out_too(tmp_path: Path) -> Non
     wait_until(lambda: len(output.taken) > 4 * RATE * 1.5)
     assert beep_at(heard(output)) == pytest.approx(0.8, abs=0.05)
     played.stop()
+
+
+def test_a_stopped_rendering_ending_late_leaves_the_next_ones_end_alone() -> None:
+    # A stop's renderer, still reading as the next play began, ends after the next
+    # play's has: the next one's end stands, for the window to play on.
+    played = player.SoundPlayer(output=lambda: None, clock=still)
+    played._rendered = True  # the next play's sound, all given
+    stopped = threading.Event()
+
+    class Ended:
+        def read(self) -> bytes:
+            stopped.set()  # stopped as it read
+            return b""
+
+    played._render(Ended(), stopped)  # type: ignore[arg-type]
+    assert played._rendered
