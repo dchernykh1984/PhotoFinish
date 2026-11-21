@@ -144,8 +144,9 @@ reading at their levels.
   the phone", a bar of how much has come since it began falling behind, and "in about N min"
   once that can be told; the readings add the phone's free storage, amber under 30 GB, red under
   10 GB.
-- **FR-010**: The phone's screen shows how much video is unsent, and the Discard button while any
-  is.
+- **FR-010**: The phone's screen shows how much video is unsent -- while it streams, from 2 s, as a
+  frame or two are always on their way -- and, once the streams are stopped, the Discard button
+  while any is: a Discard mid-race would drop the live lenses' frames too.
 
 ### Key Entities
 
