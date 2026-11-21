@@ -373,6 +373,16 @@ class FrameStoreTest {
     }
 
     @Test
+    fun `a while no camera fed the stream is not counted as video held`() {
+        val store = store()
+        second(store, 0)
+        second(store, 600) // the screen away ten minutes, the stream fed again
+        assertEquals(2_800L, store.pending.ms) // two seconds of frames and a second for the gap, not ten minutes
+        read(store, 10)
+        assertEquals(900L, store.pending.ms)
+    }
+
+    @Test
     fun `a store closed closes its newest run's files`() {
         val stores =
             List(50) {
