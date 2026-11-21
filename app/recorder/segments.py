@@ -71,8 +71,10 @@ class SegmentWriter:
         fps: float,
         segment_ms: int = SEGMENT_MS,
         closed: list[str] | None = None,  # what ``recover`` gave, when it was just run
+        sound: bool = True,  # its camera's sound read: a track kept for it (013)
     ) -> None:
         self.folder, self.fps, self.segment_ms = folder, fps, segment_ms
+        self.sound = sound
         closed = recover(folder) if closed is None else closed
         self.segments = len(closed)
         self.frames = 0
@@ -124,7 +126,7 @@ class SegmentWriter:
         cut = packet.is_keyframe
         self._next(ms, cut=cut, slack=KEYFRAME_SLACK_MS, listed=not again)
         opened = self._segment(
-            _Remuxed, lambda: _Remuxed(self.folder, packet, stream, ms)
+            _Remuxed, lambda: _Remuxed(self.folder, packet, stream, ms, self.sound)
         )
         opened.add(packet, packet.pts, packet.dts, None if again else ms)
         if not again:
@@ -272,7 +274,12 @@ class _Remuxed:
     beside them on the same timestamps (specs/013)."""
 
     def __init__(
-        self, folder: Path, first: av.Packet, template: av.stream.Stream, ms: int
+        self,
+        folder: Path,
+        first: av.Packet,
+        template: av.stream.Stream,
+        ms: int,
+        sound: bool = True,
     ) -> None:
         self.first_ms = ms
         rate = first.time_base
@@ -281,11 +288,14 @@ class _Remuxed:
         self.base = (first.dts or 0) - round(LEAD_MS * MS_SCALE / self.time_base)
         self.container = _video(folder)
         self.stream = self.container.add_stream_from_template(template)
-        # Its sound kept when it is AAC (specs/013): what the phones and streaming
-        # apps send, played and exported; an IP camera's G.711, which Matroska will
-        # not hold, costs the sound alone, never the video.
+        # Its sound kept when it is read and AAC (specs/013): what the phones and
+        # streaming apps send, played and exported; an IP camera's G.711, which
+        # Matroska will not hold, costs the sound alone, never the video. No track
+        # for a sound never read: an empty one would be taken for sound.
         heard = [
-            s for s in template.container.streams.audio if s.codec_context.name == "aac"
+            s
+            for s in template.container.streams.audio
+            if sound and s.codec_context.name == "aac"
         ]
         self.audio = (
             self.container.add_stream_from_template(heard[0]) if heard else None
