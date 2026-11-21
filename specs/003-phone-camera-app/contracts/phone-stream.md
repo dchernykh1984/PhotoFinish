@@ -138,9 +138,19 @@ shown. The message's size is written as SEI sizes are (a 255 for each full 255).
 
 Plain RTMP as FFmpeg's listener takes it: the simple handshake, `connect` with the path's first
 part as the application, `releaseStream`, `FCPublish`, `createStream`, `publish` with the rest as
-the stream name, then `@setDataFrame`/`onMetaData` (width, height, frame rate, video codec 7, no
-audio), the AVC sequence header and the frames. Chunk size 65536. Timestamps are milliseconds from
-the connection's first frame; from 0xFFFFFF on they are sent as extended timestamps.
+the stream name, then `@setDataFrame`/`onMetaData` (width, height, frame rate, video codec 7, and
+`audiocodecid` 10 when the stream has sound), the AVC sequence header and the frames. Chunk size
+65536. Timestamps are milliseconds from the connection's first frame; from 0xFFFFFF on they are sent
+as extended timestamps.
+
+The main lens's connection carries the phone's sound (`specs/013-sound`): AAC-LC, mono, 48 kHz where
+the phone takes it, 128 kbit/s, as FLV audio messages on chunk stream 5 -- `0xAF 0x00` and the
+AudioSpecificConfig once a connection, before its first piece, then `0xAF 0x01` and each piece. A
+piece is kept and sent with the frames in the order captured, its timestamp counted from the
+connection's first frame on the frames' own clock: the recorder places it at the moment of the
+frame before it plus the distance between their timestamps. A piece captured before the
+connection's first frame is not sent on it. A stream kept for after a restart keeps its sound's
+config in its `stream.txt` (`sound=<hex>`).
 
 H.265 goes over Enhanced RTMP (`specs/010-hevc`): `videocodecid` is the FourCC `hvc1` as a number
 (0x68766331); a video tag's first byte is 0x80 | frame type << 4 | packet type, then `hvc1` --

@@ -58,8 +58,8 @@ the flash in QuickTime.
 
 ### Edge Cases
 
-- The microphone not allowed on the phone: video only, the phone saying so on its screen and in
-  its log, which the laptop shows.
+- The microphone not allowed on the phone: video only, the phone saying so in its log, which the
+  laptop shows.
 - A streaming app that sends sound (Larix): recorded and played the same way; one without, none.
 - A phone with several lenses sends its sound once, with its main lens; another lens of the same
   phone plays and exports that sound.
