@@ -2015,17 +2015,17 @@ class MainWindow(QMainWindow):
 
     def _sound_folder(self, camera_id: str) -> tuple[Path, int] | None:
         """Whose sound a camera's exported file takes (013): another camera's of its
-        phone, when its own newest piece has none and that one's has, with how much
+        phone, when its own pieces have none and that one's have, with how much
         later that sound goes -- the two offsets apart, as it plays --; else None,
         its own."""
         camera = self.cameras.get(camera_id)
-        if camera is None or _heard(folder_of(camera_id)):
+        if camera is None or export.has_sound(folder_of(camera_id)):
             return None
         phone = camera.settings.get("phone")
         own = int(camera.settings.get("offset_ms", 0))
         for other in self.cameras.values():
             if other is not camera and phone and other.settings.get("phone") == phone:
-                if _heard(folder_of(other.id)):
+                if export.has_sound(folder_of(other.id)):
                     shift = int(other.settings.get("offset_ms", 0)) - own
                     return folder_of(other.id), shift
         return None
@@ -2302,12 +2302,6 @@ def _progressed(progress: QProgressDialog, value: int) -> None:
     set again shows itself again until the export ends."""
     if not progress.wasCanceled():
         progress.setValue(value)
-
-
-def _heard(folder: Path) -> bool:
-    """Whether a camera's newest piece keeps sound (013)."""
-    found = export.pieces(folder)
-    return bool(found) and has_sound(found[-1])
 
 
 def _same_file(chosen: object, path: str) -> bool:

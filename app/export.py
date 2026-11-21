@@ -141,7 +141,7 @@ def export(
     than its own moments."""
     writer = _Writer(target, [] if written is None else written, skipped)
     heard = folder if heard is None else heard
-    if _has_sound(heard):  # else hours of pieces are not opened again for none
+    if has_sound(heard):  # else hours of pieces are not opened again for none
         writer.heard = VideoIndex(heard)
         writer.heard.refresh()
         writer.shift = shift
@@ -257,7 +257,7 @@ class _Writer:
             out.abandon()
 
 
-def _has_sound(folder: Path) -> bool:
+def has_sound(folder: Path) -> bool:
     """Whether a camera's first piece or its newest keeps sound (013): a microphone
     refused at the start, or lost on the way, is found by one or the other."""
     found = pieces(folder)
