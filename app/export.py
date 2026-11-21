@@ -48,9 +48,13 @@ def pieces(folder: Path) -> list[Path]:
 
 def file_name(name: str) -> str:
     """A camera's name as a file's on every platform: what a file's name cannot
-    hold replaced, and a name Windows keeps for a device given a mark."""
+    hold replaced, and a name Windows keeps for a device -- its part before the
+    first dot, spaces after it not counted, whatever follows -- given a mark there."""
     found = re.sub(r'[\\/:*?"<>|\x00-\x1f]+', "_", name).strip(" .") or "camera"
-    return f"{found}_" if found.split(".")[0].upper() in RESERVED else found
+    head, dot, rest = found.partition(".")
+    if head.rstrip(" ").upper() in RESERVED:
+        return f"{head.rstrip(' ')}_{dot}{rest}"
+    return found
 
 
 def has_video(folder: Path) -> bool:
