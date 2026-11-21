@@ -97,7 +97,10 @@ internal class Microphone(
                     val buffer = codec.getInputBuffer(index) ?: continue
                     buffer.clear()
                     val bytes = record.read(buffer, minOf(buffer.remaining(), READ_BYTES))
-                    val read = maxOf(bytes, 0)
+                    // An error -- the audio server gone, the microphone taken -- comes at once at every read: stopped,
+                    // said, never read again and again for nothing.
+                    check(bytes >= 0) { "the microphone stopped (error $bytes)" }
+                    val read = bytes
                     codec.queueInputBuffer(index, 0, read, heardUs(record, stamp, heard, read), 0)
                     heard += read / 2
                 }
