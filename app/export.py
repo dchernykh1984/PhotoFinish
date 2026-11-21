@@ -12,6 +12,7 @@ the file ends and ``<name>-2.mp4`` goes on.
 from __future__ import annotations
 
 import datetime
+import re
 from collections.abc import Callable
 from fractions import Fraction
 from pathlib import Path
@@ -22,6 +23,9 @@ import av
 from app.recorder.segments import NAMED, SEGMENTS, frame_times, in_ms
 
 MS = Fraction(1, 1000)
+RESERVED = {"CON", "PRN", "AUX", "NUL"} | {
+    f"{d}{n}" for d in ("COM", "LPT") for n in range(1, 10)
+}
 
 
 class CancelledError(Exception):
@@ -38,6 +42,13 @@ def pieces(folder: Path) -> list[Path]:
         return []
     named = [n for n in names if NAMED.fullmatch(n)]
     return [folder / f"{n}.mkv" for n in dict.fromkeys(named)]
+
+
+def file_name(name: str) -> str:
+    """A camera's name as a file's on every platform: what a file's name cannot
+    hold replaced, and a name Windows keeps for a device given a mark."""
+    found = re.sub(r'[\\/:*?"<>|\x00-\x1f]+', "_", name).strip(" .") or "camera"
+    return f"{found}_" if found.split(".")[0].upper() in RESERVED else found
 
 
 def has_video(folder: Path) -> bool:

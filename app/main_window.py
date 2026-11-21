@@ -550,7 +550,7 @@ class MainWindow(QMainWindow):
         jobs = [
             (
                 folder_of(camera_id),
-                Path(folder) / f"{export_dialog.file_name(names[camera_id])}.mp4",
+                Path(folder) / f"{export.file_name(names[camera_id])}.mp4",
             )
             for camera_id in chosen
         ]
