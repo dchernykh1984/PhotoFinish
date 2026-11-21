@@ -183,7 +183,7 @@ internal class LensStream private constructor(
                 )
             uplink.status = status
             // Its header kept with its frames, as they are to be sent after a restart (specs/009, FR-001).
-            uplink.onConfigured = { record -> StreamHeader(lens, address, format, record).write(store.folder) }
+            uplink.onConfigured = keepHeader(planned, format, store, log)
             val offBoard = Senders.board.register(lens, { uplink.connected }, { store.pending.ms })
             val offCount = Senders.backlog.live(address, store)
             val off = {
@@ -204,6 +204,20 @@ internal class LensStream private constructor(
                 ).apply { start() }
             return stream
         }
+
+        /** The stream's header kept with its frames as the encoder gives it, a failure said (specs/009, FR-001). */
+        private fun keepHeader(
+            planned: PlannedLens,
+            format: StreamFormat,
+            store: FrameStore,
+            log: PhoneLog,
+        ): (ByteArray) -> Unit =
+            { record ->
+                val target = planned.target
+                if (!StreamHeader(target.lens, target.address, format, record).write(store.folder)) {
+                    log.warning(target.lens.code, "its header not kept: what it keeps cannot be sent after a restart")
+                }
+            }
 
         private fun mediaFormat(format: StreamFormat): MediaFormat =
             MediaFormat
