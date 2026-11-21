@@ -18,7 +18,18 @@ data class PhoneStatus(
     val dropped: Long? = null,
     /** The lenses asked for and not streamed, by their codes (specs/004-phone-lenses). */
     val left: List<String> = emptyList(),
+    /** The phone's free storage, MB (specs/009). */
+    val freeMb: Long? = null,
+    /** The video the phone holds for the lens's camera, not sent yet: its span, ms, and its size, MB (specs/009). */
+    val unsentMs: Long? = null,
+    val unsentMb: Long? = null,
 ) {
+    /** With what the phone holds for the camera: [ms] of video, [bytes] of it. */
+    fun holding(
+        ms: Long,
+        bytes: Long,
+    ): PhoneStatus = copy(unsentMs = ms, unsentMb = (bytes + BYTES_PER_MB / 2) / BYTES_PER_MB)
+
     /** The line the keyframes carry: `key=value` pairs, `;` between, a reading not known left out. */
     fun line(): String =
         listOfNotNull(
@@ -30,11 +41,16 @@ data class PhoneStatus(
             wifiDbm?.let { "wifi=$it" },
             dropped?.let { "dropped=$it" },
             left.takeIf { it.isNotEmpty() }?.let { "left=${it.joinToString(",")}" },
+            freeMb?.let { "free=$it" },
+            unsentMs?.let { "unsent_ms=$it" },
+            unsentMb?.let { "unsent_mb=$it" },
         ).joinToString(";")
 
     private fun flag(on: Boolean) = if (on) "1" else "0"
 
     companion object {
+        const val BYTES_PER_MB = 1_000_000L
+
         /**
          * Charging as the battery says it: filling, or full on its supply -- a phone plugged into
          * a supply weaker than its use drains, and is not.
