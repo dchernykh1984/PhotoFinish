@@ -100,6 +100,7 @@ def test_stopped_it_gives_no_more_and_without_an_output_it_plays_none(
     said: list[str] = []
     silent.failed.connect(said.append)
     silent.play(index, START, 1.0)
+    silent.play(index, START, 2.0)  # each play, speed and gap: said once
     assert not silent.playing
     refusing = Output()
     refusing.start = lambda: None  # type: ignore[method-assign,assignment,return-value]

@@ -88,6 +88,7 @@ class SoundPlayer(QObject):
         self._index: VideoIndex | None = None
         self._listed = 0  # the index's segments the pieces know of
         self._drained: float | None = None  # when the output ran dry, the picture on
+        self._said = ""  # the output's failure said last, until one starts
         self._timer = QTimer(self)
         self._timer.setInterval(PUMP_MS)
         self._timer.timeout.connect(self._pump)
@@ -106,16 +107,15 @@ class SoundPlayer(QObject):
         self.stop()
         made = self._make()
         if made is None:
-            self.failed.emit("The sound cannot be played: no audio output")
+            self._fail("The sound cannot be played: no audio output")
             return
         self._output, out_rate, channels = made
         self._device = self._output.start()
         if self._device is None:
             self.stop()
-            self.failed.emit(
-                "The sound cannot be played: the audio output would not start"
-            )
+            self._fail("The sound cannot be played: the audio output would not start")
             return
+        self._said = ""  # an output again: a failure after it said again
         self._ahead = round(AHEAD_S * out_rate) * channels * 2
         self._frame, self._out_rate = channels * 2, out_rate
         self._buffer = int(self._output.bufferSize())  # all of it free: run dry
@@ -130,6 +130,13 @@ class SoundPlayer(QObject):
         )
         self._thread.start()
         self._timer.start()
+
+    def _fail(self, why: str) -> None:
+        """Said once until an output starts: a computer without sound is not told so
+        at every play, speed and gap jumped."""
+        if why != self._said:
+            self._said = why
+            self.failed.emit(why)
 
     def follow(self, grows: bool = True) -> None:
         """The segments the index has gained since, heard on: on the window's
