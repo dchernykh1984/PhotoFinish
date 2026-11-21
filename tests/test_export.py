@@ -450,6 +450,31 @@ def test_a_lens_without_sound_is_exported_with_its_phones(tmp_path: Path) -> Non
     assert track_beep(later[0])[0] == pytest.approx(1.7, abs=0.03)
 
 
+def test_a_phones_lenses_exported_together_list_its_sound_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A day of the main lens's times read once, not once for each of its phone's.
+    recorded(tmp_path)
+    record(tmp_path / "cam2", HEARD, 60)
+    record(tmp_path / "cam3", HEARD, 60)
+    real = export._listed
+    listed: list[Path] = []
+
+    def counted(folder: Path, cancelled: Any) -> Any:
+        listed.append(folder)
+        return real(folder, cancelled)
+
+    monkeypatch.setattr(export, "_listed", counted)
+    main = (tmp_path / "cam1", 0)
+    written, error, _ = export.export_all(
+        [(tmp_path / f"cam{n}", tmp_path / f"Lens{n}.mp4") for n in (1, 2, 3)],
+        sounds={tmp_path / "cam2": main, tmp_path / "cam3": main},
+    )
+    assert error == ""
+    assert all(track_beep(path)[1] == 1 for path in written)
+    assert listed == [tmp_path / "cam1"]
+
+
 def test_a_camera_without_sound_is_exported_without_looking_for_it_piece_by_piece(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

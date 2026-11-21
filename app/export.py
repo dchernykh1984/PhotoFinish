@@ -108,6 +108,7 @@ def export_all(
     failed: list[str] = []
     count = len(jobs)
     listed = [pieces(folder) for folder, _ in jobs]
+    heards: dict[Path, VideoIndex] = {}  # a sound's pieces listed once for all
     for n, ((folder, target), videos) in enumerate(zip(jobs, listed, strict=True)):
 
         def told(done: int, total: int, n: int = n) -> None:
@@ -116,7 +117,16 @@ def export_all(
         heard, shift = (sounds or {}).get(folder, (folder, 0))
         try:
             export(
-                folder, target, told, cancelled, written, skipped, videos, heard, shift
+                folder,
+                target,
+                told,
+                cancelled,
+                written,
+                skipped,
+                videos,
+                heard,
+                shift,
+                heards,
             )
         except CancelledError:
             return written, CANCELLED, len(skipped)
@@ -135,6 +145,7 @@ def export(
     videos: list[Path] | None = None,
     heard: Path | None = None,
     shift: int = 0,
+    heards: dict[Path, VideoIndex] | None = None,
 ) -> list[Path]:
     """The camera's pieces in ``folder`` into ``target`` -- ``<stem>-2`` on beside it
     as the format changes --; the files written, also added to ``written`` as each
@@ -148,7 +159,10 @@ def export(
     writer.cancelled = cancelled  # asked as its sound is looked for too
     heard = folder if heard is None else heard
     if has_sound(heard):  # else hours of pieces are not opened again for none
-        writer.heard = _listed(heard, cancelled)
+        known = {} if heards is None else heards  # listed once for a phone's lenses
+        if heard not in known:
+            known[heard] = _listed(heard, cancelled)
+        writer.heard = known[heard]
         writer.shift = shift
     if videos is None:  # its pieces as they are now; else as they were listed
         videos = pieces(folder)
