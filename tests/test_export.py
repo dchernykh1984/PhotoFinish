@@ -238,3 +238,16 @@ def test_a_file_that_cannot_be_set_up_leaves_nothing_half_made(
     with pytest.raises(ValueError, match="no such codec"):
         export.export(folder, tmp_path / "Side.mp4")
     assert not list(tmp_path.glob("Side*"))
+
+
+def test_after_a_piece_left_out_the_file_goes_on_at_a_keyframe(tmp_path: Path) -> None:
+    folder = tmp_path / "cam1"
+    record(folder, START, 70)
+    first, broken, last = export.pieces(folder)
+    broken.write_bytes(b"not a video")
+    times = last.with_suffix(".times")
+    times.write_text(
+        "\n".join(times.read_text().split("\n")[1:])
+    )  # its keyframe unlisted
+    _, out = read(export.export(folder, tmp_path / "Side.mp4")[0])
+    assert len(out) == len(first.with_suffix(".times").read_text().split()) // 2

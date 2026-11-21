@@ -92,9 +92,10 @@ class _Writer:
         self.target, self.done, self.skipped = target, done, skipped
         self.mine: list[Path] = []  # this export's, of ``done``
         self.out: _Out | None = None
-        self.first: Path | None = (
-            None  # the first file's name, free: the parts' after it
-        )
+        # The first file's name, free: the parts' after it.
+        self.first: Path | None = None
+        # A piece skipped or cut short: the next frame written a keyframe.
+        self.broken = False
 
     def copy(self, video: Path) -> None:
         """One piece's listed packets onto the file under way, or a new file when its
@@ -128,6 +129,7 @@ class _Writer:
                 except av.FFmpegError, OSError:
                     # The piece cut short: what was read stays; one read not at all
                     # is told as left out.
+                    self.broken = True
                     return None if read else self._skip(video)
                 read += 1
                 self._add(packet, times, stream, time_base)
@@ -140,9 +142,10 @@ class _Writer:
         moment = times.get(in_ms(packet.pts, time_base))
         if moment is None:
             return  # sent again: the piece before has it
+        if (self.out is None or self.broken) and not packet.is_keyframe:
+            return  # a file starts, and goes on after a gap, where it can be decoded
+        self.broken = False
         if self.out is None:
-            if not packet.is_keyframe:
-                return  # a file starts where it can be decoded
             if self.first is None:
                 self.first = path = free(self.target)
             else:
@@ -151,6 +154,7 @@ class _Writer:
         self.out.add(packet, moment, time_base)
 
     def _skip(self, video: Path) -> None:
+        self.broken = True
         if self.skipped is not None:
             self.skipped.append(video)
 
