@@ -25,6 +25,7 @@ CHANNELS = 2
 BUFFER_S = 0.15  # the output's own: room for the window's thread to be late a while
 AHEAD_S = 0.5  # rendered ahead of what the output has taken
 PUMP_MS = 10
+HELD_POLLS = 2  # polls the segments after one whose times are held wait for it
 # FFmpeg's layout for a device's channels: one it prefers past these is not played.
 LAYOUTS = {1: "mono", 2: "stereo", 3: "2.1", 4: "quad", 5: "5.0", 6: "5.1", 8: "7.1"}
 
@@ -87,6 +88,7 @@ class SoundPlayer(QObject):
         self._pieces: sound.Pieces | None = None  # what it plays, following its index
         self._index: VideoIndex | None = None
         self._listed = 0  # the index's segments the pieces know of
+        self._waited = 0  # polls the newest have waited for one whose times are held
         self._drained: float | None = None  # when the output ran dry, the picture on
         self._said = ""  # the output's failure said last, until one starts
         self._render_said = ""  # a rendering's failure said last, until one renders
@@ -123,7 +125,7 @@ class SoundPlayer(QObject):
         self._asked = asked
         layout = LAYOUTS.get(channels, "stereo")
         self._pieces = sound.pieces(index, from_ms, follows)
-        self._index, self._listed = index, len(index.paths)
+        self._index, self._listed, self._waited = index, len(index.paths), 0
         renderer = sound.Renderer(self._pieces, from_ms, rate, out_rate, layout)
         stopped = self._stopped = threading.Event()
         self._thread = threading.Thread(
@@ -145,7 +147,13 @@ class SoundPlayer(QObject):
         recorder let go and ended -- is heard to its end, no segment waited for."""
         if self._pieces is None or self._index is None:
             return
-        found = self._index.paths[self._listed :]
+        # A segment listed, its times held a moment: those closed after it wait for
+        # it a poll or two, so it is heard in its place, never passed over after them.
+        if grows and self._index.pending and self._waited < HELD_POLLS:
+            self._waited += 1
+            return
+        self._waited = 0
+        found = sorted(self._index.paths[self._listed :], key=lambda path: path.name)
         self._listed = len(self._index.paths)
         if found:
             self._pieces.extend(found)
