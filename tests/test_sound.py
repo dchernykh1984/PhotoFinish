@@ -322,3 +322,23 @@ def test_pieces_cancelled_read_no_more_segments(
     asked[0] = True  # an export cancelled between pieces
     rest = list(told)
     assert len(rest) < 60
+
+
+def test_a_segment_held_a_moment_is_read_for_sound_again_not_taken_for_silent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Held by its writer or a scan a moment (Windows): asked again, its sound found.
+    index = recorded(tmp_path)
+    path = index.paths[1]
+    real = av.open
+    held = [True]
+
+    def opening(*args: Any, **kwargs: Any) -> Any:
+        if held[0]:
+            held[0] = False
+            raise OSError(13, "held by another process")
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(sound.av, "open", opening)
+    assert not sound.has_sound(path)
+    assert sound.has_sound(path)
