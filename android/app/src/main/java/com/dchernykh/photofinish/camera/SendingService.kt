@@ -60,7 +60,8 @@ class SendingService : Service() {
             ServiceCompat.startForeground(this, ID, notification(null), type) // counted at its first tick
         } catch (_: IllegalStateException) {
             // Android refusing it -- the day's time for sending in the background spent --: the app goes on unkept,
-            // never ended for it; what is kept is sent at its next start. Not asked again for a minute.
+            // never ended for it, as it was started as a plain service ([start]): no promise of the foreground is
+            // broken by stopping. What is kept is sent at its next start. Not asked again for a minute.
             refusedMs = SystemClock.elapsedRealtime()
             stopSelf()
             return START_NOT_STICKY
@@ -145,11 +146,13 @@ class SendingService : Service() {
 
         /**
          * Started from the screen, in the foreground, as there are frames to send; false when Android refuses it --
-         * an app in the background may not start one (Android 12) --: the screen starts it again once it is back.
+         * an app in the background may not start one --: the screen starts it again once it is back. A plain start,
+         * the service putting itself in the foreground: one Android then refuses that stops, the app going on, where
+         * a foreground start would have Android end the app for a service gone before it was in the foreground.
          */
         fun start(context: Context): Boolean =
             try {
-                ContextCompat.startForegroundService(context, Intent(context, SendingService::class.java))
+                context.startService(Intent(context, SendingService::class.java))
                 true
             } catch (_: IllegalStateException) {
                 false
