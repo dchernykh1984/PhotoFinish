@@ -71,6 +71,20 @@ def test_a_gap_is_jumped_after_a_second_at_most_however_slow_it_plays() -> None:
     assert play_on(sparse, slow, 1.5, 0, rate=1 / 16) == (0, slow)  # 94 ms on
 
 
+def test_before_the_first_frame_or_past_the_newest_slow_is_held_a_second_at_most() -> (
+    None
+):
+    # A lens that began 900 ms after the moment shown, at x1/16: not fourteen seconds
+    # on nothing, the jump to its first frame as soon as it is more than held away.
+    frames = Frames(10, first=10_000)
+    start = (0.0, 10_000 - 900)
+    place, on = play_on(frames, start, 0.0, 0, rate=1 / 16)
+    assert (place, on) == (0, (0.0, 10_000))
+    back = (0.0, int(frames.ms[-1]) + 900)  # backwards from past the newest
+    place, on = play_on(frames, back, 0.0, 0, rate=-1 / 16)
+    assert (place, on) == (9, (0.0, int(frames.ms[-1])))
+
+
 def test_playing_from_before_the_cameras_first_frame_jumps_to_it() -> None:
     frames = Frames(10, first=300_000)  # a camera that started five minutes later
     place, start = play_on(frames, (0.0, 1000), 0.0, 0)
