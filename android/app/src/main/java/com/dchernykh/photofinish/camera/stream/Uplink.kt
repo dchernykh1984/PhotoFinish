@@ -71,6 +71,14 @@ class Uplink(
     /** How long a send may hang before the connection is given up. */
     internal var stallMs = STALL_MS
 
+    /** How long an idle connection may say nothing of frames it has not confirmed ([askRead]); a test's is short. */
+    internal var answerWaitMs = ANSWER_WAIT_MS
+
+    /** When the server was last asked to say what it read, what it had said then, and since when it says nothing. */
+    private var askedNs = 0L
+    private var heardBytes = 0L
+    private var quietSinceNs = 0L
+
     /** How long into a connection a clock that comes makes a new one: its start, not the race. */
     internal var stampWindowMs = STAMP_WINDOW_MS
 
@@ -267,6 +275,9 @@ class Uplink(
         streamed = false
         stamped = false
         unacknowledged.clear()
+        askedNs = 0L
+        heardBytes = 0L
+        quietSinceNs = System.nanoTime()
         val connected = connect(address)
         publisher = connected
         this.connected = true
@@ -325,6 +336,7 @@ class Uplink(
             // no frame after them, they say what it read of the last sent (FrameStore.unsent).
             val kept = nextAllowed(first)
             if (kept == null) {
+                askRead(connected)
                 confirm(connected)
                 throughput.idle()
                 waitingSince = held(waitingSince)
@@ -385,6 +397,25 @@ class Uplink(
         } finally {
             sendingSince = 0 // a send that failed is no send hanging: the next connection is not cut
         }
+    }
+
+    /**
+     * Idle with frames sent and not confirmed -- a tail under the acknowledgements' step, which no frame after it
+     * brings --: the server asked, once a second, to say it read it all, so a kept stream ends ([FrameStore.unsent]).
+     * A server that says nothing new for [answerWaitMs] is a connection gone: let go, to send again what it swallowed.
+     */
+    private fun askRead(connected: VideoSink) {
+        val now = System.nanoTime()
+        val heard = connected.acknowledgedBytes
+        if (unacknowledged.isEmpty() || heard != heardBytes) {
+            heardBytes = heard
+            quietSinceNs = now
+        }
+        if (unacknowledged.isEmpty()) return
+        if (now - quietSinceNs > answerWaitMs * 1_000_000) throw IOException("the server says nothing of what it read")
+        if (now - askedNs < ASK_EVERY_MS * 1_000_000) return
+        askedNs = now
+        connected.flush()
     }
 
     /** The frames the server has read, by its acknowledgements, told to the store: a loss sends from them. */
@@ -470,6 +501,12 @@ class Uplink(
 
     companion object {
         private const val POLL_MS = 100L
+
+        /** How often an idle connection asks the server to say it read what it was sent. */
+        private const val ASK_EVERY_MS = 1_000L
+
+        /** An idle connection saying nothing this long of frames it was sent is gone: acknowledgements come oftener. */
+        const val ANSWER_WAIT_MS = 30_000L
         private const val REPORT_NS = 1_000_000_000L
         private const val FIRST_PAUSE_MS = 500L
         private const val MAX_PAUSE_MS = 8_000L

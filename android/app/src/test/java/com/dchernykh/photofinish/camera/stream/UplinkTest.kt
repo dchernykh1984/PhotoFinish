@@ -21,6 +21,7 @@ import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.Semaphore
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 
 /** A frame as a sink received it. */
@@ -37,6 +38,8 @@ private class FakeSink(
     private val publishFailure: RuntimeException? = null,
     private val gateOn: Int = 0,
     private val acknowledgeTo: Int = 0,
+    /** Answers a ping as FFmpeg does: all sent before it read. */
+    private val answersPings: Boolean = false,
 ) : VideoSink {
     @Volatile override var sentBytes = 0L
 
@@ -83,6 +86,14 @@ private class FakeSink(
     }
 
     override fun close() = closed.countDown()
+
+    val pinged = AtomicInteger()
+
+    override fun flush() {
+        if (closed.count == 0L) throw IOException("closed")
+        pinged.incrementAndGet()
+        if (answersPings) acknowledgedBytes = sentBytes
+    }
 
     fun next(): Sent = frames.poll(5, TimeUnit.SECONDS) ?: error("no frame sent")
 }
@@ -436,6 +447,33 @@ class UplinkTest {
         assertTrue(resumed.keyframe)
         assertEquals(4_000_000L + 1_000_000, momentOf(resumed.units[0])) // 6 s before 10 s, its keyframe
         assertEquals(100L, second.next().timestampMs)
+    }
+
+    @Test
+    fun `a tail under the acknowledgements' step is asked for once idle, the frames then sent`() {
+        val sink = FakeSink(answersPings = true) // acknowledges no window: a stream of a few small frames
+        val link = uplink(listOf(sink))
+        start(link)
+        awaitConnected()
+        repeat(5) { link.offer(frame(it * 100_000L, keyframe = it == 0)) }
+        repeat(5) { sink.next() }
+        val deadline = System.currentTimeMillis() + 5_000
+        while (link.unsent && System.currentTimeMillis() < deadline) Thread.sleep(20)
+        assertFalse(link.unsent) // a kept stream ends, never holding its camera for good
+        assertTrue(sink.pinged.get() >= 1)
+    }
+
+    @Test
+    fun `an idle connection that says nothing of what it was sent is let go, the frames sent again`() {
+        val silent = FakeSink() // neither acknowledges nor answers: a connection gone
+        val again = FakeSink(answersPings = true)
+        val link = uplink(listOf(silent, again))
+        link.answerWaitMs = 300
+        start(link)
+        awaitConnected()
+        repeat(5) { link.offer(frame(it * 100_000L, keyframe = it == 0)) }
+        repeat(5) { silent.next() }
+        assertEquals(0L, again.next().timestampMs) // sent again from its keyframe on the next connection
     }
 
     @Test
