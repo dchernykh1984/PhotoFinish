@@ -174,6 +174,9 @@ class Uplink(
     /** The connection's frames sent and not yet acknowledged: the bytes sent once each was, and its capture time. */
     private val unacknowledged = ArrayDeque<Pair<Long, Long>>()
 
+    /** The newest frame or piece the server has read on this connection. */
+    private var readUs: Long? = null
+
     /** How many frames wait for an acknowledgement, for a test once the uplink's thread has ended. */
     internal val waitingForAcknowledgement: Int get() = unacknowledged.size
 
@@ -319,6 +322,7 @@ class Uplink(
         soundHeaderSent = false
         publishedSound = false
         unacknowledged.clear()
+        readUs = null
         askedNs = 0L
         heardBytes = 0L
         quietSinceNs = System.nanoTime()
@@ -516,14 +520,22 @@ class Uplink(
         connected.flush()
     }
 
-    /** The frames the server has read, by its acknowledgements, told to the store: a loss sends from them. */
+    /**
+     * The frames the server has read, by its acknowledgements, told to the store: a loss sends from them. A piece of
+     * sound is kept as it comes, before a frame taken earlier and encoded later: what is read is confirmed up to the
+     * first not read yet, never past it.
+     */
     private fun confirm(connected: VideoSink) {
         val read = connected.acknowledgedBytes
-        var newest: Long? = null
+        var any = false
         while (unacknowledged.isNotEmpty() && unacknowledged.first().first <= read) {
-            newest = unacknowledged.removeFirst().second
+            val pts = unacknowledged.removeFirst().second
+            readUs = maxOf(readUs ?: pts, pts)
+            any = true
         }
-        newest?.let { store.confirm(it) }
+        val newest = readUs?.takeIf { any } ?: return
+        val waiting = unacknowledged.minOfOrNull { it.second }
+        store.confirm(if (waiting != null && waiting <= newest) waiting - 1 else newest)
     }
 
     /** Waits until [ready], the stop or [untilNs] on the nanosecond clock. */
