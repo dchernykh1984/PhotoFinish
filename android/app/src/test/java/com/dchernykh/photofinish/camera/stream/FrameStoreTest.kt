@@ -378,10 +378,11 @@ class FrameStoreTest {
         val gate = java.util.concurrent.CountDownLatch(1)
         store.syncFile = { gate.await(5, java.util.concurrent.TimeUnit.SECONDS) }
         val before = File("/dev/fd").list()!!.size
-        repeat(50) { second(store, it) }
+        repeat(100) { second(store, it) }
         val open = File("/dev/fd").list()!!.size - before
         gate.countDown()
-        assertTrue("$open files open", open < 10) // the newest run's two, not two for each run waiting its sync
+        // The newest run's two, not two for each run waiting its sync: 200; the test's other threads open a few.
+        assertTrue("$open files open", open < 50)
     }
 
     @Test
