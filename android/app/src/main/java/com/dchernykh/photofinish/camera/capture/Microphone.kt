@@ -16,96 +16,37 @@ import java.util.concurrent.atomic.AtomicBoolean
  * The phone's microphone into AAC, mono, 48 kHz, 128 kbit/s (specs/013-sound), on a thread of its own while it
  * runs: each piece stamped with when its first sample was heard, on the clock the lens's frames are stamped on --
  * [framesClock], unknown before the lens's first frame, when a piece is not kept: there is no run to keep it in.
- * Allowed the microphone or not is the caller's to know: one refused fails to open, and is said.
+ * Allowed the microphone or not is the caller's to know: one refused fails to open, and is said. When it reads is
+ * [MicrophoneTurns]'s, which the JVM tests drive; this is the glue to the phone's microphone and encoder.
  */
-@Suppress("TooManyFunctions") // its start, stop, read and drain, each a step of its own
 internal class Microphone(
     private val onConfig: (ByteArray) -> Unit,
     private val onPiece: (EncodedFrame) -> Unit,
     private val framesClock: () -> (() -> Long)?,
     /** The microphone allowed, asked at each start: allowed after the stream began, it starts at the next. */
-    private val allowed: () -> Boolean,
+    allowed: () -> Boolean,
     /** Told whether it runs: as it starts, before its thread can fail, and as it fails. */
-    private val sounded: (Boolean) -> Unit,
+    sounded: (Boolean) -> Unit,
     private val failed: (String) -> Unit,
 ) {
-    /** Started and not stopped since: a start put off for a thread still reading is made then. */
-    @Volatile private var wanted = false
+    private val turns =
+        MicrophoneTurns(
+            allowed,
+            ::open,
+            { opened, going -> Thread({ run(opened.first, opened.second, going) }, "microphone").apply { start() } },
+            sounded,
+            { failed("no sound: the microphone is not allowed") },
+        )
 
-    /** Its refusal said already: once, not at each camera opened again. */
-    private var refusalSaid = false
-
-    /** The thread reading the microphone now, and its own word to go on: one stopped never runs again. */
-    private var running: AtomicBoolean? = null
-    private var thread: Thread? = null
-
-    /**
-     * Started, unless it runs: whether it runs; said when the microphone or its encoder cannot be opened. Not while
-     * the thread of a stop before still reads -- ending, or the audio server stalled --: two would send each piece
-     * twice; started once it has ended, waited for off the caller's thread, the camera's.
-     */
-    @Synchronized
-    fun start(): Boolean {
-        wanted = true
-        if (running?.get() == true) return true
-        val opened =
-            when {
-                !allowed() -> refused()
-                stillReading() -> later()
-                else -> open()
-            }
-        if (opened == null) return false.also { sounded(false) }
-        val going = AtomicBoolean(true)
-        running = going
-        sounded(true) // before its thread runs: a failure of its told after
-        thread = Thread({ run(opened.first, opened.second, going) }, "microphone").apply { start() }
-        return true
-    }
-
-    /** Started once the thread of a stop before has stopped reading, if still wanted then. */
-    private fun later(): Pair<AudioRecord, MediaCodec>? {
-        val before = thread
-        Thread(
-            {
-                before?.join(LATER_MS)
-                resume()
-            },
-            "microphone-later",
-        ).apply {
-            isDaemon = true
-            start()
-        }
-        return null
-    }
-
-    /** Started if still wanted, asked under the lock a stop takes: a stop meanwhile is never undone. */
-    @Synchronized
-    private fun resume() {
-        if (wanted) start()
-    }
-
-    /** Not allowed the microphone: said the first time, the stream going without sound; nothing opened. */
-    private fun refused(): Pair<AudioRecord, MediaCodec>? {
-        if (!refusalSaid) failed("no sound: the microphone is not allowed")
-        refusalSaid = true
-        return null
-    }
-
-    /** The thread of a stop before still reads: never waited for here, on the camera's thread. */
-    private fun stillReading(): Boolean = thread?.isAlive == true
+    /** Started, unless it runs: whether it runs now ([MicrophoneTurns.start]). */
+    fun start(): Boolean = turns.start()
 
     /** Stopped: its thread told to end, never waited for on the caller's -- the camera's -- thread. */
-    @Synchronized
-    fun stop() {
-        wanted = false
-        running?.set(false)
-        running = null
-    }
+    fun stop() = turns.stop()
 
     @SuppressLint("MissingPermission") // the caller asks; one refused fails to open, and is said
     @Suppress("TooGenericExceptionCaught") // a microphone the phone will not open costs the sound, never the app
     private fun open(): Pair<AudioRecord, MediaCodec>? {
-        refusalSaid = false // allowed again: a refusal after it said again
         var record: AudioRecord? = null
         var codec: MediaCodec? = null
         return try {
@@ -253,7 +194,6 @@ internal class Microphone(
         private const val READ_BYTES = 2048 * 2 // two AAC frames' samples at a time
         private const val BUFFER_BYTES = RATE / 5 * 2 // a fifth of a second: a slow thread loses nothing
         private const val WAIT_US = 10_000L
-        private const val LATER_MS = 5_000L
         private const val NANOS = 1_000_000_000L
     }
 }
