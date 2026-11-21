@@ -299,6 +299,7 @@ class _Out:
         self.found = iter(()) if found is None else found
         self.piece = next(self.found, None)
         self.audio: Any = None
+        self.heard_form: sound.Form | None = None
         self.heard_next: int | None = None  # where the sound written so far ends
         try:
             when = datetime.datetime.fromtimestamp(first / 1000, datetime.UTC)
@@ -309,6 +310,7 @@ class _Out:
                 self.stream.codec_tag = "hvc1"  # QuickTime opens H.265 tagged so
             if self.piece is not None:
                 self.audio = self._sound_stream(self.piece)
+                self.heard_form = self.piece.form  # the one form its track holds
         except BaseException:  # a codec MP4 will not hold: no file left half made
             self.abandon()
             raise
@@ -332,8 +334,8 @@ class _Out:
             if at > up_to:
                 return
             self.piece = next(self.found, None)
-            if at < self.first or piece.form.rate != self.audio.time_base.denominator:
-                continue  # before the file, or of a rate its sound is not
+            if at < self.first or piece.form != self.heard_form:
+                continue  # before the file, or another form than its track holds
             rate = piece.form.rate
             length = round((piece.end_ms - piece.ms) * rate / 1000)
             frame_size = int(self.audio.codec_context.frame_size or length)

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import av
 import numpy as np
@@ -427,3 +428,29 @@ def test_a_camera_without_sound_is_exported_without_looking_for_it_piece_by_piec
     monkeypatch.setattr(export.sound, "pieces", looked)
     (written,) = export.export(tmp_path / "cam1", tmp_path / "Side.mp4")
     assert read(written)[1]  # its frames all the same
+
+
+def test_a_files_sound_holds_one_form_of_it_another_left_out(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A streaming app connecting again in stereo: one track holds one form of sound.
+    recorded(tmp_path)
+    real = export.sound.pieces
+
+    def two_forms(index: Any, from_ms: int) -> Any:
+        for n, piece in enumerate(real(index, from_ms)):
+            if n >= 60:  # the rest in another form
+                piece = export.sound.Piece(
+                    piece.ms,
+                    piece.end_ms,
+                    piece.packet,
+                    export.sound.Form("aac", b"\x11\x90", 48000, "stereo"),
+                    piece.path,
+                )
+            yield piece
+
+    monkeypatch.setattr(export.sound, "pieces", two_forms)
+    (written,) = export.export(tmp_path / "cam1", tmp_path / "Main.mp4")
+    with av.open(str(written)) as container:
+        heard = [p for p in container.demux(container.streams.audio[0]) if p.size]
+    assert len(heard) == 60
