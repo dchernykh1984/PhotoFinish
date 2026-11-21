@@ -581,6 +581,8 @@ class MainWindow(QMainWindow):
         if job is not self._export_job:
             return  # the window closed meanwhile, its dialog with it: nothing told
         progress.close()
+        progress.deleteLater()  # not one more hidden dialog kept for each export
+        job.deleteLater()
         self._export_job = None
         files = "".join(f"\n{path}" for path in written)
         if skipped:
