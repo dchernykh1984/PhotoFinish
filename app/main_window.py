@@ -164,6 +164,11 @@ class MainWindow(QMainWindow):
         self.play_timer = QTimer(self)
         self.play_timer.timeout.connect(self._play_tick)
         self.play_button = QPushButton("Pause")  # live, the video plays on
+        self.back_button = QPushButton("< Play")
+        self.rate = 1.0  # the speed chosen, kept from one Play to the next (012)
+        self.backwards = False  # playing backwards
+        self.slower_button, self.normal_button = QPushButton(), QPushButton("x1")
+        self.faster_button, self.speed_label = QPushButton(), QLabel()
         self.shared_event: shared_event.SharedEvent | None = None
 
         self.placeholder = CameraView()
@@ -287,16 +292,33 @@ class MainWindow(QMainWindow):
             button.clicked.connect(slot)
             moves.append(button)
         self.play_button.setToolTip(
-            "Play the video at its own speed from the frame shown, or hold the frame"
+            "Play the video forwards from the frame shown, at the speed chosen, or "
+            "hold the frame"
         )
         self.play_button.clicked.connect(self.play_or_pause)
+        self.back_button.setToolTip(
+            "Play the video backwards from the frame shown, at the speed chosen, or "
+            "hold the frame"
+        )
+        self.back_button.clicked.connect(self.back_or_pause)
         stop = QPushButton("Stop")
         stop.setToolTip("Stop playing and go back to the frame Play started from")
         stop.clicked.connect(self.stop)
+        self.slower_button.setToolTip("Half the speed")
+        self.slower_button.clicked.connect(lambda: self.set_rate(self.rate / 2))
+        self.normal_button.setToolTip("The video's own speed")
+        self.normal_button.clicked.connect(lambda: self.set_rate(1.0))
+        self.faster_button.setToolTip("Twice the speed")
+        self.faster_button.clicked.connect(lambda: self.set_rate(self.rate * 2))
+        self.speed_label.setToolTip("The speed playing goes at")
+        self._show_rate()
         transport = QHBoxLayout()
-        for button in (*moves[:3], self.play_button, stop, *moves[3:]):
+        speeds = (self.slower_button, self.normal_button, self.faster_button)
+        played = (self.back_button, self.play_button, stop)
+        for button in (*moves[:3], *played, *moves[3:], *speeds):
             button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             transport.addWidget(button)
+        transport.addWidget(self.speed_label)
         transport.addStretch()
         transport.addWidget(self.source_label)
         transport.addWidget(self.time_label)
@@ -1861,22 +1883,52 @@ class MainWindow(QMainWindow):
     # -- playing ---------------------------------------------------------------
 
     def play_or_pause(self) -> None:
-        """Hold the video, live or playing; play it when it is held."""
-        if self.live or self.playing:
+        """Hold the video, live or playing forwards; else play it forwards."""
+        if self.live or (self.playing and not self.backwards):
             self.pause()
         else:
             self.play()
 
-    def play(self) -> None:
-        """The chosen camera's recording from the frame shown, at its own speed;
-        the other cameras follow it, as they follow every move."""
+    def back_or_pause(self) -> None:
+        """Hold the video playing backwards; else play it backwards (012)."""
+        if self.playing and self.backwards:
+            self.pause()
+        else:
+            self.play(backwards=True)
+
+    def play(self, backwards: bool = False) -> None:
+        """The chosen camera's recording from the frame shown, at the speed chosen,
+        forwards or ``backwards``; the other cameras follow it, as they follow every
+        move. Playing the other way turns there, Stop still going back to where
+        playing started."""
         if self.moment is None:
             return  # nothing shown yet: no moment to play from
         self._set_live(False)
-        self.playing, self.play_from = True, self.moment
+        if not self.playing:
+            self.play_from = self.moment
+        self.playing, self.backwards = True, backwards
         self._play_start = (time.monotonic(), self.moment)
         self.play_timer.start(PLAY_MS)
         self._show_play()
+
+    def set_rate(self, rate: float) -> None:
+        """The speed playing goes at, x1/16 to x16; while playing, from the frame
+        shown, so the picture never jumps (012)."""
+        if not playback.SLOWEST <= rate <= playback.FASTEST:
+            return
+        if self.playing and self.moment is not None:
+            self._play_start = (time.monotonic(), self.moment)
+        self.rate = rate
+        self._show_rate()
+
+    def _show_rate(self) -> None:
+        rate = self.rate
+        self.slower_button.setText(playback.speed_name(rate / 2))
+        self.slower_button.setEnabled(rate / 2 >= playback.SLOWEST)
+        self.faster_button.setText(playback.speed_name(rate * 2))
+        self.faster_button.setEnabled(rate * 2 <= playback.FASTEST)
+        self.normal_button.setEnabled(rate != 1.0)
+        self.speed_label.setText(playback.speed_name(rate))
 
     def pause(self) -> None:
         """The frame shown held, and asked for again: one passed while playing may
@@ -1921,10 +1973,14 @@ class MainWindow(QMainWindow):
             self._halt()
             return
         offset, now = self._offset(), time.monotonic()
+        rate = -self.rate if self.backwards else self.rate
         place, self._play_start = playback.play_on(
-            camera.index, self._play_start, now, offset
+            camera.index, self._play_start, now, offset, rate
         )
-        if place is None and camera.settings.get("record", True):
+        if place is None and self.backwards:  # the first frame passed: held there
+            self._halt()
+            self._go(0)
+        elif place is None and camera.settings.get("record", True):
             self.go_live()  # caught up with the recording: it plays on live
         elif place is None:  # a file opened as it is has no Live: it ends
             self._halt()
@@ -1935,7 +1991,10 @@ class MainWindow(QMainWindow):
             self._go(place)
 
     def _show_play(self) -> None:
-        self.play_button.setText("Pause" if self.live or self.playing else "Play")
+        forwards = self.live or (self.playing and not self.backwards)
+        backwards = self.playing and self.backwards
+        self.play_button.setText("Pause" if forwards else "Play >")
+        self.back_button.setText("Pause" if backwards else "< Play")
 
     def _refresh(self, force: bool = False) -> None:
         kept = {
