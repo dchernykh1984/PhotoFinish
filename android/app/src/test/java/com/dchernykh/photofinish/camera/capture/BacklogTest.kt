@@ -97,15 +97,27 @@ class BacklogTest {
     }
 
     @Test
-    fun `folders with no header or nothing to send are removed as they are read back`() {
-        kept(began = 100, header = false)
+    fun `folders of nothing to send are removed as they are read back`() {
         val empty = File(root, "main-200").apply { mkdirs() }
         StreamHeader(Lens.MAIN, first, format, byteArrayOf(1)).write(empty)
+        File(root, "main-300").mkdirs()
         backlog.readBack()
         backlog.tick(0)
         assertTrue(started.isEmpty())
         assertTrue(root.listFiles()!!.isEmpty())
         assertFalse(backlog.holds(first))
+    }
+
+    @Test
+    fun `frames whose header a power cut took are left on the phone, not sent, until Discard`() {
+        val headless = kept(began = 100, header = false)
+        backlog.readBack()
+        backlog.tick(0)
+        assertTrue(started.isEmpty())
+        assertTrue(headless.isDirectory)
+        assertTrue(said.any { it.contains("no header") })
+        backlog.discard()
+        assertFalse(headless.exists())
     }
 
     @Test
