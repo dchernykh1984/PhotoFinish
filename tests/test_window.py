@@ -3795,6 +3795,7 @@ def test_the_start_protocol_chosen_is_kept_and_its_numbers_counted(
     win: mw.MainWindow, base: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     assert win.protocol_button.text() == "Start protocol..."
+    assert win.no_protocol_button.isHidden()  # none to go back from
     protocol = base / "start.txt"
     protocol.write_text("1#A\n2#B\n", encoding="utf-8")
     monkeypatch.setattr(QFileDialog, "getOpenFileName", lambda *a: (str(protocol), ""))
@@ -3813,6 +3814,11 @@ def test_the_start_protocol_chosen_is_kept_and_its_numbers_counted(
     monkeypatch.setattr(QFileDialog, "getOpenFileName", lambda *a: ("", ""))
     win.protocol_button.click()  # cancelled: the one chosen stays
     assert session.load()["start_protocol"] == str(protocol)
+    assert not win.no_protocol_button.isHidden()
+    win.no_protocol_button.click()  # another race, without one: numbers as before
+    assert session.load()["start_protocol"] == ""
+    assert win.protocol_button.text() == "Start protocol..."
+    assert win.no_protocol_button.isHidden()
 
 
 class Heard:
