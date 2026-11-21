@@ -153,7 +153,7 @@ class SoundPlayer(QObject):
             self._waited += 1
             return
         self._waited = 0
-        found = sorted(self._index.paths[self._listed :], key=lambda path: path.name)
+        found = self._index.paths[self._listed :]  # as they closed: names may mislead
         self._listed = len(self._index.paths)
         if found:
             self._pieces.extend(found)
