@@ -435,7 +435,7 @@ def test_a_lens_without_sound_is_exported_with_its_phones(tmp_path: Path) -> Non
     assert track_beep(alone)[1] == 0  # no sound of its own
     written, error, _ = export.export_all(
         [(tmp_path / "cam2", tmp_path / "Tele2.mp4")],
-        sounds={tmp_path / "cam2": (tmp_path / "cam1", 0)},
+        sounds={tmp_path / "cam2": [(tmp_path / "cam1", 0)]},
     )
     assert error == ""
     beep, streams = track_beep(written[0])
@@ -445,7 +445,7 @@ def test_a_lens_without_sound_is_exported_with_its_phones(tmp_path: Path) -> Non
     # goes that much later in the telephoto's file, as it plays.
     later, _, _ = export.export_all(
         [(tmp_path / "cam2", tmp_path / "Tele3.mp4")],
-        sounds={tmp_path / "cam2": (tmp_path / "cam1", 200)},
+        sounds={tmp_path / "cam2": [(tmp_path / "cam1", 200)]},
     )
     assert track_beep(later[0])[0] == pytest.approx(1.7, abs=0.03)
 
@@ -465,7 +465,7 @@ def test_a_phones_lenses_exported_together_list_its_sound_once(
         return real(folder, cancelled)
 
     monkeypatch.setattr(export, "_listed", counted)
-    main = (tmp_path / "cam1", 0)
+    main = [(tmp_path / "cam1", 0)]
     written, error, _ = export.export_all(
         [(tmp_path / f"cam{n}", tmp_path / f"Lens{n}.mp4") for n in (1, 2, 3)],
         sounds={tmp_path / "cam2": main, tmp_path / "cam3": main},
@@ -473,6 +473,25 @@ def test_a_phones_lenses_exported_together_list_its_sound_once(
     assert error == ""
     assert all(track_beep(path)[1] == 1 for path in written)
     assert listed == [tmp_path / "cam1"]
+
+
+def test_a_lens_is_exported_with_its_phones_sound_whichever_lens_kept_it_then(
+    tmp_path: Path,
+) -> None:
+    # The main lens left out a while, the telephoto took the microphone: each lens's
+    # file has the phone's sound throughout, as the window plays it.
+    recorded(tmp_path)  # the main lens's sound, 0-3 s, its beep at 1.5 s
+    (tmp_path / "late").mkdir()
+    record(tmp_path / "cam2", HEARD, 90)  # the telephoto's frames, 0-3 s alone
+    recorded(tmp_path / "late", 3, folder=tmp_path / "cam2", start=HEARD + 3000)
+    both = [(tmp_path / "cam2", 0), (tmp_path / "cam1", 0)]
+    written, error, _ = export.export_all(
+        [(tmp_path / "cam2", tmp_path / "Tele.mp4")], sounds={tmp_path / "cam2": both}
+    )
+    assert error == ""
+    first, second = written  # the format changed at 3 s: a file of its own on
+    assert track_beep(first)[0] == pytest.approx(1.5, abs=0.03)  # the main lens's
+    assert track_beep(second)[0] == pytest.approx(1.5, abs=0.03)  # the telephoto's
 
 
 def test_a_camera_without_sound_is_exported_without_looking_for_it_piece_by_piece(

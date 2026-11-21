@@ -4001,8 +4001,8 @@ def test_a_lens_exported_with_its_phones_sound_takes_it_on_their_offsets(
     win = make_window()
     win.cameras["cam1"].settings["offset_ms"] = 50
     win.cameras["cam2"].settings["offset_ms"] = 20
-    assert win._sound_folder("cam2") == (mw.folder_of("cam1"), 30)
-    assert win._sound_folder("cam1") is None  # its own
+    assert win._sound_folder("cam2") == [(mw.folder_of("cam1"), 30)]
+    assert win._sound_folder("cam1") == [(mw.folder_of("cam1"), 0)]  # its own
 
 
 def test_a_lens_takes_its_phones_sound_whose_microphone_was_lost_on_the_way(
@@ -4011,7 +4011,7 @@ def test_a_lens_takes_its_phones_sound_whose_microphone_was_lost_on_the_way(
     # The main lens's newest piece without sound, its first with: its sound still.
     record(phone_with_sound, START + 10_000, 30)  # cam1's pieces after: frames alone
     win = make_window()
-    assert win._sound_folder("cam2") == (mw.folder_of("cam1"), 0)
+    assert win._sound_folder("cam2") == [(mw.folder_of("cam1"), 0)]
 
 
 def test_whose_sound_plays_is_chosen_where_playing_goes_on_from(
