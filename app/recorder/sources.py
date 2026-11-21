@@ -258,6 +258,7 @@ class Stream:
         self.url, self.options, self.listen = url, options, listen
         self._waiting = waiting
         self.clock_note = ""
+        self.ended = ""  # why the last connection, taken, gave no frame
         self.phone: dict[str, Any] = {}
         self.fps = 30.0
         self.anchor = Anchor(clock)
@@ -267,7 +268,8 @@ class Stream:
 
     @property
     def waiting(self) -> str:
-        return self._waiting()
+        waiting = self._waiting()
+        return f"{waiting} -- {self.ended}" if self.ended else waiting
 
     def frames(self) -> Iterator[Item]:
         # A listening open waits a second for the camera app at a time; a stream
@@ -287,10 +289,26 @@ class Stream:
             self.fps = float(stream.average_rate or stream.guessed_rate or 30)
             phone = container.metadata.get("encoder") == PHONE_APP
             place = self._placing(stream, phone, held_ms(container.metadata), opened)
-            for packet in container.demux(stream):
-                if packet.pts is None or packet.dts is None:
-                    continue
-                yield packet, place(packet, packet.pts)
+            got = False
+            try:
+                for packet in container.demux(stream):
+                    if packet.pts is None or packet.dts is None:
+                        continue
+                    got = True
+                    yield packet, place(packet, packet.pts)
+            except (av.FFmpegError, OSError) as error:
+                if not self.listen:
+                    raise
+                # A phone that hung up without a word -- its socket closed with an
+                # acknowledgement unread, a Wi-Fi gone --: listened for again at once,
+                # as one that hung up cleanly is, never after a pause growing with each
+                # short connection -- a lens held for the first, a stream kept sent.
+                # One that gave no frame says why, as it is listened for again.
+                self.ended = (
+                    "" if got else f"the last connection gave no frame: {error}"
+                )
+                return
+            self.ended = ""
 
     def _placing(
         self,
@@ -307,17 +325,19 @@ class Stream:
         rate = stream.time_base or Fraction(1, 1000)
         unit = Fraction(rate.numerator, rate.denominator) * 1000
         # Only a phone pushing here stamps its frames: an RTSP camera's are not read.
-        stamped = self.listen and stream.codec_context.name == "h264"
+        # H.265 carries them as H.264 does (specs/010-hevc).
+        hevc = stream.codec_context.name == "hevc"
+        stamped = self.listen and (hevc or stream.codec_context.name == "h264")
         trusted: list[bool] = []  # the first packet's say, for the whole stream
         last: list[int] = []  # the pts and moment of the last frame given
         arrived: list[int] = []  # the moment of the last phone frame placed by arrival
 
         def place(packet: av.Packet, pts: int) -> int:
             if stamped and getattr(packet, "is_keyframe", True):
-                self._hear(packet)
+                self._hear(packet, hevc)
             if trusted and not trusted[0] and not phone:  # another app's: no moments
                 return self.anchor(float(pts * unit))
-            own = frame_time.moment_ms(memoryview(packet)) if stamped else None
+            own = frame_time.moment_ms(memoryview(packet), hevc) if stamped else None
             if not trusted:
                 trusted.append(own is not None and self._believed(own, held, opened))
                 # Said in the camera list: a phone's frames without moments, or with
@@ -361,13 +381,13 @@ class Stream:
         last[:] = [placed]
         return placed
 
-    def _hear(self, packet: av.Packet) -> None:
+    def _hear(self, packet: av.Packet, hevc: bool = False) -> None:
         """The phone's status a keyframe carries, kept with when it came: through a
         reconnect too, so its last readings stay once it stops (specs/005). When on
         two clocks: the recorder's, the frames' own, to say it; this computer's, the
         window's, to tell how old it is -- the recorder's does not follow a clock
         set back."""
-        status = frame_time.phone_status(memoryview(packet))
+        status = frame_time.phone_status(memoryview(packet), hevc)
         if status is not None:
             heard = time.time_ns() // 1_000_000
             self.phone = {**status, "at_ms": self.anchor.clock(), "heard_ms": heard}

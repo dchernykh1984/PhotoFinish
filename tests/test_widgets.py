@@ -82,6 +82,18 @@ def test_the_dialog_shows_the_address_as_a_qr_code_for_the_phone(
     assert dialog.qr.pixmap().isNull()
 
 
+def test_h265_chosen_goes_into_the_code_and_the_camera(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(cameras, "this_computer", lambda: "10.0.0.5")
+    dialog = CameraDialog(None, "cam1", [])
+    assert dialog.codec.currentData() == "h264"  # the default
+    assert "codec" not in dialog.camera()["settings"]
+    dialog.codec.setCurrentIndex(dialog.codec.findData("h265"))
+    assert dialog.address.text() == "rtmp://10.0.0.5:1935/live/cam1\ncodec h265"
+    assert dialog.camera()["settings"]["codec"] == "h265"
+
+
 def test_the_qr_code_is_drawn_again_only_when_the_address_changes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

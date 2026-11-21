@@ -52,6 +52,11 @@ private class FakeServer(
                     val message = reader.read()
                     received.put(message)
                     if (message.typeId == RtmpType.COMMAND_AMF0) answer(Amf0.decode(message.payload))
+                    if (message.typeId == RtmpType.USER_CONTROL && message.payload[1].toInt() == 6) {
+                        // A ping of the client's, answered as FFmpeg does: its number echoed.
+                        val pong = byteArrayOf(0, 7) + message.payload.copyOfRange(2, 6)
+                        writer.write(RtmpMessage(2, 0, RtmpType.USER_CONTROL, 0, pong))
+                    }
                 }
             } catch (_: IOException) {
                 // the client went
@@ -108,6 +113,9 @@ private class FakeServer(
     }
 
     fun next(): RtmpMessage = received.poll(5, TimeUnit.SECONDS) ?: error("nothing received")
+
+    /** The client's connection ended by the server. */
+    fun hangUp() = client.close()
 
     fun nextOfType(type: Int): RtmpMessage {
         while (true) {
@@ -166,6 +174,24 @@ class RtmpPublisherTest {
 
         publisher.close()
         assertThrows(IOException::class.java) { publisher.sendFrame(0, false, listOf(byteArrayOf(1))) }
+    }
+
+    @Test
+    fun `h265 goes in enhanced rtmp's tags`() {
+        val server = server()
+        server.serve()
+        val publisher = RtmpPublisher(server.address, Codec.HEVC)
+        publisher.publish(mapOf("videocodecid" to 0x68766331))
+        publisher.sendSequenceHeader(byteArrayOf(1, 2))
+        val hvc1 = "hvc1".toByteArray(Charsets.US_ASCII)
+        assertArrayEquals(
+            byteArrayOf(0x90.toByte()) + hvc1 + byteArrayOf(1, 2),
+            server.nextOfType(RtmpType.VIDEO).payload,
+        )
+        publisher.sendFrame(33, keyframe = false, nalUnits = listOf(byteArrayOf(2, 1, 9)))
+        val frame = server.nextOfType(RtmpType.VIDEO).payload
+        assertArrayEquals(byteArrayOf(0xA3.toByte()) + hvc1 + byteArrayOf(0, 0, 0, 3, 2, 1, 9), frame)
+        publisher.close()
     }
 
     @Test
@@ -239,6 +265,39 @@ class RtmpPublisherTest {
         server.pingInTwo(pauseMs = 600)
         assertArrayEquals(byteArrayOf(0, 7, 0, 0, 1, 2), server.nextOfType(RtmpType.USER_CONTROL).payload)
         publisher.close()
+    }
+
+    @Test
+    fun `a ping of ours answered says the server read all that was sent before it`() {
+        val server = server()
+        server.serve()
+        val publisher = RtmpPublisher(server.address)
+        publisher.publish(emptyMap())
+        server.nextOfType(RtmpType.DATA_AMF0)
+        val sent = publisher.sentBytes
+        publisher.flush()
+        assertArrayEquals(byteArrayOf(0, 6, 0, 0, 0, 1), server.nextOfType(RtmpType.USER_CONTROL).payload)
+        val deadline = System.currentTimeMillis() + 5_000
+        while (publisher.acknowledgedBytes == 0L && System.currentTimeMillis() < deadline) Thread.sleep(10)
+        assertEquals(sent, publisher.acknowledgedBytes) // a tail under the acknowledgements' step, said read
+        publisher.close()
+    }
+
+    @Test
+    fun `a connection the server ended is closed, so the next send fails though nothing else was sent`() {
+        val server = server()
+        server.serve()
+        val publisher = RtmpPublisher(server.address)
+        publisher.publish(emptyMap())
+        server.nextOfType(RtmpType.DATA_AMF0)
+        server.hangUp()
+        val deadline = System.currentTimeMillis() + 5_000
+        var failed = false
+        while (!failed && System.currentTimeMillis() < deadline) {
+            failed = runCatching { publisher.flush() }.exceptionOrNull() is IOException
+            Thread.sleep(20)
+        }
+        assertTrue(failed)
     }
 
     @Test

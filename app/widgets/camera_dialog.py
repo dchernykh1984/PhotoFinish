@@ -59,7 +59,7 @@ FRONT_BESIDE = (
 _ROWS = {  # the fields each connection shows
     "usb": ("device", "size", "fps"),
     "rtsp": ("url", "transport"),
-    "rtmp": ("port", "path", "lenses", "address", "qr"),
+    "rtmp": ("port", "path", "lenses", "codec", "address", "qr"),
     "test": ("size", "fps", "scene"),
     "file": ("file", "live"),
 }
@@ -112,6 +112,9 @@ class CameraDialog(QDialog):
         lens_row = QHBoxLayout()
         for tick in self.lenses.values():
             lens_row.addWidget(tick)
+        self.codec = QComboBox()  # PhotoFinish Camera's, H.264 by default (010)
+        for codec, name in cameras.CODECS.items():
+            self.codec.addItem(name, codec)
         self.address = QLabel()
         self.address.setTextInteractionFlags(
             Qt.TextInteractionFlag.TextSelectableByMouse
@@ -159,6 +162,7 @@ class CameraDialog(QDialog):
             "port": self._row("Port", self.port),
             "path": self._row("Stream path", self.path),
             "lenses": self._row("Lenses (PhotoFinish Camera)", lens_row),
+            "codec": self._row("Video codec (PhotoFinish Camera)", self.codec),
             "advice": self._row("", self.advice),
             "address": self._row("Type in the streaming app", self.address),
             "qr": self._row("Or scan it with PhotoFinish Camera", self.qr),
@@ -178,7 +182,13 @@ class CameraDialog(QDialog):
         self._found.connect(self._network_found)
         self._closed = False  # the window keeps a closed dialog: its polling ends
         self.finished.connect(self._close_network)
-        for box in (self.connection, self.device, self.transport, self.scene):
+        for box in (
+            self.connection,
+            self.device,
+            self.transport,
+            self.scene,
+            self.codec,
+        ):
             box.currentTextChanged.connect(self._check)
         for line in (self.name, self.url, self.path, self.file):
             line.textChanged.connect(self._check)
@@ -253,7 +263,12 @@ class CameraDialog(QDialog):
                 "transport": self.transport.currentText(),
             }
         if kind == "rtmp":
-            return {"port": self.port.value(), "path": self.path.text().strip()}
+            codec = {"codec": "h265"} if self.codec.currentData() == "h265" else {}
+            return {
+                "port": self.port.value(),
+                "path": self.path.text().strip(),
+                **codec,
+            }
         if kind == "test":
             return {**size, "fps": fps, "scene": self.scene.currentText()}
         return {"path": self.file.text().strip()}
@@ -301,7 +316,8 @@ class CameraDialog(QDialog):
                 (lens, cameras.rtmp_url(made["settings"], here))
                 for lens, made in zip(lenses, self.cameras(), strict=False)
             ]
-            text = cameras.pairing_text(streams) if scannable else NO_NETWORK
+            codec = str(self.codec.currentData())
+            text = cameras.pairing_text(streams, codec) if scannable else NO_NETWORK
             if not scannable and not self._network.isActive():
                 self._network.start()
         if text == self.address.text():  # every key typed comes here

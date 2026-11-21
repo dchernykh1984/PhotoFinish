@@ -7,7 +7,7 @@ import html
 import math
 import time
 from collections.abc import Callable, Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path
 from typing import Any
@@ -42,16 +42,27 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QMainWindow,
     QMessageBox,
+    QProgressDialog,
     QPushButton,
     QSplitter,
     QVBoxLayout,
     QWidget,
 )
 
-from app import analysis, cameras, paths, phone_status, playback, session, shared_event
+from app import (
+    analysis,
+    cameras,
+    export,
+    paths,
+    phone_status,
+    playback,
+    session,
+    shared_event,
+)
 from app.analysis import models
 from app.analysis.activity import Activity, how_far
 from app.analysis.suggestions import Gathered, Suggestions, gathered, remaining
+from app.catch_up import CatchUp
 from app.input_follow import InputFollow
 from app.interpolation import (
     Line,
@@ -85,6 +96,7 @@ from app.recorder.launcher import (
 )
 from app.recorder.phone_log import last_word
 from app.video_index import FileIndex, Frame, VideoIndex
+from app.widgets import export_dialog
 from app.widgets.camera_dialog import CameraDialog
 from app.widgets.camera_view import CameraView
 from app.widgets.decode_worker import DecodeWorker
@@ -95,6 +107,7 @@ from app.widgets.timeline import Timeline
 POLL_MS = 500
 PLAY_MS = 15  # how often playing looks for the next frame: oftener than any camera's
 FOLLOW_S = 0.25  # how often the lists follow a video playing: not at every frame
+EXPORT_STOP_S = 5.0  # how long the window closing waits for an export to stop
 NEAR_MS = 1000  # another camera's frame further from the moment than this: none
 STOP_MS = 3000  # an analyser stopped is killed if it has not ended by then
 OUTSIDE = "The output file was changed outside PhotoFinish: kept beside it"
@@ -127,6 +140,7 @@ class Camera:
     analyzer_started: float = -math.inf  # monotonic
     stopping: Any = None  # the analyser stopped, while it ends its segment
     info: dict[str, Any] | None = None  # its recorder's last heartbeat
+    catch_up: CatchUp = field(default_factory=CatchUp)  # what its phone holds (009)
 
     @property
     def id(self) -> str:
@@ -224,6 +238,7 @@ class MainWindow(QMainWindow):
         )
         self.model_box.activated.connect(self._model_chosen)
         self._job: models.Download | None = None  # the download in progress
+        self._export_job: export_dialog.ExportJob | None = None  # video exporting (011)
         # Its detector turns Numbers and crossings on as it comes: chosen in the list,
         # and the switch left alone since.
         self._job_turns_on = False
@@ -344,9 +359,13 @@ class MainWindow(QMainWindow):
         add, remove = QPushButton("Add..."), QPushButton("Remove")
         add.clicked.connect(self.add_camera)
         remove.clicked.connect(self.remove_camera)
+        export_video = QPushButton("Export video...")
+        export_video.setToolTip("The cameras' video, a file each (MP4)")
+        export_video.clicked.connect(self.export_video)
         buttons = QHBoxLayout()
         buttons.addWidget(add)
         buttons.addWidget(remove)
+        buttons.addWidget(export_video)
         buttons.addWidget(self.one_camera)
         cameras = QVBoxLayout()
         cameras.addWidget(self.recording_banner)
@@ -499,6 +518,93 @@ class MainWindow(QMainWindow):
         if not self.cameras:
             self._choose_camera(-1)
         self._show_suggestions()  # its suggestions gone with it
+
+    def export_video(self) -> None:
+        """The video of the cameras ticked, a file each, into a folder chosen, written
+        in the background, Cancel stopping it (specs/011)."""
+        if self._export_job is not None:  # under way, or ending after a Cancel
+            QMessageBox.information(
+                self,
+                "Export video",
+                "An export is under way: wait for it to end, or cancel it, then try "
+                "again.",
+            )
+            return
+        names = {
+            camera.id: self._name(camera.id)
+            for camera in self.cameras.values()
+            if export.has_video(folder_of(camera.id))
+        }
+        if not names:
+            QMessageBox.information(
+                self, "Export video", "No camera has video to export."
+            )
+            return
+        chosen = export_dialog.choose_cameras(self, names)
+        folder = (
+            QFileDialog.getExistingDirectory(self, "Export the video into")
+            if chosen
+            else ""
+        )
+        if not folder:
+            return
+        jobs = [
+            (
+                folder_of(camera_id),
+                Path(folder) / f"{export.file_name(names[camera_id])}.mp4",
+            )
+            for camera_id in chosen
+        ]
+        job = export_dialog.ExportJob(jobs)
+        progress = QProgressDialog(
+            "Exporting the video...", "Cancel", 0, export.STEPS, self
+        )
+        # In the background (specs/011, FR-005): the window takes corrections meanwhile.
+        progress.setWindowModality(Qt.WindowModality.NonModal)
+        progress.setMinimumDuration(0)
+        progress.canceled.connect(job.cancel)
+        job.progress.connect(lambda value: _progressed(progress, value))
+        job.done.connect(
+            lambda written, error, skipped: self._exported(
+                job, progress, written, error, skipped
+            )
+        )
+        self._export_job = job  # kept while it runs
+        job.start()
+
+    def _exported(
+        self,
+        job: export_dialog.ExportJob,
+        progress: QProgressDialog,
+        written: list[Path],
+        error: str,
+        skipped: int,
+    ) -> None:
+        if job is not self._export_job:
+            return  # the window closed meanwhile, its dialog with it: nothing told
+        progress.close()
+        progress.deleteLater()  # not one more hidden dialog kept for each export
+        job.deleteLater()
+        self._export_job = None
+        files = "".join(f"\n{path}" for path in written)
+        if skipped:
+            files += (
+                "\n1 piece could not be read and was left out."
+                if skipped == 1
+                else f"\n{skipped} pieces could not be read and were left out."
+            )
+        if error == export.CANCELLED:
+            QMessageBox.information(self, "Export video", f"Cancelled.{files}")
+        elif error:
+            QMessageBox.warning(
+                self, "Export video", f"The export stopped: {error}{files}"
+            )
+        elif not written:
+            QMessageBox.warning(
+                self, "Export video", f"No video could be written.{files}"
+            )
+        else:
+            QMessageBox.information(self, "Export video", f"Written:{files}")
 
     def _add(self, settings: dict[str, Any]) -> None:
         camera_id = str(settings["id"])
@@ -1558,13 +1664,7 @@ class MainWindow(QMainWindow):
             state = describe(info)
         else:
             state = "starting" if watchdog.wanted else "not recording"
-        said = last_word(
-            (info or {}).get("phone_said"), QDateTime.currentMSecsSinceEpoch()
-        )
-        # Why the phone gives nothing (008, FR-005): its recorder's word while it runs;
-        # a recorder stopped or gone is the reason itself, a lens left out said already.
-        if said and alive(info) and not recording(info) and not left:
-            state += f"; {said}"
+        state += self._phone_words(camera, info, left)
         if camera.index.unreadable:
             state += f"; segments that cannot be read: {len(camera.index.unreadable)}"
         clash = cameras.port_clash(camera.settings, self.session["cameras"])
@@ -1584,6 +1684,25 @@ class MainWindow(QMainWindow):
             state += self._numbers_state(camera)
         camera.item.setText(f"{self._name(camera.id)}: {state}")
         return info
+
+    def _phone_words(
+        self, camera: Camera, info: dict[str, Any] | None, left: bool
+    ) -> str:
+        """What the camera's line adds of its phone: why it gives nothing (008,
+        FR-005) -- its recorder's word while it runs; a recorder stopped or gone is
+        the reason itself, a lens left out said already --, and the video it still
+        holds for the camera, with about when it is in (009)."""
+        words = ""
+        said = last_word(
+            (info or {}).get("phone_said"), QDateTime.currentMSecsSinceEpoch()
+        )
+        if said and alive(info) and not recording(info) and not left:
+            words += f"; {said}"
+        now = QDateTime.currentMSecsSinceEpoch()
+        held = camera.catch_up.line((info or {}).get("phone"), now)
+        if held:
+            words += f"; {held}"
+        return words
 
     def _numbers_state(self, camera: Camera) -> str:
         """What the camera line says while numbers go unread for want of the reader
@@ -1952,6 +2071,9 @@ class MainWindow(QMainWindow):
             if job is not None:
                 job.cancel()
         self._job = self._numbers_job = None
+        if self._export_job is not None:  # its file under way removed (or a .part left)
+            self._export_job.stop(EXPORT_STOP_S)
+            self._export_job = None
         for camera in self.cameras.values():
             camera.worker.stop()
             self._stop_analyzer(camera)
@@ -1980,6 +2102,13 @@ class _Fetch(QObject):
         job = models.Download(model, self.progress.emit, self.done.emit)
         job.start()
         return job
+
+
+def _progressed(progress: QProgressDialog, value: int) -> None:
+    """An export's progress shown, unless Cancel was pressed: a cancelled dialog
+    set again shows itself again until the export ends."""
+    if not progress.wasCanceled():
+        progress.setValue(value)
 
 
 def _same_file(chosen: object, path: str) -> bool:

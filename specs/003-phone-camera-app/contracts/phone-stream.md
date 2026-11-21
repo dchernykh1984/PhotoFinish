@@ -19,6 +19,10 @@ An address alone is the main lens, so a code of either kind pairs. The app strea
 has to its address and makes the clock exchange with each address's port; a line it cannot read,
 or a lens named twice after the first, is left out and said.
 
+A last line `codec h265` asks for H.265 (`specs/010-hevc`), the main lens alone keeping its
+address alone on the first line; without it, H.264. A phone whose encoder does not take H.265 at
+the size and rate chosen streams H.264 and says so.
+
 ## The clock exchange (UDP, the RTMP port number)
 
 All integers are big-endian. Times are microseconds.
@@ -81,6 +85,9 @@ within a minute is counted, and told with its next time.
 
 ## The frame moment (H.264 SEI)
 
+In H.265 the same messages go in prefix SEI units (type 39, a header of `4e 01`), before the
+frame's picture (`specs/010-hevc`); what follows describes H.264's, the payload being the same.
+
 Each frame of a connection made once the app has an offset begins with an SEI NAL unit (type 6)
 holding one
 `user_data_unregistered` message (payload type 5):
@@ -120,6 +127,9 @@ Each keyframe -- one a second -- carries, after the frame's moment, a second SEI
 | `wifi` | the Wi-Fi signal, dBm |
 | `dropped` | the frames the phone could not keep for sending -- its store full, its storage failing (`specs/007-store-and-forward`) -- in the last minute |
 | `left` | the lenses asked for and not streamed -- the phone lacks them, cannot run them beside the others or at a size they give -- by their codes, `,` between; left out when none is |
+| `free` | the phone's free storage where it keeps frames, MB (`specs/009-nothing-lost`) |
+| `unsent_ms` | the video the phone holds for this camera and has not sent, its span, ms: what it kept and what it is sending now |
+| `unsent_mb` | the same video's size, MB |
 
 A reading the phone cannot tell is left out; a key the recorder does not know is kept and not
 shown. The message's size is written as SEI sizes are (a 255 for each full 255).
@@ -132,8 +142,15 @@ the stream name, then `@setDataFrame`/`onMetaData` (width, height, frame rate, v
 audio), the AVC sequence header and the frames. Chunk size 65536. Timestamps are milliseconds from
 the connection's first frame; from 0xFFFFFF on they are sent as extended timestamps.
 
+H.265 goes over Enhanced RTMP (`specs/010-hevc`): `videocodecid` is the FourCC `hvc1` as a number
+(0x68766331); a video tag's first byte is 0x80 | frame type << 4 | packet type, then `hvc1` --
+packet type 0 (SequenceStart) with the HEVCDecoderConfigurationRecord, 3 (CodedFramesX, no
+composition time: no B-frames) with the frame's units, each after its length in four bytes.
+
 `onMetaData` also holds `held_ms`: how long the frame the connection begins with was kept on the
-phone (`specs/007-store-and-forward`), told once it is known; the recorder believes that frame's
+phone (`specs/007-store-and-forward`), told once it is known -- for frames kept before the app or
+the phone started again, sent at its next start (`specs/009-nothing-lost`), by the phone's wall
+clock, their own clock having started again; the recorder believes that frame's
 moment as much older, and a connection it does not believe it places from that long before the
 first frame came, a frame sent again where that one placed it. Once
 publishing, the phone sends a Window Acknowledgement Size of 131072: FFmpeg acknowledges every

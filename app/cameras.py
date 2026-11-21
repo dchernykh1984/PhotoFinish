@@ -118,18 +118,29 @@ def lens_cameras(
     made = []
     for n, (lens, camera_id) in enumerate(zip(lenses, ids, strict=False)):
         settings = (
-            first if n == 0 else {"port": next(free), "path": f"live/{camera_id}"}
+            first
+            if n == 0
+            else {"port": next(free), "path": f"live/{camera_id}"}
+            | (
+                {"codec": first["codec"]} if "codec" in first else {}
+            )  # the phone's (010)
         )
         made.append((lens, camera_id, settings))
     return made
 
 
-def pairing_text(streams: list[tuple[str, str]]) -> str:
+CODECS = {"h264": "H.264", "h265": "H.265 (experimental)"}  # PhotoFinish Camera's (010)
+
+
+def pairing_text(streams: list[tuple[str, str]], codec: str = "h264") -> str:
     """What the QR code holds for ``(lens, address)`` streams: the address alone for
-    the main lens alone, which any streaming app reads; else a line per lens."""
+    the main lens alone, which any streaming app reads; else a line per lens. H.265
+    adds a line of its own, which PhotoFinish Camera reads (specs/010-hevc)."""
     if [lens for lens, _ in streams] == ["main"]:
-        return streams[0][1]
-    return "\n".join(f"{lens} {url}" for lens, url in streams)
+        text = streams[0][1]
+    else:
+        text = "\n".join(f"{lens} {url}" for lens, url in streams)
+    return text + "\ncodec h265" if codec == "h265" else text
 
 
 # The networks a phone and this computer share: what routers and hotspots hand out,

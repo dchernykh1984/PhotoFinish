@@ -7,12 +7,14 @@ import android.net.wifi.WifiManager
 import android.os.BatteryManager
 import android.os.Build
 import android.os.PowerManager
+import android.os.StatFs
 import androidx.core.content.ContextCompat
 
 /**
  * The phone's status read from Android (specs/005-phone-status): the battery from its sticky
  * broadcast, the thermal status (Android 10) and the power saver from the power manager, the Wi-Fi
- * signal from the Wi-Fi manager. Asked on the uplinks' threads,
+ * signal from the Wi-Fi manager, the free storage where the app keeps its frames (specs/009). Asked on the uplinks'
+ * threads,
  * read once a second for all of them; a reading Android will not give is left out.
  */
 class PhoneStatusReader(
@@ -50,8 +52,17 @@ class PhoneStatusReader(
             thermal = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) power?.currentThermalStatus else null,
             saver = power?.isPowerSaveMode,
             wifiDbm = wifiDbm(),
+            freeMb = freeMb(),
         )
     }
+
+    /** The storage free where the app keeps its frames, MB; null when Android will not say. */
+    private fun freeMb(): Long? =
+        try {
+            StatFs(context.filesDir.path).availableBytes / PhoneStatus.BYTES_PER_MB
+        } catch (_: IllegalArgumentException) {
+            null
+        }
 
     /**
      * The Wi-Fi signal, dBm, from the Wi-Fi the phone joined -- not the active network, which Android

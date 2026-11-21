@@ -128,6 +128,11 @@ class StatusLog(
                 // Its reason names the phone's port of each try: the loss is the news, not the port.
                 is UplinkStatus.Reconnecting ->
                     Triple(PhoneLog.WARNING, "connection lost: ${status.reason}; connecting again", "connection lost")
+                is UplinkStatus.Waiting -> {
+                    val words =
+                        if (status.first) "waiting for the first lens to catch up" else "waiting: kept frames first"
+                    Triple(PhoneLog.INFO, words, words)
+                }
             }
     }
 }

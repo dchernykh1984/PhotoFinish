@@ -28,6 +28,10 @@ class KeptStreamsTest {
         override fun stop() {
             said += "stopped"
         }
+
+        override fun discard() {
+            said += "discarded"
+        }
     }
 
     private val kept = KeptStreams<Fake>()
@@ -132,18 +136,17 @@ class KeptStreamsTest {
     }
 
     @Test
-    fun `the lenses with a stream are told, the idle among them, not those stopped`() {
+    fun `an idle stream still sending what it kept is not swept, one with nothing unsent is`() {
         feed(Lens.MAIN)
         feed(Lens.TELEPHOTO).unsent = true
-        kept.idle(Lens.TELEPHOTO, 0) // left out, still sending what it kept: its room still taken
+        kept.idle(Lens.TELEPHOTO, 0) // left out, still sending what it kept
         kept.idle(Lens.MAIN, 0)
-        assertEquals(setOf(Lens.MAIN, Lens.TELEPHOTO), kept.lenses)
-        kept.sweep(KeptStreams.IDLE_MS)
-        assertEquals(setOf(Lens.TELEPHOTO), kept.lenses)
+        assertEquals(listOf(Lens.MAIN), kept.sweep(KeptStreams.IDLE_MS))
+        assertEquals(emptyList<Lens>(), kept.sweep(KeptStreams.IDLE_MS)) // the telephoto still sending
     }
 
     @Test
-    fun `another choice stops every stream once, what they kept dropped`() {
+    fun `another choice stops every stream once, what they kept handed over`() {
         val main = feed(Lens.MAIN)
         val tele = feed(Lens.TELEPHOTO)
         tele.unsent = true
@@ -153,6 +156,17 @@ class KeptStreamsTest {
         assertEquals(listOf("idle", "stopped"), tele.said)
         assertNotSame(tele, feed(Lens.TELEPHOTO))
         assertEquals(emptyList<Lens>(), kept.sweep(60_000)) // nothing left to stop again
+    }
+
+    @Test
+    fun `discard drops what every stream kept, once`() {
+        val main = feed(Lens.MAIN)
+        main.unsent = true
+        kept.discardAll()
+        assertEquals(listOf("discarded"), main.said)
+        assertEquals(emptyList<Lens>(), kept.sweep(60_000)) // none left
+        kept.discardAll()
+        assertEquals(listOf("discarded"), main.said)
     }
 }
 

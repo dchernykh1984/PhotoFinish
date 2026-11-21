@@ -3,6 +3,7 @@ package com.dchernykh.photofinish.camera.ui
 import android.Manifest
 import android.app.Activity
 import android.content.pm.PackageManager
+import android.os.Build
 import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.SurfaceView
@@ -25,6 +26,7 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
@@ -32,6 +34,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -52,11 +55,17 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.dchernykh.photofinish.camera.R
+import com.dchernykh.photofinish.camera.SendingService
 import com.dchernykh.photofinish.camera.capture.CameraStreamer
 import com.dchernykh.photofinish.camera.capture.Resolution
+import com.dchernykh.photofinish.camera.capture.Senders
 import com.dchernykh.photofinish.camera.capture.StreamFormat
+import com.dchernykh.photofinish.camera.stream.FrameStore
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 
 /**
  * The preview's surface, once it has the size asked of it: the [made]-th the view made, the system handing the
@@ -90,9 +99,10 @@ fun CameraScreen(
         // stops the cameras, its surface resizing. Back, the start feeds the lenses' streams kept again.
         if (preview == null) return@LaunchedEffect
         if (!started) return@LaunchedEffect streamer.away()
-        streamer.stop(format, targets) // another choice, the referee's stop: what the lenses kept dropped
-        if (shown != null && format != null) streamer.start(shown.surface, format, targets)
+        streamer.stop(format, targets) // another choice, the referee's stop: what the lenses kept handed over
+        if (shown != null && format != null) streamer.start(shown.surface, format, targets, state.pairing.codec)
     }
+    WatchUnsent(state)
     LaunchedEffect(granted) {
         if (state.autostart && granted && state.pairing.targets.isNotEmpty()) {
             state.autostart = false
@@ -110,7 +120,7 @@ fun CameraScreen(
                         if (it == null) streamer.away()
                     }
                 }
-                ControlPanel(state, granted, format)
+                ControlPanel(state, granted, format) { streamer.discard() }
             }
             if (state.dimmed) {
                 Box(modifier = Modifier.fillMaxSize().background(Color.Black).clickable { state.dimmed = false })
@@ -127,8 +137,22 @@ private fun rememberCameraPermission(): Boolean {
             ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED,
         )
     }
-    val askCamera = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted = it }
-    LaunchedEffect(Unit) { if (!granted) askCamera.launch(Manifest.permission.CAMERA) }
+    // The notification of what is left to send (specs/009, FR-006), asked once the camera's answer is in: two asked
+    // at once, Android answers the second "no" without a word.
+    val askNotify = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
+    val notify = {
+        val needed = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+        val asked = Manifest.permission.POST_NOTIFICATIONS
+        if (needed && ContextCompat.checkSelfPermission(context, asked) != PackageManager.PERMISSION_GRANTED) {
+            askNotify.launch(asked)
+        }
+    }
+    val askCamera =
+        rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+            granted = it
+            notify()
+        }
+    LaunchedEffect(Unit) { if (!granted) askCamera.launch(Manifest.permission.CAMERA) else notify() }
     return granted
 }
 
@@ -211,6 +235,7 @@ private fun ControlPanel(
     state: ScreenState,
     granted: Boolean,
     format: StreamFormat?,
+    onDiscard: () -> Unit,
 ) {
     Column(
         modifier =
@@ -252,8 +277,57 @@ private fun ControlPanel(
         OutlinedButton(onClick = { state.dimmed = true }, enabled = state.streaming) {
             Text(stringResource(R.string.dim))
         }
+        Unsent(state.unsent, !state.streaming, onDiscard)
         Text(lensesText(state.lenses), color = Color.Gray)
     }
+}
+
+/**
+ * What the phone holds, each second; frames to send keep the app's process, in the background too (specs/009) --
+ * the service started while the screen is shown, as Android lets an app in the foreground alone start one.
+ */
+@Composable
+private fun WatchUnsent(state: ScreenState) {
+    val context = LocalContext.current
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(Unit) {
+        while (true) {
+            val (held, sending) = withContext(Dispatchers.IO) { Senders.backlog.pending() to Senders.active }
+            state.unsent = held
+            // Started again whenever it is not running -- it stopped itself, Android's time ran out --: never left off.
+            val shown = lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+            if (SendingService.wanted(sending, shown)) SendingService.start(context)
+            delay(UNSENT_EVERY_MS)
+        }
+    }
+}
+
+/** The video the phone holds, not sent yet; stopped, Discard, confirmed, drops it (specs/009, FR-004, FR-010). */
+@Composable
+private fun Unsent(
+    held: FrameStore.Pending,
+    stopped: Boolean,
+    onDiscard: () -> Unit,
+) {
+    if (!said(held, stopped)) return
+    val mb = megabytes(held.bytes).toInt()
+    Text(stringResource(R.string.unsent, span(held.ms), mb), color = Color(UNSENT_COLOR))
+    if (!stopped) return
+    var asking by remember { mutableStateOf(false) }
+    OutlinedButton(onClick = { asking = true }) { Text(stringResource(R.string.discard)) }
+    if (!asking) return
+    AlertDialog(
+        onDismissRequest = { asking = false },
+        title = { Text(stringResource(R.string.discard_title)) },
+        text = { Text(stringResource(R.string.discard_text, span(held.ms), mb)) },
+        confirmButton = {
+            TextButton(onClick = {
+                asking = false
+                onDiscard()
+            }) { Text(stringResource(R.string.discard)) }
+        },
+        dismissButton = { TextButton(onClick = { asking = false }) { Text(stringResource(android.R.string.cancel)) } },
+    )
 }
 
 /** Reads PhotoFinish's QR code: the address to stream to. */
@@ -305,3 +379,6 @@ private fun <T> Choices(
 private const val PANEL_WIDTH = 320
 private const val ADDRESS_LINES = 8 // four lenses, a line each, wrapped in two
 private const val DIM_BRIGHTNESS = 0.01f
+
+private const val UNSENT_EVERY_MS = 1_000L
+private const val UNSENT_COLOR = 0xFFFFB300

@@ -19,6 +19,7 @@ import com.dchernykh.photofinish.camera.diagnostics.PhoneLog
 import com.dchernykh.photofinish.camera.pairing.Lens
 import com.dchernykh.photofinish.camera.pairing.LensTarget
 import com.dchernykh.photofinish.camera.status.PhoneStatusReader
+import com.dchernykh.photofinish.camera.stream.Codec
 import com.dchernykh.photofinish.camera.stream.FrameStore
 import com.dchernykh.photofinish.camera.stream.UplinkStatus
 import java.io.File
@@ -87,9 +88,8 @@ class CameraStreamer(
     /** Counts the opens: a callback of an earlier one says nothing. Read from the uplinks' threads too. */
     @Volatile private var generation = 0
 
-    /** Where the lenses keep their frames until sent (specs/007), and each one's share of the room. */
-    private val kept = File(context.filesDir, KEPT)
-    private var share = FrameStore.SHARE_BYTES
+    /** Where the lenses keep their frames until sent (specs/007), the phone's free space less 10 GB (specs/009). */
+    private val kept = File(context.filesDir, Senders.FOLDER)
 
     /** The lenses' streams, kept across the cameras' opens while the referee's choice lasts: the cameras' thread's. */
     private val keptStreams = KeptStreams<LensStream>()
@@ -98,8 +98,7 @@ class CameraStreamer(
     private var aloneTry: Runnable? = null
 
     init {
-        handler.post { kept.deleteRecursively() } // what a killed app kept: never sent (specs/007, FR-004)
-        handler.post { sweep() }
+        handler.post { sweep() } // what a killed app kept is the backlog's to send (specs/009, FR-002)
     }
 
     /**
@@ -110,8 +109,15 @@ class CameraStreamer(
         preview: Surface,
         format: StreamFormat,
         targets: List<LensTarget>,
+        asked: Codec = format.codec,
     ) {
         handler.post {
+            if (targets.isNotEmpty() && asked != format.codec) {
+                log.warning(
+                    null,
+                    "${asked.paired} asked for, not taken at ${format.resolution}, ${format.fps} fps: h264",
+                )
+            }
             fallback.start(format, targets) // a choice of the referee's tries every lens again
             open(preview, format, targets)
         }
@@ -119,8 +125,9 @@ class CameraStreamer(
 
     /**
      * The cameras closed, for [targets] at [format] to come: the lenses' streams kept when those are what they were
-     * made for -- the screen back, its surface made again --, the next start feeding them again; else stopped too,
-     * what they kept dropped -- the referee's stop, another choice (FR-004) --, whatever the preview does meanwhile.
+     * made for -- the screen back, its surface made again --, the next start feeding them again; else stopped too --
+     * the referee's stop, another choice --, what they kept handed to the backlog to send (specs/009, FR-003),
+     * whatever the preview does meanwhile.
      */
     fun stop(
         format: StreamFormat?,
@@ -153,8 +160,16 @@ class CameraStreamer(
     fun release() {
         handler.post {
             closeCameras()
-            keptStreams.stopAll()
+            keptStreams.stopAll() // what they kept handed to the backlog, which outlives the screen (specs/009)
             thread.quitSafely()
+        }
+    }
+
+    /** What the lenses kept and the backlog holds, dropped: the referee's Discard, confirmed (specs/009, FR-004). */
+    fun discard() {
+        handler.post {
+            keptStreams.discardAll()
+            Senders.backlog.discard()
         }
     }
 
@@ -180,17 +195,13 @@ class CameraStreamer(
         closeCameras()
         val mine = ++generation
         order = targets.map { it.lens }
+        // The code's first lens sends first (specs/009, FR-007): the preview alone, after a Stop, changes nothing --
+        // the kept streams go on in the code's order.
+        if (order.isNotEmpty()) Senders.board.order = order
         val failedWith = fallback.leftOut
         val plan =
             plan(lenses, targets.filter { it.lens !in failedWith })
                 ?: return onStatus(null, StreamerStatus.Failed("no back camera"))
-        // The room shared by the lenses planned and those whose streams are kept -- one idle still sending what it kept
-        // holds its share --: one left out of the plan leaves the others its share; a stream kept keeps the share it
-        // was made with, the streams made in this open take this one, 2 GB in all at most (FR-003).
-        // shortcut: one dropped when its camera is made, whose encoder will not start, or left out once its stream was
-        // made, keeps its share, the others not given it; share it out if a network break is seen to cost them frames.
-        val withStreams = plan.cameras.flatMap { camera -> camera.lenses.map { it.target.lens } } + keptStreams.lenses
-        share = FrameStore.SHARE_BYTES / withStreams.toSet().size.coerceAtLeast(1)
         failedWith.forEach { onStatus(it, StreamerStatus.Left(LeftOut.FAILED_WITH_THE_OTHERS)) }
         plan.left.forEach { (lens, why) -> onStatus(lens, StreamerStatus.Left(why)) }
         leftOut = (failedWith + plan.left.keys).map { it.code }
@@ -315,8 +326,16 @@ class CameraStreamer(
                 // Fed again, its frames still on the clock told: a first frame drained late is not "no clock".
                 if (!stream.clocked) clockOfFrames(stream, ptsUs)
             },
-            status = { dropped -> phone.read().copy(dropped = dropped, left = leftOut).line() },
-            store = FrameStore(File(kept, lens.code), share),
+            status = { dropped ->
+                val held = Senders.backlog.pendingFor(planned.target.address)
+                phone
+                    .read()
+                    .copy(dropped = dropped, left = leftOut)
+                    .holding(held.ms, held.bytes)
+                    .line()
+            },
+            // A folder a stream: one kept from before and the new one of its lens never share files (specs/009).
+            store = FrameStore(File(kept, "${lens.code}-${System.currentTimeMillis()}-${Senders.session}")),
             log = log,
         )
     }
@@ -411,7 +430,14 @@ class CameraStreamer(
                             }.orEmpty()
                 }
             val what = named.ifEmpty { "its preview" }
-            log.info(null, "camera ${plan.cameraId}: $what at ${common.resolution}, ${common.fps} fps")
+            val codec = if (common.codec == Codec.HEVC) ", H.265" else "" // specs/010-hevc
+            log.info(null, "camera ${plan.cameraId}: $what at ${common.resolution}, ${common.fps} fps$codec")
+            if (chosen.codec == Codec.HEVC && common.codec != Codec.HEVC) { // a camera's lenses took it not: said
+                log.warning(
+                    null,
+                    "camera ${plan.cameraId}: h265 not taken by all its lenses at ${common.resolution}: h264",
+                )
+            }
             plan.lenses.forEach { planned ->
                 val lens = planned.target.lens
                 try {
@@ -650,8 +676,6 @@ class CameraStreamer(
         private const val AWAY_WAIT_MS = 1_000L
 
         private const val WATCH_MS = 1_000L
-
-        private const val KEPT = "kept"
 
         // The screen's words, the laptop's last word of the phone too: the error told whole, for whoever looks
         // into it, is logged beside them where it is caught (specs/008-phone-log, FR-001).

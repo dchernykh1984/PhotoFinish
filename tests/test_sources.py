@@ -313,6 +313,66 @@ def test_an_rtmp_push_is_received_and_kept_as_it_came(tmp_path: Path) -> None:
             assert [f.pts for f in container.decode(video=0)] == sorted(pts)
 
 
+def test_a_push_that_hangs_up_ends_its_stream_without_an_error() -> None:
+    port = free_port()
+    camera = {"connection": "rtmp", "settings": {"port": port, "path": "live/test"}}
+    source = open_source(camera, lambda: time.time_ns() // 1_000_000)
+    told: list[object] = []
+
+    def receive() -> None:
+        try:
+            got = sum(1 for item in source.frames() if item is not None)
+            told.append(got)
+        except Exception as error:
+            told.append(error)
+
+    thread = threading.Thread(target=receive)
+    thread.start()
+    time.sleep(1.5)
+    push(port, 20)
+    thread.join(timeout=30)
+    assert told == [20]  # listened for again at once, no pause before it
+
+
+class Failing:
+    """A listened stream taken, then failing before its first packet: one FFmpeg
+    cannot read."""
+
+    streams = SimpleNamespace(
+        video=[
+            SimpleNamespace(
+                average_rate=None,
+                guessed_rate=None,
+                time_base=Fraction(1, 1000),
+                codec_context=SimpleNamespace(name="hevc"),
+            )
+        ]
+    )
+
+    def __init__(self) -> None:
+        self.metadata: dict[str, str] = {}
+
+    def __enter__(self) -> Failing:
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        return None
+
+    def demux(self, _stream: object) -> Iterator[av.Packet]:
+        raise OSError(5, "Input/output error")
+
+
+def test_a_listened_stream_that_gives_no_frame_says_why_as_it_is_listened_for_again(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(av, "open", lambda *_, **__: Failing())
+    camera = {"connection": "rtmp", "settings": {"port": free_port(), "path": "x/y"}}
+    source = open_source(camera, lambda: START)
+    assert list(source.frames()) == []  # ended: listened for again at once
+    assert "the last connection gave no frame" in source.waiting
+    assert "Input/output error" in source.waiting
+
+
 def receive_phone(moment_us: Any) -> list[int]:
     """The moments the frames of a phone stamping ``moment_us(frame)`` get."""
     port = free_port()
@@ -799,9 +859,9 @@ def test_a_stream_placed_by_arrival_is_looked_into_once(
     looked: list[int] = []
     real = frame_time.moment_ms
 
-    def counted(packet: Any) -> int | None:
+    def counted(packet: Any, hevc: bool = False) -> int | None:
         looked.append(1)
-        return real(packet)
+        return real(packet, hevc)
 
     monkeypatch.setattr(frame_time, "moment_ms", counted)
     source = sources.Stream(
@@ -814,6 +874,22 @@ def test_a_stream_placed_by_arrival_is_looked_into_once(
     for k in range(3):  # Larix, say: no moments, all race long
         place(avcc(b"\x41\x9a"), k * 33)  # type: ignore[arg-type]
     assert len(looked) == 1
+
+
+def test_an_h265_push_is_placed_by_its_moments_and_heard_for_its_status() -> None:
+    # H.265 carries the moment and the status in prefix SEI units (specs/010-hevc).
+    source = sources.Stream(
+        "rtmp://0.0.0.0:1935/live/x", {}, lambda: START, listen=True
+    )
+    stream = SimpleNamespace(
+        time_base=Fraction(1, 1000), codec_context=SimpleNamespace(name="hevc")
+    )
+    place = source._placing(stream, phone=True)  # type: ignore[arg-type]
+    moment = START - 40
+    prefix = b"\x4e\x01"
+    packet = avcc(prefix + sei(moment * 1000)[1:], b"\x26\x01\xaf")
+    assert place(packet, 0) == moment  # type: ignore[arg-type]
+    assert not source.clock_note
 
 
 def test_a_phone_s_offset_moved_back_keeps_its_frames_in_order() -> None:

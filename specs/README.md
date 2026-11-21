@@ -32,3 +32,13 @@ request.
   frames, shown on the laptop beside the recording banner.
 - [006-numbers-and-one-line](006-numbers-and-one-line/spec.md): riders' numbers read, every
   camera's crossings as one, one finish line for all cameras (issue #21).
+- [007-store-and-forward](007-store-and-forward/spec.md): a network break costs no frame: the phone
+  keeps what it cannot send and sends it once it can.
+- [008-phone-log](008-phone-log/spec.md): the phone's log, kept on the laptop beside each lens's
+  recording.
+- [009-nothing-lost](009-nothing-lost/spec.md): what the phone kept survives a crash, a restart and
+  Stop, and is sent however long it takes; the first lens first; the video still on the phone and
+  its free storage shown on the laptop.
+- [010-hevc](010-hevc/spec.md): H.265 as an experimental choice for PhotoFinish Camera, at 0.7 of
+  H.264's bitrate.
+- [011-video-export](011-video-export/spec.md): a camera's video exported as one MP4 file.

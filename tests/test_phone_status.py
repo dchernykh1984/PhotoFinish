@@ -14,6 +14,7 @@ from app.phone_status import (
     OK,
     PLUGGED,
     SAVER,
+    STORAGE,
     WARN,
     WIFI,
 )
@@ -87,3 +88,11 @@ def test_the_lenses_a_phone_leaves_out_are_read_by_their_codes() -> None:
     }
     assert phone_status.lenses_left({"left": ""}) == set()
     assert phone_status.lenses_left({}) == set()
+
+
+def test_the_free_storage_worries_under_30_gb_and_alarms_under_10() -> None:
+    assert phone_status.readings({"free": "254000"}) == [(f"{STORAGE} 254 GB free", OK)]
+    assert phone_status.readings({"free": "29900"}) == [(f"{STORAGE} 29 GB free", WARN)]
+    assert phone_status.readings({"free": "9999"}) == [(f"{STORAGE} 9 GB free", BAD)]
+    assert phone_status.readings({"free": "30000"}) == [(f"{STORAGE} 30 GB free", OK)]
+    assert phone_status.readings({"free": "a lot"}) == []

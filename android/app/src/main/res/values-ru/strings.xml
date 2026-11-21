@@ -16,6 +16,8 @@
     <string name="ready">Готово: %1$s, %2$d к/с</string>
     <string name="connecting">Подключение к %1$s</string>
     <string name="reconnecting">Связь потеряна (%1$s), подключаюсь снова</string>
+    <string name="waiting_first">Жду, пока первая линза догонит; кадры копятся</string>
+    <string name="waiting_kept">Жду: сначала уходят кадры, сохранённые раньше</string>
     <string name="streaming_clock">Трансляция: %1$.1f к/с, %2$.1f Мбит/с, часы сверены с точностью %3$.1f мс</string>
     <string name="streaming_no_clock">Трансляция: %1$.1f к/с, %2$.1f Мбит/с; часы не сверены, кадры размещаются по времени прихода</string>
     <string name="lens_main">Основной</string>
@@ -30,4 +32,13 @@
     <string name="left_failed">камера отказала, снимая им вместе с остальными</string>
     <string name="unread">Не прочитано: %1$s</string>
     <string name="starting">запуск</string>
+    <string name="sending_channel">Отправка видео</string>
+    <string name="sending_left">Отправка на ноутбук: осталось %1$s видео (%2$d МБ)</string>
+    <string name="sending_live">Трансляция на ноутбук</string>
+    <string name="unsent">Ещё не отправлено: %1$s видео (%2$d МБ)</string>
+    <string name="discard">Удалить неотправленное</string>
+    <string name="discard_title">Удалить неотправленное видео?</string>
+    <string name="discard_text">%1$s видео (%2$d МБ), которых ещё нет на ноутбуке, будут удалены безвозвратно.</string>
+    <string name="codec_hevc">, H.265</string>
+    <string name="codec_no_hevc">; H.265 здесь не берётся при этом размере и частоте: H.264</string>
 </resources>

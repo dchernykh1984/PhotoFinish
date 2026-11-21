@@ -1,4 +1,5 @@
-"""What PhotoFinish Camera writes into a frame: H.264 SEI messages.
+"""What PhotoFinish Camera writes into a frame: H.264 SEI messages -- or H.265's,
+the same messages in prefix SEI units (specs/010-hevc).
 
 A user_data_unregistered message (payload type 5) with PhotoFinish's UUID, then
 "PFT1" and the moment the frame was taken, in microseconds on the recorder's clock,
@@ -16,38 +17,57 @@ UUID = bytes.fromhex("e1a46ceab5ff4c7db4454c7dbd7ea281")
 MARK = UUID + b"PFT1"
 STATUS = UUID + b"PFS1"
 NAL_SEI = 6
+HEVC_PREFIX_SEI = 39
 USER_DATA_UNREGISTERED = 5
 _PICTURE = range(1, 6)  # coded slices: the SEI, when there is one, came before
+_HEVC_PICTURE = range(32)  # H.265's VCL units
 
 
-def moment_ms(packet: bytes | memoryview) -> int | None:
-    """The moment written into an H.264 packet as RTMP carries it -- each unit after
-    its length in four bytes -- in milliseconds; None when it has none. A memoryview
-    is read without a copy."""
-    for start, end in _units(packet):
-        kind = packet[start] & 0x1F
-        if kind in _PICTURE:
-            return None
-        if kind == NAL_SEI:
-            moment = _message(_unescape(bytes(packet[start + 1 : end])), MARK)
-            if moment is not None and len(moment) >= 8:
-                return (int.from_bytes(moment[:8], signed=True) + 500) // 1000
-    return None
+def moment_ms(packet: bytes | memoryview, hevc: bool = False) -> int | None:
+    """The moment written into an H.264 packet -- an H.265 one with ``hevc`` -- as
+    RTMP carries it, each unit after its length in four bytes, in milliseconds;
+    None when it has none. A memoryview is read without a copy."""
+    moment = _found(packet, MARK, hevc, least=8)
+    if moment is None:
+        return None
+    return (int.from_bytes(moment[:8], signed=True) + 500) // 1000
 
 
-def phone_status(packet: bytes | memoryview) -> dict[str, str] | None:
+def phone_status(
+    packet: bytes | memoryview, hevc: bool = False
+) -> dict[str, str] | None:
     """The phone's status written into a packet, its readings by key; None when it
     carries none. A reading's value is kept as written: what it means is the
     window's to say."""
+    line = _found(packet, STATUS, hevc)
+    if line is None:
+        return None
+    pairs = line.decode("ascii", "replace").split(";")
+    return dict(pair.split("=", 1) for pair in pairs if "=" in pair)
+
+
+def _found(
+    packet: bytes | memoryview, mark: bytes, hevc: bool, least: int = 0
+) -> bytes | None:
+    """What follows ``mark`` in the first SEI message of that kind before the
+    packet's picture, of ``least`` bytes at least -- one cut shorter passed over:
+    H.264's units have a byte of header, H.265's two."""
     for start, end in _units(packet):
-        kind = packet[start] & 0x1F
-        if kind in _PICTURE:
+        if hevc:
+            kind, header, picture, sei = (
+                (packet[start] >> 1) & 0x3F,
+                2,
+                _HEVC_PICTURE,
+                HEVC_PREFIX_SEI,
+            )
+        else:
+            kind, header, picture, sei = packet[start] & 0x1F, 1, _PICTURE, NAL_SEI
+        if kind in picture:
             return None
-        if kind == NAL_SEI:
-            line = _message(_unescape(bytes(packet[start + 1 : end])), STATUS)
-            if line is not None:
-                pairs = line.decode("ascii", "replace").split(";")
-                return dict(pair.split("=", 1) for pair in pairs if "=" in pair)
+        if kind == sei:
+            found = _message(_unescape(bytes(packet[start + header : end])), mark)
+            if found is not None and len(found) >= least:
+                return found
     return None
 
 

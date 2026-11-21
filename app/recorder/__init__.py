@@ -277,6 +277,7 @@ class _Recording:
         self.clock_tried = -CLOCK_RETRY_S  # time.monotonic() of the last try
         self.port_taken = ""  # why the exchange is left out: its port, taken
         self.placed = Placed()  # a phone's frames placed elsewhere than their moments
+        self.ended = ""  # why a phone's last connection gave no frame, said as it waits
 
     def _answer_the_clock(self) -> None:
         """A phone's clock exchange answered on its port. A port another program
@@ -315,12 +316,14 @@ class _Recording:
                     source = open_source(self.camera, self.clock)  # settings checked
                     if isinstance(source, Stream):  # one a connection: this outlives
                         source.placed = self.placed
+                        source.ended = self.ended
                     self._answer_the_clock()
                     if self._record(source):
                         break
                     if isinstance(source, Stream) and source.listen:
                         # A phone that hung up is listened for again at once: nothing
                         # is hammered, and it may be back in a moment, with its clock.
+                        self.ended = source.ended
                         self._hung_up()
                         continue
                     detail = "the camera ended"
@@ -328,6 +331,7 @@ class _Recording:
                     raise
                 except Exception as error:  # any camera failure: try again
                     detail = str(error) or type(error).__name__
+                self.ended = ""  # said as the wait's detail now, not after it
                 if self._wait(detail):
                     break
             self._close()

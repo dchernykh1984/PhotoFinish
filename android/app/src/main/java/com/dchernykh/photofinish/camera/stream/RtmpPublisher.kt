@@ -33,6 +33,13 @@ interface VideoSink : Closeable {
 
     /** The bytes the server says it has read so far, by its acknowledgements: 0 until it says. */
     val acknowledgedBytes: Long get() = 0
+
+    /**
+     * Asks the server to say it has read all that was sent: a ping, which it answers once it has read up to it --
+     * [acknowledgedBytes] then counts it all, a tail under the acknowledgements' step too. Nothing from a sink that
+     * cannot ask.
+     */
+    fun flush() = Unit
 }
 
 /** A connection to the server: its streams, so a test can stand in for a socket. */
@@ -50,8 +57,11 @@ interface RtmpConnection : Closeable {
  * FCPublish, createStream and publish, then onMetaData, the sequence header and the
  * frames. Not thread-safe: one thread publishes; [close] may come from another.
  */
+@Suppress("TooManyFunctions") // the protocol's steps, each a few lines
 class RtmpPublisher(
     private val address: RtmpAddress,
+    /** H.265 goes over Enhanced RTMP's tags (specs/010-hevc). */
+    private val codec: Codec = Codec.AVC,
     private val connect: (RtmpAddress) -> RtmpConnection = ::socketConnection,
 ) : VideoSink {
     @Volatile private var connection: RtmpConnection? = null
@@ -67,6 +77,17 @@ class RtmpPublisher(
 
     @Volatile override var acknowledgedBytes = 0L
         private set
+
+    /** The bytes sent before each ping of ours not answered yet, by its number: its answer says all were read. */
+    private val pings = java.util.concurrent.ConcurrentSkipListMap<Int, Long>()
+    private var pinged = 0
+
+    override fun flush() {
+        val number = ++pinged
+        pings[number] = sentBytes
+        val ping = byteArrayOf(0, PING_REQUEST.toByte()) + int32(number.toLong())
+        send(CONTROL_STREAM, 0, RtmpType.USER_CONTROL, 0, ping)
+    }
 
     override fun publish(metadata: Map<String, Any?>) {
         val opened = connect(address)
@@ -123,14 +144,19 @@ class RtmpPublisher(
         Thread({ drain() }, "rtmp-reader").apply { isDaemon = true }.start()
     }
 
-    override fun sendSequenceHeader(record: ByteArray) =
-        send(VIDEO_STREAM, 0, RtmpType.VIDEO, streamId, Avc.sequenceHeaderTag(record))
+    override fun sendSequenceHeader(record: ByteArray) {
+        val tag = if (codec == Codec.HEVC) Hevc.sequenceHeaderTag(record) else Avc.sequenceHeaderTag(record)
+        send(VIDEO_STREAM, 0, RtmpType.VIDEO, streamId, tag)
+    }
 
     override fun sendFrame(
         timestampMs: Long,
         keyframe: Boolean,
         nalUnits: List<ByteArray>,
-    ) = send(VIDEO_STREAM, timestampMs, RtmpType.VIDEO, streamId, Avc.frameTag(keyframe, nalUnits))
+    ) {
+        val tag = if (codec == Codec.HEVC) Hevc.frameTag(keyframe, nalUnits) else Avc.frameTag(keyframe, nalUnits)
+        send(VIDEO_STREAM, timestampMs, RtmpType.VIDEO, streamId, tag)
+    }
 
     override fun close() {
         closed = true
@@ -204,12 +230,25 @@ class RtmpPublisher(
                     val pong = byteArrayOf(0, PING_RESPONSE.toByte()) + message.payload.copyOfRange(2, 6)
                     send(CONTROL_STREAM, 0, RtmpType.USER_CONTROL, 0, pong)
                 }
+                val pingResponse =
+                    message.typeId == RtmpType.USER_CONTROL &&
+                        message.payload.size >= 6 &&
+                        message.payload[1].toInt() == PING_RESPONSE
+                if (pingResponse) answered(ByteBuffer.wrap(message.payload, 2, 4).int)
             }
         } catch (_: IOException) {
-            // The connection ended: the publishing thread finds out on its next frame.
+            // The connection ended: closed, so that the publishing thread finds out as it next sends, idle too.
+            close()
         } catch (_: RuntimeException) {
             // Bytes that are not RTMP: no more pings answered, and the frames go on.
         }
+    }
+
+    /** Our ping [number] answered: the server has read all sent before it, and before those of ours before it. */
+    private fun answered(number: Int) {
+        val read = pings.headMap(number, true)
+        read.values.maxOrNull()?.let { bytes -> acknowledgedBytes = maxOf(acknowledgedBytes, bytes) }
+        read.clear()
     }
 
     companion object {

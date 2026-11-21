@@ -754,6 +754,111 @@ def test_a_removed_camera_stops_recording_and_keeps_its_video(
     assert free_ids(win.cameras, 1) == ["cam2"]  # cam1's recording is still on disk
 
 
+def test_the_list_says_how_much_video_the_phone_still_holds_and_when_it_is_in(
+    recording: Path, make_window: Callable[[], mw.MainWindow]
+) -> None:
+    win = make_window()
+    now = time.time_ns() // 1_000_000
+    beating(recording, phone={"unsent_ms": "600000", "heard_ms": str(now - 30_000)})
+    win.poll()
+    text = win.camera_list.item(0).text()
+    assert text.startswith("Side: recording, 70 frames; 10:00 of video on the phone")
+    beating(recording, phone={"unsent_ms": "540000", "heard_ms": str(now)})
+    win.poll()
+    assert win.camera_list.item(0).text().endswith("10%, in about 5 min")
+    beating(recording, phone={"unsent_ms": "0", "heard_ms": str(now + 1)})
+    win.poll()
+    assert win.camera_list.item(0).text() == "Side: recording, 70 frames"
+
+
+def test_export_video_writes_a_file_for_each_camera_ticked(
+    recording: Path,
+    make_window: Callable[[], mw.MainWindow],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    win = make_window()
+    out = tmp_path / "out"
+    out.mkdir()
+    asked: list[dict[str, str]] = []
+    told: list[str] = []
+
+    def choose(_parent: object, names: dict[str, str]) -> list[str]:
+        asked.append(names)
+        return list(names)
+
+    monkeypatch.setattr(mw.export_dialog, "choose_cameras", choose)
+    monkeypatch.setattr(mw.QFileDialog, "getExistingDirectory", lambda *_: str(out))
+    monkeypatch.setattr(mw.QMessageBox, "information", lambda *a: told.append(a[2]))
+    win.export_video()
+    (progress,) = win.findChildren(mw.QProgressDialog)
+    assert progress.windowModality() == Qt.WindowModality.NonModal  # the window on
+    wait_until(lambda: bool(told))
+    assert asked == [{"cam1": "Side"}]
+    assert told == [f"Written:\n{out / 'Side.mp4'}"]
+    assert (out / "Side.mp4").stat().st_size > 0
+    assert win._export_job is None
+    QApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    assert not win.findChildren(mw.QProgressDialog)  # gone with the export
+
+
+def test_an_export_that_wrote_nothing_says_so_and_one_ended_by_the_close_says_nothing(
+    recording: Path,
+    make_window: Callable[[], mw.MainWindow],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    win = make_window()
+    warned: list[str] = []
+    monkeypatch.setattr(mw.QMessageBox, "warning", lambda *a: warned.append(a[2]))
+    job = mw.export_dialog.ExportJob([])
+    progress = mw.QProgressDialog()
+    win._export_job = job
+    win._exported(job, progress, [], "", 2)
+    assert warned == [
+        "No video could be written.\n2 pieces could not be read and were left out."
+    ]
+    win._exported(job, progress, [tmp_path / "x.mp4"], "", 0)  # its job gone
+    assert len(warned) == 1
+    one = mw.export_dialog.ExportJob([])
+    win._export_job = one
+    win._exported(one, mw.QProgressDialog(), [], "", 1)
+    assert warned[-1] == (
+        "No video could be written.\n1 piece could not be read and was left out."
+    )
+
+
+def test_a_cancelled_export_s_progress_stays_hidden(win: mw.MainWindow) -> None:
+    progress = mw.QProgressDialog("Exporting", "Cancel", 0, 1000, win)
+    progress.setMinimumDuration(0)
+    mw._progressed(progress, 10)
+    progress.cancel()
+    mw._progressed(progress, 500)  # the piece under way done after the Cancel
+    assert not progress.isVisible()
+    assert progress.value() != 500
+
+
+def test_no_second_export_starts_while_one_is_ending(
+    win: mw.MainWindow, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    told: list[str] = []
+    monkeypatch.setattr(mw.QMessageBox, "information", lambda *a: told.append(a[2]))
+    win._export_job = mw.export_dialog.ExportJob([])
+    win.export_video()
+    assert told == [
+        "An export is under way: wait for it to end, or cancel it, then try again."
+    ]
+
+
+def test_export_video_with_nothing_recorded_says_so(
+    win: mw.MainWindow, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    told: list[str] = []
+    monkeypatch.setattr(mw.QMessageBox, "information", lambda *a: told.append(a[2]))
+    win.export_video()
+    assert told == ["No camera has video to export."]
+
+
 def test_the_list_says_how_each_recorder_is(
     recording: Path, make_window: Callable[[], mw.MainWindow]
 ) -> None:

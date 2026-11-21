@@ -28,6 +28,11 @@ sealed interface UplinkStatus {
     data class Reconnecting(
         val reason: String,
     ) : UplinkStatus
+
+    /** Not sending for now, frames kept meanwhile (specs/009): [first] waits for the first lens, else for its turn. */
+    data class Waiting(
+        val first: Boolean,
+    ) : UplinkStatus
 }
 
 /**
@@ -40,9 +45,13 @@ sealed interface UplinkStatus {
  *
  * [clock] gives the best clock exchange so far, null while there is none: its offset is the recorder's clock
  * minus the camera's. [requestKeyframe] asks the encoder for one: a connection waiting for its first frame
- * starts from it, and so do the frames after one the store could not keep.
+ * starts from it, and so do the frames after one the store could not keep. [alone]: the frames a stream kept,
+ * sent with no camera and no clock (specs/009) -- from the first keyframe with its moment; one without it after
+ * that goes without, the recorder placing it by its capture time after the frame before.
+ * It connects once [turn] says the address is free of the streams kept before it, and sends while [firstLens]
+ * says the first lens lets it; waiting on [firstLens] longer than [HOLD_MS], it lets its connection go.
  */
-@Suppress("TooManyFunctions") // the uplink's loop and its steps, each a few lines
+@Suppress("TooManyFunctions", "LongParameterList") // the uplink's loop and steps; a stream's parts and waits
 class Uplink(
     private val address: RtmpAddress,
     private val format: StreamFormat,
@@ -50,15 +59,26 @@ class Uplink(
     private val requestKeyframe: () -> Unit,
     private val report: (UplinkStatus) -> Unit,
     private val store: FrameStore,
+    private val alone: Boolean = false,
+    private val turn: () -> Boolean = { true },
+    private val firstLens: () -> Boolean = { true },
 ) {
     /** How a connection is made; a test's stands in for the server. */
-    internal var connect: (RtmpAddress) -> VideoSink = { RtmpPublisher(it) }
+    internal var connect: (RtmpAddress) -> VideoSink = { RtmpPublisher(it, format.codec) }
 
     /** How long a connection waits for the clock before frames go without moments. */
     internal var waitForClockMs = WAIT_FOR_CLOCK_MS
 
     /** How long a send may hang before the connection is given up. */
     internal var stallMs = STALL_MS
+
+    /** How long an idle connection may say nothing of frames it has not confirmed ([askRead]); a test's is short. */
+    internal var answerWaitMs = ANSWER_WAIT_MS
+
+    /** When the server was last asked to say what it read, what it had said then, and since when it says nothing. */
+    private var askedNs = 0L
+    private var heardBytes = 0L
+    private var quietSinceNs = 0L
 
     /** How long into a connection a clock that comes makes a new one: its start, not the race. */
     internal var stampWindowMs = STAMP_WINDOW_MS
@@ -102,6 +122,19 @@ class Uplink(
 
     @Volatile private var publisher: VideoSink? = null
 
+    /** A connection is made and not lost: the first lens's says whether the others wait for it (specs/009). */
+    @Volatile var connected = false
+        private set
+
+    /**
+     * The stream's header, once the encoder gave it: kept with the frames, to be sent after a restart; true once known
+     * kept, else told again as the encoder gives it again.
+     */
+    var onConfigured: (ByteArray) -> Boolean = { true }
+
+    /** The header kept with the frames ([onConfigured]). */
+    @Volatile private var headerKept = false
+
     @Volatile private var sendingSince = 0L
 
     /** The connection under way has sent a frame; the uplink's thread alone keeps it. */
@@ -133,8 +166,13 @@ class Uplink(
     fun configure(
         sps: ByteArray,
         pps: ByteArray,
-    ) {
-        record = Avc.configurationRecord(sps, pps)
+    ) = configure(Avc.configurationRecord(sps, pps))
+
+    /** The stream's header as the recorder takes it: the encoder's, or one kept with the frames ([alone]). */
+    fun configure(record: ByteArray) {
+        if (this.record?.contentEquals(record) == true && headerKept) return
+        this.record = record
+        headerKept = onConfigured(record)
     }
 
     /**
@@ -147,7 +185,12 @@ class Uplink(
         val moment = clock()?.let { inOrder(frame.ptsUs + slew.at(frame.ptsUs, it.offset), lastMomentUs) }
         moment?.let { lastMomentUs = it }
         val lost = store.keep(frame, moment)
-        if (frame.keyframe) askedKeyframe = false
+        if (frame.keyframe) {
+            askedKeyframe = false
+            // A header the storage refused, or not known kept yet, tried again at each keyframe: frames kept with no
+            // header are never sent after a Stop or a crash, and the encoder gives its header once.
+            if (!headerKept) record?.let { headerKept = onConfigured(it) }
+        }
         if (lost > 0) {
             dropped += lost
             drops.add(lost.toLong())
@@ -161,11 +204,10 @@ class Uplink(
     /** A frame kept and not sent yet ([FrameStore.unsent]). */
     val unsent: Boolean get() = store.unsent
 
-    /** Streaming over: the loop ends, and what the store keeps is dropped (FR-004). */
+    /** Streaming over: the loop ends; what the store keeps is its owner's to hand over or drop (specs/009). */
     fun stop() {
         running = false
         publisher?.close()
-        store.clear()
     }
 
     /**
@@ -178,54 +220,137 @@ class Uplink(
         val watchdog = Thread({ watch() }, "uplink-watchdog").apply { isDaemon = true }
         watchdog.start()
         var pause = FIRST_PAUSE_MS
-        while (running) {
+        while (running && awaitTurn()) {
             report(UplinkStatus.Connecting(address.toString()))
             try {
                 stream() // returns once stopped; a lost connection throws
+            } catch (_: Holding) {
+                lost(held = true) // let go to wait for the first lens: no pause, nothing lost
             } catch (error: Exception) {
-                publisher?.close()
-                if (!running) break
-                publisher?.let { confirm(it) } // what it acknowledged before it died
-                if (stamped) store.rewind()
-                if (streamed) pause = FIRST_PAUSE_MS // a connection that streamed: the pauses start over
-                report(UplinkStatus.Reconnecting(error.message ?: error.javaClass.simpleName))
-                sleep(pause)
-                pause = minOf(pause * 2, MAX_PAUSE_MS)
+                lost()
+                if (running) pause = reconnectAfter(error, pause)
             }
         }
+        connected = false
         publisher?.close()
     }
 
-    private fun stream() {
+    /** A connection lost to [error], said; the pause before the next, [pause] so far: the next one's returned. */
+    private fun reconnectAfter(
+        error: Exception,
+        pause: Long,
+    ): Long {
+        val waited = if (streamed) FIRST_PAUSE_MS else pause // a connection that streamed: the pauses start over
+        report(UplinkStatus.Reconnecting(error.message ?: error.javaClass.simpleName))
+        sleep(waited)
+        return minOf(waited * 2, MAX_PAUSE_MS)
+    }
+
+    /**
+     * A connection gone: what it acknowledged before it died taken, and the next begins before what it swallowed --
+     * from the newest frame confirmed when it was [held] for the first lens: let go by the phone, to a recorder that
+     * wrote what it confirmed, nothing it has is sent again each time the first lens holds it back.
+     */
+    private fun lost(held: Boolean = false) {
+        connected = false
+        publisher?.close()
+        if (!running) return
+        publisher?.let { confirm(it) }
+        if (stamped) store.rewind(if (held) 0L else FrameStore.CONFIRMED_MARGIN_US)
+    }
+
+    /** Waits, said once, until the address is the stream's turn and the first lens lets it send; false once stopped. */
+    private fun awaitTurn(): Boolean {
+        var said: UplinkStatus? = null
+        while (running) {
+            val waiting =
+                when {
+                    !turn() -> UplinkStatus.Waiting(first = false)
+                    !firstLens() -> UplinkStatus.Waiting(first = true)
+                    else -> return true
+                }
+            if (waiting != said) report(waiting)
+            said = waiting
+            sleep(POLL_MS)
+        }
+        return false
+    }
+
+    /** A connection made, its metadata and header sent: the stream's frames go on it from here. */
+    private fun open(): VideoSink {
         streamed = false
         stamped = false
         unacknowledged.clear()
+        askedNs = 0L
+        heardBytes = 0L
+        quietSinceNs = System.nanoTime()
         val connected = connect(address)
         publisher = connected
         // Waits a little for the clock, so that the connection's frames carry their moments.
-        await(System.nanoTime() + waitForClockMs * 1_000_000) { clock() != null }
+        if (!alone) await(System.nanoTime() + waitForClockMs * 1_000_000) { clock() != null }
         // A connection's frames all carry their moments, or none do: the recorder places frames without one by
         // their arrival, later than they were taken, and a mix of the two would not keep its order. Once the
         // clock is in step, a connection starts at a keyframe kept with a moment; before, at the next keyframe,
-        // as what was kept would be placed late by all the time it was kept.
-        if (clock() != null) store.skipToStamped() else store.skipKept()
+        // as what was kept would be placed late by all the time it was kept. Kept frames sent alone carry theirs.
+        if (alone || clock() != null) store.skipToStamped() else store.skipKept()
         // Then how long the frame it starts at was kept is known, the wait for the clock in it too (contract).
         connected.publish(metadata(format, store.heldMs(captureClock?.invoke())))
+        // Connected once the recorder took it: a lens waiting for its clock, or connecting in vain, holds no other
+        // lens back (PriorityBoard) and keeps no phone awake for a laptop that is not there.
+        this.connected = true
         openStampWindow(atKeyframe = false) // the connection's start
         await(Long.MAX_VALUE) { record != null }
         connected.sendSequenceHeader(record ?: throw IOException("stopped"))
         requestKeyframe()
+        return connected
+    }
+
+    /**
+     * The next frame to send, a connection's first a keyframe -- [first] its capture time once one went --, while the
+     * first lens lets this one send: null when none came, or it does not, a frame read then put back.
+     */
+    private fun nextAllowed(first: Long?): KeptFrame? {
+        if (!firstLens()) {
+            sleep(POLL_MS)
+            return null
+        }
+        val kept = store.next(POLL_MS, fromKeyframe = first == null)
+        if (kept != null && !firstLens()) {
+            store.back() // the first lens fell behind while this one waited for a frame: it waits too
+            return null
+        }
+        return kept
+    }
+
+    /**
+     * Since when the first lens has held this connection back, on the nanosecond clock -- 0 while it does not --,
+     * [since] the wait so far; past [HOLD_MS] the connection is let go ([Holding]).
+     */
+    private fun held(since: Long): Long {
+        if (firstLens()) return 0L
+        val now = System.nanoTime()
+        val start = if (since == 0L) now else since
+        if (now - start > HOLD_MS * 1_000_000) throw Holding()
+        return start
+    }
+
+    private fun stream() {
+        val connected = open()
         var first: Long? = null
         val throughput = Throughput(nanos)
+        var waitingSince = 0L
         while (running) {
             // A connection starts on a keyframe. Idle, the server's late acknowledgements are taken all the same:
             // no frame after them, they say what it read of the last sent (FrameStore.unsent).
-            val kept = store.next(POLL_MS)?.takeIf { first != null || it.keyframe }
+            val kept = nextAllowed(first)
             if (kept == null) {
+                askRead(connected)
                 confirm(connected)
                 throughput.idle()
+                waitingSince = held(waitingSince)
                 continue
             }
+            waitingSince = 0L
             if (first == null) stamped = kept.momentUs != null
             if (restamps(kept)) {
                 store.back()
@@ -264,7 +389,7 @@ class Uplink(
     ) {
         val units = Avc.splitAnnexB(kept.data).toMutableList()
         var head = 0
-        if (momentUs != null) units.add(head++, Sei.frameMoment(momentUs))
+        if (momentUs != null) units.add(head++, Sei.frameMoment(momentUs, format.codec))
         // The status after the moment: a reader looking for the moment finds it first. A status
         // the phone fails to read costs this keyframe its status, never the connection.
         if (kept.keyframe) {
@@ -272,7 +397,7 @@ class Uplink(
                 status(
                     drops.lately(),
                 )
-            }.getOrNull()?.let { units.add(head, Sei.phoneStatus(it)) }
+            }.getOrNull()?.let { units.add(head, Sei.phoneStatus(it, format.codec)) }
         }
         sendingSince = System.nanoTime()
         try {
@@ -280,6 +405,25 @@ class Uplink(
         } finally {
             sendingSince = 0 // a send that failed is no send hanging: the next connection is not cut
         }
+    }
+
+    /**
+     * Idle with frames sent and not confirmed -- a tail under the acknowledgements' step, which no frame after it
+     * brings --: the server asked, once a second, to say it read it all, so a kept stream ends ([FrameStore.unsent]).
+     * A server that says nothing new for [answerWaitMs] is a connection gone: let go, to send again what it swallowed.
+     */
+    private fun askRead(connected: VideoSink) {
+        val now = System.nanoTime()
+        val heard = connected.acknowledgedBytes
+        if (unacknowledged.isEmpty() || heard != heardBytes) {
+            heardBytes = heard
+            quietSinceNs = now
+        }
+        if (unacknowledged.isEmpty()) return
+        if (now - quietSinceNs > answerWaitMs * 1_000_000) throw IOException("the server says nothing of what it read")
+        if (now - askedNs < ASK_EVERY_MS * 1_000_000) return
+        askedNs = now
+        connected.flush()
     }
 
     /** The frames the server has read, by its acknowledgements, told to the store: a loss sends from them. */
@@ -316,6 +460,9 @@ class Uplink(
             running = false
         }
     }
+
+    /** The connection let go while the first lens catches up: connected again once it lets this one send. */
+    private class Holding : IOException("waiting for the first lens")
 
     /** Frames and megabits per second, once a second, on the clock of [nanos]. */
     internal class Throughput(
@@ -362,13 +509,25 @@ class Uplink(
 
     companion object {
         private const val POLL_MS = 100L
+
+        /** How often an idle connection asks the server to say it read what it was sent. */
+        private const val ASK_EVERY_MS = 1_000L
+
+        /** An idle connection saying nothing this long of frames it was sent is gone: acknowledgements come oftener. */
+        const val ANSWER_WAIT_MS = 30_000L
         private const val REPORT_NS = 1_000_000_000L
         private const val FIRST_PAUSE_MS = 500L
         private const val MAX_PAUSE_MS = 8_000L
         private const val WAIT_FOR_CLOCK_MS = 3_000L
         private const val STALL_MS = 5_000L
         private const val STAMP_WINDOW_MS = 10_000L
+
+        /** How long a connection waits for the first lens before it lets itself go (specs/009, FR-007). */
+        const val HOLD_MS = 2_000L
         private const val VIDEO_CODEC_AVC = 7
+
+        /** Enhanced RTMP's `videocodecid` for H.265: its FourCC, `hvc1`, as a number (specs/010-hevc). */
+        private const val VIDEO_CODEC_HEVC = 0x68766331
 
         /**
          * Frames sent kept waiting for an acknowledgement: FFmpeg's come every 64 KiB, or every half megabyte
@@ -406,7 +565,7 @@ class Uplink(
                 "width" to format.resolution.width,
                 "height" to format.resolution.height,
                 "framerate" to format.fps,
-                "videocodecid" to VIDEO_CODEC_AVC,
+                "videocodecid" to if (format.codec == Codec.HEVC) VIDEO_CODEC_HEVC else VIDEO_CODEC_AVC,
                 "videodatarate" to format.bitrate / 1000,
                 "encoder" to "PhotoFinish Camera",
                 "held_ms" to heldMs,

@@ -37,6 +37,12 @@ class ScreenState(
 
     var dimmed by mutableStateOf(false)
 
+    /** The video the phone holds and has not sent, kept and fed, all told (specs/009). */
+    var unsent by mutableStateOf(
+        com.dchernykh.photofinish.camera.stream.FrameStore
+            .Pending(0, 0),
+    )
+
     /** What the cameras as a whole last said. */
     var status by mutableStateOf<StreamerStatus?>(null)
 
@@ -61,7 +67,7 @@ class ScreenState(
     val pairing: Pairing get() = Pairing.parse(address)
 
     /** What to stream: the chosen size and rate, the fastest rate when the chosen one is gone. */
-    val format: StreamFormat? get() = formats.choose(resolution, fps)
+    val format: StreamFormat? get() = formats.choose(resolution, fps, pairing.codec)
 
     fun enterAddress(text: String) {
         address = text.trim()
