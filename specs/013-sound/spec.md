@@ -63,7 +63,8 @@ the flash in QuickTime.
 - A streaming app that sends sound (Larix): recorded and played the same way; one without, none.
 - A phone with several lenses sends its sound once, with its main lens; another lens of the same
   phone plays and exports that sound.
-- The main lens's camera lost a moment: the sound goes on, kept and sent with the main lens.
+- The main lens's camera lost a moment, or the screen away: the sound stops with the camera and
+  comes back with it, what was heard before and after kept and sent with the main lens.
 - USB cameras, files played as live, the test camera and a camera's own file opened as it is:
   no sound, as today.
 - A gap in the sound is silence of its length, the sound after it in step again.

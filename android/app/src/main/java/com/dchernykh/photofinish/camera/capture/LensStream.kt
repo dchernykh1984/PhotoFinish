@@ -44,7 +44,10 @@ internal class LensStream private constructor(
     private val store: FrameStore,
     /** What takes it off the first lens's board and the backlog's count of what the phone holds. */
     private val off: () -> Unit,
-    /** The phone's microphone, the first lens's alone (specs/013): it runs from the first feed to the stream's end. */
+    /**
+     * The phone's microphone, the first lens's alone (specs/013): it runs while a camera feeds the stream -- one
+     * left running with the screen away would keep the stream from ever being sent whole, and the phone awake.
+     */
     private val microphone: Microphone? = null,
 ) : KeptStream {
     private var drainer: Thread? = null
@@ -87,13 +90,16 @@ internal class LensStream private constructor(
     fun keyframe() = requestKeyframe(codec)
 
     override fun feed() {
-        microphone?.start() // the sound goes on through a camera opened again
+        microphone?.start() // the sound with the camera that feeds the stream again
         frames.feed(uplink.captureClock?.invoke()) // its frames watched from the camera's next, its first told
         uplink.stampAgain() // a connection without moments, its clock come since, made anew with them
         words.feed()
     }
 
-    override fun idle() = words.idle()
+    override fun idle() {
+        microphone?.stop() // no camera feeds it: nor does the microphone
+        words.idle()
+    }
 
     /** Stopped, what it kept and has not sent handed to the backlog to send alone (specs/009, FR-003). */
     override fun stop() {
