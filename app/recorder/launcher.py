@@ -96,12 +96,6 @@ def alive(info: dict[str, Any] | None) -> bool:
     return time.time_ns() // 1_000_000 - int(info.get("heartbeat_ms", 0)) <= STALE_MS
 
 
-def has_ended(info: dict[str, Any] | None) -> bool:
-    """A recorder that said it ended, or none: its recording grows no more. One whose
-    heartbeat is late only may still write."""
-    return info is None or info.get("state") in ENDED
-
-
 def recording(info: dict[str, Any] | None) -> bool:
     """A recorder writing its camera's frames now: running, and recording -- not
     starting, waiting for the camera or connecting again after a loss."""
