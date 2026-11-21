@@ -125,8 +125,9 @@ class CameraStreamer(
 
     /**
      * The cameras closed, for [targets] at [format] to come: the lenses' streams kept when those are what they were
-     * made for -- the screen back, its surface made again --, the next start feeding them again; else stopped too,
-     * what they kept dropped -- the referee's stop, another choice (FR-004) --, whatever the preview does meanwhile.
+     * made for -- the screen back, its surface made again --, the next start feeding them again; else stopped too --
+     * the referee's stop, another choice --, what they kept handed to the backlog to send (specs/009, FR-003),
+     * whatever the preview does meanwhile.
      */
     fun stop(
         format: StreamFormat?,
