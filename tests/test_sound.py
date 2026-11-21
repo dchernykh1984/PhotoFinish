@@ -350,7 +350,8 @@ def test_the_list_of_segments_that_kept_sound_is_followed_never_read_again(
     listed.write_text("20251029-103000-0001\n20251029-103001-0002\n")
     assert sound.sounding(tmp_path) == {"20251029-103000-0001", "20251029-103001-0002"}
     with listed.open("r+b") as f:  # what was read, never read again
-        f.write(b"20251029-103000-9999")
+        f.seek(21)  # its second line: the first tells a list begun anew
+        f.write(b"20251029-103001-9999")
     with listed.open("ab") as f:
         f.write(b"20251029-103002-0003\n")
     assert sound.sounding(tmp_path) == {
@@ -406,6 +407,11 @@ def test_a_sound_list_begun_anew_in_a_cleared_folder_is_read_from_its_start(
     listed.write_text("".join(f"20251030-0900{k:02d}-{k:04d}\n" for k in range(9)))
     assert sound.sounding(tmp_path) == {
         f"20251030-0900{k:02d}-{k:04d}" for k in range(9)
+    }
+    # Written anew on the same inode, as ext4 may give a file made again: read anew.
+    listed.write_text("".join(f"20251031-0800{k:02d}-{k:04d}\n" for k in range(12)))
+    assert sound.sounding(tmp_path) == {
+        f"20251031-0800{k:02d}-{k:04d}" for k in range(12)
     }
 
 
