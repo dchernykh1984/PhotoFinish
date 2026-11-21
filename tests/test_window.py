@@ -3968,3 +3968,19 @@ def test_a_lens_takes_its_phones_sound_whose_microphone_was_lost_on_the_way(
     record(phone_with_sound, START + 10_000, 30)  # cam1's pieces after: frames alone
     win = make_window()
     assert win._sound_folder("cam2") == (mw.folder_of("cam1"), 0)
+
+
+def test_whose_sound_plays_is_chosen_where_playing_goes_on_from(
+    phone_with_sound: Path, make_window: Callable[[], mw.MainWindow], clock: list[float]
+) -> None:
+    # A gap jumped over: the sound's camera chosen on its far side, not on the frame
+    # still shown before it.
+    win = make_window()
+    wait_until(lambda: win.moment is not None and win.place is not None)
+    heard = sounding(win)
+    win.step(-40)
+    win.play()
+    assert heard.calls[-1][0] == "play"
+    win._play_start = (clock[0], START + 600_000)  # on past the recording's sound
+    win._play_sound()
+    assert heard.calls[-1] == ("stop",)
