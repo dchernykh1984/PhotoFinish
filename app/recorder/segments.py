@@ -8,9 +8,9 @@ follow that list instead of the folder, which grows by thousands of files an hou
 segment ends at the first frame a second after its start. Frames are encoded by an
 encoder of the segment's own, so it starts with a keyframe (mpeg4, a keyframe every
 15 frames, fixed quality 3); a network camera's packets are stored as they came, a
-segment starting and ending at the camera's keyframes. A stretch without frames
-longer than three frame intervals is appended to ``gaps.txt`` as
-``<from ms> <to ms> <reason>``.
+segment starting and ending at the camera's keyframes, its sound beside them
+(specs/013), its timestamps from LEAD_MS on. A stretch without frames longer than
+three frame intervals is appended to ``gaps.txt`` as ``<from ms> <to ms> <reason>``.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ import time
 from collections.abc import Callable, Iterator
 from fractions import Fraction
 from pathlib import Path
-from typing import TextIO
+from typing import Any, TextIO
 
 import av
 import numpy as np
@@ -34,6 +34,11 @@ SEGMENT_MS = 1000  # a segment's first frame is shown once it closes: SC-006's 2
 # A phone sends again up to 7 s it may have lost (specs/007): the moments listed this
 # far back are looked up, the last run's too, so the same frame is listed once.
 RESENT_MS = 10_000
+# A network camera's segment's timestamps start this far after its base: a piece of
+# sound captured just before the keyframe that opens a segment comes after it, and a
+# Matroska muxer handed a negative timestamp shifts every stream -- the frame times
+# listed would no longer name the frames (specs/013).
+LEAD_MS = 1000
 CLOSED = "[0-9]*-[0-9]*-[0-9]*"  # a closed segment's name, without its suffix
 NAMED = re.compile(r"\d{8}-\d{6}-\d{4,}")  # the same, exactly
 SEGMENTS = "segments.txt"  # the closed segments' names, in the order they closed
@@ -42,6 +47,7 @@ CLOSING = "closing.name"  # the name a close gives, written before its two renam
 READING = "reading.crash"  # there while a crash is read: one that kills is read once
 ASIDE = "crashed.name"  # the stamp a crash kept aside takes, written before it does
 _MS = Fraction(1, 1000)
+MS_SCALE = Fraction(1, 1000)  # a millisecond in seconds
 _GOP = 15
 _QUALITY = 3
 _QP2LAMBDA = 118  # FFmpeg's scale: quality 3 is global_quality 3 * 118
@@ -72,6 +78,7 @@ class SegmentWriter:
         self._before_ms = self._recent[-1] if self._recent else None
         self.gap_reason = "restart" if self._before_ms is not None else "no frames"
         self._open: _Encoded | _Remuxed | None = None
+        self._heard_ms: int | None = None  # the newest piece of sound kept (013)
         # A connection's first frames may be ones sent again: a restart's, or after
         # the camera hung up (``hung_up``), until the first new one.
         self._resending = True
@@ -116,6 +123,19 @@ class SegmentWriter:
             self._listed.add(ms)
             while self._recent and self._recent[0] < ms - RESENT_MS:
                 self._listed.discard(self._recent.popleft())
+
+    def write_audio(self, packet: av.Packet, ms: int) -> None:
+        """A piece of a network camera's sound, placed at ``ms`` by the frame before
+        it (specs/013): into the open segment beside its frames; one not after the
+        newest kept by half its length -- sent again after a loss -- is not, nor one
+        before any segment, which has no frame to be placed by."""
+        if packet.pts is None or packet.dts is None or packet.stream is None:
+            return
+        half = in_ms(packet.duration or 0, fraction(packet.time_base)) // 2
+        if self._heard_ms is not None and ms < self._heard_ms + max(half, 1):
+            return
+        if isinstance(self._open, _Remuxed) and self._open.add_audio(packet):
+            self._heard_ms = ms
 
     @property
     def newest_ms(self) -> int | None:
@@ -229,18 +249,38 @@ class _Encoded:
 
 
 class _Remuxed:
-    """A camera's packets stored as they came, from its first keyframe on."""
+    """A camera's packets stored as they came, from its first keyframe on, its sound
+    beside them on the same timestamps (specs/013)."""
 
     def __init__(
         self, folder: Path, first: av.Packet, template: av.stream.Stream, ms: int
     ) -> None:
         self.first_ms = ms
-        self.base = first.dts or 0  # timestamps start at 0 in each segment
         rate = first.time_base
         self.time_base = Fraction(rate.numerator, rate.denominator)
+        # Timestamps from LEAD_MS on in each segment: none of its sound below 0.
+        self.base = (first.dts or 0) - round(LEAD_MS * MS_SCALE / self.time_base)
         self.container = _video(folder)
         self.stream = self.container.add_stream_from_template(template)
+        heard = template.container.streams.audio
+        self.audio = (
+            self.container.add_stream_from_template(heard[0]) if heard else None
+        )
         self.times: TextIO = _times(folder)
+
+    def add_audio(self, packet: av.Packet) -> bool:
+        """A piece of the camera's sound stored on the video's timestamps; False when
+        the segment has no sound, or it came more than LEAD_MS before its base."""
+        if self.audio is None or packet.pts is None or packet.dts is None:
+            return False
+        base = round(self.base * self.time_base / fraction(packet.time_base))
+        pts, dts = packet.pts - base, packet.dts - base
+        if pts < 0 or dts < 0:
+            return False
+        packet.pts, packet.dts = pts, dts
+        packet.stream = self.audio
+        self.container.mux(packet)
+        return True
 
     def add(self, packet: av.Packet, pts: int, dts: int, ms: int | None) -> None:
         """The packet stored; its time listed unless ``ms`` is None."""
@@ -272,6 +312,11 @@ def _video(folder: Path) -> av.container.OutputContainer:
 def _times(folder: Path) -> TextIO:
     """The open segment's frame times, each line on disk as it is written."""
     return (folder / "current.times").open("w", encoding="ascii", buffering=1)
+
+
+def fraction(rate: Any) -> Fraction:
+    """A stream's or a packet's time base as a Fraction; a millisecond without one."""
+    return _MS if rate is None else Fraction(rate.numerator, rate.denominator)
 
 
 def in_ms(value: int, time_base: Fraction) -> int:
@@ -517,12 +562,18 @@ def _copy_whole(
     left: Path, copy: Path, frames: dict[int, int]
 ) -> list[tuple[int, int]]:
     """The packets of ``left`` that came whole and have a time, copied as they are
-    into a file of their own, which ends as a file should; their ``(pts, ms)``."""
+    into a file of their own, which ends as a file should, its sound with them
+    (specs/013); the frames' ``(pts, ms)``."""
     kept: set[int] = set()
     with av.open(str(left)) as video, av.open(str(copy), "w", format="matroska") as out:
         into = out.add_stream_from_template(video.streams.video[0])
+        heard = video.streams.audio
+        sound = out.add_stream_from_template(heard[0]) if heard else None
         for packet, pts in _whole(video):
-            if pts in frames:
+            if packet.stream.type == "audio":
+                packet.stream = sound
+                out.mux(packet)
+            elif pts in frames:
                 packet.stream = into
                 out.mux(packet)
                 kept.add(pts)
@@ -530,15 +581,13 @@ def _copy_whole(
 
 
 def _whole(video: av.container.InputContainer) -> Iterator[tuple[av.Packet, int]]:
-    """The video's packets that came whole, each with its pts in ms, up to where a
-    crash cut the file, read as any error."""
-    source = video.streams.video[0]
-    rate = source.time_base
-    base = _MS if rate is None else Fraction(rate.numerator, rate.denominator)
+    """The video's packets, and its sound's, that came whole, each with its pts in
+    ms, up to where a crash cut the file, read as any error."""
+    streams = [video.streams.video[0], *video.streams.audio[:1]]
     try:
-        for packet in video.demux(source):
+        for packet in video.demux(*streams):
             if packet.size and packet.pts is not None:
-                yield packet, in_ms(packet.pts, base)
+                yield packet, in_ms(packet.pts, fraction(packet.time_base))
     except av.FFmpegError:
         return  # the cluster the crash cut short: what came before is kept
 
