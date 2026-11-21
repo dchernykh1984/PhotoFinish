@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import threading
 import time
-from pathlib import Path
+from pathlib import Path, PurePath
 from typing import Any
 
 import av
@@ -513,6 +513,30 @@ def test_the_sound_later_is_looked_for_without_listing_a_days_frames(
     silent = VideoIndex(tmp_path / "none")
     monkeypatch.setattr(silent, "segments_from", listed)
     assert not sound.heard_later(silent, START)
+
+
+def test_the_sound_later_is_told_at_once_while_nothing_changed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Its sound all in the morning, played at noon: no walk over the afternoon's
+    # segments at each poll -- looked at again only as a segment or a line comes.
+    index = recorded(tmp_path)
+    writer = SegmentWriter(tmp_path / "cam1", fps=30)
+    record(writer, START + 5000, 90)  # the afternoon: frames alone
+    writer.close()
+    index.refresh()
+    assert not sound.heard_later(index, START + 4000)
+    walked: list[int] = []
+    real = PurePath.__dict__["stem"]  # the property each path's stem is
+
+    def stem(path: Path) -> str:
+        walked.append(1)
+        return str(real.__get__(path))
+
+    monkeypatch.setattr(Path, "stem", property(stem))
+    for _ in range(5):
+        assert not sound.heard_later(index, START + 4000)
+    assert walked == []
 
 
 def test_the_sound_later_is_one_from_the_moment_on_never_one_all_behind(

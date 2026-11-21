@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import heapq
 import threading
+import weakref
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
 from fractions import Fraction
@@ -150,12 +151,22 @@ def heard_later(index: VideoIndex, moment: int) -> bool:
     """Whether a camera kept sound in a segment from ``moment`` on, on its own times:
     one allowed the microphone later is heard in its turn, the pieces following as
     it plays -- never one whose sound is all behind it, a gap's before as much.
-    Asked at each poll: a look at each segment's end, never at the frames, none at
-    all for a camera that kept no sound."""
+    Asked at each poll: told at once while no segment nor sound line came since."""
     kept = sounding(index.folder)
-    return bool(kept) and any(
-        path.stem in kept for path in index.segments_ending_from(moment)
-    )
+    if not kept:
+        return False
+    seen = _NEWEST.get(index)
+    if seen is None or seen[0] is not kept or seen[1] != len(index.paths):
+        seen = (kept, len(index.paths), index.newest_end_of(kept))
+        _NEWEST[index] = seen
+    return seen[2] is not None and seen[2] >= moment
+
+
+# The newest end of each index's segments that kept sound, as the list and the index
+# were when it was found: found again only as they grow.
+_NEWEST: weakref.WeakKeyDictionary[
+    VideoIndex, tuple[frozenset[str], int, int | None]
+] = weakref.WeakKeyDictionary()
 
 
 def playing_from(
