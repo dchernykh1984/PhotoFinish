@@ -64,6 +64,9 @@ class Backlog(
     /** A lens streams, or a stream is kept: there are frames to send. */
     val active: Boolean @Synchronized get() = kept.isNotEmpty() || live.isNotEmpty() || handing.isNotEmpty()
 
+    /** A lens streams: what the phone holds may be a frame or two on their way. */
+    val streaming: Boolean @Synchronized get() = live.isNotEmpty()
+
     /**
      * What the stores' root holds from the app's runs before, read back: streams to send, or folders of nothing to
      * send, removed. A folder of this run is a stream a camera feeds, perhaps its header not written yet: not its.

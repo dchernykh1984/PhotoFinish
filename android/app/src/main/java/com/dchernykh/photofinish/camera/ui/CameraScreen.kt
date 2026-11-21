@@ -309,7 +309,7 @@ private fun Unsent(
     stopped: Boolean,
     onDiscard: () -> Unit,
 ) {
-    if (held.bytes <= 0) return
+    if (!said(held, stopped)) return
     val mb = megabytes(held.bytes).toInt()
     Text(stringResource(R.string.unsent, span(held.ms), mb), color = Color(UNSENT_COLOR))
     if (!stopped) return

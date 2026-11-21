@@ -1,6 +1,9 @@
 package com.dchernykh.photofinish.camera.ui
 
+import com.dchernykh.photofinish.camera.stream.FrameStore
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class UnsentTest {
@@ -19,5 +22,14 @@ class UnsentTest {
         assertEquals(1L, megabytes(250_000))
         assertEquals(1L, megabytes(1_000_000))
         assertEquals(2L, megabytes(1_000_001))
+    }
+
+    @Test
+    fun `a frame or two on their way is not said while streaming, anything held once stopped`() {
+        val onItsWay = FrameStore.Pending(ms = 33, bytes = 400_000)
+        assertFalse(said(onItsWay, stopped = false))
+        assertTrue(said(onItsWay, stopped = true)) // there to discard
+        assertTrue(said(FrameStore.Pending(ms = SAID_MS, bytes = 9_000_000), stopped = false))
+        assertFalse(said(FrameStore.Pending(ms = 0, bytes = 0), stopped = true))
     }
 }
