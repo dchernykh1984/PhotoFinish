@@ -147,12 +147,22 @@ private fun rememberCameraPermission(): Boolean {
             askNotify.launch(asked)
         }
     }
+    // The microphone, for the sound the first lens sends (specs/013), asked after the camera, before the notification.
+    val askMicrophone = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { notify() }
+    val microphone = {
+        val asked = Manifest.permission.RECORD_AUDIO
+        if (ContextCompat.checkSelfPermission(context, asked) != PackageManager.PERMISSION_GRANTED) {
+            askMicrophone.launch(asked)
+        } else {
+            notify()
+        }
+    }
     val askCamera =
         rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
             granted = it
-            notify()
+            microphone()
         }
-    LaunchedEffect(Unit) { if (!granted) askCamera.launch(Manifest.permission.CAMERA) else notify() }
+    LaunchedEffect(Unit) { if (!granted) askCamera.launch(Manifest.permission.CAMERA) else microphone() }
     return granted
 }
 
