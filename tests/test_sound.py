@@ -384,6 +384,34 @@ def test_whose_sound_plays_from_a_moment_is_one_with_it_there_else_later(
     assert not sound.heard_later(silent, START)
 
 
+def test_the_segments_that_kept_no_sound_are_never_opened_for_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The microphone allowed hours on: those hours' segments not read for sound,
+    # neither listed as it plays nor followed (sound.txt).
+    index = recorded(tmp_path, 2)
+    sounding = list(index.paths)
+    writer = SegmentWriter(tmp_path / "cam1", fps=30)
+    record(writer, START + 5000, 60)  # frames alone
+    writer.close()
+    index.refresh()
+    silent = [path for path in index.paths if path not in sounding]
+    assert silent
+    opened: list[Path] = []
+    real = sound._pieces_of
+
+    def read(path: Path) -> list[sound.Piece]:
+        opened.append(path)
+        return real(path)
+
+    monkeypatch.setattr(sound, "_pieces_of", read)
+    found = sound.pieces(index, START, follows=True)
+    found.extend(silent)  # closed since, as the window follows them
+    found.finish()
+    assert list(found)
+    assert opened == sounding
+
+
 def test_the_sound_later_is_one_from_the_moment_on_never_one_all_behind(
     tmp_path: Path,
 ) -> None:
