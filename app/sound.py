@@ -29,6 +29,7 @@ from app.video_index import VideoIndex, read_times
 
 GAP_MS = 30  # a piece this much after the end of the one before: silence between
 PREROLL_MS = 50  # decoded before the moment asked and dropped: no click as it begins
+SILENCE_MS = 100  # a gap's silence made this much at a time
 # atempo's range: faster in one stage, as each stage's window puts the sound earlier
 # by its lag -- x4 some 40 ms on the recording's time, two stages of x2 some 70 --;
 # slower chained, from x0.5 down.
@@ -143,7 +144,8 @@ def _pieces_of(path: Path) -> list[Piece]:
 
 class Renderer:
     """The sound from ``from_ms`` at ``rate`` -- forwards, x1/16 to x16 --, as
-    interleaved 16-bit samples at ``out_rate`` in ``out_layout``, piece by piece."""
+    interleaved 16-bit samples at ``out_rate`` in ``out_layout``, a piece at a time:
+    a gap is silence of its length made SILENCE_MS at a time, never held whole."""
 
     def __init__(
         self,
@@ -159,28 +161,21 @@ class Renderer:
         self._decoder: Any = None
         self._graph: av.filter.Graph | None = None
         self._next_ms: float = from_ms  # where the sound fed so far reaches, ms
-        self.ended = False
+        self._chunks = self._made()
 
     def read(self) -> bytes:
-        """The samples of the next piece -- after silence for a gap before it --; b""
-        once the sound has ended, the graph's last samples given before."""
+        """The samples of the next stretch; b"" once the sound has ended."""
+        return next(self._chunks, b"")
+
+    def _made(self) -> Iterator[bytes]:
         for piece in self.found:
-            out = self._feed(piece)
-            if out:
-                return out
-        if not self.ended:
-            self.ended = True
-            return self._flush()
-        return b""
+            if piece.form != self._form:
+                yield from _given(self._flush())  # what the former form left
+                self._open(piece.form)
+            yield from self._fed(piece)
+        yield from _given(self._flush())
 
-    def _feed(self, piece: Piece) -> bytes:
-        if piece.form != self._form:
-            out = self._flush()  # what the former form left
-            self._open(piece.form)
-            return out + self._feed_piece(piece)
-        return self._feed_piece(piece)
-
-    def _feed_piece(self, piece: Piece) -> bytes:
+    def _fed(self, piece: Piece) -> Iterator[bytes]:
         """A piece decoded on its moment -- a segment's own timestamps go back at its
         start, and a decoder drops a piece whose time goes back --; a gap before what
         it gives made silence of its length, what comes before the moment asked
@@ -188,19 +183,19 @@ class Renderer:
         packet = piece.packet
         packet.pts = packet.dts = piece.ms
         packet.time_base = MS
-        out = b""
         for frame in self._decoder.decode(packet):
             at = piece.ms if frame.pts is None else in_ms(frame.pts, fraction(MS))
-            if at > self._next_ms + GAP_MS:
-                out += self._push(_silence_like(frame, round(at - self._next_ms)))
+            if at > self._next_ms + GAP_MS:  # a gap: silence of its length
+                while (left := at - self._next_ms) > 0:
+                    ms = min(left, SILENCE_MS)
+                    yield from _given(self._push(_silence_like(frame, round(ms))))
+                    self._next_ms += ms
             skip = round((self.from_ms - at) * frame.sample_rate / 1000)
             kept = _trimmed(frame, skip) if skip > 0 else frame
-            if kept is not None:
-                out += self._push(kept)
-            self._next_ms = max(
-                self._next_ms, at + frame.samples * 1000 / frame.sample_rate
-            )
-        return out
+            if kept is not None:  # the piece begins before the moment asked
+                yield from _given(self._push(kept))
+            length = frame.samples * 1000 / frame.sample_rate
+            self._next_ms = max(self._next_ms, at + length)
 
     def _open(self, form: Form) -> None:
         self._form = form
@@ -222,6 +217,12 @@ class Renderer:
         out = _pulled(self._graph)
         self._graph = None
         return out
+
+
+def _given(chunk: bytes) -> Iterator[bytes]:
+    """``chunk`` when it holds samples: an empty one would read as the end."""
+    if chunk:
+        yield chunk
 
 
 def tempo_graph(
