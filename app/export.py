@@ -19,7 +19,7 @@ from typing import Any
 
 import av
 
-from app.recorder.segments import SEGMENTS, frame_times, in_ms
+from app.recorder.segments import NAMED, SEGMENTS, frame_times, in_ms
 
 MS = Fraction(1, 1000)
 
@@ -29,12 +29,15 @@ class CancelledError(Exception):
 
 
 def pieces(folder: Path) -> list[Path]:
-    """A camera's closed pieces, in the order they closed: their videos."""
+    """A camera's closed pieces, in the order they closed: their videos, each once
+    -- a name listed twice is one piece, as the index takes it --, those gone from
+    the disk too: told as left out when they are copied."""
     try:  # a byte gone wrong names no piece, and stops nothing
         names = (folder / SEGMENTS).read_text("ascii", errors="replace").split()
     except OSError:
         return []
-    return [folder / f"{n}.mkv" for n in names if (folder / f"{n}.mkv").is_file()]
+    named = [n for n in names if NAMED.fullmatch(n)]
+    return [folder / f"{n}.mkv" for n in dict.fromkeys(named)]
 
 
 def has_video(folder: Path) -> bool:
@@ -142,6 +145,8 @@ class _Writer:
         moment = times.get(in_ms(packet.pts, time_base))
         if moment is None:
             return  # sent again: the piece before has it
+        if self.out is not None and moment <= self.out.last_moment:
+            self.finish()  # the clock set back: a file's time goes on, never back
         if (self.out is None or self.broken) and not packet.is_keyframe:
             return  # a file starts, and goes on after a gap, where it can be decoded
         self.broken = False
@@ -204,6 +209,7 @@ class _Out:
             self.abandon()
             raise
         self.last_dts: int | None = None
+        self.last_moment = first - 1  # the newest frame's moment written
 
     def add(self, packet: av.Packet, moment: int, time_base: Fraction) -> None:
         """The packet at its moment; its decode time as far before as it was, never
@@ -217,6 +223,7 @@ class _Out:
         if self.last_dts is not None and dts <= self.last_dts:
             dts = self.last_dts + 1
         self.last_dts = dts
+        self.last_moment = moment
         packet.pts, packet.dts = max(pts, dts), dts
         packet.time_base = MS
         packet.stream = self.stream

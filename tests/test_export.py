@@ -161,7 +161,7 @@ def test_nothing_recorded_exports_nothing(tmp_path: Path) -> None:
 def h265_piece(folder: Path, frames: int) -> None:
     """A piece of H.265 as a phone's push leaves it: Matroska, its times beside it."""
     folder.mkdir(parents=True)
-    name = "20261121-120000-1"
+    name = "20261121-120000-0001"
     with av.open(str(folder / f"{name}.mkv"), "w", format="matroska") as out:
         stream = out.add_stream("libx265", rate=30)
         stream.width, stream.height, stream.pix_fmt = 192, 108, "yuv420p"
@@ -251,3 +251,29 @@ def test_after_a_piece_left_out_the_file_goes_on_at_a_keyframe(tmp_path: Path) -
     )  # its keyframe unlisted
     _, out = read(export.export(folder, tmp_path / "Side.mp4")[0])
     assert len(out) == len(first.with_suffix(".times").read_text().split()) // 2
+
+
+def test_a_piece_listed_twice_is_exported_once_and_one_gone_is_told(
+    tmp_path: Path,
+) -> None:
+    folder = tmp_path / "cam1"
+    record(folder, START, 70)
+    listed = folder / "segments.txt"
+    names = listed.read_text().split()
+    listed.write_text("\n".join([*names, names[0], "not-a-piece"]) + "\n")
+    export.pieces(folder)[1].unlink()  # gone from the disk
+    skipped: list[Path] = []
+    _, out = read(export.export(folder, tmp_path / "Side.mp4", skipped=skipped)[0])
+    assert len(out) == len(set(out))
+    assert len(skipped) == 1
+
+
+def test_a_clock_set_back_goes_on_in_a_new_file_never_back_in_time(
+    tmp_path: Path,
+) -> None:
+    folder = tmp_path / "cam1"
+    record(folder, START + 60_000, 40)
+    record(folder, START, 40)  # the recorder's clock set back a minute
+    written = export.export(folder, tmp_path / "Side.mp4")
+    assert written == [tmp_path / "Side.mp4", tmp_path / "Side-2.mp4"]
+    assert all(read(path)[1] == sorted(set(read(path)[1])) for path in written)
