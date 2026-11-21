@@ -77,11 +77,16 @@ class SoundPlayer(QObject):
         self._asked: float | None = None  # when play was asked, until the first write
         self._unskipped = 0  # bytes of that start still to leave out, as they come
         self._out_rate = RATE
+        self._buffer = 0
         self._lock = threading.Lock()
         self._room = threading.Condition(self._lock)
         self._thread: threading.Thread | None = None
         self._stopped = threading.Event()
         self._rendered = False  # the rendering has given all the sound there is
+        self._pieces: sound.Pieces | None = None  # what it plays, following its index
+        self._index: VideoIndex | None = None
+        self._listed = 0  # the index's segments the pieces know of
+        self._drained: float | None = None  # when the output ran dry, the picture on
         self._timer = QTimer(self)
         self._timer.setInterval(PUMP_MS)
         self._timer.timeout.connect(self._pump)
@@ -97,9 +102,12 @@ class SoundPlayer(QObject):
         with self._lock:
             return self.playing and self._rendered and not self._chunks
 
-    def play(self, index: VideoIndex, from_ms: int, rate: float) -> None:
+    def play(
+        self, index: VideoIndex, from_ms: int, rate: float, follows: bool = True
+    ) -> None:
         """The camera's sound from ``from_ms`` on its own times, at ``rate``; what
-        was playing stopped first. Nothing without an output."""
+        was playing stopped first. Nothing without an output. ``follows``: the
+        segments the index gains as it plays are heard on (``follow``)."""
         asked = self._clock()  # the time opening the output takes left out too
         self.stop()
         made = self._make()
@@ -112,11 +120,12 @@ class SoundPlayer(QObject):
             return
         self._ahead = round(AHEAD_S * out_rate) * channels * 2
         self._frame, self._out_rate = channels * 2, out_rate
+        self._buffer = int(self._output.bufferSize())  # all of it free: run dry
         self._asked = asked
         layout = LAYOUTS.get(channels, "stereo")
-        renderer = sound.Renderer(
-            sound.pieces(index, from_ms), from_ms, rate, out_rate, layout
-        )
+        self._pieces = sound.pieces(index, from_ms, follows)
+        self._index, self._listed = index, len(index.paths)
+        renderer = sound.Renderer(self._pieces, from_ms, rate, out_rate, layout)
         stopped = self._stopped = threading.Event()
         self._thread = threading.Thread(
             target=self._render, args=(renderer, stopped), daemon=True
@@ -124,9 +133,22 @@ class SoundPlayer(QObject):
         self._thread.start()
         self._timer.start()
 
+    def follow(self) -> None:
+        """The segments the index has gained since, heard on: on the window's
+        thread, which refreshes it."""
+        if self._pieces is None or self._index is None:
+            return
+        found = self._index.paths[self._listed :]
+        self._listed = len(self._index.paths)
+        if found:
+            self._pieces.extend(found)
+
     def stop(self) -> None:
         """Silent from now on: the rendering told to end, the output stopped."""
         self._timer.stop()
+        if self._pieces is not None:
+            self._pieces.finish()  # one waiting for segments ends too
+        self._pieces, self._index, self._drained = None, None, None
         with self._lock:
             self._stopped.set()
             self._chunks.clear()
@@ -174,6 +196,7 @@ class SoundPlayer(QObject):
                 late = self._clock() - self._asked
                 self._asked = None
                 self._unskipped = round(late * self._out_rate) * self._frame
+            self._dry()
             # More than was rendered ahead as it started: the rest as it comes.
             self._unskipped = self._skip(self._unskipped)
             room = int(self._output.bytesFree())
@@ -200,3 +223,18 @@ class SoundPlayer(QObject):
             self._held -= taken
             count -= taken
         return count
+
+    def _dry(self) -> None:
+        """The output run dry -- the sound waited for segments, the window busy --
+        while the picture played on: as much left out once the sound comes again,
+        so it keeps up with the picture. The lock held."""
+        if self._asked is not None or self._output is None:
+            return  # not begun
+        if not self._chunks:
+            if self._drained is None and self._output.bytesFree() >= self._buffer:
+                self._drained = self._clock()
+            return
+        if self._drained is not None:
+            late = self._clock() - self._drained
+            self._drained = None
+            self._unskipped += round(late * self._out_rate) * self._frame

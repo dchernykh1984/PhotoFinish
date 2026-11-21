@@ -173,8 +173,6 @@ class MainWindow(QMainWindow):
         self.slower_button, self.normal_button = QPushButton(), QPushButton("x1")
         self.faster_button, self.speed_label = QPushButton(), QLabel()
         self.sound = SoundPlayer(self)  # the sound played forwards (013)
-        # The index whose sound plays, and its segments then: grown, it plays on.
-        self._sound_from: tuple[VideoIndex | None, int] = (None, 0)
         self.sound_box = QCheckBox("Sound")
         self.shared_event: shared_event.SharedEvent | None = None
 
@@ -1722,7 +1720,7 @@ class MainWindow(QMainWindow):
         self._show_recording()
         self._show_phones()
         self._show_protocol()  # a late entry, or the file gone
-        self._sound_on()
+        self.sound.follow()  # played behind live: the segments closed since heard on
         if suggested:
             self._show_suggestions()
         if self.output is None and self.session.get("output"):
@@ -2003,15 +2001,6 @@ class MainWindow(QMainWindow):
             return
         own = due - int(heard.settings.get("offset_ms", 0))  # on its own times
         self.sound.play(heard.index, own, self.rate)
-        self._sound_from = (heard.index, len(heard.index.paths))
-
-    def _sound_on(self) -> None:
-        """A sound that ran out as the recording grew -- played behind live -- goes
-        on from where playing is, the segments closed since with it (013)."""
-        index, listed = self._sound_from
-        if self.playing and self.sound.ended and index is not None:
-            if len(index.paths) > listed:
-                self._play_sound()
 
     def _sound_folder(self, camera_id: str) -> tuple[Path, int] | None:
         """Whose sound a camera's exported file takes (013): another camera's of its
