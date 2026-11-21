@@ -1720,13 +1720,13 @@ class MainWindow(QMainWindow):
         self._show_recording()
         self._show_phones()
         self._show_protocol()  # a late entry, or the file gone
-        self.sound.follow()  # played behind live: the segments closed since heard on
         if suggested:
             self._show_suggestions()
         if self.output is None and self.session.get("output"):
             self._open_output(again=True)
         self._follow_files()
         self._refresh()
+        self.sound.follow()  # played behind live: the segments just listed heard on
         current = self._camera()
         stretches = current.activity.stretches if current and finding else []
         offset = self._offset()
