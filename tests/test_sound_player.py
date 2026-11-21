@@ -12,6 +12,11 @@ from tests.conftest import wait_until
 from tests.test_sound import RATE, START, beep_at, recorded
 
 
+def still() -> float:
+    """A clock that stands: the sound started at once."""
+    return 100.0
+
+
 class Output:
     """Stands for Qt's audio output: takes what it has room for."""
 
@@ -45,7 +50,9 @@ def test_the_sound_plays_from_the_moment_its_buffer_ahead(
 ) -> None:
     index = recorded(tmp_path)
     output = Output()
-    played = player.SoundPlayer(output=lambda: (output, player.RATE, player.CHANNELS))
+    played = player.SoundPlayer(
+        output=lambda: (output, player.RATE, player.CHANNELS), clock=still
+    )
     played.play(index, START + 500, rate)
     assert played.playing
     wait_until(lambda: len(output.taken) > 4 * RATE * (2.0 / rate))  # past the beep
@@ -63,7 +70,9 @@ def test_stopped_it_gives_no_more_and_without_an_output_it_plays_none(
     index = recorded(tmp_path)
     output = Output()
     output.free = 4 * 4800  # a tenth of a second at a time
-    played = player.SoundPlayer(output=lambda: (output, player.RATE, player.CHANNELS))
+    played = player.SoundPlayer(
+        output=lambda: (output, player.RATE, player.CHANNELS), clock=still
+    )
     played.play(index, START, 1.0)
     wait_until(lambda: len(output.taken) > 0)
     played.stop()
@@ -87,7 +96,7 @@ def test_an_output_that_takes_another_rate_and_channels_is_played_in_them(
     # A sound card that will not take 48 kHz stereo: what it prefers.
     index = recorded(tmp_path)
     output = Output()
-    played = player.SoundPlayer(output=lambda: (output, 44100, 1))
+    played = player.SoundPlayer(output=lambda: (output, 44100, 1), clock=still)
     played.play(index, START + 500, 1.0)
     wait_until(lambda: len(output.taken) > 2 * 44100 * 2.0)
     samples = np.frombuffer(bytes(output.taken), np.int16)  # one channel
@@ -99,10 +108,29 @@ def test_an_output_that_takes_another_rate_and_channels_is_played_in_them(
 def test_the_sound_says_it_has_ended_once_all_of_it_is_given(tmp_path: Path) -> None:
     index = recorded(tmp_path)
     output = Output()
-    played = player.SoundPlayer(output=lambda: (output, player.RATE, player.CHANNELS))
+    played = player.SoundPlayer(
+        output=lambda: (output, player.RATE, player.CHANNELS), clock=still
+    )
     assert not played.ended  # nothing played: nothing ended
     played.play(index, START + 2500, 1.0)
     wait_until(lambda: played.ended)  # the half second left, given whole
     assert len(output.taken) == pytest.approx(4 * RATE * 0.5, rel=0.2)
     played.stop()
     assert not played.ended
+
+
+def test_the_time_the_sound_took_to_start_is_skipped_so_it_keeps_up(
+    tmp_path: Path,
+) -> None:
+    # Made, opened and decoded while the picture played on: what that time held of
+    # the sound is not heard late, but left out.
+    index = recorded(tmp_path)
+    output = Output()
+    now = [100.0]
+    made = (output, player.RATE, player.CHANNELS)
+    played = player.SoundPlayer(output=lambda: made, clock=lambda: now[0])
+    played.play(index, START + 500, 1.0)
+    now[0] += 0.3  # the window busy that long before it gave the output anything
+    wait_until(lambda: len(output.taken) > 4 * RATE * 1.5)
+    assert beep_at(heard(output)) == pytest.approx(0.7, abs=0.05)
+    played.stop()
