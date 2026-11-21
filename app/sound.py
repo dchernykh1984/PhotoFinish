@@ -167,7 +167,7 @@ def exported_sound(
 def has_sound(path: Path) -> bool:
     """Whether a segment keeps sound beside its frames: read once, as a closed one
     never changes -- the window asks at each play, a file opened on its thread --;
-    one that cannot be read now is asked again, not taken for silent."""
+    one that cannot be read now counts as silent for this ask alone, never kept so."""
     try:
         return _keeps_sound(path)
     except av.FFmpegError, OSError:
