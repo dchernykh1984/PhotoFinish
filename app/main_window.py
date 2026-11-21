@@ -175,7 +175,6 @@ class MainWindow(QMainWindow):
         self.faster_button, self.speed_label = QPushButton(), QLabel()
         self.sound = SoundPlayer(self)  # the sound played forwards (013)
         self.sound.failed.connect(self._say)
-        self._sound_from: str | None = None  # the camera whose sound plays
         self.sound_box = QCheckBox("Sound")
         self.shared_event: shared_event.SharedEvent | None = None
 
@@ -1741,10 +1740,7 @@ class MainWindow(QMainWindow):
             self._open_output(again=True)
         self._follow_files()
         self._refresh()
-        # Played behind live: the segments just listed heard on; its recorder ended,
-        # heard to its end.
-        heard = self.cameras.get(self._sound_from or "")
-        self.sound.follow(grows=heard is not None and not has_ended(heard.info))
+        self.sound.follow()  # played behind live: the segments just listed heard on
         current = self._camera()
         stretches = current.activity.stretches if current and finding else []
         offset = self._offset()
@@ -2014,13 +2010,14 @@ class MainWindow(QMainWindow):
         forwards = self.playing and not self.backwards and self.sound_box.isChecked()
         due = playback.moment_due(self._play_start, time.monotonic(), self.rate)
         heard = self._sound_camera(due) if forwards else None  # where it goes on
-        self._sound_from = None if heard is None else heard.id
         if heard is None:
             self.sound.stop()
             return
         own = due - int(heard.settings.get("offset_ms", 0))  # on its own times
-        # Followed until its recorder ends: a file, or one ended, ends where it does.
-        self.sound.play(heard.index, own, self.rate, follows=not has_ended(heard.info))
+        # Followed while the window keeps its recorder, which records on whatever its
+        # beat says a moment: a file, or one let go and ended, ends where it does.
+        kept = heard.watchdog.wanted or not has_ended(heard.info)
+        self.sound.play(heard.index, own, self.rate, follows=kept)
 
     def _sound_folder(self, camera_id: str) -> tuple[Path, int] | None:
         """Whose sound a camera's exported file takes, and how much later (013);
