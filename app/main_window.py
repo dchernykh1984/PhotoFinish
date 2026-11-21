@@ -1740,10 +1740,7 @@ class MainWindow(QMainWindow):
             self._open_output(again=True)
         self._follow_files()
         self._refresh()
-        # Played behind live: the segments just listed heard on; its recorder let go
-        # and ended, heard to its end.
-        heard = self.cameras.get(self._sound_from or "")
-        self.sound.follow(grows=heard is not None and self._grows(heard))
+        self._follow_sound()
         current = self._camera()
         stretches = current.activity.stretches if current and finding else []
         offset = self._offset()
@@ -2019,6 +2016,19 @@ class MainWindow(QMainWindow):
             return
         own = due - int(heard.settings.get("offset_ms", 0))  # on its own times
         self.sound.play(heard.index, own, self.rate, follows=self._grows(heard))
+
+    def _follow_sound(self) -> None:
+        """Played behind live: the segments just listed heard on; its recorder let go
+        and ended, heard to its end. The microphone gone to another lens of the phone
+        as it plays on -- one left out --: that one's sound from where playing is."""
+        if self.playing and not self.backwards and self.sound_box.isChecked():
+            due = playback.moment_due(self._play_start, time.monotonic(), self.rate)
+            now = self._sound_camera(due)
+            if (None if now is None else now.id) != self._sound_from:
+                self._play_sound()  # or begun: the microphone allowed as it plays
+                return
+        heard = self.cameras.get(self._sound_from or "")
+        self.sound.follow(grows=heard is not None and self._grows(heard))
 
     @staticmethod
     def _grows(camera: Camera) -> bool:
