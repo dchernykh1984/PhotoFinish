@@ -429,6 +429,12 @@ class CameraStreamer(
             val what = named.ifEmpty { "its preview" }
             val codec = if (common.codec == Codec.HEVC) ", H.265" else "" // specs/010-hevc
             log.info(null, "camera ${plan.cameraId}: $what at ${common.resolution}, ${common.fps} fps$codec")
+            if (chosen.codec == Codec.HEVC && common.codec != Codec.HEVC) { // a camera's lenses took it not: said
+                log.warning(
+                    null,
+                    "camera ${plan.cameraId}: h265 not taken by all its lenses at ${common.resolution}: h264",
+                )
+            }
             plan.lenses.forEach { planned ->
                 val lens = planned.target.lens
                 try {
