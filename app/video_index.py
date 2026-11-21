@@ -180,7 +180,7 @@ class VideoIndex:
     def segments_on(self, place: int) -> Iterator[Path]:
         """The segments of the frames from ``place`` on, each once, in the frames'
         order -- a segment closed late with earlier frames in its place --: a pass
-        over those frames alone, the paths given as they are asked for."""
+        over those frames, none before ``place``."""
         if not len(self):
             return
         tail = self._segment[min(max(place, 0), len(self) - 1) :]
