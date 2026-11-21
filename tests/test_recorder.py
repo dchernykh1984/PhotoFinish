@@ -1279,3 +1279,24 @@ def test_a_recorder_that_hears_sound_alone_still_beats(
     monkeypatch.setattr(Heartbeat, "beat", beat)
     assert run("cam1") == 0
     assert beats.count("recording") > 50  # a beat at each piece of sound, not one
+
+
+def test_a_sound_the_recorder_does_not_keep_beats_no_heartbeat(
+    folder: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # An IP camera's G.711 is not kept: its pieces say nothing of the recorder.
+    with_sound(tmp_path / "phone.mkv", 1)
+    stop = Camera(folder, START + 10_000, 1, stop_after=0)
+    source = SoundAlone(tmp_path / "phone.mkv")
+    cameras(monkeypatch, source, stop)
+    monkeypatch.setattr(SegmentWriter, "write_audio", lambda *_: False)  # not kept
+    beats: list[str] = []
+    real = Heartbeat.beat
+
+    def beat(self: Heartbeat, **changes: Any) -> None:
+        real(self, **changes)
+        beats.append(self.info["state"])
+
+    monkeypatch.setattr(Heartbeat, "beat", beat)
+    assert run("cam1") == 0
+    assert beats.count("recording") <= 3  # the frame, and the stop's: no piece's

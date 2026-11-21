@@ -292,7 +292,10 @@ class Stream:
             got = False
             before: tuple[int, int] | None = None  # the last frame's pts, ms; moment
             try:
-                for packet in container.demux(stream, *container.streams.audio[:1]):
+                # Its sound when it is AAC (013), what the segments keep: an IP
+                # camera's G.711 is not read at all.
+                heard = [s for s in container.streams.audio if _aac(s)][:1]
+                for packet in container.demux(stream, *heard):
                     if packet.pts is None or packet.dts is None:
                         continue
                     pts_ms = in_ms(packet.pts, fraction(packet.time_base))
@@ -411,6 +414,10 @@ class Stream:
         now = self.anchor.clock()
         since = now if opened is None else opened  # taken before the frame was read
         return since - OWN_PAST_MS - held <= own <= now + OWN_FUTURE_MS
+
+
+def _aac(stream: Any) -> bool:
+    return getattr(stream.codec_context, "name", "") == "aac"
 
 
 class LiveFile:
