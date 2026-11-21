@@ -431,6 +431,15 @@ def test_a_sound_list_begun_anew_in_a_cleared_folder_is_read_from_its_start(
     }
 
 
+def test_the_sound_is_rendered_to_its_last_piece(tmp_path: Path) -> None:
+    # The piece a decoder holds back drained at the end, and as the form changes.
+    index = recorded(tmp_path)
+    found = list(sound.pieces(index, START))
+    end = found[-1].end_ms
+    samples = played(index, START)
+    assert len(samples) / RATE == pytest.approx((end - START) / 1000, abs=0.005)
+
+
 def test_the_segments_that_kept_no_sound_are_never_opened_for_it(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
