@@ -550,4 +550,15 @@ class FrameStoreTest {
         assertEquals(1_000_000L, store.next(0, fromKeyframe = true)?.ptsUs)
         assertTrue(store.next(0)!!.sound)
     }
+
+    @Test
+    fun `a run let go for room counts its frames dropped, not its pieces of sound`() {
+        var free = Long.MAX_VALUE
+        val store = store(floorBytes = 0, free = { free })
+        store.keep(frame(0, keyframe = true), 5_000)
+        repeat(4) { store.keep(piece(10_000L + it * 21_000), null) }
+        store.keep(frame(100_000, keyframe = false), 105_000)
+        free = 0 // no room: the oldest run goes for the next
+        assertEquals(2, store.keep(frame(3_000_000, keyframe = true), 3_005_000))
+    }
 }
