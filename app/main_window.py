@@ -7,7 +7,7 @@ import html
 import math
 import time
 from collections.abc import Callable, Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path
 from typing import Any
@@ -52,6 +52,7 @@ from app import analysis, cameras, paths, phone_status, playback, session, share
 from app.analysis import models
 from app.analysis.activity import Activity, how_far
 from app.analysis.suggestions import Gathered, Suggestions, gathered, remaining
+from app.catch_up import CatchUp
 from app.input_follow import InputFollow
 from app.interpolation import (
     Line,
@@ -127,6 +128,7 @@ class Camera:
     analyzer_started: float = -math.inf  # monotonic
     stopping: Any = None  # the analyser stopped, while it ends its segment
     info: dict[str, Any] | None = None  # its recorder's last heartbeat
+    catch_up: CatchUp = field(default_factory=CatchUp)  # what its phone holds (009)
 
     @property
     def id(self) -> str:
@@ -1558,13 +1560,7 @@ class MainWindow(QMainWindow):
             state = describe(info)
         else:
             state = "starting" if watchdog.wanted else "not recording"
-        said = last_word(
-            (info or {}).get("phone_said"), QDateTime.currentMSecsSinceEpoch()
-        )
-        # Why the phone gives nothing (008, FR-005): its recorder's word while it runs;
-        # a recorder stopped or gone is the reason itself, a lens left out said already.
-        if said and alive(info) and not recording(info) and not left:
-            state += f"; {said}"
+        state += self._phone_words(camera, info, left)
         if camera.index.unreadable:
             state += f"; segments that cannot be read: {len(camera.index.unreadable)}"
         clash = cameras.port_clash(camera.settings, self.session["cameras"])
@@ -1584,6 +1580,24 @@ class MainWindow(QMainWindow):
             state += self._numbers_state(camera)
         camera.item.setText(f"{self._name(camera.id)}: {state}")
         return info
+
+    def _phone_words(
+        self, camera: Camera, info: dict[str, Any] | None, left: bool
+    ) -> str:
+        """What the camera's line adds of its phone: why it gives nothing (008,
+        FR-005) -- its recorder's word while it runs; a recorder stopped or gone is
+        the reason itself, a lens left out said already --, and the video it still
+        holds for the camera, with about when it is in (009)."""
+        words = ""
+        said = last_word(
+            (info or {}).get("phone_said"), QDateTime.currentMSecsSinceEpoch()
+        )
+        if said and alive(info) and not recording(info) and not left:
+            words += f"; {said}"
+        held = camera.catch_up.line((info or {}).get("phone"))
+        if held:
+            words += f"; {held}"
+        return words
 
     def _numbers_state(self, camera: Camera) -> str:
         """What the camera line says while numbers go unread for want of the reader

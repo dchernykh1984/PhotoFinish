@@ -1,0 +1,82 @@
+"""What a phone still holds for a camera, as the camera's line says it (specs/009).
+
+PhotoFinish Camera says, with each keyframe it sends, how much video it holds for the
+camera -- kept through a slow network or a break, or since the app or the phone
+started again -- as ``unsent_ms``, the span of it. The line says how much there is, a
+bar of what has come since the phone began falling behind, and, while the phone
+catches up, about when the rest will be in. Less than SAID_MS held is the stream's
+own pace, and says nothing.
+"""
+
+from __future__ import annotations
+
+import collections
+import math
+from typing import Any
+
+SAID_MS = 2_000
+LOOK_BACK_MS = 60_000  # the estimate's: a minute of what the phone said
+FULL, EMPTY = chr(0x2588), chr(0x2591)
+CELLS = 10
+MINUTE_MS = 60_000
+
+
+class CatchUp:
+    """One camera's: the most the phone held since it began falling behind, and
+    what it said it held lately, when this computer heard it."""
+
+    def __init__(self) -> None:
+        self.peak = 0
+        self.said: collections.deque[tuple[int, int]] = collections.deque()
+
+    def line(self, status: object) -> str:
+        """What the phone holds for the camera, as its line says it: "" for little --
+        or for a status that is no table, from a heartbeat of another version."""
+        readings: dict[str, Any] = status if isinstance(status, dict) else {}
+        held = _number(readings.get("unsent_ms"))
+        heard = _number(readings.get("heard_ms"))
+        if held is None or heard is None or held < SAID_MS:
+            self.peak = 0
+            self.said.clear()
+            return ""
+        if not self.said or self.said[-1][0] != heard:
+            self.said.append((heard, held))
+        while self.said and self.said[0][0] < heard - LOOK_BACK_MS:
+            self.said.popleft()
+        self.peak = max(self.peak, held)
+        done = 1 - held / self.peak
+        cells = round(done * CELLS)
+        bar = FULL * cells + EMPTY * (CELLS - cells)
+        text = f"{span(held)} of video on the phone {bar} {done:.0%}"
+        return text + self._estimate(held)
+
+    def _estimate(self, held: int) -> str:
+        """About when the rest is in, by how fast what it holds fell over the minute
+        looked back on: nothing while it does not fall."""
+        (first_at, first), (last_at, last) = self.said[0], self.said[-1]
+        if last_at <= first_at or last >= first:
+            return ""
+        left = held * (last_at - first_at) / (first - last)
+        if left < MINUTE_MS:
+            return ", in under a minute"
+        return f", in about {math.ceil(left / MINUTE_MS)} min"
+
+
+def span(ms: int) -> str:
+    """``ms`` of video as a clock says it: M:SS, from an hour H:MM:SS."""
+    seconds = max(ms, 0) // 1000
+    hours, rest = divmod(seconds, 3600)
+    minutes, seconds = divmod(rest, 60)
+    if hours:
+        return f"{hours}:{minutes:02d}:{seconds:02d}"
+    return f"{minutes}:{seconds:02d}"
+
+
+def _number(value: object) -> int | None:
+    """A reading as written, as a whole number; None when it is none: what comes
+    over the network is not to stop the window."""
+    try:
+        number = float(str(value)) if value is not None else None
+    except ValueError:
+        return None
+    return int(number) if number is not None and math.isfinite(number) else None
