@@ -33,7 +33,7 @@ LAYOUTS = {1: "mono", 2: "stereo", 3: "2.1", 4: "quad", 5: "5.0", 6: "5.1", 8: "
 def default_output() -> tuple[Any, int, int] | None:
     """Qt's audio output, 16-bit, with its rate and channels: 48 kHz stereo, else
     the rate and channels the device prefers -- a sound card that takes no other --;
-    None without one."""
+    None without one. Raises ValueError for a device that takes neither."""
     try:
         from PySide6.QtMultimedia import QAudioFormat, QAudioSink, QMediaDevices
     except ImportError:  # pragma: no cover - a Qt without multimedia
@@ -54,7 +54,7 @@ def default_output() -> tuple[Any, int, int] | None:
             output = QAudioSink(device, form)
             output.setBufferSize(round(BUFFER_S * rate) * channels * 2)
             return output, rate, channels
-    return None
+    raise ValueError("the audio output takes no format it can play")
 
 
 class SoundPlayer(QObject):
@@ -109,7 +109,11 @@ class SoundPlayer(QObject):
         segments the index gains as it plays are heard on (``follow``)."""
         asked = self._clock()  # the time opening the output takes left out too
         self.stop()
-        made = self._make()
+        try:
+            made = self._make()
+        except ValueError as error:  # a device there, no format it plays: said so
+            self._fail(f"The sound cannot be played: {error}")
+            return
         if made is None:
             self._fail("The sound cannot be played: no audio output")
             return
