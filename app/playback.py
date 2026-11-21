@@ -44,11 +44,13 @@ def play_on(
     its frames' times, ``rate`` the speed, below 0 backwards (specs/012). In a gap
     longer than SKIP_MS (a recorder restarted, a camera that stalled, one that
     started later) playing goes on from the first frame after it, rather than
-    holding one frame for the gap's length. None once the newest frame is passed:
-    playing on is Live -- or, backwards, once the first is: playing ends."""
+    holding one frame for the gap's length -- held SKIP_MS of the clock at most,
+    however slow it plays. None once the newest frame is passed: playing on is Live
+    -- or, backwards, once the first is: playing ends."""
     due = moment_due(started, now, rate) - offset  # the camera's times
+    held = SKIP_MS * min(1.0, abs(rate))  # of the recording: a second of the clock
     if rate < 0:
-        return _back(frames, started, now, offset, due)
+        return _back(frames, started, now, offset, due, held)
     if not len(frames) or due >= int(frames.ms[-1]):
         return None, started
     after = int(np.searchsorted(frames.ms, due, side="right"))
@@ -56,13 +58,14 @@ def play_on(
         if int(frames.ms[0]) - due > SKIP_MS:
             return 0, (now, int(frames.ms[0]) + offset)
         return 0, started
-    if due - int(frames.ms[after - 1]) > SKIP_MS:
-        return after, (now, int(frames.ms[after]) + offset)
+    last, following = int(frames.ms[after - 1]), int(frames.ms[after])
+    if following - last > SKIP_MS and due - last > held:  # a gap, never a frame late
+        return after, (now, following + offset)
     return after - 1, started
 
 
 def _back(
-    frames: Frames, started: Start, now: float, offset: int, due: int
+    frames: Frames, started: Start, now: float, offset: int, due: int, held: float
 ) -> tuple[int | None, Start]:
     """Backwards, the mirror of forwards: the first frame at or after the moment
     ``due``; a gap longer than SKIP_MS before it jumped over to the frame on its far
@@ -74,6 +77,7 @@ def _back(
         if due - int(frames.ms[-1]) > SKIP_MS:
             return before - 1, (now, int(frames.ms[-1]) + offset)
         return before - 1, started
-    if int(frames.ms[before]) - due > SKIP_MS:
-        return before - 1, (now, int(frames.ms[before - 1]) + offset)
+    first, previous = int(frames.ms[before]), int(frames.ms[before - 1])
+    if first - previous > SKIP_MS and first - due > held:
+        return before - 1, (now, previous + offset)
     return before, started
