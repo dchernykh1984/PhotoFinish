@@ -49,7 +49,10 @@ class ExportChoice(QDialog):
 def choose_cameras(parent: QWidget | None, names: dict[str, str]) -> list[str]:
     """The cameras ticked; none when the referee cancels."""
     dialog = ExportChoice(parent, names)
-    return dialog.chosen() if dialog.exec() == QDialog.DialogCode.Accepted else []
+    try:
+        return dialog.chosen() if dialog.exec() == QDialog.DialogCode.Accepted else []
+    finally:
+        dialog.deleteLater()  # not one more hidden dialog kept for each export
 
 
 class ExportJob(QObject):

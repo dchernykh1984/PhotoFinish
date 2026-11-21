@@ -5,6 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from PySide6.QtCore import QEvent
+from PySide6.QtWidgets import QApplication, QDialog, QWidget
 
 from app.widgets import export_dialog
 from tests.conftest import wait_until
@@ -31,6 +33,18 @@ def test_every_camera_is_ticked_at_first_and_those_left_ticked_are_chosen() -> N
     assert dialog.chosen() == ["cam1", "cam2"]
     dialog.ticks["cam1"].setChecked(False)
     assert dialog.chosen() == ["cam2"]
+
+
+def test_the_cameras_dialog_is_gone_once_answered(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    parent = QWidget()
+    monkeypatch.setattr(
+        export_dialog.ExportChoice, "exec", lambda _: QDialog.DialogCode.Accepted
+    )
+    assert export_dialog.choose_cameras(parent, {"cam1": "Main"}) == ["cam1"]
+    QApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    assert not parent.findChildren(export_dialog.ExportChoice)
 
 
 def test_the_job_writes_each_camera_and_says_how_far_it_is(tmp_path: Path) -> None:
