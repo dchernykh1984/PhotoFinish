@@ -173,6 +173,7 @@ class MainWindow(QMainWindow):
         self.slower_button, self.normal_button = QPushButton(), QPushButton("x1")
         self.faster_button, self.speed_label = QPushButton(), QLabel()
         self.sound = SoundPlayer(self)  # the sound played forwards (013)
+        self.sound.failed.connect(self._say)
         self._sound_from: str | None = None  # the camera whose sound plays
         self.sound_box = QCheckBox("Sound")
         self.shared_event: shared_event.SharedEvent | None = None

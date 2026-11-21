@@ -153,7 +153,7 @@ def test_a_start_longer_than_the_sound_rendered_ahead_is_left_out_whole(
     played.stop()
 
 
-def test_a_sound_that_cannot_be_rendered_ends_quietly(
+def test_a_sound_that_cannot_be_rendered_ends_and_says_why(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     index = recorded(tmp_path)
@@ -164,8 +164,11 @@ def test_a_sound_that_cannot_be_rendered_ends_quietly(
     monkeypatch.setattr(player.sound.Renderer, "read", broken)
     made = (Output(), player.RATE, player.CHANNELS)
     played = player.SoundPlayer(output=lambda: made, clock=still)
+    said: list[str] = []
+    played.failed.connect(said.append)
     played.play(index, START, 1.0)
-    wait_until(lambda: given(played))  # its thread ended, nothing raised
+    wait_until(lambda: given(played) and bool(said))  # its thread ended, unraised
+    assert said == ["The sound cannot be played: a layout the filters refuse"]
     played.stop()
 
 

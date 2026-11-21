@@ -15,7 +15,7 @@ from collections import deque
 from collections.abc import Callable
 from typing import Any
 
-from PySide6.QtCore import QObject, QTimer
+from PySide6.QtCore import QObject, QTimer, Signal
 
 from app import sound
 from app.video_index import VideoIndex
@@ -59,6 +59,8 @@ def default_output() -> tuple[Any, int, int] | None:
 class SoundPlayer(QObject):
     """Plays a camera's sound from a moment at a rate until stopped; ``output`` makes
     the output -- Qt's, or a test's --, ``clock`` tells the time it took to start."""
+
+    failed = Signal(str)  # a sound that cannot be played: why, from its thread
 
     def __init__(
         self,
@@ -157,7 +159,7 @@ class SoundPlayer(QObject):
 
     def _render(self, renderer: sound.Renderer, stopped: threading.Event) -> None:
         """The sound rendered ahead of the output by AHEAD_S at most, until stopped
-        or ended; a recording that cannot be read ends it."""
+        or ended; one that cannot be rendered ends it, ``failed`` saying why."""
         ahead = self._ahead
         try:
             while not stopped.is_set():
@@ -171,8 +173,8 @@ class SoundPlayer(QObject):
                         return
                     self._chunks.append(chunk)
                     self._held += len(chunk)
-        except Exception:  # a sound that cannot be played is not heard
-            return
+        except Exception as error:  # a sound that cannot be played is not heard
+            self.failed.emit(f"The sound cannot be played: {error}")
 
     def _pump(self) -> None:
         """What the output has room for, given it; the first time, the time since

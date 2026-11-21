@@ -3948,6 +3948,14 @@ def test_the_sound_follows_the_recording_as_the_window_polls(
     assert sum(call[0] == "play" for call in heard.calls) == plays
 
 
+def test_a_sound_that_cannot_be_played_is_said(win: mw.MainWindow) -> None:
+    win.sound.failed.emit("The sound cannot be played: a layout refused")
+    QApplication.processEvents()
+    assert win.statusBar().currentMessage() == (
+        "The sound cannot be played: a layout refused"
+    )
+
+
 def test_the_sound_of_a_recorder_gone_is_heard_to_its_end(
     phone_with_sound: Path, make_window: Callable[[], mw.MainWindow], clock: list[float]
 ) -> None:
