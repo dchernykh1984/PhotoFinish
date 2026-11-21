@@ -9,7 +9,7 @@ app/playback.py         the frame due by the clock at a rate: signed, x1/16 to x
                         a gap jumped over either way; None past either end
 app/decoder.py          the frames decoded lately kept, up to a size: a step back, or playing
                         backwards, takes them from there instead of decoding from the keyframe
-app/main_window.py      "Play <", "Play >", the speed buttons and their label; the timer asks
+app/main_window.py      "< Play", "Play >", the speed buttons and their label; the timer asks
                         playback for the frame due at the rate
 ```
 
