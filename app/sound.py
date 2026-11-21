@@ -13,6 +13,7 @@ keeps the pitch.
 
 from __future__ import annotations
 
+import functools
 import heapq
 import threading
 from collections.abc import Callable, Iterable, Iterator, Mapping
@@ -93,8 +94,10 @@ def shift_ms(own: Mapping[str, Any], heard: Mapping[str, Any]) -> int:
     return int(heard.get("offset_ms", 0)) - int(own.get("offset_ms", 0))
 
 
+@functools.lru_cache(maxsize=4096)
 def has_sound(path: Path) -> bool:
-    """Whether a segment keeps sound beside its frames."""
+    """Whether a segment keeps sound beside its frames: read once, as a closed one
+    never changes -- the window asks at each play, a file opened on its thread."""
     try:
         with av.open(str(path)) as container:
             return bool(container.streams.audio)
