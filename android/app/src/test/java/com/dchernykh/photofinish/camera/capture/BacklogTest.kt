@@ -245,6 +245,29 @@ class BacklogTest {
     }
 
     @Test
+    fun `frames kept with no moment are dropped and said so, never told sent`() {
+        val folder = File(root, "main-100")
+        val store = FrameStore(folder, freeBytes = { Long.MAX_VALUE })
+        repeat(20) { store.keep(EncodedFrame(ByteArray(10), it * 100_000L, it % 10 == 0), null) }
+        store.close()
+        StreamHeader(Lens.MAIN, first, format, byteArrayOf(1)).write(folder)
+        backlog.readBack()
+        assertFalse(folder.exists())
+        assertFalse(backlog.holds(first))
+        assertTrue(said.any { it.contains("no moments, dropped") })
+        assertFalse(said.any { it.contains("all it kept sent") })
+    }
+
+    @Test
+    fun `an older app's store is removed as it is read back, never told as video to send`() {
+        val old = File(root, "main").apply { mkdirs() }
+        File(old, "3.h264").writeBytes(ByteArray(50))
+        backlog.readBack()
+        assertFalse(old.exists())
+        assertEquals(FrameStore.Pending(0, 0), backlog.pending())
+    }
+
+    @Test
     fun `discard stops and drops every stream kept`() {
         kept(began = 100)
         kept(began = 200, address = second)

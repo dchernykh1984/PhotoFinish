@@ -60,24 +60,25 @@ class Backlog(
      * What the stores' root holds from the app's runs before, read back: streams to send, or folders of nothing to
      * send, removed. A folder of this run is a stream a camera feeds, perhaps its header not written yet: not its.
      */
-    @Suppress("TooGenericExceptionCaught") // whatever a folder throws, the next is read and the app goes on
     fun readBack() {
         try {
-            val folders =
-                root
-                    .listFiles { file ->
-                        file.isDirectory && !(session.isNotEmpty() && file.name.endsWith("-$session"))
-                    }?.sortedBy { began(it) } ?: return
-            folders.forEach { folder ->
-                try {
-                    adopt(folder)
-                } catch (error: Exception) {
-                    // a folder that throws, left: never the app ended at each start
-                    say(Lens.MAIN, "${folder.name}: not read back (${error.javaClass.simpleName}: ${error.message})")
-                }
-            }
+            root
+                .listFiles { file -> file.isDirectory && !(session.isNotEmpty() && file.name.endsWith("-$session")) }
+                ?.sortedBy { began(it) }
+                ?.forEach { readBack(it) }
         } finally {
             ready = true
+        }
+    }
+
+    /** One folder read back; whatever it throws is said and it is left: never the app ended at each start. */
+    @Suppress("TooGenericExceptionCaught")
+    private fun readBack(folder: File) {
+        try {
+            // An older app's store, `<lens>/`, was never meant to be sent after it.
+            if (began(folder) == 0L) folder.deleteRecursively() else adopt(folder)
+        } catch (error: Exception) {
+            say(Lens.MAIN, "${folder.name}: not read back (${error.javaClass.simpleName}: ${error.message})")
         }
     }
 
@@ -109,6 +110,7 @@ class Backlog(
         val header = StreamHeader.read(folder)
         val store = header?.let { FrameStore(folder) }
         when {
+            store != null && store.unsent && !store.stamped -> drop(folder, store) // no moment to place them by
             // Frames whose header a power cut took, or the storage would not read: not sent, not removed either --
             // counted, and Discard alone removes them.
             header == null && hasFrames(folder) -> leave(folder, "frames kept with no header to send them with")
@@ -117,6 +119,19 @@ class Backlog(
             else -> return Kept(folder, header, store)
         }
         return null
+    }
+
+    /** Frames kept with no moment -- the clock exchange never through --: placed by their arrival, hours late. */
+    private fun drop(
+        folder: File,
+        store: FrameStore,
+    ) {
+        val lens = Lens.named(folder.name.substringBefore('-')) ?: Lens.MAIN
+        say(
+            lens,
+            "${folder.name}: ${store.pending.ms / MS_PER_S} s of video kept with no moments, dropped: unplaceable",
+        )
+        folder.deleteRecursively()
     }
 
     private fun leave(

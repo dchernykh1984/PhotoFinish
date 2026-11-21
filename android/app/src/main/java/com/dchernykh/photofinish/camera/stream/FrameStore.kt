@@ -182,10 +182,14 @@ class FrameStore(
         }
     }
 
+    /** A run kept begins with a frame with its moment: something a connection of kept frames can send. */
+    val stamped: Boolean get() = lock.withLock { runs.any { it.frames.first().momentUs != null } }
+
     /**
      * The cursor on to the first keyframe kept with a moment, at or after it, so that a connection's frames
      * all carry their moments; past every frame kept when none has one yet: on to the next keyframe.
      */
+
     fun skipToStamped() {
         lock.withLock {
             val at = cursorRun ?: runs.firstOrNull() ?: return
