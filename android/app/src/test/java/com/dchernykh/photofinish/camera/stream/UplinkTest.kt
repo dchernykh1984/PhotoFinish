@@ -450,6 +450,17 @@ class UplinkTest {
     }
 
     @Test
+    fun `a lens waiting for its clock is not connected yet, holding no other lens back`() {
+        val sink = FakeSink()
+        val link = uplink(listOf(sink), offset = null) // no clock: it waits for one, then goes without
+        start(link)
+        Thread.sleep(300)
+        assertFalse(link.connected)
+        awaitConnected()
+        assertTrue(link.connected)
+    }
+
+    @Test
     fun `a tail under the acknowledgements' step is asked for once idle, the frames then sent`() {
         val sink = FakeSink(answersPings = true) // acknowledges no window: a stream of a few small frames
         val link = uplink(listOf(sink))

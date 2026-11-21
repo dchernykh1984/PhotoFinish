@@ -281,7 +281,6 @@ class Uplink(
         quietSinceNs = System.nanoTime()
         val connected = connect(address)
         publisher = connected
-        this.connected = true
         // Waits a little for the clock, so that the connection's frames carry their moments.
         if (!alone) await(System.nanoTime() + waitForClockMs * 1_000_000) { clock() != null }
         // A connection's frames all carry their moments, or none do: the recorder places frames without one by
@@ -291,6 +290,9 @@ class Uplink(
         if (alone || clock() != null) store.skipToStamped() else store.skipKept()
         // Then how long the frame it starts at was kept is known, the wait for the clock in it too (contract).
         connected.publish(metadata(format, store.heldMs(captureClock?.invoke())))
+        // Connected once the recorder took it: a lens waiting for its clock, or connecting in vain, holds no other
+        // lens back (PriorityBoard) and keeps no phone awake for a laptop that is not there.
+        this.connected = true
         openStampWindow(atKeyframe = false) // the connection's start
         await(Long.MAX_VALUE) { record != null }
         connected.sendSequenceHeader(record ?: throw IOException("stopped"))
