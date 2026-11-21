@@ -37,6 +37,16 @@ def pieces(folder: Path) -> list[Path]:
     return [folder / f"{n}.mkv" for n in names if (folder / f"{n}.mkv").is_file()]
 
 
+def has_video(folder: Path) -> bool:
+    """Whether a camera has a piece to export: the first listed that is there --
+    not every piece looked at, thousands an hour."""
+    try:
+        names = (folder / SEGMENTS).read_text("ascii", errors="replace").split()
+    except OSError:
+        return False
+    return any((folder / f"{n}.mkv").is_file() for n in names)
+
+
 def free(path: Path) -> Path:
     """``path``, or ``<stem> (2)<suffix>`` and on when taken: nothing is overwritten."""
     found, n = path, 1
