@@ -75,6 +75,7 @@ class SoundPlayer(QObject):
         self._ahead = 0  # bytes rendered ahead at most, at the output's rate
         self._frame = 4  # bytes a sample of every channel takes at the output
         self._asked: float | None = None  # when play was asked, until the first write
+        self._unskipped = 0  # bytes of that start still to leave out, as they come
         self._out_rate = RATE
         self._lock = threading.Lock()
         self._room = threading.Condition(self._lock)
@@ -129,6 +130,7 @@ class SoundPlayer(QObject):
             self._stopped.set()
             self._chunks.clear()
             self._held = 0
+            self._unskipped = 0
             self._rendered = False
             self._room.notify_all()
         self._thread = None  # a daemon: it ends at its next piece, waited for by none
@@ -167,7 +169,9 @@ class SoundPlayer(QObject):
             if self._asked is not None and self._chunks:
                 late = self._clock() - self._asked
                 self._asked = None
-                self._skip(round(late * self._out_rate) * self._frame)
+                self._unskipped = round(late * self._out_rate) * self._frame
+            # More than was rendered ahead as it started: the rest as it comes.
+            self._unskipped = self._skip(self._unskipped)
             room = int(self._output.bytesFree())
             while self._chunks and room > 0:
                 chunk = self._chunks.popleft()
@@ -181,8 +185,9 @@ class SoundPlayer(QObject):
                     break
             self._room.notify_all()
 
-    def _skip(self, count: int) -> None:
-        """``count`` bytes of what was rendered left out; the lock held."""
+    def _skip(self, count: int) -> int:
+        """``count`` bytes of what was rendered left out, the lock held; those not
+        rendered yet returned."""
         while count > 0 and self._chunks:
             chunk = self._chunks.popleft()
             if len(chunk) > count:
@@ -190,3 +195,4 @@ class SoundPlayer(QObject):
             taken = min(count, len(chunk))
             self._held -= taken
             count -= taken
+        return count
