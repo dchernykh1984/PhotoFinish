@@ -16,7 +16,7 @@ from app.recorder import folder_of
 from app.recorder.segments import SOUND, SegmentWriter, fraction, in_ms
 from app.recorder.testcam import render
 from app.video_index import VideoIndex
-from tests.test_segments import START
+from tests.test_segments import START, record
 
 RATE = 48000
 BEEP_MS = 1500  # into the recording
@@ -59,8 +59,9 @@ def recorded(
     again: int = 0,
     gap: tuple[int, int] | None = None,
     folder: Path | None = None,
+    start: int = START,
 ) -> VideoIndex:
-    """The beeping stream recorded at its own moments from START into ``folder``,
+    """The beeping stream recorded at its own moments from ``start`` into ``folder``,
     ``again`` pieces of sound sent twice, none heard within ``gap`` (ms into it)."""
     beeping(tmp_path / "phone.mkv", seconds)
     folder = folder or tmp_path / "cam1"
@@ -72,10 +73,10 @@ def recorded(
                 continue
             into = in_ms(packet.pts, fraction(packet.time_base))
             if packet.stream.type == "video":
-                writer.write_packet(packet, START + into)
+                writer.write_packet(packet, start + into)
             elif gap is None or not gap[0] <= into < gap[1]:
-                writer.write_audio(packet, START + into)
-                sent.append((packet, START + into))
+                writer.write_audio(packet, start + into)
+                sent.append((packet, start + into))
                 for old, ms in sent[-again - 1 : -1] if again and into > 2000 else []:
                     writer.write_audio(old, ms)  # sent again, out of order: once
     writer.close()
@@ -380,4 +381,30 @@ def test_whose_sound_plays_from_a_moment_is_one_with_it_there_else_later(
     assert later is main  # none there: its sound later, heard in its turn
     assert sound.heard_at(index, START + 1500, 1000)
     assert not sound.heard_at(index, START + 600_000, 1000)
-    assert not sound.heard_later(silent)
+    assert not sound.heard_later(silent, START)
+
+
+def test_the_sound_later_is_one_from_the_moment_on_never_one_all_behind(
+    tmp_path: Path,
+) -> None:
+    # The phone's first lens in a run before, its other first now: from a moment
+    # neither is heard at, the one whose sound comes on -- not the one it came on.
+    (tmp_path / "a").mkdir()
+    (tmp_path / "b").mkdir()
+    before = recorded(tmp_path / "a", 2, folder=tmp_path / "cam1")
+    writer = SegmentWriter(tmp_path / "cam1", fps=30)
+    record(writer, START + 5000, 60)  # this run: its frames alone
+    writer.close()
+    before.refresh()
+    now = recorded(tmp_path / "b", 2, folder=tmp_path / "cam2", start=START + 10_000)
+    first: dict[str, object] = {"id": "cam1", "phone": "p1"}
+    second: dict[str, object] = {"id": "cam2", "phone": "p1"}
+    indexes = {"cam1": before, "cam2": now}
+
+    def index_of(camera: Any) -> VideoIndex:
+        return indexes[str(camera["id"])]
+
+    moment = START + 6000
+    assert sound.playing_from(first, [first, second], index_of, moment, 1000) is second
+    assert sound.heard_later(before, START)  # from its start: its sound to come
+    assert not sound.heard_later(before, moment)

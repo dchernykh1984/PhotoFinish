@@ -105,10 +105,23 @@ def heard_somewhere(folder: Path) -> bool:
         return False
 
 
-def heard_later(index: VideoIndex) -> bool:
-    """Whether a camera kept sound anywhere: one allowed the microphone later is
-    heard in its turn, the pieces following as it plays."""
-    return heard_somewhere(index.folder)
+def heard_later(index: VideoIndex, moment: int) -> bool:
+    """Whether a camera kept sound in a segment from ``moment`` on, on its own times:
+    one allowed the microphone later is heard in its turn, the pieces following as
+    it plays -- never one whose sound is all behind it."""
+    try:
+        kept = set(
+            (index.folder / SOUND).read_bytes().decode("ascii", "replace").split()
+        )
+    except OSError:
+        return False
+    place = index.at_or_before(moment)
+    if place is None:
+        return False
+    later = index.segments_from(place)
+    if later[0] != index.frame(place).path:
+        later = later[1:]  # the one before, its sound behind the moment
+    return any(path.stem in kept for path in later)
 
 
 def playing_from(
@@ -127,9 +140,10 @@ def playing_from(
         own = moment - int(camera.get("offset_ms", 0))
         return heard_at(index_of(camera), own, within)
 
-    return whose(chosen, listed, there) or whose(
-        chosen, listed, lambda camera: heard_later(index_of(camera))
-    )
+    def later(camera: Mapping[str, Any]) -> bool:
+        return heard_later(index_of(camera), moment - int(camera.get("offset_ms", 0)))
+
+    return whose(chosen, listed, there) or whose(chosen, listed, later)
 
 
 def shift_ms(own: Mapping[str, Any], heard: Mapping[str, Any]) -> int:
