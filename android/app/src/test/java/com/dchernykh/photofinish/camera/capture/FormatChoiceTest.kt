@@ -58,6 +58,9 @@ class FormatChoiceTest {
     fun `the bitrate is capped for Wi-Fi`() {
         assertEquals(16_000_000, FormatChoice.bitrate(qhd, 60))
         assertEquals(4_400_000, FormatChoice.bitrate(hd, 60))
+        // H.265 at 0.7 of it, the cap too (specs/010-hevc)
+        assertEquals(11_200_000, FormatChoice.bitrate(qhd, 60, com.dchernykh.photofinish.camera.stream.Codec.HEVC))
+        assertEquals(3_100_000, FormatChoice.bitrate(hd, 60, com.dchernykh.photofinish.camera.stream.Codec.HEVC))
     }
 
     @Test

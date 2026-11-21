@@ -1,5 +1,6 @@
 package com.dchernykh.photofinish.camera.capture
 
+import com.dchernykh.photofinish.camera.stream.Codec
 import kotlin.math.roundToInt
 
 data class Resolution(
@@ -15,12 +16,13 @@ data class FpsRange(
     val upper: Int,
 )
 
-/** What the app streams: a size, a frame rate, the camera's range for it, a bitrate. */
+/** What the app streams: a size, a frame rate, the camera's range for it, a bitrate, a codec (specs/010). */
 data class StreamFormat(
     val resolution: Resolution,
     val fps: Int,
     val range: FpsRange,
     val bitrate: Int,
+    val codec: Codec = Codec.AVC,
 )
 
 /**
@@ -63,10 +65,18 @@ object FormatChoice {
     fun bitrate(
         resolution: Resolution,
         fps: Int,
+        codec: Codec = Codec.AVC,
     ): Int {
-        val bits = resolution.width * resolution.height * fps * BITS_PER_PIXEL
-        return minOf(MAX_BITRATE, (bits / BITRATE_STEP).roundToInt() * BITRATE_STEP)
+        val bits =
+            minOf(resolution.width * resolution.height * fps * BITS_PER_PIXEL, MAX_BITRATE.toDouble()) * codec.share
+        return (bits / BITRATE_STEP).roundToInt() * BITRATE_STEP
     }
+
+    /** [format] in [codec], at its bitrate for it (specs/010-hevc). */
+    fun inCodec(
+        format: StreamFormat,
+        codec: Codec,
+    ): StreamFormat = format.copy(codec = codec, bitrate = bitrate(format.resolution, format.fps, codec))
 
     /**
      * The format to stream: [wanted] size and [wantedFps] when the phone gives them,

@@ -1,5 +1,6 @@
 package com.dchernykh.photofinish.camera.pairing
 
+import com.dchernykh.photofinish.camera.stream.Codec
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -13,6 +14,17 @@ class PairingTest {
         val pairing = Pairing.parse(" rtmp://192.168.31.106:1935/live/cam1 ")
         assertEquals(listOf(LensTarget(Lens.MAIN, main)), pairing.targets)
         assertEquals(emptyList<String>(), pairing.unread)
+    }
+
+    @Test
+    fun `the code's codec line asks for h265, the main lens's address still alone`() {
+        val alone = Pairing.parse("rtmp://192.168.31.106:1935/live/cam1\ncodec h265")
+        assertEquals(listOf(LensTarget(Lens.MAIN, main)), alone.targets)
+        assertEquals(Codec.HEVC, alone.codec)
+        assertEquals(emptyList<String>(), alone.unread)
+        assertEquals(Codec.AVC, Pairing.parse("rtmp://192.168.31.106:1935/live/cam1").codec)
+        assertEquals(Codec.AVC, Pairing.parse("main rtmp://192.168.31.106:1935/live/cam1\ncodec H264").codec)
+        assertEquals(listOf("codec vp9"), Pairing.parse("rtmp://192.168.31.106:1935/live/cam1\ncodec vp9").unread)
     }
 
     @Test
