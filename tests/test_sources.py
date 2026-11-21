@@ -313,6 +313,27 @@ def test_an_rtmp_push_is_received_and_kept_as_it_came(tmp_path: Path) -> None:
             assert [f.pts for f in container.decode(video=0)] == sorted(pts)
 
 
+def test_a_push_that_hangs_up_ends_its_stream_without_an_error() -> None:
+    port = free_port()
+    camera = {"connection": "rtmp", "settings": {"port": port, "path": "live/test"}}
+    source = open_source(camera, lambda: time.time_ns() // 1_000_000)
+    told: list[object] = []
+
+    def receive() -> None:
+        try:
+            got = sum(1 for item in source.frames() if item is not None)
+            told.append(got)
+        except Exception as error:
+            told.append(error)
+
+    thread = threading.Thread(target=receive)
+    thread.start()
+    time.sleep(1.5)
+    push(port, 20)
+    thread.join(timeout=30)
+    assert told == [20]  # listened for again at once, no pause before it
+
+
 def receive_phone(moment_us: Any) -> list[int]:
     """The moments the frames of a phone stamping ``moment_us(frame)`` get."""
     port = free_port()
