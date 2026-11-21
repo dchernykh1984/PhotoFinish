@@ -85,7 +85,10 @@ class ExportJob(QObject):
             self._thread.join(wait_s)
 
     def _run(self) -> None:
-        written, error, skipped = export.export_all(
-            self.jobs, self.progress.emit, self._stop.is_set
-        )
+        try:
+            written, error, skipped = export.export_all(
+                self.jobs, self.progress.emit, self._stop.is_set
+            )
+        except Exception as failure:  # told whatever it is: the window never waits on
+            written, error, skipped = [], str(failure) or type(failure).__name__, 0
         self.done.emit(written, error, skipped)
