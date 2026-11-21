@@ -26,13 +26,14 @@ internal class Microphone(
     @Volatile private var running = false
     private var thread: Thread? = null
 
-    /** Started, unless it runs; said when the microphone or its encoder cannot be opened. */
+    /** Started, unless it runs: whether it runs; said when the microphone or its encoder cannot be opened. */
     @Synchronized
-    fun start() {
-        if (running) return
-        val opened = open() ?: return
+    fun start(): Boolean {
+        if (running) return true
+        val opened = open() ?: return false
         running = true
         thread = Thread({ run(opened.first, opened.second) }, "microphone").apply { start() }
+        return true
     }
 
     /** Stopped, its thread waited for a moment: a piece on its way is let go. */
