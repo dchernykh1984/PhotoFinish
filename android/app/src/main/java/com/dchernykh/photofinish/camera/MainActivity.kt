@@ -54,7 +54,7 @@ class MainActivity : ComponentActivity() {
         val statuses = Diagnostics.statuses
         // A lens's link while its camera is closed: in the log, the screen keeping the camera's word.
         val logged = { lens: Lens?, status: StreamerStatus -> statuses.heard(lens, status, shown = false) }
-        val phone = PhoneStatusReader(this)
+        val phone = PhoneStatusReader(applicationContext) // read by the senders too, which outlive this screen
         // What a crash, Android or a dead battery left is sent before anything new, without Start (specs/009).
         Senders.start(
             File(filesDir, Senders.FOLDER),
