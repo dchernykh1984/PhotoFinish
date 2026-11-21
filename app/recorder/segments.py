@@ -303,6 +303,16 @@ class _Remuxed:
         self.audio = (
             self.container.add_stream_from_template(heard[0]) if heard else None
         )
+        if self.audio is not None:
+            try:
+                self.container.start_encoding()  # the header now, with its sound
+            except av.FFmpegError:
+                # A config the muxer cannot read: the segment begun again without it.
+                with contextlib.suppress(av.FFmpegError, OSError):
+                    self.container.close()
+                self.container = _video(folder)
+                self.stream = self.container.add_stream_from_template(template)
+                self.audio = None
         self.audio_dts: int | None = None  # the newest piece's: the muxer wants order
         self.heard = False  # a piece of sound kept in it
         self.times: TextIO = _times(folder)
