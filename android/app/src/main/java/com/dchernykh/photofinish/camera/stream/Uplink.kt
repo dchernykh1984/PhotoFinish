@@ -46,7 +46,8 @@ sealed interface UplinkStatus {
  * [clock] gives the best clock exchange so far, null while there is none: its offset is the recorder's clock
  * minus the camera's. [requestKeyframe] asks the encoder for one: a connection waiting for its first frame
  * starts from it, and so do the frames after one the store could not keep. [alone]: the frames a stream kept,
- * sent with no camera and no clock (specs/009) -- they carry their moments, those without one are skipped.
+ * sent with no camera and no clock (specs/009) -- from the first keyframe with its moment; one without it after
+ * that goes without, the recorder placing it by its capture time after the frame before.
  * It connects once [turn] says the address is free of the streams kept before it, and sends while [firstLens]
  * says the first lens lets it; waiting on [firstLens] longer than [HOLD_MS], it lets its connection go.
  */
