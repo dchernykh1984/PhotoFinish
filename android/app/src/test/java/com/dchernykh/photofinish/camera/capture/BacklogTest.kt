@@ -159,6 +159,17 @@ class BacklogTest {
     }
 
     @Test
+    fun `a folder begun after the backlog was made is a live stream's, left alone by the read back`() {
+        val now = System.currentTimeMillis()
+        val live = File(root, "main-${now + 60_000}").apply { mkdirs() } // its header not written yet
+        File(live, "0.h264").writeBytes(ByteArray(5))
+        File(root, "main").mkdirs() // an older app's folder: read back, nothing in it, removed
+        backlog.readBack()
+        assertTrue(live.isDirectory)
+        assertFalse(File(root, "main").exists())
+    }
+
+    @Test
     fun `discard stops and drops every stream kept`() {
         kept(began = 100)
         kept(began = 200, address = second)

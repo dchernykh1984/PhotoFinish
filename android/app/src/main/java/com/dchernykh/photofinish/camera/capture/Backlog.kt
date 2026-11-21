@@ -22,6 +22,8 @@ class Backlog(
     private val send: (StreamHeader, FrameStore) -> Sending,
     /** What the backlog says to the phone's log, of a lens. */
     private val say: (Lens, String) -> Unit = { _, _ -> },
+    /** When it was made: a stream's folder begun since is a live stream's, not one to read back. */
+    private val madeMs: Long = System.currentTimeMillis(),
 ) {
     /** A kept stream's uplink, running, and how it is stopped. */
     class Sending(
@@ -49,11 +51,17 @@ class Backlog(
     /** A lens streams, or a stream is kept: there are frames to send. */
     val active: Boolean @Synchronized get() = kept.isNotEmpty() || live.isNotEmpty()
 
-    /** What the stores' root holds, read back: streams to send, or folders of nothing to send, removed. */
+    /**
+     * What the stores' root held before the backlog was made, read back: streams to send, or folders of nothing to
+     * send, removed. A folder begun since is a stream a camera feeds, perhaps its header not written yet: not its.
+     */
     @Synchronized
     fun readBack() {
         try {
-            val folders = root.listFiles { file -> file.isDirectory }?.sortedBy { began(it) } ?: return
+            val folders =
+                root
+                    .listFiles { file -> file.isDirectory && began(file) < madeMs }
+                    ?.sortedBy { began(it) } ?: return
             folders.filter { folder -> kept.none { it.folder == folder } }.forEach { take(it) }
         } finally {
             ready = true
@@ -168,8 +176,8 @@ class Backlog(
         private const val MS_PER_S = 1_000
         private const val BYTES_PER_MB = 1_000_000
 
-        /** When the stream of [folder] began, from its name: `<lens>-<ms>`; unknown ones last. */
-        private fun began(folder: File): Long = folder.name.substringAfterLast('-').toLongOrNull() ?: Long.MAX_VALUE
+        /** When the stream of [folder] began, from its name: `<lens>-<ms>`; one named otherwise is older than any. */
+        private fun began(folder: File): Long = folder.name.substringAfterLast('-').toLongOrNull() ?: 0L
 
         private fun sum(stores: List<FrameStore>): FrameStore.Pending =
             stores.map { it.pending }.fold(FrameStore.Pending(0, 0)) { all, one ->
