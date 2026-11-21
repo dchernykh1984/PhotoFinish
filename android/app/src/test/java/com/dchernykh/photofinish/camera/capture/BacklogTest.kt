@@ -72,25 +72,24 @@ class BacklogTest {
         kept(began = 100)
         kept(began = 200, address = second, lens = Lens.TELEPHOTO)
         backlog.readBack()
-        backlog.tick(0)
+        backlog.tick()
         assertEquals(listOf("main-100", "telephoto-200"), started.map { it.folder.name })
-        backlog.tick(1_000)
+        backlog.tick()
         assertEquals(2, started.size) // the first address's next waits for its oldest
         assertTrue(backlog.holds(first))
         assertTrue(backlog.holds(second))
     }
 
     @Test
-    fun `a stream sent whole is removed after a quiet while, and the next of its address starts`() {
+    fun `a stream sent whole is removed at the next tick, and the next of its address starts`() {
         kept(began = 100)
         kept(began = 200)
         backlog.readBack()
-        backlog.tick(0)
+        backlog.tick()
+        backlog.tick()
+        assertEquals(1, started.size) // the first still to send
         sendAll(started.single())
-        backlog.tick(1_000) // nothing unsent from now
-        backlog.tick(1_000 + Backlog.DONE_MS - 1)
-        assertEquals(1, started.size)
-        backlog.tick(1_000 + Backlog.DONE_MS)
+        backlog.tick()
         assertEquals(listOf("main-100"), stopped.map { it.folder.name })
         assertFalse(File(root, "main-100").exists())
         assertEquals(listOf("main-100", "main-200"), started.map { it.folder.name })
@@ -103,7 +102,7 @@ class BacklogTest {
         StreamHeader(Lens.MAIN, first, format, byteArrayOf(1)).write(empty)
         File(root, "main-300").mkdirs()
         backlog.readBack()
-        backlog.tick(0)
+        backlog.tick()
         assertTrue(started.isEmpty())
         assertTrue(root.listFiles()!!.isEmpty())
         assertFalse(backlog.holds(first))
@@ -113,7 +112,7 @@ class BacklogTest {
     fun `frames whose header a power cut took are left on the phone, not sent, until Discard`() {
         val headless = kept(began = 100, header = false)
         backlog.readBack()
-        backlog.tick(0)
+        backlog.tick()
         assertTrue(started.isEmpty())
         assertTrue(headless.isDirectory)
         assertTrue(said.any { it.contains("no header") })
@@ -137,7 +136,7 @@ class BacklogTest {
         assertEquals(FrameStore.Pending(1_900, 2_050), backlog.pending())
         off()
         assertEquals(FrameStore.Pending(1_900, 2_000), backlog.pending())
-        backlog.tick(0)
+        backlog.tick()
         assertEquals(1, started.size)
     }
 
@@ -215,7 +214,7 @@ class BacklogTest {
         File(failing, "0.idx").setReadable(false) // reading it fails, as a failing storage would
         kept(began = 200, address = second, lens = Lens.TELEPHOTO)
         backlog.readBack()
-        backlog.tick(0)
+        backlog.tick()
         assertTrue(failing.isDirectory)
         assertEquals(listOf("telephoto-200"), started.map { it.folder.name })
         assertTrue(said.any { it.contains("would not read") })
@@ -227,7 +226,7 @@ class BacklogTest {
         kept(began = 100)
         kept(began = 200, address = second)
         backlog.readBack()
-        backlog.tick(0)
+        backlog.tick()
         backlog.discard()
         assertEquals(2, stopped.size)
         assertTrue(root.listFiles()!!.isEmpty())

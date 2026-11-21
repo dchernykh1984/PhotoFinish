@@ -1,6 +1,5 @@
 package com.dchernykh.photofinish.camera.capture
 
-import android.os.SystemClock
 import com.dchernykh.photofinish.camera.pairing.Lens
 import com.dchernykh.photofinish.camera.pairing.RtmpAddress
 import com.dchernykh.photofinish.camera.stream.FrameStore
@@ -63,7 +62,7 @@ object Senders {
         backlog.readBack()
         while (true) {
             try {
-                backlog.tick(SystemClock.elapsedRealtime())
+                backlog.tick()
             } catch (error: Exception) {
                 say(Lens.MAIN, "the backlog's tick: ${error.javaClass.simpleName}: ${error.message}")
             }
