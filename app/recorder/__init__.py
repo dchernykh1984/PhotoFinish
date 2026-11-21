@@ -368,6 +368,13 @@ class _Recording:
     def _write(
         self, source: Source, image: np.ndarray | av.VideoFrame | av.Packet, ms: int
     ) -> None:
+        if (
+            isinstance(image, av.Packet)
+            and getattr(image.stream, "type", "") == "audio"
+        ):
+            if self.writer is not None:  # sound beside the frames of its segment (013)
+                _disk(self.writer.write_audio, image, ms)
+            return
         if self.writer is None:  # its own recovery writes too: a full disk said so
             self.writer = _disk(
                 lambda: SegmentWriter(self.folder, source.fps, closed=self.closed)

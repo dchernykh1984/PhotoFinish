@@ -25,7 +25,7 @@ import numpy as np
 from app import cameras
 from app.paths import app_path
 from app.recorder import frame_time
-from app.recorder.segments import RESENT_MS
+from app.recorder.segments import RESENT_MS, fraction, in_ms
 from app.recorder.testcam import TestCamera
 
 PHONE_APP = "PhotoFinish Camera"  # the encoder its stream's metadata names
@@ -290,12 +290,22 @@ class Stream:
             phone = container.metadata.get("encoder") == PHONE_APP
             place = self._placing(stream, phone, held_ms(container.metadata), opened)
             got = False
+            before: tuple[int, int] | None = None  # the last frame's pts, ms; moment
             try:
-                for packet in container.demux(stream):
+                for packet in container.demux(stream, *container.streams.audio[:1]):
                     if packet.pts is None or packet.dts is None:
                         continue
+                    pts_ms = in_ms(packet.pts, fraction(packet.time_base))
+                    if getattr(packet.stream, "type", "video") == "audio":
+                        # Its sound (specs/013), placed by the frame before it, the
+                        # two stamped on one clock; one before any frame, by none.
+                        if before is not None:
+                            yield packet, before[1] + pts_ms - before[0]
+                        continue
                     got = True
-                    yield packet, place(packet, packet.pts)
+                    moment = place(packet, packet.pts)
+                    before = (pts_ms, moment)
+                    yield packet, moment
             except (av.FFmpegError, OSError) as error:
                 if not self.listen:
                     raise
