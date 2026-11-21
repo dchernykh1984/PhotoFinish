@@ -13,6 +13,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.IBinder
+import android.os.PowerManager
 import android.os.SystemClock
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
@@ -33,10 +34,22 @@ class SendingService : Service() {
     /** Its own thread: what is held is counted under the stores' locks, never on the main thread. */
     private val thread = HandlerThread("sending").apply { start() }
     private val handler = Handler(thread.looper)
+
+    /**
+     * The processor kept awake while it runs: a foreground service alone keeps the process, not the processor, and
+     * with the screen off the phone would sleep with video left to send. Taken for a minute at each tick, so a
+     * service Android ends without a word lets it go within the minute.
+     */
+    private val awake by lazy {
+        getSystemService(PowerManager::class.java)
+            ?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "PhotoFinish:sending")
+            ?.apply { setReferenceCounted(false) }
+    }
     private val tick =
         object : Runnable {
             override fun run() {
                 if (!Senders.active) return stopSelf()
+                awake?.acquire(AWAKE_MS)
                 notify(notification(Senders.backlog.pending()))
                 handler.postDelayed(this, TICK_MS)
             }
@@ -68,6 +81,7 @@ class SendingService : Service() {
             return START_NOT_STICKY
         }
         running = true
+        awake?.acquire(AWAKE_MS)
         handler.removeCallbacks(tick)
         handler.postDelayed(tick, TICK_MS)
         return START_NOT_STICKY
@@ -81,6 +95,7 @@ class SendingService : Service() {
     override fun onDestroy() {
         running = false
         handler.removeCallbacks(tick)
+        awake?.takeIf { it.isHeld }?.release()
         thread.quitSafely()
         super.onDestroy()
     }
@@ -144,6 +159,9 @@ class SendingService : Service() {
         private const val ID = 9
         private const val CHANNEL = "sending"
         private const val TICK_MS = 2_000L
+
+        /** How long each tick keeps the processor awake: past the next ticks, gone within a minute of the last. */
+        private const val AWAKE_MS = 60_000L
 
         /**
          * Started from the screen, in the foreground, as there are frames to send; false when Android refuses it --
