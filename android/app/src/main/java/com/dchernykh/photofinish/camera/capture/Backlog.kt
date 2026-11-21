@@ -1,0 +1,154 @@
+package com.dchernykh.photofinish.camera.capture
+
+import com.dchernykh.photofinish.camera.pairing.Lens
+import com.dchernykh.photofinish.camera.pairing.RtmpAddress
+import com.dchernykh.photofinish.camera.stream.FrameStore
+import com.dchernykh.photofinish.camera.stream.StreamHeader
+import com.dchernykh.photofinish.camera.stream.Uplink
+import java.io.File
+
+/**
+ * The streams kept with no encoder left to feed them (specs/009): read back from the stores' [root] as the app
+ * starts -- what a crash, Android or a dead battery left --, or handed over by a stream that stopped -- Stop,
+ * another choice, the app closing, its encoder failing. Each is sent by an uplink of its own ([send]), alone:
+ * one an address at a time, the oldest first, and a stream fed by a camera waits for its address to be free
+ * ([holds]), so the recorder gets a camera's frames in the order taken. A stream sent whole -- nothing unsent for
+ * [DONE_MS] -- is removed with its folder; [discard] drops them all.
+ */
+class Backlog(
+    private val root: File,
+    /** An uplink for a kept stream, started on a thread of its own, and what stops it. */
+    private val send: (StreamHeader, FrameStore) -> Sending,
+    /** What the backlog says to the phone's log, of a lens. */
+    private val say: (Lens, String) -> Unit = { _, _ -> },
+) {
+    /** A kept stream's uplink, running, and how it is stopped. */
+    class Sending(
+        val uplink: Uplink,
+        val stop: () -> Unit,
+    )
+
+    private class Kept(
+        val folder: File,
+        val header: StreamHeader,
+        val store: FrameStore,
+    ) {
+        var sending: Sending? = null
+        var quietSince: Long? = null
+    }
+
+    private val kept = mutableListOf<Kept>()
+
+    /** The stores of streams a camera feeds, by address: what the phone holds for a camera, all told. */
+    private val live = mutableListOf<Pair<RtmpAddress, FrameStore>>()
+
+    /** What the stores' root holds, read back: streams to send, or folders of nothing to send, removed. */
+    @Synchronized
+    fun readBack() {
+        val folders = root.listFiles { file -> file.isDirectory }?.sortedBy { began(it) } ?: return
+        folders.filter { folder -> kept.none { it.folder == folder } }.forEach { take(it) }
+    }
+
+    /** A stream handed over, its store closed: sent if it holds anything unsent, else removed. */
+    @Synchronized
+    fun adopt(folder: File) {
+        if (kept.none { it.folder == folder }) take(folder)
+    }
+
+    private fun take(folder: File) {
+        val header = StreamHeader.read(folder)
+        val store = header?.let { FrameStore(folder) }
+        if (header == null || store == null || !store.unsent) {
+            folder.deleteRecursively() // no header to send it with, or nothing to send
+            return
+        }
+        kept += Kept(folder, header, store)
+        val (ms, bytes) = store.pending
+        say(header.lens, "kept to send to ${header.address}: ${ms / MS_PER_S} s of video, ${bytes / BYTES_PER_MB} MB")
+    }
+
+    /**
+     * Each second, at [nowMs]: streams sent whole removed; the oldest of each address with none sending started.
+     */
+    @Synchronized
+    fun tick(nowMs: Long) {
+        kept.removeAll { done(it, nowMs) }
+        kept
+            .groupBy { it.header.address }
+            .values
+            .forEach { streams ->
+                val oldest = streams.first()
+                if (streams.none { it.sending != null }) oldest.sending = send(oldest.header, oldest.store)
+            }
+    }
+
+    private fun done(
+        stream: Kept,
+        nowMs: Long,
+    ): Boolean {
+        val sending = stream.sending
+        if (sending == null || sending.uplink.unsent) {
+            stream.quietSince = null
+            return false
+        }
+        val since = stream.quietSince ?: nowMs.also { stream.quietSince = it }
+        if (nowMs - since < DONE_MS) return false
+        sending.stop()
+        stream.store.clear()
+        say(stream.header.lens, "all it kept sent to ${stream.header.address}: removed")
+        return true
+    }
+
+    /** Streams kept for [address], sending or waiting: a stream a camera feeds waits for them. */
+    @Synchronized
+    fun holds(address: RtmpAddress): Boolean = kept.any { it.header.address == address }
+
+    /** A store a camera feeds, for [address]: counted in what the phone holds for it. Returns what takes it off. */
+    @Synchronized
+    fun live(
+        address: RtmpAddress,
+        store: FrameStore,
+    ): () -> Unit {
+        val entry = address to store
+        live += entry
+        return { synchronized(this) { live -= entry } }
+    }
+
+    /** What the phone holds for [address], kept and fed. */
+    @Synchronized
+    fun pendingFor(address: RtmpAddress): FrameStore.Pending =
+        sum(
+            kept.filter { it.header.address == address }.map { it.store } +
+                live.filter { it.first == address }.map { it.second },
+        )
+
+    /** What the phone holds, kept and fed, all told. */
+    @Synchronized
+    fun pending(): FrameStore.Pending = sum(kept.map { it.store } + live.map { it.second })
+
+    /** Every stream kept stopped and dropped: the referee's Discard (specs/009, FR-004). */
+    @Synchronized
+    fun discard() {
+        kept.forEach {
+            it.sending?.stop()
+            it.store.clear()
+            say(it.header.lens, "what it kept for ${it.header.address} discarded")
+        }
+        kept.clear()
+    }
+
+    companion object {
+        /** How long a stream kept has had nothing unsent before it is removed: its last acknowledgements in. */
+        const val DONE_MS = 5_000L
+        private const val MS_PER_S = 1_000
+        private const val BYTES_PER_MB = 1_000_000
+
+        /** When the stream of [folder] began, from its name: `<lens>-<ms>`; unknown ones last. */
+        private fun began(folder: File): Long = folder.name.substringAfterLast('-').toLongOrNull() ?: Long.MAX_VALUE
+
+        private fun sum(stores: List<FrameStore>): FrameStore.Pending =
+            stores.map { it.pending }.fold(FrameStore.Pending(0, 0)) { all, one ->
+                FrameStore.Pending(all.ms + one.ms, all.bytes + one.bytes)
+            }
+    }
+}
