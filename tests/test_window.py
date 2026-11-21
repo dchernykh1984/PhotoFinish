@@ -4055,6 +4055,22 @@ def test_the_sound_moves_with_the_microphone_while_playing_on(
     assert heard.calls[-1][0] == "follow"  # chosen once: followed, never begun again
 
 
+def test_a_sound_line_late_a_close_never_stops_the_sound_playing(
+    phone_with_sound: Path, make_window: Callable[[], mw.MainWindow], clock: list[float]
+) -> None:
+    # A segment's line written with the next close (a scanner held the list): no
+    # camera told sounding there a poll, the sound playing goes on, never stopped.
+    win = make_window()
+    wait_until(lambda: win.moment is not None and win.place is not None)
+    heard = sounding(win)
+    win.step(-40)
+    win.play()
+    listed = phone_with_sound / "video" / "cam1" / "sound.txt"
+    listed.write_text("")  # none listed as sounding a moment
+    win.poll()
+    assert heard.calls[-1][0] == "follow"
+
+
 def late_sound(base: Path, camera_id: str, start: int) -> None:
     """A second of the beeping stream recorded for ``camera_id`` from ``start``."""
     beeping(base / f"{camera_id}-late.mkv", 1)
