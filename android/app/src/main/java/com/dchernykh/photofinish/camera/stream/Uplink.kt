@@ -117,8 +117,14 @@ class Uplink(
     @Volatile var connected = false
         private set
 
-    /** The stream's header, once the encoder gave it: kept with the frames, to be sent after a restart. */
-    var onConfigured: (ByteArray) -> Unit = {}
+    /**
+     * The stream's header, once the encoder gave it: kept with the frames, to be sent after a restart; true once kept,
+     * a failure tried again as the encoder gives it again.
+     */
+    var onConfigured: (ByteArray) -> Boolean = { true }
+
+    /** The header kept with the frames ([onConfigured]). */
+    @Volatile private var headerKept = false
 
     @Volatile private var sendingSince = 0L
 
@@ -155,9 +161,9 @@ class Uplink(
 
     /** The stream's header as the recorder takes it: the encoder's, or one kept with the frames ([alone]). */
     fun configure(record: ByteArray) {
-        if (this.record?.contentEquals(record) == true) return
+        if (this.record?.contentEquals(record) == true && headerKept) return
         this.record = record
-        onConfigured(record)
+        headerKept = onConfigured(record)
     }
 
     /**

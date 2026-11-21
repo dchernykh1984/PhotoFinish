@@ -829,11 +829,15 @@ class UplinkWaitsTest {
     fun `the stream's header is told once a new one comes, to be kept with the frames`() {
         val told = mutableListOf<ByteArray>()
         val link = Uplink(address, format, { null }, {}, {}, FrameStore(kept, freeBytes = { Long.MAX_VALUE }))
-        link.onConfigured = { told += it }
+        link.onConfigured = {
+            told += it
+            told.size != 2 // the second write refused, as a full storage would
+        }
         link.configure(sps, pps)
-        link.configure(sps, pps)
-        link.configure(byteArrayOf(9, 9))
-        assertEquals(2, told.size)
+        link.configure(sps, pps) // kept: not told again
+        link.configure(byteArrayOf(9, 9)) // refused
+        link.configure(byteArrayOf(9, 9)) // the same again: tried again
+        assertEquals(3, told.size)
         assertArrayEquals(Avc.configurationRecord(sps, pps), told[0])
         assertArrayEquals(byteArrayOf(9, 9), told[1])
     }
