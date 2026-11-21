@@ -428,10 +428,16 @@ def _list_missing(folder: Path) -> list[str]:
 
 def _list_sound(folder: Path, names: list[str]) -> None:
     """Those of ``names`` -- closed by a recovery, not by their own close -- whose
-    video kept sound, listed as a close lists them."""
+    video kept sound, listed as a close lists them. A list refused costs their sound
+    alone, never the recovery; a full disk is said."""
     heard = "".join(f"{n}\n" for n in names if _keeps_audio(folder / f"{n}.mkv"))
-    if heard:
+    if not heard:
+        return
+    try:
         append(folder / SOUND, heard.encode("ascii"))
+    except OSError as error:
+        if error.errno == errno.ENOSPC:
+            raise
 
 
 def _keeps_audio(path: Path) -> bool:
