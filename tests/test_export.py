@@ -490,6 +490,31 @@ def test_a_files_sound_holds_one_form_of_it_another_left_out(
     assert len(heard) == 60
 
 
+def test_a_piece_before_a_files_first_frame_chooses_no_form_for_its_sound(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The piece the sound begins on, a moment before the file's first frame, of the
+    # form before a streaming app connected again: the track takes the file's own.
+    recorded(tmp_path)
+    real = export.sound.pieces
+
+    def preroll(index: Any, from_ms: int, **kwargs: Any) -> Any:
+        found = real(index, from_ms, **kwargs)
+        first = next(found)
+        stereo = export.sound.Form("aac", b"\x11\x90", 48000, "stereo")
+        yield export.sound.Piece(
+            from_ms - 30, from_ms - 9, first.packet, stereo, first.path
+        )
+        yield first
+        yield from found
+
+    monkeypatch.setattr(export.sound, "pieces", preroll)
+    (written,) = export.export(tmp_path / "cam1", tmp_path / "Main.mp4")
+    with av.open(str(written)) as container:
+        heard = [p for p in container.demux(container.streams.audio[0]) if p.size]
+    assert len(heard) > 100  # its 3 s, never passed over as another form
+
+
 def test_a_gap_in_an_exported_files_sound_is_silence_so_it_stays_in_step(
     tmp_path: Path,
 ) -> None:
