@@ -397,6 +397,22 @@ def test_a_segment_whose_sound_line_came_late_is_heard_as_it_comes(
     assert any(START + 1400 <= piece.ms < START + 1600 for piece in found)
 
 
+def test_a_sound_list_held_a_moment_keeps_what_it_listed(tmp_path: Path) -> None:
+    # Held by a scanner a moment (Windows), unreadable, not gone: no camera taken
+    # for silent, and the list not read again from its start.
+    listed = tmp_path / sound.SOUND
+    listed.write_text("".join(f"20251029-1030{k:02d}-{k:04d}\n" for k in range(3)))
+    assert len(sound.sounding(tmp_path)) == 3
+    listed.chmod(0)
+    try:
+        assert len(sound.sounding(tmp_path)) == 3
+    finally:
+        listed.chmod(0o644)
+    with listed.open("a") as f:
+        f.write("20251029-103003-0003\n")
+    assert len(sound.sounding(tmp_path)) == 4
+
+
 def test_a_sound_list_begun_anew_in_a_cleared_folder_is_read_from_its_start(
     tmp_path: Path,
 ) -> None:
