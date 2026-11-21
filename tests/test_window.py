@@ -4031,6 +4031,27 @@ def test_whose_sound_plays_is_chosen_where_playing_goes_on_from(
     assert heard.calls[-1][:2] == ("play", win.cameras["cam2"].index)
 
 
+def test_the_sound_moves_with_the_microphone_while_playing_on(
+    phone_with_sound: Path, make_window: Callable[[], mw.MainWindow], clock: list[float]
+) -> None:
+    # The main lens left out mid-race, the telephoto takes the microphone: its own
+    # sound heard from there, the poll choosing again, though no gap is jumped.
+    late_sound(phone_with_sound, "cam2", START + 10_000)
+    win = make_window()
+    wait_until(lambda: win.moment is not None and win.place is not None)
+    win.camera_list.setCurrentRow(1)
+    wait_until(lambda: win.current == "cam2")
+    heard = sounding(win)
+    win.seek_ms(START + 1500)
+    win.play()
+    assert heard.calls[-1][:2] == ("play", win.cameras["cam1"].index)
+    win._play_start = (clock[0], START + 10_500)  # played on to where its own begins
+    win.poll()
+    assert heard.calls[-1][:2] == ("play", win.cameras["cam2"].index)
+    win.poll()
+    assert heard.calls[-1][0] == "follow"  # chosen once: followed, never begun again
+
+
 def late_sound(base: Path, camera_id: str, start: int) -> None:
     """A second of the beeping stream recorded for ``camera_id`` from ``start``."""
     beeping(base / f"{camera_id}-late.mkv", 1)
