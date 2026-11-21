@@ -44,3 +44,5 @@ request.
 - [011-video-export](011-video-export/spec.md): a camera's video exported as one MP4 file.
 - [012-playback-speed](012-playback-speed/spec.md): playing faster, slower and backwards, x1/16
   to x16.
+- [013-sound](013-sound/spec.md): the phone's sound, kept and sent with the main lens, recorded,
+  played with the pitch kept and exported.
