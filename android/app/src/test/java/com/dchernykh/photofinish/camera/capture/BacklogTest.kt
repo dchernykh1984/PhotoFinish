@@ -326,7 +326,7 @@ class BacklogTest {
         val off = later.live(first, store)
         later.handOver(store, first, off)
         later.discard() // while it is being synced and read back
-        queued.single().run()
+        queued.toList().forEach { it.run() } // the hand-over, then the Discard's deleting
         assertFalse(later.holds(first))
         assertFalse(folder.exists())
         assertFalse(later.active)
@@ -341,6 +341,22 @@ class BacklogTest {
         assertFalse(backlog.holds(first))
         assertTrue(started.isEmpty())
         assertFalse(folder.exists())
+    }
+
+    @Test
+    fun `discard leaves the deleting to the hand-over's thread, the cameras' thread on at once`() {
+        val folder = kept(began = 100)
+        val queued = ArrayDeque<Runnable>()
+        val later = Backlog(root, { _, _ -> error("not sent") }, { _, _ -> }, handOff = { queued += it })
+        later.readBack()
+        later.discard()
+        val lens = FrameStore(File(root, "main-900"), freeBytes = { Long.MAX_VALUE })
+        lens.keep(EncodedFrame(ByteArray(10), 0, true), 1)
+        later.discard(lens)
+        assertEquals(FrameStore.Pending(0, 0), later.pending()) // dropped at once
+        assertTrue(folder.exists() && lens.folder.exists()) // their files not deleted on the caller's thread
+        queued.forEach { it.run() }
+        assertFalse(folder.exists() || lens.folder.exists())
     }
 
     @Test

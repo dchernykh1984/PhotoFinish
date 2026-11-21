@@ -102,7 +102,7 @@ internal class LensStream private constructor(
     override fun discard() {
         end()
         off() // out of the counts before its files go: nobody counting waits for the deletion
-        store.clear()
+        Senders.backlog.discard(store) // nor the cameras' thread
     }
 
     private fun end() {
