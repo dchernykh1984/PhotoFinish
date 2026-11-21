@@ -845,7 +845,9 @@ def test_no_second_export_starts_while_one_is_ending(
     monkeypatch.setattr(mw.QMessageBox, "information", lambda *a: told.append(a[2]))
     win._export_job = mw.export_dialog.ExportJob([])
     win.export_video()
-    assert told == ["An export is still ending: try again in a moment."]
+    assert told == [
+        "An export is under way: wait for it to end, or cancel it, then try again."
+    ]
 
 
 def test_export_video_with_nothing_recorded_says_so(

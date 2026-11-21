@@ -522,11 +522,12 @@ class MainWindow(QMainWindow):
     def export_video(self) -> None:
         """The video of the cameras ticked, a file each, into a folder chosen, written
         in the background, Cancel stopping it (specs/011)."""
-        if self._export_job is not None:  # one stopping after a Cancel still writes
+        if self._export_job is not None:  # under way, or ending after a Cancel
             QMessageBox.information(
                 self,
                 "Export video",
-                "An export is still ending: try again in a moment.",
+                "An export is under way: wait for it to end, or cancel it, then try "
+                "again.",
             )
             return
         names = {
