@@ -1599,6 +1599,21 @@ def test_a_sound_track_without_a_piece_is_no_sound(tmp_path: Path) -> None:
     assert not (folder / segments_module.SOUND).exists()
 
 
+def test_a_last_close_whose_sound_line_was_refused_is_listed_as_the_recorder_starts(
+    tmp_path: Path,
+) -> None:
+    # Its line kept for a next close that never came, the recorder stopped: the next
+    # one lists it as it starts, its sound played and exported all the same.
+    with_sound(tmp_path / "phone.mkv", 2)
+    folder = tmp_path / "cam1"
+    recorded_with_sound(tmp_path / "phone.mkv", folder)
+    listed = (folder / segments_module.SOUND).read_text().split()
+    last = listed[-1]
+    (folder / segments_module.SOUND).write_text("".join(f"{n}\n" for n in listed[:-1]))
+    segments_module.recover(folder)
+    assert last in (folder / segments_module.SOUND).read_text().split()
+
+
 def test_the_segments_that_kept_sound_are_listed_beside_the_others(
     tmp_path: Path,
 ) -> None:
