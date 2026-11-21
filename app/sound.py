@@ -39,6 +39,7 @@ SILENCE_MS = 100  # a gap's silence made this much at a time
 # Following a recording, its last segment's sound is given up to this long before its
 # last frame: a piece and the frame beside it lie this far apart in a stream at most.
 FOLLOW_SLACK_MS = 200
+UNHEARD = 5  # the newest segments not listed as sounding, looked at again as more come
 # atempo's range: faster in one stage, as each stage's window puts the sound earlier
 # by its lag -- x4 some 40 ms on the recording's time, two stages of x2 some 70 --;
 # slower chained, from x0.5 down.
@@ -231,6 +232,7 @@ class Pieces:
         # Those that kept sound alone, as its recorder lists them (``folder``'s):
         # hours of segments without are never opened for it.
         self._folder = folder
+        self._unheard: list[Path] = []  # the newest not listed as sounding yet
         self._found = self._sounding(found)
         self._from_ms = from_ms
         self._more = threading.Condition()
@@ -246,18 +248,22 @@ class Pieces:
         return next(self._made)
 
     def extend(self, paths: Iterable[Path]) -> None:
-        """Segments closed since, in the order they closed: on the caller's thread."""
-        found = self._sounding(paths)
+        """Segments closed since, in the order they closed: on the caller's thread.
+        The newest not listed as sounding -- a line its close could not write, written
+        with the next -- are looked at again with them."""
+        found = self._sounding([*self._unheard, *paths])
         with self._more:
             known = set(self._found)
             self._found.extend(path for path in found if path not in known)
             self._more.notify_all()
 
     def _sounding(self, paths: Iterable[Path]) -> list[Path]:
+        listed = list(paths)
         if self._folder is None:
-            return list(paths)
+            return listed
         kept = sounding(self._folder)
-        return [path for path in paths if path.stem in kept]
+        self._unheard = [path for path in listed if path.stem not in kept][-UNHEARD:]
+        return [path for path in listed if path.stem in kept]
 
     def finish(self) -> None:
         """No more to wait for: what is held given, then the end."""
