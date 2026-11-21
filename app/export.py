@@ -14,6 +14,7 @@ but for a gap (specs/013).
 from __future__ import annotations
 
 import datetime
+import functools
 import re
 from collections.abc import Callable, Iterator, Mapping
 from fractions import Fraction
@@ -21,6 +22,7 @@ from pathlib import Path
 from typing import Any
 
 import av
+import numpy as np
 
 from app import sound
 from app.recorder.segments import NAMED, SEGMENTS, frame_times, in_ms
@@ -264,6 +266,27 @@ def has_sound(folder: Path) -> bool:
     return bool(found) and (sound.has_sound(found[0]) or sound.has_sound(found[-1]))
 
 
+@functools.cache
+def _silent_piece(form: sound.Form) -> bytes | None:
+    """A piece of AAC-LC silence of ``form``'s rate and channels, made once; None for
+    another kind -- HE-AAC, another codec --, whose gaps stay jumps of time."""
+    lc = form.codec == "aac" and bool(form.header) and form.header[0] >> 3 == 2
+    if not lc:
+        return None
+    encoder = av.CodecContext.create("aac", "w")
+    encoder.sample_rate, encoder.layout, encoder.format = form.rate, form.layout, "fltp"
+    encoder.time_base = Fraction(1, form.rate)
+    made: list[bytes] = []
+    channels = av.AudioLayout(form.layout).nb_channels
+    for n in range(4):  # past the encoder's priming: silence as such
+        frame = av.AudioFrame.from_ndarray(
+            np.zeros((channels, 1024), np.float32), format="fltp", layout=form.layout
+        )
+        frame.sample_rate, frame.pts = form.rate, n * 1024
+        made.extend(bytes(packet) for packet in encoder.encode(frame))
+    return made[-1] if made else None
+
+
 def _part(target: Path, n: int) -> Path:
     return target if n == 1 else target.with_name(f"{target.stem}-{n}{target.suffix}")
 
@@ -347,13 +370,30 @@ class _Out:
                 pts = self.heard_next
             if self.heard_next is not None and pts < self.heard_next:
                 continue  # the time goes on, never back
-            packet = piece.packet
-            packet.pts = packet.dts = pts
-            packet.duration = frame_size
-            packet.time_base = Fraction(1, rate)
-            packet.stream = self.audio
-            self.container.mux(packet)
-            self.heard_next = pts + frame_size
+            if self.heard_next is not None and pts > self.heard_next:
+                pts = self._silence(piece.form, self.heard_next, pts, frame_size)
+            self._put(piece.packet, pts, frame_size, rate)
+
+    def _silence(self, form: sound.Form, at: int, until: int, size: int) -> int:
+        """A gap from ``at`` to ``until`` filled with silent pieces: a player plays a
+        file's sound piece after piece, and a jump of time would put what comes after
+        it early by the gap's length. Where the next piece goes, on from them --
+        ``until`` for a form no silent piece is made for."""
+        silent = _silent_piece(form)
+        if silent is None:
+            return until
+        count = round((until - at) / size)
+        for n in range(count):
+            self._put(av.Packet(silent), at + n * size, size, form.rate)
+        return at + count * size
+
+    def _put(self, packet: av.Packet, pts: int, size: int, rate: int) -> None:
+        packet.pts = packet.dts = pts
+        packet.duration = size
+        packet.time_base = Fraction(1, rate)
+        packet.stream = self.audio
+        self.container.mux(packet)
+        self.heard_next = pts + size
 
     def add(self, packet: av.Packet, moment: int, time_base: Fraction) -> None:
         """The packet at its moment; its decode time as far before as it was, never
