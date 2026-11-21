@@ -415,6 +415,19 @@ def test_a_piece_held_a_moment_as_the_export_begins_keeps_its_sound(
     assert track_beep(written)[0] == pytest.approx(1.5, abs=0.03)
 
 
+def test_a_piece_whose_times_never_read_holds_an_export_a_moment_alone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Times a crash garbled are read no better later: half a second, not seconds,
+    # each export of the camera waits for them.
+    recorded(tmp_path)
+    (next(iter(sorted((tmp_path / "cam1").glob("*-0002.times"))))).write_text("x\n")
+    waited: list[float] = []
+    monkeypatch.setattr(export.time, "sleep", waited.append)
+    export.export(tmp_path / "cam1", tmp_path / "Main.mp4")
+    assert sum(waited) <= 0.5
+
+
 def test_a_lens_without_sound_is_exported_with_its_phones(tmp_path: Path) -> None:
     recorded(tmp_path)
     record(tmp_path / "cam2", HEARD, 60)  # the telephoto, frames alone, beside it
