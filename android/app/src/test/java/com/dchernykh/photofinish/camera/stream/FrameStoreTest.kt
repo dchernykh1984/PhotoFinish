@@ -19,9 +19,11 @@ class FrameStoreTest {
     private var wallMs = 1_000_000L
 
     private fun store(
-        capBytes: Long = Long.MAX_VALUE,
+        floorBytes: Long = Long.MAX_VALUE,
         free: () -> Long = { Long.MAX_VALUE },
-    ) = FrameStore(folder, capBytes, reserveBytes = 1_000, freeBytes = free, wallClock = { wallMs })
+    ) = FrameStore(folder, floorBytes, reserveBytes = 10_000, minFreeBytes = 1_000, freeBytes = free, wallClock = {
+        wallMs
+    })
 
     /** The runs kept, by their frames' files. */
     private fun runs(): Int = folder.listFiles()!!.count { it.name.endsWith(".h264") }
@@ -137,8 +139,8 @@ class FrameStoreTest {
     }
 
     @Test
-    fun `over its share the store drops its oldest frames not sent, from a keyframe on`() {
-        val store = store(capBytes = 2_500)
+    fun `over its floor, the phone short of the reserve, the store drops its oldest frames not sent`() {
+        val store = store(floorBytes = 2_500, free = { 5_000 })
         assertEquals(0, second(store, 0))
         assertEquals(0, second(store, 1))
         read(store, 3)
@@ -148,7 +150,14 @@ class FrameStoreTest {
     }
 
     @Test
-    fun `a phone short of space keeps less, whatever the store's share`() {
+    fun `under its floor the store keeps all, the phone short of the reserve but not of its last free space`() {
+        val store = store(floorBytes = 10_000, free = { 5_000 })
+        (0..4).forEach { assertEquals(0, second(store, it)) }
+        assertEquals(0L, store.next(0)!!.ptsUs)
+    }
+
+    @Test
+    fun `a phone short of space keeps less, whatever the store's floor`() {
         var free = Long.MAX_VALUE
         val store = store(free = { free })
         (0..3).forEach { second(store, it) }

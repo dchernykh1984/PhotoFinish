@@ -26,15 +26,17 @@ class KeptFrame(
  * the app and the phone (specs/009, FR-001), and a store made on a folder reads back what one before left
  * there, up to the first frame not all written. The uplink reads at a cursor; a frame read stays until the
  * server has confirmed reading it ([confirm]), [CONFIRMED_MARGIN_US] more, to be sent again after a loss
- * ([rewind]) -- or [KEEP_SENT_US] after the newest frame read, from a server that confirms nothing. Over
- * [capBytes], or with less than [reserveBytes] left on the phone -- then none of the last [KEPT_ANYWAY_US] --
- * the oldest run goes, its frames not read yet dropped.
+ * ([rewind]) -- or [KEEP_SENT_US] after the newest frame read, from a server that confirms nothing. It takes the
+ * phone's free space less [reserveBytes] (specs/009, FR-005), and [floorBytes] whatever, as long as the phone keeps
+ * [minFreeBytes] free: past that the oldest run goes -- never one of the last [KEPT_ANYWAY_US] --, its frames not
+ * read yet dropped.
  */
 @Suppress("TooManyFunctions") // the uplink's steps through the store, each a few lines
 class FrameStore(
     val folder: File,
-    private val capBytes: Long = Long.MAX_VALUE,
+    private val floorBytes: Long = FLOOR_BYTES,
     private val reserveBytes: Long = RESERVE_BYTES,
+    private val minFreeBytes: Long = MIN_FREE_BYTES,
     private val freeBytes: () -> Long = { folder.usableSpace },
     private val wallClock: () -> Long = System::currentTimeMillis,
 ) {
@@ -416,13 +418,15 @@ class FrameStore(
     }
 
     /**
-     * No room for a run more at [nowUs]: over the share; or the phone short of space, and the oldest run older
-     * than [KEPT_ANYWAY_US] -- a full phone still rides out a hiccup, as with the queue before the store.
+     * No room for a run more at [nowUs]: the phone under [minFreeBytes] free, or the store over [floorBytes] with the
+     * phone under [reserveBytes] free -- and the oldest run older than [KEPT_ANYWAY_US]: a full phone still rides out
+     * a hiccup, as with the queue before the store.
      */
     private fun full(nowUs: Long): Boolean {
-        if (total > capBytes) return true
         val oldest = runs.first().frames.last()
-        return freeBytes() < reserveBytes && oldest.ptsUs < nowUs - KEPT_ANYWAY_US
+        if (oldest.ptsUs >= nowUs - KEPT_ANYWAY_US) return false
+        val free = freeBytes()
+        return free < minFreeBytes || total > floorBytes && free < reserveBytes
     }
 
     /** The oldest run removed with its file; returns its frames not read yet. */
@@ -467,6 +471,12 @@ class FrameStore(
 
         /** Left free on the phone (specs/009, FR-005): the stores take the rest. */
         const val RESERVE_BYTES = 10L shl 30
+
+        /** What a store holds however short of the reserve the phone is, while it keeps [MIN_FREE_BYTES] free. */
+        const val FLOOR_BYTES = 1L shl 30
+
+        /** Left free on the phone whatever: a phone full to the brim fails more than the stream. */
+        const val MIN_FREE_BYTES = 1L shl 30
 
         /** Kept however short of space the phone is: the two seconds the uplink's queue held before the store. */
         const val KEPT_ANYWAY_US = 2_000_000L

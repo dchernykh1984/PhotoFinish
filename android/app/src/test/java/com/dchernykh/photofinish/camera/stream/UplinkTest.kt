@@ -106,7 +106,7 @@ class UplinkTest {
         waitForClockMs: Long = 2_000,
         stallMs: Long = 5_000,
         clock: AtomicReference<Sample?> = AtomicReference(offset?.let { exchange(it) }),
-        capBytes: Long = Long.MAX_VALUE,
+        floorBytes: Long = Long.MAX_VALUE,
     ): Uplink {
         val queue = ArrayDeque(sinks)
         val link =
@@ -116,7 +116,8 @@ class UplinkTest {
                 clock = { clock.get() },
                 requestKeyframe = { keyframesAsked.release() },
                 report = { statuses += it },
-                store = FrameStore(kept, capBytes, reserveBytes = 0, freeBytes = { Long.MAX_VALUE }),
+                // [floorBytes] all it holds: the phone short of its reserve, frames past the last 2 s give way
+                store = FrameStore(kept, floorBytes, Long.MAX_VALUE, minFreeBytes = 0, freeBytes = { 0 }),
             )
         link.connect = { synchronized(queue) { queue.removeFirst() } }
         link.waitForClockMs = waitForClockMs
@@ -520,11 +521,11 @@ class UplinkTest {
 
     @Test
     fun `frames the store has no room for are counted, with no keyframe asked for, as the next run has its own`() {
-        val link = uplink(emptyList(), capBytes = 10) // room for one frame of 6 bytes, and a run more
+        val link = uplink(emptyList(), floorBytes = 10) // room for one frame of 6 bytes, and a run more
         link.offer(frame(0, keyframe = true))
         link.offer(frame(1_000_000, keyframe = false))
-        repeat(3) { link.offer(frame((it + 2) * 1_000_000L, keyframe = true)) } // two make room
-        assertEquals(3L, link.dropped)
+        repeat(3) { link.offer(frame((it + 2) * 1_000_000L, keyframe = true)) } // the run of 0 s goes at 4 s
+        assertEquals(2L, link.dropped)
         assertFalse(keyframesAsked.tryAcquire()) // a keyframe asked for each would make more to keep
     }
 
@@ -545,7 +546,7 @@ class UplinkTest {
     @Test
     fun `a keyframe tells the frames dropped in the last minute, not since the start`() {
         val sink = FakeSink(gateOn = 2)
-        val link = uplink(listOf(sink), capBytes = 10)
+        val link = uplink(listOf(sink), floorBytes = 10)
         var now = 0L
         link.nanos = { now }
         val told = CopyOnWriteArrayList<Long>()
@@ -555,13 +556,13 @@ class UplinkTest {
         link.offer(frame(0, keyframe = true))
         link.offer(frame(1_000_000, keyframe = false))
         assertTrue(sink.atGate.await(5, TimeUnit.SECONDS)) // its send is under way
-        link.offer(frame(2_000_000, keyframe = true))
-        link.offer(frame(3_000_000, keyframe = false))
-        link.offer(frame(4_000_000, keyframe = true)) // no room: the 2 s and 3 s frames go unsent
+        link.offer(frame(3_000_000, keyframe = true))
+        link.offer(frame(4_000_000, keyframe = false))
+        link.offer(frame(7_000_000, keyframe = true)) // no room: the 3 s and 4 s frames go unsent
         sink.gate.countDown()
         repeat(3) { sink.next() }
         now = 61_000_000_000L // a minute on
-        link.offer(frame(5_000_000, keyframe = true))
+        link.offer(frame(8_000_000, keyframe = true))
         sink.next()
         assertEquals(listOf(0L, 2L, 0L), told.toList())
     }

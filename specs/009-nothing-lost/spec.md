@@ -106,7 +106,8 @@ reading at their levels.
 - The phone restarted: the frames' own clock started again too; how long a frame was held is told
   by the phone's wall clock.
 - Two copies of the app on one phone are not provided for (`specs/app/README.md`, Known limits).
-- The phone short of space: the store keeps what fits above 10 GB free, the last 2 s however short.
+- The phone short of space: a stream keeps a gigabyte while 1 GB stays free, more while 10 GB do;
+  the last 2 s however short.
 - The app updated with frames kept: the new version reads the store and sends them.
 
 ## Requirements *(mandatory)*
@@ -126,8 +127,10 @@ reading at their levels.
   kept for it are sent, so a camera's frames reach the recorder in the order taken.
 - **FR-004**: "Discard unsent" on the phone drops everything kept, after a confirmation that says
   how much video goes; nothing else drops kept frames but the space running out (FR-005).
-- **FR-005**: The store takes the phone's free space less 10 GB; beyond it the oldest frames not
-  sent give way, counted among the frames dropped; the last 2 s are kept however short of space.
+- **FR-005**: The store takes the phone's free space less 10 GB, and each stream its first
+  gigabyte whatever, as long as the phone keeps 1 GB free -- a fuller phone keeps what it kept
+  before 009; beyond that the oldest frames not sent give way, counted among the frames dropped;
+  the last 2 s are kept however short of space.
 - **FR-006**: While anything is unsent or a lens streams, the app runs a foreground service, its
   notification saying how much video is left to send, so sending goes on with the screen off and
   the app in the background; stopped by Android, the app goes on at its next start (FR-002).
