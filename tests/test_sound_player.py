@@ -6,12 +6,14 @@ import threading
 import time
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import av
 import numpy as np
 import pytest
 from PySide6.QtWidgets import QApplication
 
+from app import video_index
 from app.recorder.segments import SegmentWriter, fraction, in_ms
 from app.video_index import VideoIndex
 from app.widgets import sound as player
@@ -295,6 +297,41 @@ def test_a_recording_not_followed_is_heard_to_its_end(tmp_path: Path) -> None:
     played.play(index, START, 1.0, follows=False)
     wait_until(lambda: given(played))
     assert len(heard(output)) / RATE > 2.95  # the 3 s recorded, to their end
+    played.stop()
+
+
+def test_a_segment_whose_times_are_held_a_poll_is_heard_in_its_place(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Followed close behind live: the segment after it listed first. Those after it
+    # wait a poll for it, so its sound -- the beep -- is heard, not passed over.
+    index, grow = growing(tmp_path)
+    real = video_index.read_times
+    held: list[Path] = []
+
+    def read_times(path: Path) -> Any:
+        if "-0002" in path.stem and not held:
+            held.append(path)
+            return None
+        return real(path)
+
+    monkeypatch.setattr(video_index, "read_times", read_times)
+    output = Output()
+    made = (output, player.RATE, player.CHANNELS)
+    played = player.SoundPlayer(output=lambda: made, clock=still)
+    played.play(index, START, 1.0)
+    grow()  # the third listed, the second's times held
+    assert held and index.pending
+    played.follow()
+    until = time.monotonic() + 1.0
+    while time.monotonic() < until:  # the output fed, the rendering on as far as it may
+        QApplication.processEvents()
+        time.sleep(0.01)
+    index.refresh()  # the second read a poll later
+    played.follow()
+    played.follow(grows=False)
+    wait_until(lambda: given(played))
+    assert beep_at(heard(output)) == pytest.approx(1.5, abs=0.03)
     played.stop()
 
 
