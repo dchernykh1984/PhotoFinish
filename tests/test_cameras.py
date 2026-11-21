@@ -112,6 +112,14 @@ def test_the_pairing_code_is_the_address_alone_only_for_the_main_lens_alone() ->
     )
 
 
+def test_h265_adds_its_line_to_the_code_after_the_addresses() -> None:
+    main, tele = "rtmp://10.0.0.5:1935/live/cam1", "rtmp://10.0.0.5:1936/live/cam2"
+    assert cameras.pairing_text([("main", main)], "h265") == f"{main}\ncodec h265"
+    both = cameras.pairing_text([("main", main), ("telephoto", tele)], "h265")
+    assert both == f"main {main}\ntelephoto {tele}\ncodec h265"
+    assert cameras.pairing_text([("main", main)], "h264") == main
+
+
 def test_the_rtmp_address_to_type_in_the_camera_app(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
