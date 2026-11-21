@@ -350,13 +350,21 @@ def test_a_recording_that_grows_no_more_is_heard_to_its_end(tmp_path: Path) -> N
     played.stop()
 
 
+class ShortOutput(Output):
+    """An output whose free room, empty, stops a period short of its buffer."""
+
+    def bufferSize(self) -> int:  # noqa: N802 - Qt's name
+        return self.free + 4 * 480
+
+
+@pytest.mark.parametrize("kind", [Output, ShortOutput])
 def test_the_time_the_output_ran_dry_is_left_out_so_the_sound_keeps_up(
-    tmp_path: Path,
+    tmp_path: Path, kind: type[Output]
 ) -> None:
     # The sound waited 0.4 s for a segment as the picture played on: that much of
     # what came after it is left out.
     index, grow = growing(tmp_path)
-    output = Output()
+    output = kind()
     now = [100.0]
     made = (output, player.RATE, player.CHANNELS)
     played = player.SoundPlayer(output=lambda: made, clock=lambda: now[0])
