@@ -115,6 +115,42 @@ def test_stopped_it_gives_no_more_and_without_an_output_it_plays_none(
     ]
 
 
+def test_a_device_that_takes_no_format_it_plays_is_said_so_not_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A device there that prefers seven channels and refuses 48 kHz stereo: the
+    # referee told the format, never sent looking for a device.
+    from PySide6 import QtMultimedia
+
+    class Format:
+        def sampleRate(self) -> int:  # noqa: N802 - Qt's name
+            return 48000
+
+        def channelCount(self) -> int:  # noqa: N802 - Qt's name
+            return 7
+
+    class Device:
+        def isNull(self) -> bool:  # noqa: N802 - Qt's name
+            return False
+
+        def preferredFormat(self) -> Format:  # noqa: N802 - Qt's name
+            return Format()
+
+        def isFormatSupported(self, _: object) -> bool:  # noqa: N802 - Qt's name
+            return False
+
+    monkeypatch.setattr(
+        QtMultimedia.QMediaDevices, "defaultAudioOutput", staticmethod(Device)
+    )
+    played = player.SoundPlayer(clock=still)
+    said: list[str] = []
+    played.failed.connect(said.append)
+    played.play(VideoIndex(Path("none")), START, 1.0)
+    assert said == [
+        "The sound cannot be played: the audio output takes no format it can play"
+    ]
+
+
 def test_qts_output_is_made_or_none_without_a_device() -> None:
     made = player.default_output()
     assert made is None or hasattr(made[0], "bytesFree")  # CI's machine has no device
