@@ -259,6 +259,22 @@ class FrameStore(
     }
 
     /**
+     * The stream over: its files kept for a store made on the folder to send when it holds anything unsent --
+     * true --, else removed with the folder, all of it sent: a store made on it would send its last run again, and
+     * a new stream to the camera would wait for that (specs/009, FR-003).
+     */
+    fun handOver(): Boolean {
+        lock.withLock {
+            if (unsent) {
+                close()
+                return true
+            }
+        }
+        clear()
+        return false
+    }
+
+    /**
      * Its files synced and closed, kept for a store made on the folder to send (specs/009, FR-003): nothing is
      * kept or read from now on.
      */
