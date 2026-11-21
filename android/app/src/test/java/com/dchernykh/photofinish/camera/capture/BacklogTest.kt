@@ -315,6 +315,24 @@ class BacklogTest {
     }
 
     @Test
+    fun `a stream being handed over as Discard comes is dropped, never sent after it`() {
+        val queued = mutableListOf<Runnable>()
+        val later = Backlog(root, { _, _ -> error("not sent") }, handOff = { queued += it })
+        later.readBack()
+        val folder = File(root, "main-900")
+        val store = FrameStore(folder, freeBytes = { Long.MAX_VALUE })
+        store.keep(EncodedFrame(ByteArray(10), 0, true), 1)
+        StreamHeader(Lens.MAIN, first, format, byteArrayOf(1)).write(folder)
+        val off = later.live(first, store)
+        later.handOver(store, first, off)
+        later.discard() // while it is being synced and read back
+        queued.single().run()
+        assertFalse(later.holds(first))
+        assertFalse(folder.exists())
+        assertFalse(later.active)
+    }
+
+    @Test
     fun `discard stops and drops every stream kept`() {
         kept(began = 100)
         kept(began = 200, address = second)
