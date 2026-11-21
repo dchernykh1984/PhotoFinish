@@ -135,7 +135,8 @@ reading at their levels.
   notification saying how much video is left to send, so sending goes on with the screen off and
   the app in the background; stopped by Android, the app goes on at its next start (FR-002).
 - **FR-007**: The first lens of the code sends first: while it is connected and more than 2 s
-  behind, the other lenses' streams send nothing and hold no connection; their frames wait.
+  behind, the other lenses' streams to its laptop send nothing and hold no connection; their frames
+  wait. A stream kept for another laptop, the phone paired again since, holds none of them back.
 - **FR-008**: The status a keyframe carries adds `free`, the phone's free storage in MB, and
   `unsent_ms` and `unsent_mb`, the video the phone holds for the lens's camera, its span in
   milliseconds and its size in MB (contract).
