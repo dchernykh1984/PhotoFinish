@@ -141,16 +141,20 @@ class Backlog(
         val header = StreamHeader.read(folder)
         val store = header?.let { FrameStore(folder) }
         when {
-            store != null && store.unsent && !store.stamped -> drop(folder, store) // no moment to place them by
             // Frames whose header a power cut took, or the storage would not read: not sent, not removed either --
-            // counted, and Discard alone removes them.
+            // counted, and Discard alone removes them; never dropped with frames read that hold no moment.
             header == null && hasFrames(folder) -> leave(folder, "frames kept with no header to send them with")
-            store != null && store.unreadable && !store.unsent -> leave(folder, "its frames the storage would not read")
+            left(store) -> leave(folder, "its frames the storage would not read")
+            store != null && store.unsent && !store.stamped -> drop(folder, store) // no moment to place them by
             header == null || store == null || !store.unsent -> folder.deleteRecursively() // nothing to send
             else -> return Kept(folder, header, store)
         }
         return null
     }
+
+    /** Runs of [store] the storage would not read, left as they are: those it read already sent, or unplaceable. */
+    private fun left(store: FrameStore?): Boolean =
+        store != null && store.unreadable && (!store.unsent || !store.stamped)
 
     /** Frames kept with no moment -- the clock exchange never through --: placed by their arrival, hours late. */
     private fun drop(
