@@ -142,6 +142,12 @@ class Uplink(
     /** The connection under way has sent the sound's config; the uplink's thread alone keeps it. */
     private var soundHeaderSent = false
 
+    /**
+     * The stream takes the phone's sound (specs/013): a connection waits a moment for the sound's config before it
+     * publishes, as FFmpeg takes a stream's sound only when its first piece comes while it looks the stream over.
+     */
+    @Volatile var sounded = false
+
     /** The header kept with the frames ([onConfigured]). */
     @Volatile private var headerKept = false
 
@@ -312,8 +318,10 @@ class Uplink(
         quietSinceNs = System.nanoTime()
         val connected = connect(address)
         publisher = connected
-        // Waits a little for the clock, so that the connection's frames carry their moments.
+        // Waits a little for the clock, so that the connection's frames carry their moments, and for the sound's
+        // config, so that its pieces come as the recorder looks the stream over.
         if (!alone) await(System.nanoTime() + waitForClockMs * 1_000_000) { clock() != null }
+        if (sounded) await(System.nanoTime() + SOUND_WAIT_MS * 1_000_000) { soundConfig != null }
         // A connection's frames all carry their moments, or none do: the recorder places frames without one by
         // their arrival, later than they were taken, and a mix of the two would not keep its order. Once the
         // clock is in step, a connection starts at a keyframe kept with a moment; before, at the next keyframe,
@@ -591,6 +599,9 @@ class Uplink(
         private const val FIRST_PAUSE_MS = 500L
         private const val MAX_PAUSE_MS = 8_000L
         private const val WAIT_FOR_CLOCK_MS = 3_000L
+
+        /** How long a connection waits for the sound's config: the microphone's encoder gives it in a moment. */
+        private const val SOUND_WAIT_MS = 1_000L
         private const val STALL_MS = 5_000L
         private const val STAMP_WINDOW_MS = 10_000L
 
