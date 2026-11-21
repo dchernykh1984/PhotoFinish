@@ -1319,6 +1319,35 @@ def test_a_crash_whose_sound_the_copy_refuses_keeps_its_frames(
     assert len(segments_module.frame_times(folder / f"{name}.times")) > 20
 
 
+def test_a_sound_list_refused_as_a_crash_is_recovered_costs_its_sound_alone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The frames a crash left whole recovered and listed: a sound list a scanner
+    # holds is no recovery failed, nor a camera that will not record.
+    with_sound(tmp_path / "phone.mkv", 1)
+    folder = tmp_path / "cam1"
+    run = [
+        sys.executable,
+        "-c",
+        KILLED_WITH_SOUND,
+        str(folder),
+        str(tmp_path / "phone.mkv"),
+        str(START),
+    ]
+    subprocess.run(run, cwd=ROOT, check=False)  # noqa: S603 - this interpreter
+    real = segments_module.append
+
+    def append(path: Path, data: bytes) -> None:
+        if path.name == segments_module.SOUND:
+            raise PermissionError(13, "held by another process")
+        real(path, data)
+
+    monkeypatch.setattr(segments_module, "append", append)
+    (name,) = segments_module.recover(folder)
+    listed = (folder / segments_module.SEGMENTS).read_text().split()
+    assert name in listed
+
+
 def test_a_cameras_sound_matroska_will_not_hold_costs_the_sound_alone(
     tmp_path: Path,
 ) -> None:
