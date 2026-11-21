@@ -139,7 +139,7 @@ class SoundPlayer(QObject):
         """Silent from now on: the rendering told to end, the output stopped."""
         self._timer.stop()
         if self._pieces is not None:
-            self._pieces.finish()  # one waiting for segments ends too
+            self._pieces.cancel()  # its thread reads no segment on, nor waits for one
         self._pieces, self._index, self._drained = None, None, None
         with self._lock:
             self._stopped.set()

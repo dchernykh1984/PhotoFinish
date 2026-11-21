@@ -142,6 +142,7 @@ def export(
     -- the camera's own folder without -- goes beside the frames, ``shift`` ms later
     than its own moments."""
     writer = _Writer(target, [] if written is None else written, skipped)
+    writer.cancelled = cancelled  # asked as its sound is looked for too
     heard = folder if heard is None else heard
     if has_sound(heard):  # else hours of pieces are not opened again for none
         writer.heard = VideoIndex(heard)
@@ -175,6 +176,7 @@ class _Writer:
         self.broken = False
         self.heard: VideoIndex | None = None  # whose sound the files take (013)
         self.shift = 0  # how much later than its own moments that sound goes
+        self.cancelled: Callable[[], bool] = lambda: False
 
     def copy(self, video: Path) -> None:
         """One piece's listed packets onto the file under way, or a new file when its
@@ -234,7 +236,7 @@ class _Writer:
             else:
                 path = free(_part(self.first, len(self.mine) + 1))
             found = (
-                sound.pieces(self.heard, moment - self.shift)
+                sound.pieces(self.heard, moment - self.shift, cancelled=self.cancelled)
                 if self.heard
                 else iter(())
             )

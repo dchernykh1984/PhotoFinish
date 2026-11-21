@@ -295,3 +295,30 @@ def test_whether_a_segment_has_sound_is_read_once(
     monkeypatch.setattr(sound.av, "open", counted)
     assert sound.has_sound(path)
     assert opened == []
+
+
+def test_pieces_cancelled_read_no_more_segments(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A play stopped: its pieces stop where they are, never reading on through a
+    # recording's soundless hours on a thread nobody waits for.
+    index = recorded(tmp_path)
+    opened: list[Path] = []
+    real = sound._pieces_of
+
+    def counted(path: Path) -> list[sound.Piece]:
+        opened.append(path)
+        return real(path)
+
+    monkeypatch.setattr(sound, "_pieces_of", counted)
+    found = sound.pieces(index, START)
+    next(found)
+    found.cancel()
+    assert list(found) == [] or len(opened) <= 2
+    assert len(opened) <= 2
+    asked = [False]
+    told = sound.pieces(index, START, cancelled=lambda: asked[0])
+    next(told)
+    asked[0] = True  # an export cancelled between pieces
+    rest = list(told)
+    assert len(rest) < 60
