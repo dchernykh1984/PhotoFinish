@@ -598,7 +598,12 @@ class MainWindow(QMainWindow):
             )
             for camera_id in chosen
         ]
-        job = export_dialog.ExportJob(jobs)
+        sounds = {
+            folder_of(camera_id): heard
+            for camera_id in chosen
+            if (heard := self._sound_folder(camera_id)) is not None
+        }
+        job = export_dialog.ExportJob(jobs, sounds)
         progress = QProgressDialog(
             "Exporting the video...", "Cancel", 0, export.STEPS, self
         )
@@ -1995,6 +2000,20 @@ class MainWindow(QMainWindow):
         own = round(moment + since) - int(heard.settings.get("offset_ms", 0))
         self.sound.play(heard.index, own, self.rate)
 
+    def _sound_folder(self, camera_id: str) -> Path | None:
+        """Whose sound a camera's exported file takes (013): another camera's of its
+        phone, when its own newest piece has none and that one's has; else None, its
+        own."""
+        camera = self.cameras.get(camera_id)
+        if camera is None or _heard(folder_of(camera_id)):
+            return None
+        phone = camera.settings.get("phone")
+        for other in self.cameras.values():
+            if other is not camera and phone and other.settings.get("phone") == phone:
+                if _heard(folder_of(other.id)):
+                    return folder_of(other.id)
+        return None
+
     def _sound_camera(self) -> Camera | None:
         """Whose sound plays (013): the camera shown, when its recording has sound
         there; else a camera of its phone's whose has -- the main lens's."""
@@ -2266,6 +2285,12 @@ def _progressed(progress: QProgressDialog, value: int) -> None:
     set again shows itself again until the export ends."""
     if not progress.wasCanceled():
         progress.setValue(value)
+
+
+def _heard(folder: Path) -> bool:
+    """Whether a camera's newest piece keeps sound (013)."""
+    found = export.pieces(folder)
+    return bool(found) and has_sound(found[-1])
 
 
 def _same_file(chosen: object, path: str) -> bool:

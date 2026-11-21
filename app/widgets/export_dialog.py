@@ -63,9 +63,12 @@ class ExportJob(QObject):
     # The files written; what went wrong, "" for nothing; the pieces left unreadable.
     done = Signal(object, str, int)
 
-    def __init__(self, jobs: list[tuple[Path, Path]]) -> None:
+    def __init__(
+        self, jobs: list[tuple[Path, Path]], sounds: dict[Path, Path] | None = None
+    ) -> None:
         super().__init__()
         self.jobs = jobs
+        self.sounds = sounds or {}  # whose sound a camera's file takes (013)
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._run, daemon=True)
 
@@ -87,7 +90,7 @@ class ExportJob(QObject):
     def _run(self) -> None:
         try:
             written, error, skipped = export.export_all(
-                self.jobs, self.progress.emit, self._stop.is_set
+                self.jobs, self.progress.emit, self._stop.is_set, self.sounds
             )
         except Exception as failure:  # told whatever it is: the window never waits on
             written, error, skipped = [], str(failure) or type(failure).__name__, 0
