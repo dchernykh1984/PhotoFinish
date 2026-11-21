@@ -92,3 +92,10 @@ def test_a_digit_that_is_not_0_to_9_is_no_number_and_stops_nothing(
     path = tmp_path / "start.txt"
     numbers = StartNumbers(lambda: str(path))
     assert numbers() == {"5": "5", "7": "7"}
+
+
+def test_a_fifth_field_past_any_relays_stages_makes_no_numbers(tmp_path: Path) -> None:
+    # A year in the fifth field of a file not StartProtocolMaker's: no 1984 starters.
+    lines = ["12#Ivanov#M40#3#1985#", "30#Relay#Open##4#"]
+    numbers = read_numbers(protocol(tmp_path, lines))
+    assert numbers == {"12": "12", "30": "30", "31": "31", "32": "32", "33": "33"}

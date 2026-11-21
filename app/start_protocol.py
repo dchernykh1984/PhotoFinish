@@ -17,6 +17,7 @@ from app.paths import app_path
 ENCODINGS = ("utf-8-sig", "cp1251", "latin-1")  # as the older tools wrote them
 SEPARATORS = re.compile("[#;,\t]")
 DECIMAL = re.compile("[0-9]+")  # isdigit() takes a superscript two, int() does not
+MOST_STAGES = 20  # a relay's, at most: more in the fifth field is something else
 
 
 def loose(number: str) -> str:
@@ -57,6 +58,8 @@ def _stages(line: str, fields: list[str], number: str) -> list[str]:
         return []
     stages = fields[4].strip()
     count = int(stages) if DECIMAL.fullmatch(stages) else 1
+    if count > MOST_STAGES:
+        return []  # no relay's: a year, an id in a file not StartProtocolMaker's
     return [str(int(number) + k) for k in range(1, count)]
 
 
