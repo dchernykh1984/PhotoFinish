@@ -5,6 +5,9 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 import java.io.RandomAccessFile
+import java.nio.ByteBuffer
+import java.nio.channels.FileChannel
+import java.nio.file.StandardOpenOption
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
@@ -18,43 +21,151 @@ class KeptFrame(
 )
 
 /**
- * A lens's frames on the phone's own storage, from the encoder to the uplink (specs/007), so that a break,
+ * A stream's frames on the phone's own storage, from the encoder to the uplink (specs/007), so that a break,
  * a slow network or a recorder starting again costs no frame while there is room. The frames of one
- * keyframe's run share a file; their index -- place, capture time, moment -- is in memory, as the store does
- * not outlive the app (FR-004). The uplink reads at a cursor; a frame read stays until the server has
- * confirmed reading it ([confirm]), [CONFIRMED_MARGIN_US] more, to be sent again after a loss ([rewind]) --
- * or [KEEP_SENT_US] after the newest frame read, from a server that confirms nothing. Over [capBytes], or
- * with less than [reserveBytes] left on the phone -- then none of the last [KEPT_ANYWAY_US] -- the oldest run
- * goes, its frames not read yet dropped.
+ * keyframe's run share a file, their index -- capture time, keyframe, moment, when kept on the wall clock --
+ * another beside it, written after each frame and synced with it as the next run begins: the store outlives
+ * the app and the phone (specs/009, FR-001), and a store made on a folder reads back what one before left
+ * there, up to the first frame not all written. The uplink reads at a cursor; a frame read stays until the
+ * server has confirmed reading it ([confirm]), [CONFIRMED_MARGIN_US] more, to be sent again after a loss
+ * ([rewind]) -- or [KEEP_SENT_US] after the newest frame read, from a server that confirms nothing. It takes the
+ * phone's free space less [reserveBytes] (specs/009, FR-005), and [floorBytes] whatever, as long as the phone keeps
+ * [minFreeBytes] free: past that the oldest run goes -- never one of the last [KEPT_ANYWAY_US] --, its frames not
+ * read yet dropped.
  */
 @Suppress("TooManyFunctions") // the uplink's steps through the store, each a few lines
 class FrameStore(
-    private val folder: File,
-    private val capBytes: Long,
+    val folder: File,
+    private val floorBytes: Long = FLOOR_BYTES,
     private val reserveBytes: Long = RESERVE_BYTES,
+    private val minFreeBytes: Long = MIN_FREE_BYTES,
     private val freeBytes: () -> Long = { folder.usableSpace },
+    private val wallClock: () -> Long = System::currentTimeMillis,
 ) {
+    @Suppress("LongParameterList") // a frame's index record, field by field
     private class Entry(
         val offset: Long,
         val size: Int,
         val ptsUs: Long,
         val keyframe: Boolean,
         val momentUs: Long?,
+        /** When it was kept, on the phone's wall clock: how long it was held, across a restart too. */
+        val wallMs: Long,
+        /** Read back from what a store before left: its capture clock may have started again since. */
+        val readBack: Boolean = false,
     )
 
     private class Run(
         val file: File,
     ) {
-        val frames = ArrayList<Entry>()
+        val index = File(file.parentFile, file.name.removeSuffix(DATA) + INDEX)
+        val frames = Frames()
         var bytes = 0L
     }
+
+    /**
+     * A run's frames field by field, in arrays: some 33 bytes a frame, not an object's 90 -- a long break's hours of
+     * them held in memory (specs/009). An [Entry] is made of one as it is asked for; the wall clock is the run's
+     * first frame's, which is what a connection's first frame -- a keyframe, a run's first -- is held by.
+     */
+    private class Frames {
+        private var count = 0
+        private var offsets = IntArray(FIRST_ROOM)
+        private var sizes = IntArray(FIRST_ROOM)
+        private var pts = LongArray(FIRST_ROOM)
+        private var moments = LongArray(FIRST_ROOM)
+        private var flags = ByteArray(FIRST_ROOM)
+        private var wallMs = 0L
+
+        val size: Int get() = count
+
+        fun isEmpty(): Boolean = count == 0
+
+        operator fun get(index: Int): Entry {
+            val flag = flags[index].toInt()
+            val moment = moments[index].takeIf { it != NO_MOMENT }
+            return Entry(
+                offsets[index].toLong(),
+                sizes[index],
+                pts[index],
+                flag and KEYFRAME != 0,
+                moment,
+                wallMs,
+                flag and READ_BACK != 0,
+            )
+        }
+
+        fun getOrNull(index: Int): Entry? = if (index in 0 until count) get(index) else null
+
+        fun first(): Entry = get(0)
+
+        /** The capture time of the frame at [index], us: no entry made for it. */
+        fun ptsUs(index: Int): Long = pts[index]
+
+        fun last(): Entry = get(count - 1)
+
+        fun firstOrNull(): Entry? = getOrNull(0)
+
+        /** The bytes of the frames before [index]: where the one at it begins. */
+        fun bytesBefore(index: Int): Long =
+            if (index <
+                count
+            ) {
+                offsets[index].toLong()
+            } else {
+                (if (count == 0) 0L else offsets[count - 1].toLong() + sizes[count - 1])
+            }
+
+        operator fun plusAssign(entry: Entry) {
+            if (count == sizes.size) grow()
+            if (count == 0) wallMs = entry.wallMs
+            offsets[count] = entry.offset.toInt()
+            sizes[count] = entry.size
+            pts[count] = entry.ptsUs
+            moments[count] = entry.momentUs ?: NO_MOMENT
+            flags[count] = ((if (entry.keyframe) KEYFRAME else 0) or (if (entry.readBack) READ_BACK else 0)).toByte()
+            count++
+        }
+
+        private fun grow() = resize(sizes.size * 2)
+
+        /** The run done: its arrays cut to its frames, no room kept for more. */
+        fun trim() = resize(count)
+
+        private fun resize(room: Int) {
+            offsets = offsets.copyOf(room)
+            sizes = sizes.copyOf(room)
+            pts = pts.copyOf(room)
+            moments = moments.copyOf(room)
+            flags = flags.copyOf(room)
+        }
+    }
+
+    /** The video kept and not sent yet: its span from the next frame to the newest, ms, and its bytes. */
+    data class Pending(
+        val ms: Long,
+        val bytes: Long,
+    )
 
     private val lock = ReentrantLock()
     private val more = lock.newCondition()
     private val runs = ArrayDeque<Run>()
 
-    /** The newest run's file, open until a write to it fails. */
+    /** The newest run's file and its index, open until a write to either fails. */
     private var writer: FileOutputStream? = null
+    private var indexWriter: FileOutputStream? = null
+
+    /**
+     * The runs done's files, closed, to be synced once the lock is let go ([retire]): by name, so that a slow flash's
+     * syncs waited for elsewhere hold no file open.
+     */
+    private val retired = ArrayList<File>()
+
+    /** How a run's file is written through to the storage; a test's waits. */
+    internal var syncFile: (File) -> Unit = ::sync
+
+    /** Where a run done is synced and closed: the stores' own thread; a test's runs it at once. */
+    internal var syncOff: (Runnable) -> Unit = { SYNCING.execute(it) }
     private var reader: RandomAccessFile? = null
     private var readerRun: Run? = null
 
@@ -69,8 +180,20 @@ class FrameStore(
     private var named = 0
     private var cleared = false
 
+    /** Closed: handed over, its files left for a store made on the folder to send. */
+    private var closed = false
+
+    /**
+     * A run the storage would not read back, its files left as they are when it reads: the folder left for Discard
+     * when nothing else is kept in it; else it goes with the frames read once they are sent -- a run whose index
+     * cannot be read cannot be told into frames.
+     */
+    var unreadable = false
+        private set
+
     init {
-        empty(folder)
+        folder.mkdirs()
+        readBack()
     }
 
     /**
@@ -81,23 +204,40 @@ class FrameStore(
         frame: EncodedFrame,
         momentUs: Long?,
     ): Int {
-        lock.withLock {
-            if (cleared) return 0
-            var dropped = 0
-            if (frame.keyframe) {
-                val safe = safeBefore(confirmedUs, lastReadUs)
-                while (runs.size > 1 && sent(runs.first(), cursorRun, safe)) removeOldest()
-                while (runs.isNotEmpty() && full(frame.ptsUs)) dropped += removeOldest()
+        val dropped =
+            lock.withLock {
+                if (cleared || closed) return 0
+                var dropped = 0
+                if (frame.keyframe) {
+                    prune()
+                    while (runs.isNotEmpty() && full(frame.ptsUs)) dropped += removeOldest()
+                }
+                dropped + if (append(frame, momentUs)) 0 else 1
             }
-            return dropped + if (append(frame, momentUs)) 0 else 1
-        }
+        retire()
+        return dropped
+    }
+
+    /**
+     * The run before's files, the new one begun, synced to the storage and closed outside the lock: an fsync of a
+     * slow flash holds up no reader -- the uplink, the other lenses asking the first, the screen counting.
+     */
+    private fun retire() {
+        val files = lock.withLock { retired.toList().also { retired.clear() } }
+        if (files.isEmpty()) return
+        syncOff(
+            Runnable {
+                // on a thread of its own: the encoder's drains on, an fsync of a slow flash waited for by none
+                files.forEach { syncFile(it) }
+            },
+        )
     }
 
     /** The next frame to send, waiting up to [waitMs] for one; null when none came, or the store was cleared. */
     fun next(waitMs: Long): KeptFrame? {
         lock.withLock {
             var left = TimeUnit.MILLISECONDS.toNanos(waitMs)
-            while (!cleared) {
+            while (!cleared && !closed) {
                 val run = cursorRun ?: runs.firstOrNull()
                 val after = run?.let { following(runs, it) }
                 when {
@@ -114,23 +254,29 @@ class FrameStore(
         }
     }
 
-    /** The server has read the frame taken at [ptsUs], and every one before it. */
+    /** The server has read the frame taken at [ptsUs], and every one before it: the runs sent go. */
     fun confirm(ptsUs: Long) {
-        lock.withLock { confirmedUs = maxOf(confirmedUs ?: ptsUs, ptsUs) }
+        lock.withLock {
+            confirmedUs = maxOf(confirmedUs ?: ptsUs, ptsUs)
+            if (!cleared && !closed) prune()
+        }
     }
 
     /**
      * After a loss: the cursor back to the last keyframe before what a dead connection may have swallowed --
-     * [CONFIRMED_MARGIN_US] before the newest frame the server confirmed, or [KEEP_SENT_US] before the newest
-     * read when it confirmed none -- the oldest kept when none is that old.
+     * [marginUs] before the newest frame the server confirmed, or [KEEP_SENT_US] before the newest read when it
+     * confirmed none -- the oldest kept when none is that old.
      */
-    fun rewind() {
+    fun rewind(marginUs: Long = CONFIRMED_MARGIN_US) {
         lock.withLock {
-            val safe = safeBefore(confirmedUs, lastReadUs) ?: return
+            val safe = safeBefore(confirmedUs, lastReadUs, marginUs) ?: return
             cursorRun = runs.lastOrNull { it.frames.first().ptsUs <= safe } ?: runs.firstOrNull()
             cursorFrame = 0
         }
     }
+
+    /** A run kept begins with a frame with its moment: something a connection of kept frames can send. */
+    val stamped: Boolean get() = lock.withLock { runs.any { it.frames.first().momentUs != null } }
 
     /**
      * The cursor on to the first keyframe kept with a moment, at or after it, so that a connection's frames
@@ -160,12 +306,55 @@ class FrameStore(
         lock.withLock { if (cursorFrame > 0) cursorFrame-- }
     }
 
-    /** How long the frame the cursor is at has been kept: [nowUs], on the frames' clock, minus its capture. */
+    /**
+     * How long the frame the cursor is at has been kept: [nowUs], on the frames' clock, minus its capture -- or,
+     * read back from a store before, the wall clock now minus when it was kept, its capture clock perhaps started
+     * again with the phone since.
+     */
     fun heldMs(nowUs: Long?): Long {
         lock.withLock {
-            val entry = nextEntry()
-            return if (nowUs == null || entry == null) 0 else maxOf((nowUs - entry.ptsUs) / 1000, 0)
+            val entry = nextEntry() ?: return 0
+            return when {
+                entry.readBack -> maxOf(wallClock() - entry.wallMs, 0)
+                nowUs == null -> 0
+                else -> maxOf((nowUs - entry.ptsUs) / 1000, 0)
+            }
         }
+    }
+
+    /** The video kept and not sent yet ([Pending]). */
+    val pending: Pending
+        get() =
+            lock.withLock {
+                val next = nextEntry() ?: return Pending(0, 0)
+                val newest = runs.last().frames.last()
+                var before = 0L
+                val at = cursorRun
+                if (at != null) {
+                    for (run in runs) {
+                        if (run === at) {
+                            before += run.frames.bytesBefore(cursorFrame)
+                            break
+                        }
+                        before += run.bytes
+                    }
+                }
+                Pending(maxOf((newest.ptsUs - next.ptsUs - unfedUs(next.ptsUs)) / 1000, 0), total - before)
+            }
+
+    /**
+     * The whiles no camera fed the stream after [fromUs] -- the screen away, a camera opened again --: the gaps
+     * between runs past [UNFED_FROM_US], no video held (specs/009, FR-008).
+     */
+    private fun unfedUs(fromUs: Long): Long {
+        var unfed = 0L
+        for (i in 1 until runs.size) {
+            val before = runs[i - 1].frames
+            val after = runs[i].frames
+            if (before.isEmpty() || after.isEmpty() || after.ptsUs(0) <= fromUs) continue
+            unfed += maxOf(after.ptsUs(0) - before.ptsUs(before.size - 1) - UNFED_FROM_US, 0)
+        }
+        return unfed
     }
 
     /**
@@ -186,22 +375,145 @@ class FrameStore(
         return run?.frames?.getOrNull(cursorFrame) ?: run?.let { following(runs, it) }?.frames?.firstOrNull()
     }
 
-    /** Everything kept removed, and nothing kept from now on: the stream has ended (FR-004). */
+    /**
+     * Everything kept removed with its folder, and nothing kept from now on: the stream sent whole, or dropped at
+     * the referee's word (specs/009, FR-004). A store closed has handed its files over: they are not its to remove.
+     */
     fun clear() {
         lock.withLock {
+            if (closed) return
             cleared = true
-            close(writer)
-            writer = null
-            close(reader)
-            reader = null
-            readerRun = null
+            closeFiles()
             runs.clear()
             total = 0
             cursorRun = null
             cursorFrame = 0
             lastReadUs = null
-            empty(folder)
             more.signalAll()
+        }
+        folder.deleteRecursively() // outside the lock: a store of GBs holds no reader up as it goes
+    }
+
+    /**
+     * The stream over: its files kept for a store made on the folder to send when it holds anything unsent --
+     * true --, else removed with the folder, all of it sent: a store made on it would send its last run again, and
+     * a new stream to the camera would wait for that (specs/009, FR-003).
+     */
+    fun handOver(): Boolean {
+        val keep = lock.withLock { unsent } // its uplink stopped: nothing changes it now
+        if (keep) close() else clear()
+        return keep
+    }
+
+    /**
+     * Its files synced and closed, kept for a store made on the folder to send (specs/009, FR-003): nothing is
+     * kept or read from now on; what was asked of the stores' thread before -- the stream's header written, the runs
+     * before synced -- done when it returns, so the folder reads back whole.
+     */
+    fun close() {
+        val open =
+            lock.withLock {
+                if (cleared || closed) return
+                closed = true
+                val open = retired + runs.lastOrNull()?.let { listOf(it.file, it.index) }.orEmpty()
+                closeFiles() // the newest run's files closed with the rest
+                more.signalAll()
+                open
+            }
+        open.forEach { syncFile(it) } // closed, synced outside the lock, as a run is ([retire])
+        settle()
+    }
+
+    /** Waits for what was asked of the stores' thread so far: it runs its work in turn. */
+    private fun settle() {
+        val done = java.util.concurrent.CountDownLatch(1)
+        syncOff(Runnable { done.countDown() })
+        done.await()
+    }
+
+    private fun closeFiles() {
+        retired.clear()
+        close(writer)
+        writer = null
+        close(indexWriter)
+        indexWriter = null
+        close(reader)
+        reader = null
+        readerRun = null
+    }
+
+    /** The runs read past and wholly before what a connection after a loss would begin with, removed. */
+    private fun prune() {
+        val safe = safeBefore(confirmedUs, lastReadUs)
+        while (runs.size > 1 && sent(runs.first(), cursorRun, safe)) removeOldest()
+    }
+
+    /**
+     * What a store before left in the folder, read back: each run's frames up to the first whose index record or
+     * bytes are not all there -- a crash, a power cut mid-write --, a run that holds none, or does not begin with a
+     * keyframe, removed.
+     */
+    private fun readBack() {
+        val files = folder.listFiles { file -> file.name.endsWith(DATA) } ?: return
+        val numbered =
+            files.mapNotNull { file ->
+                file.name
+                    .removeSuffix(DATA)
+                    .toIntOrNull()
+                    ?.let { it to file }
+            }
+        for ((number, file) in numbered.sortedBy { it.first }) {
+            named = maxOf(named, number + 1)
+            val run = Run(file)
+            val read = readIndex(run)
+            when {
+                run.frames.firstOrNull()?.keyframe == true -> {
+                    run.frames.trim()
+                    runs += run
+                    total += run.bytes
+                }
+                read -> {
+                    file.delete()
+                    run.index.delete()
+                }
+                else -> unreadable = true // the storage failing it: left, not taken for torn
+            }
+        }
+    }
+
+    /** [run]'s frames from its index; false when the storage would not read it -- not torn, failing. */
+    private fun readIndex(run: Run): Boolean {
+        val records =
+            try {
+                if (run.index.isFile) run.index.readBytes() else null
+            } catch (_: IOException) {
+                return false
+            }
+        if (records != null) parse(run, records)
+        return true
+    }
+
+    /** The index's records into [run]'s frames, up to the first not marked, or whose bytes are not all there. */
+    private fun parse(
+        run: Run,
+        records: ByteArray,
+    ) {
+        val length = run.file.length()
+        val buffer = ByteBuffer.wrap(records)
+        var whole = true
+        while (whole && buffer.remaining() >= RECORD) {
+            val marked = buffer.get() == MARK
+            val flags = buffer.get().toInt()
+            val size = buffer.int
+            val ptsUs = buffer.long
+            val momentUs = buffer.long
+            val wallMs = buffer.long
+            whole = marked && size > 0 && run.bytes + size <= length
+            if (whole) {
+                val moment = momentUs.takeIf { flags and HAS_MOMENT != 0 }
+                run.frames += Entry(run.bytes, size, ptsUs, flags and KEYFRAME != 0, moment, wallMs, readBack = true)
+                run.bytes += size
+            }
         }
     }
 
@@ -214,31 +526,47 @@ class FrameStore(
         momentUs: Long?,
     ): Boolean {
         if (frame.keyframe) {
+            runs.lastOrNull()?.let { done ->
+                done.frames.trim() // the run before done: no room kept in it
+                retired += listOf(done.file, done.index) // synced once the lock is let go: a power cut costs a run
+            }
             close(writer)
+            close(indexWriter)
             writer = null
-            val file = File(folder, "${named++}.h264")
+            indexWriter = null
+            val run = Run(File(folder, "${named++}$DATA"))
             try {
-                writer = FileOutputStream(file)
-                runs += Run(file)
+                writer = FileOutputStream(run.file)
+                indexWriter = FileOutputStream(run.index)
+                runs += run
             } catch (_: IOException) {
-                file.delete() // no run: this keyframe and its frames are dropped
+                close(writer) // no run: this keyframe and its frames are dropped
+                writer = null
+                run.file.delete()
+                run.index.delete()
             }
         }
         val run = runs.lastOrNull()
         val out = writer
-        if (run == null || out == null) return false
+        val index = indexWriter
+        if (run == null || out == null || index == null) return false
+        val entry = Entry(run.bytes, frame.data.size, frame.ptsUs, frame.keyframe, momentUs, wallClock())
         try {
             out.write(frame.data)
+            index.write(record(entry)) // after its bytes: an index record names a frame all written
         } catch (_: IOException) {
             close(out)
+            close(index)
             writer = null
+            indexWriter = null
             if (run.frames.isEmpty()) {
                 runs.removeLast()
                 run.file.delete()
+                run.index.delete()
             }
             return false
         }
-        run.frames += Entry(run.bytes, frame.data.size, frame.ptsUs, frame.keyframe, momentUs)
+        run.frames += entry
         run.bytes += frame.data.size
         total += frame.data.size
         more.signalAll()
@@ -274,13 +602,15 @@ class FrameStore(
     }
 
     /**
-     * No room for a run more at [nowUs]: over the share; or the phone short of space, and the oldest run older
-     * than [KEPT_ANYWAY_US] -- a full phone still rides out a hiccup, as with the queue before the store.
+     * No room for a run more at [nowUs]: the phone under [minFreeBytes] free, or the store over [floorBytes] with the
+     * phone under [reserveBytes] free -- and the oldest run older than [KEPT_ANYWAY_US]: a full phone still rides out
+     * a hiccup, as with the queue before the store.
      */
     private fun full(nowUs: Long): Boolean {
-        if (total > capBytes) return true
         val oldest = runs.first().frames.last()
-        return freeBytes() < reserveBytes && oldest.ptsUs < nowUs - KEPT_ANYWAY_US
+        if (oldest.ptsUs >= nowUs - KEPT_ANYWAY_US) return false
+        val free = freeBytes()
+        return free < minFreeBytes || total > floorBytes && free < reserveBytes
     }
 
     /** The oldest run removed with its file; returns its frames not read yet. */
@@ -293,6 +623,7 @@ class FrameStore(
             readerRun = null
         }
         run.file.delete()
+        run.index.delete()
         val unread =
             when {
                 cursorRun == null -> run.frames.size
@@ -313,6 +644,9 @@ class FrameStore(
          */
         const val CONFIRMED_MARGIN_US = 2_000_000L
 
+        /** A gap between two runs longer than this is a while no camera fed the stream: counted as this much video. */
+        const val UNFED_FROM_US = 1_000_000L
+
         /** Frames read and not confirmed this far past the newest confirmed: perhaps swallowed, not taken for sent. */
         const val UNCONFIRMED_US = 1_000_000L
 
@@ -322,19 +656,55 @@ class FrameStore(
          */
         const val KEEP_SENT_US = 6_000_000L
 
-        /** All the lenses' stores together. */
-        const val SHARE_BYTES = 2L shl 30
+        /** The thread the runs done are synced on, the stores' one: never the encoders'. */
+        private val SYNCING =
+            java.util.concurrent.Executors
+                .newSingleThreadExecutor { Thread(it, "syncing").apply { isDaemon = true } }
 
-        /** Left free on the phone, whatever the store's share. */
-        const val RESERVE_BYTES = 1L shl 30
+        /** Left free on the phone (specs/009, FR-005): the stores take the rest. */
+        const val RESERVE_BYTES = 10L shl 30
+
+        /** What a store holds however short of the reserve the phone is, while it keeps [MIN_FREE_BYTES] free. */
+        const val FLOOR_BYTES = 1L shl 30
+
+        /** Left free on the phone whatever: a phone full to the brim fails more than the stream. */
+        const val MIN_FREE_BYTES = 1L shl 30
 
         /** Kept however short of space the phone is: the two seconds the uplink's queue held before the store. */
         const val KEPT_ANYWAY_US = 2_000_000L
 
-        /** [folder] made, and emptied of what an earlier store left: a killed app's frames are not sent. */
-        fun empty(folder: File) {
-            folder.mkdirs()
-            folder.listFiles()?.forEach { it.delete() }
+        private const val DATA = ".h264"
+        private const val INDEX = ".idx"
+
+        /** An index record: its mark, flags, the frame's size, capture time, moment and wall-clock time. */
+        private const val RECORD = 1 + 1 + Int.SIZE_BYTES + 3 * Long.SIZE_BYTES
+        private const val MARK = 'F'.code.toByte()
+        private const val KEYFRAME = 1
+        private const val HAS_MOMENT = 2
+        private const val READ_BACK = 4
+        private const val NO_MOMENT = Long.MIN_VALUE
+        private const val FIRST_ROOM = 32 // a second's run at 30 fps; at 60, grown once
+
+        private fun record(entry: Entry): ByteArray {
+            val flags = (if (entry.keyframe) KEYFRAME else 0) or (if (entry.momentUs != null) HAS_MOMENT else 0)
+            return ByteBuffer
+                .allocate(RECORD)
+                .put(MARK)
+                .put(flags.toByte())
+                .putInt(entry.size)
+                .putLong(entry.ptsUs)
+                .putLong(entry.momentUs ?: 0)
+                .putLong(entry.wallMs)
+                .array()
+        }
+
+        /** [out] written through to the storage; a sync that fails leaves it to the system. */
+        private fun sync(file: File) {
+            try {
+                FileChannel.open(file.toPath(), StandardOpenOption.WRITE).use { it.force(true) }
+            } catch (_: IOException) {
+                // gone -- sent, discarded -- or the storage failing: the frames are in the system's hands, as they were
+            }
         }
 
         private fun following(
@@ -346,7 +716,8 @@ class FrameStore(
         private fun safeBefore(
             confirmedUs: Long?,
             lastReadUs: Long?,
-        ): Long? = confirmedUs?.minus(CONFIRMED_MARGIN_US) ?: lastReadUs?.minus(KEEP_SENT_US)
+            marginUs: Long = CONFIRMED_MARGIN_US,
+        ): Long? = confirmedUs?.minus(marginUs) ?: lastReadUs?.minus(KEEP_SENT_US)
 
         /** [run] read past, and wholly before [safeUs]: not to be sent again. */
         private fun sent(

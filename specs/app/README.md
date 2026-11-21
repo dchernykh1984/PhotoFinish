@@ -64,16 +64,31 @@ recorder is down and at most the 0.1 s before it.
   seconds late.
 - PhotoFinish Camera keeps every frame on the phone until the recorder has acknowledged reading
   it (`specs/007-store-and-forward`): a network break, a network slower than the stream or the
-  recorder starting again costs no frame while the phone has room -- 2 GB for all its lenses,
-  1 GB left free, and the last 2 s however full the phone. A connection whose frames carry no
+  recorder starting again costs no frame while the phone has room -- its free space less 10 GB,
+  and a gigabyte a stream while 1 GB stays free, the last 2 s however full the phone. A connection whose frames carry no
   moments starts at the next keyframe and sends nothing again: they would be placed by their
   arrival. After a loss it sends again from 2 s before the newest frame acknowledged, then
   what it kept, then live, as fast as the network takes them; the recorder writes a connection's
   first frames whose moments it listed in the last 10 s, this run's or the last's, for the frames
   after them to decode, without listing them twice or noting a gap for them. While a phone catches up the camera list says
   how many seconds behind live it is, from 2 s on. Tried on the emulator: the recorder killed for
-  10 s and started again, or frozen for 10 s: no frame missing, none listed twice. Stop on the
-  phone drops what it kept.
+  10 s and started again, or frozen for 10 s: no frame missing, none listed twice.
+- What the phone kept outlives the app and the phone (`specs/009-nothing-lost`): each stream's
+  frames, their index and what it needs to be sent are on the phone's storage, a second at a
+  time. A crash, Android, a dead battery: at the app's next start, without Start, what it kept
+  goes to the recorders it was going to, before anything new, each address one stream at a time
+  and the oldest first; frames without their moments are not sent then. Stop, another choice,
+  the screen closed or an encoder that dies send what was kept all the same, with the screen off
+  too: a foreground service runs while anything is unsent, its notification saying how much video
+  is left. Only "Discard unsent" on the phone, offered once the streams are stopped and confirmed
+  with how much video goes, drops it. The first lens of the code sends first: while it is
+  connected and more than 2 s behind, the others to its laptop wait, holding no connection. The
+  phone's screen says what is not sent yet (while it streams, from 2 s); the camera list says
+  "M:SS of video on the phone", a bar of what came since it began falling behind and about when
+  the rest is in; the phone's readings add its free storage, amber under 30 GB, red under 10 GB.
+  Tried on the emulator: the app killed with 15 s kept, then started -- every frame in, once;
+  closed with Back with 10 s kept -- sent in the background, the service ending after; two lenses,
+  the first's recorder frozen -- the second waited while the first was connected and behind.
 - PhotoFinish Camera sends what it meets to the recorder of each lens it is paired with, on the
   port of its clock exchange, streaming or not (`specs/008-phone-log`): its start, the cameras and
   sizes it opens, every status its screen shows, the camera's error codes, the exceptions it
@@ -95,7 +110,10 @@ The camera is a phone on a tripod running PhotoFinish Camera, the Android app re
 PhotoFinish (`android/`), or a free streaming app; either pushes its video here over the local
 network (RTMP: PhotoFinish listens), and the phone's own hotspot or any Wi-Fi carries it. Adding a
 camera offers that first and shows the address to type in the app and, as a QR code, for
-PhotoFinish Camera to scan. PhotoFinish Camera streams H.264 without sound at the size and rate
+PhotoFinish Camera to scan. PhotoFinish Camera streams H.264 -- or H.265, chosen in the dialog as an
+experiment (`specs/010-hevc`): about 0.7 of H.264's bitrate for the same picture, over Enhanced
+RTMP, the phone saying when its encoder does not take it at the size and rate and streaming H.264
+then; tried on the emulator at 320x240, every frame with its moment -- without sound at the size and rate
 chosen (60 fps first), a keyframe a second and a bitrate that follows the size, and connects again
 on its own after a loss; it keeps the screen on, and can dim it while it streams. A streaming app
 is set to 60 fps, about 10 Mbit/s and a keyframe a second: the newest frame waits for the next
@@ -252,13 +270,24 @@ helps find the moments to look at.
   reader is downloading", or "is not here" -- the model chosen again in the list tries again --
   or, there but not loaded by the camera's analyser, why.
 
+## Exporting video
+
+"Export video..." under the cameras (`specs/011-video-export`) lists the cameras with video
+recorded, all ticked; each ticked becomes one MP4 in a folder chosen, named after the camera, a
+number added when the name is taken. The frames are copied as recorded, not encoded again, timed
+by their moments, each once -- a frame the phone sent again is skipped --, from the first keyframe;
+a gap stays a gap. Where the stream's format changes, the file ends and `<name>-2.mp4` goes on.
+H.265 is tagged `hvc1`, as QuickTime wants it. It runs in the background with a progress bar;
+Cancel removes the file under way. A camera still recording is exported up to its last piece
+closed.
+
 ## Known limits
 
 - One PhotoFinish to a computer, and one PhotoFinish Camera to a phone: a second at the same
   time is not provided for. Two windows from one folder would share its session, its output and
   its recorders, and from two folders the cameras' ports. The phone app opened twice (started
-  from adb, then from the launcher) keeps both copies' unsent frames in one folder, and the
-  second deletes what the first had kept.
+  from adb, then from the launcher) streams each lens twice to its one recorder, which takes one
+  connection at a time.
 - The Linux builds cannot capture USB cameras (PyAV's Linux wheels have no video4linux2): the
   camera dialog says so, and a camera's stream or a file is used there instead.
 - A network camera's timestamps follow its own clock, which can drift from the computer's by a few

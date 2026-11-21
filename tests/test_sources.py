@@ -799,9 +799,9 @@ def test_a_stream_placed_by_arrival_is_looked_into_once(
     looked: list[int] = []
     real = frame_time.moment_ms
 
-    def counted(packet: Any) -> int | None:
+    def counted(packet: Any, hevc: bool = False) -> int | None:
         looked.append(1)
-        return real(packet)
+        return real(packet, hevc)
 
     monkeypatch.setattr(frame_time, "moment_ms", counted)
     source = sources.Stream(
@@ -814,6 +814,22 @@ def test_a_stream_placed_by_arrival_is_looked_into_once(
     for k in range(3):  # Larix, say: no moments, all race long
         place(avcc(b"\x41\x9a"), k * 33)  # type: ignore[arg-type]
     assert len(looked) == 1
+
+
+def test_an_h265_push_is_placed_by_its_moments_and_heard_for_its_status() -> None:
+    # H.265 carries the moment and the status in prefix SEI units (specs/010-hevc).
+    source = sources.Stream(
+        "rtmp://0.0.0.0:1935/live/x", {}, lambda: START, listen=True
+    )
+    stream = SimpleNamespace(
+        time_base=Fraction(1, 1000), codec_context=SimpleNamespace(name="hevc")
+    )
+    place = source._placing(stream, phone=True)  # type: ignore[arg-type]
+    moment = START - 40
+    prefix = b"\x4e\x01"
+    packet = avcc(prefix + sei(moment * 1000)[1:], b"\x26\x01\xaf")
+    assert place(packet, 0) == moment  # type: ignore[arg-type]
+    assert not source.clock_note
 
 
 def test_a_phone_s_offset_moved_back_keeps_its_frames_in_order() -> None:

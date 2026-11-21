@@ -103,6 +103,12 @@ def test_a_phone_s_other_lenses_take_the_next_ids_and_free_ports() -> None:
     assert len(cameras.lens_cameras(["main", "front"], ["cam2"], first, set())) == 1
 
 
+def test_a_phone_s_codec_is_kept_on_each_of_its_lens_cameras() -> None:
+    first = {"port": 1935, "path": "live/cam1", "codec": "h265"}
+    made = cameras.lens_cameras(["main", "telephoto"], ["cam1", "cam2"], first, set())
+    assert [settings.get("codec") for _, _, settings in made] == ["h265", "h265"]
+
+
 def test_the_pairing_code_is_the_address_alone_only_for_the_main_lens_alone() -> None:
     main, tele = "rtmp://10.0.0.5:1935/live/cam1", "rtmp://10.0.0.5:1936/live/cam2"
     assert cameras.pairing_text([("main", main)]) == main  # any streaming app reads it
@@ -110,6 +116,14 @@ def test_the_pairing_code_is_the_address_alone_only_for_the_main_lens_alone() ->
     assert cameras.pairing_text([("main", main), ("telephoto", tele)]) == (
         f"main {main}\ntelephoto {tele}"
     )
+
+
+def test_h265_adds_its_line_to_the_code_after_the_addresses() -> None:
+    main, tele = "rtmp://10.0.0.5:1935/live/cam1", "rtmp://10.0.0.5:1936/live/cam2"
+    assert cameras.pairing_text([("main", main)], "h265") == f"{main}\ncodec h265"
+    both = cameras.pairing_text([("main", main), ("telephoto", tele)], "h265")
+    assert both == f"main {main}\ntelephoto {tele}\ncodec h265"
+    assert cameras.pairing_text([("main", main)], "h264") == main
 
 
 def test_the_rtmp_address_to_type_in_the_camera_app(

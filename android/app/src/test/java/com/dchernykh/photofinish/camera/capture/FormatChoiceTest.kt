@@ -55,9 +55,26 @@ class FormatChoiceTest {
     }
 
     @Test
+    fun `h265 is kept only where an encoder takes the size and rate, else h264`() {
+        val format = StreamFormat(qhd, 60, FpsRange(60, 60), 16_000_000)
+        val hevc = com.dchernykh.photofinish.camera.stream.Codec.HEVC
+        val taken =
+            FormatChoice.inCodecIf(
+                format,
+                hevc,
+            ) { size, fps, codec -> size == qhd && fps == 60 && codec == hevc }
+        assertEquals(hevc, taken.codec)
+        assertEquals(11_200_000, taken.bitrate)
+        assertEquals(format, FormatChoice.inCodecIf(format, hevc) { _, _, _ -> false })
+    }
+
+    @Test
     fun `the bitrate is capped for Wi-Fi`() {
         assertEquals(16_000_000, FormatChoice.bitrate(qhd, 60))
         assertEquals(4_400_000, FormatChoice.bitrate(hd, 60))
+        // H.265 at 0.7 of it, the cap too (specs/010-hevc)
+        assertEquals(11_200_000, FormatChoice.bitrate(qhd, 60, com.dchernykh.photofinish.camera.stream.Codec.HEVC))
+        assertEquals(3_100_000, FormatChoice.bitrate(hd, 60, com.dchernykh.photofinish.camera.stream.Codec.HEVC))
     }
 
     @Test

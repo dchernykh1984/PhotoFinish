@@ -290,7 +290,7 @@ def test_a_recovery_killed_before_its_copy_had_its_name_is_finished(
 def test_the_times_of_an_open_gops_leading_frames_are_read(tmp_path: Path) -> None:
     left = tmp_path / "current.times"
     left.write_text(f"-40 {START - 40}\n0 {START}\n40 {START + 40}\n80 x\n120")
-    assert segments_module._frame_times(left) == {
+    assert segments_module.frame_times(left) == {
         -40: START - 40,
         0: START,
         40: START + 40,
@@ -631,7 +631,7 @@ def test_a_name_a_kill_cut_short_in_the_list_counts_for_no_segment(
 def test_a_pts_is_rounded_to_ms_as_the_muxer_rounds_it(ticks: int, ms: int) -> None:
     from fractions import Fraction
 
-    assert segments_module._in_ms(ticks, Fraction(1, 90000)) == ms
+    assert segments_module.in_ms(ticks, Fraction(1, 90000)) == ms
 
 
 def test_a_slow_close_cut_between_its_renames_is_finished_by_its_name(

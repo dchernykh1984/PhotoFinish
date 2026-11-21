@@ -1,5 +1,6 @@
 package com.dchernykh.photofinish.camera.capture
 
+import com.dchernykh.photofinish.camera.stream.Codec
 import kotlin.math.roundToInt
 
 data class Resolution(
@@ -15,12 +16,13 @@ data class FpsRange(
     val upper: Int,
 )
 
-/** What the app streams: a size, a frame rate, the camera's range for it, a bitrate. */
+/** What the app streams: a size, a frame rate, the camera's range for it, a bitrate, a codec (specs/010). */
 data class StreamFormat(
     val resolution: Resolution,
     val fps: Int,
     val range: FpsRange,
     val bitrate: Int,
+    val codec: Codec = Codec.AVC,
 )
 
 /**
@@ -38,11 +40,18 @@ object FormatChoice {
     private const val MAX_BITRATE = 16_000_000
     private const val BITRATE_STEP = 100_000
 
+    /**
+     * A debug build's size to try the app at, offered after the others: the emulator's H.265 encoder takes up to
+     * 512x512 alone (`--es size 320x240`).
+     */
+    @Volatile var trial: Resolution? = null
+
     /** The offered sizes the camera gives and the encoder takes at some offered rate. */
     fun resolutions(
         cameraSizes: Collection<Resolution>,
         encoderTakes: (Resolution, Int) -> Boolean,
-    ): List<Resolution> = SIZES.filter { size -> size in cameraSizes && RATES.any { encoderTakes(size, it) } }
+    ): List<Resolution> =
+        (SIZES + listOfNotNull(trial)).filter { size -> size in cameraSizes && RATES.any { encoderTakes(size, it) } }
 
     /** The offered rates some range of the camera reaches, at [resolution], the fastest first. */
     fun rates(
@@ -63,10 +72,35 @@ object FormatChoice {
     fun bitrate(
         resolution: Resolution,
         fps: Int,
+        codec: Codec = Codec.AVC,
     ): Int {
-        val bits = resolution.width * resolution.height * fps * BITS_PER_PIXEL
-        return minOf(MAX_BITRATE, (bits / BITRATE_STEP).roundToInt() * BITRATE_STEP)
+        val bits =
+            minOf(resolution.width * resolution.height * fps * BITS_PER_PIXEL, MAX_BITRATE.toDouble()) * codec.share
+        return (bits / BITRATE_STEP).roundToInt() * BITRATE_STEP
     }
+
+    /**
+     * [format] in [codec] when an encoder of it [takes] its size and rate -- of every lens, for several --, else as
+     * it is, in H.264 (specs/010-hevc).
+     */
+    fun inCodecIf(
+        format: StreamFormat,
+        codec: Codec,
+        takes: (Resolution, Int, Codec) -> Boolean,
+    ): StreamFormat =
+        if (codec != Codec.AVC &&
+            takes(format.resolution, format.fps, codec)
+        ) {
+            inCodec(format, codec)
+        } else {
+            format
+        }
+
+    /** [format] in [codec], at its bitrate for it (specs/010-hevc). */
+    fun inCodec(
+        format: StreamFormat,
+        codec: Codec,
+    ): StreamFormat = format.copy(codec = codec, bitrate = bitrate(format.resolution, format.fps, codec))
 
     /**
      * The format to stream: [wanted] size and [wantedFps] when the phone gives them,

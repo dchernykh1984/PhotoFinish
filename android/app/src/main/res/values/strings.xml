@@ -16,6 +16,8 @@
     <string name="ready">Ready: %1$s at %2$d fps</string>
     <string name="connecting">Connecting to %1$s</string>
     <string name="reconnecting">Connection lost (%1$s); connecting again</string>
+    <string name="waiting_first">Waiting for the first lens to catch up; frames kept meanwhile</string>
+    <string name="waiting_kept">Waiting: the frames kept before are sent first</string>
     <string name="streaming_clock">Streaming: %1$.1f fps, %2$.1f Mbit/s, clock in step within %3$.1f ms</string>
     <string name="streaming_no_clock">Streaming: %1$.1f fps, %2$.1f Mbit/s; no clock exchange, frames placed when they arrive</string>
     <string name="lens_main">Main</string>
@@ -30,4 +32,13 @@
     <string name="left_failed">the camera failed with it beside the others</string>
     <string name="unread">Not read: %1$s</string>
     <string name="starting">starting</string>
+    <string name="sending_channel">Sending video</string>
+    <string name="sending_left">Sending to the laptop: %1$s of video (%2$d MB) left</string>
+    <string name="sending_live">Streaming to the laptop</string>
+    <string name="unsent">Not sent yet: %1$s of video (%2$d MB)</string>
+    <string name="discard">Discard unsent</string>
+    <string name="discard_title">Discard the video not sent?</string>
+    <string name="discard_text">%1$s of video (%2$d MB) the laptop has not got will be dropped for good.</string>
+    <string name="codec_hevc">, H.265</string>
+    <string name="codec_no_hevc">; H.265 is not taken at this size and rate here: H.264</string>
 </resources>

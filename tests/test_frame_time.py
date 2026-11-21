@@ -51,6 +51,13 @@ def test_the_phones_status_is_read_from_a_keyframe_after_its_moment() -> None:
     assert frame_time.moment_ms(packet) == (MOMENT_US + 500) // 1000  # still read
 
 
+def test_a_moment_cut_short_is_passed_over_for_the_next() -> None:
+    payload = frame_time.UUID + b"PFT1" + b"\x01\x02"  # two bytes of the eight
+    short = b"\x06" + escape(bytes([5, len(payload)]) + payload + b"\x80")
+    packet = avcc(short, sei(MOMENT_US), IDR)
+    assert frame_time.moment_ms(packet) == (MOMENT_US + 500) // 1000
+
+
 def test_a_long_status_and_odd_pairs_are_read_as_they_come() -> None:
     line = b"battery=9;" + b"x" * 300 + b";k=v=w"
     assert frame_time.phone_status(memoryview(avcc(status_sei(line), IDR))) == {
@@ -105,3 +112,31 @@ def test_a_broken_packet_has_no_moment_and_raises_nothing() -> None:
     assert frame_time.moment_ms(b"\x00\x00\x00\xff\x06\x05") is None
     short = b"\x06" + bytes([5, 28]) + frame_time.MARK + b"\x01\x02\x80"
     assert frame_time.moment_ms(avcc(short, IDR)) is None
+
+
+def hevc_sei(payload_unit: bytes) -> bytes:
+    """An H.264 SEI unit as H.265 carries it: a prefix SEI unit's two header bytes."""
+    return b"\x4e\x01" + payload_unit[1:]
+
+
+HEVC_IDR = b"\x26\x01\xaf\x00\x03"  # IDR_W_RADL, a VCL unit
+HEVC_TRAIL = b"\x02\x01\xd0\x00"  # TRAIL_R
+
+
+def test_h265_carries_the_moment_and_the_status_in_prefix_sei_units() -> None:
+    line = b"battery=57;free=25400"
+    packet = avcc(hevc_sei(sei(MOMENT_US)), hevc_sei(status_sei(line)), HEVC_IDR)
+    assert frame_time.moment_ms(packet, hevc=True) == (MOMENT_US + 500) // 1000
+    assert frame_time.phone_status(memoryview(packet), hevc=True) == {
+        "battery": "57",
+        "free": "25400",
+    }
+    assert frame_time.moment_ms(packet) is None  # read as H.264, nothing is found
+
+
+def test_an_h265_frame_without_the_sei_has_no_moment() -> None:
+    assert (
+        frame_time.moment_ms(avcc(HEVC_TRAIL, hevc_sei(sei(MOMENT_US))), hevc=True)
+        is None
+    )
+    assert frame_time.phone_status(avcc(HEVC_TRAIL), hevc=True) is None
