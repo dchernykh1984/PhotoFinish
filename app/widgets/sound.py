@@ -106,11 +106,15 @@ class SoundPlayer(QObject):
         self.stop()
         made = self._make()
         if made is None:
+            self.failed.emit("The sound cannot be played: no audio output")
             return
         self._output, out_rate, channels = made
         self._device = self._output.start()
         if self._device is None:
             self.stop()
+            self.failed.emit(
+                "The sound cannot be played: the audio output would not start"
+            )
             return
         self._ahead = round(AHEAD_S * out_rate) * channels * 2
         self._frame, self._out_rate = channels * 2, out_rate

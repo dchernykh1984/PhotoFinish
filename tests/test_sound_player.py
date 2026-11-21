@@ -96,8 +96,19 @@ def test_stopped_it_gives_no_more_and_without_an_output_it_plays_none(
     played._pump()  # a tick already on its way
     assert len(output.taken) == taken
     silent = player.SoundPlayer(output=lambda: None)
+    said: list[str] = []
+    silent.failed.connect(said.append)
     silent.play(index, START, 1.0)
     assert not silent.playing
+    refusing = Output()
+    refusing.start = lambda: None  # type: ignore[method-assign,assignment,return-value]
+    silent._make = lambda: (refusing, player.RATE, player.CHANNELS)
+    silent.play(index, START, 1.0)
+    assert not silent.playing
+    assert said == [
+        "The sound cannot be played: no audio output",
+        "The sound cannot be played: the audio output would not start",
+    ]
 
 
 def test_qts_output_is_made_or_none_without_a_device() -> None:
