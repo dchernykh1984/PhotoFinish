@@ -300,6 +300,10 @@ def test_a_camera_s_name_becomes_a_file_s() -> None:
     assert export.file_name('Mi 17: main/"wide"') == "Mi 17_ main_wide_"
     assert export.file_name("...") == "camera"
     assert export.file_name("aux") == "aux_"
+    assert export.file_name("Aux.cam") == "Aux_.cam"  # AUX still, whatever follows
+    assert export.file_name("NUL .x") == "NUL_.x"
+    assert export.file_name("Con.1.2") == "Con_.1.2"
+    assert export.file_name("Auxiliary") == "Auxiliary"
     assert export.file_name("Tab\there") == "Tab_here"
 
 
