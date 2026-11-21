@@ -42,13 +42,23 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QMainWindow,
     QMessageBox,
+    QProgressDialog,
     QPushButton,
     QSplitter,
     QVBoxLayout,
     QWidget,
 )
 
-from app import analysis, cameras, paths, phone_status, playback, session, shared_event
+from app import (
+    analysis,
+    cameras,
+    export,
+    paths,
+    phone_status,
+    playback,
+    session,
+    shared_event,
+)
 from app.analysis import models
 from app.analysis.activity import Activity, how_far
 from app.analysis.suggestions import Gathered, Suggestions, gathered, remaining
@@ -86,6 +96,7 @@ from app.recorder.launcher import (
 )
 from app.recorder.phone_log import last_word
 from app.video_index import FileIndex, Frame, VideoIndex
+from app.widgets import export_dialog
 from app.widgets.camera_dialog import CameraDialog
 from app.widgets.camera_view import CameraView
 from app.widgets.decode_worker import DecodeWorker
@@ -226,6 +237,7 @@ class MainWindow(QMainWindow):
         )
         self.model_box.activated.connect(self._model_chosen)
         self._job: models.Download | None = None  # the download in progress
+        self._export_job: export_dialog.ExportJob | None = None  # video exporting (011)
         # Its detector turns Numbers and crossings on as it comes: chosen in the list,
         # and the switch left alone since.
         self._job_turns_on = False
@@ -346,9 +358,13 @@ class MainWindow(QMainWindow):
         add, remove = QPushButton("Add..."), QPushButton("Remove")
         add.clicked.connect(self.add_camera)
         remove.clicked.connect(self.remove_camera)
+        export_video = QPushButton("Export video...")
+        export_video.setToolTip("The cameras' video, a file each (MP4)")
+        export_video.clicked.connect(self.export_video)
         buttons = QHBoxLayout()
         buttons.addWidget(add)
         buttons.addWidget(remove)
+        buttons.addWidget(export_video)
         buttons.addWidget(self.one_camera)
         cameras = QVBoxLayout()
         cameras.addWidget(self.recording_banner)
@@ -501,6 +517,63 @@ class MainWindow(QMainWindow):
         if not self.cameras:
             self._choose_camera(-1)
         self._show_suggestions()  # its suggestions gone with it
+
+    def export_video(self) -> None:
+        """The video of the cameras ticked, a file each, into a folder chosen, written
+        in the background, Cancel stopping it (specs/011)."""
+        names = {
+            camera.id: self._name(camera.id)
+            for camera in self.cameras.values()
+            if export.pieces(folder_of(camera.id))
+        }
+        if not names:
+            QMessageBox.information(
+                self, "Export video", "No camera has video to export."
+            )
+            return
+        chosen = export_dialog.choose_cameras(self, names)
+        folder = (
+            QFileDialog.getExistingDirectory(self, "Export the video into")
+            if chosen
+            else ""
+        )
+        if not folder:
+            return
+        jobs = [
+            (
+                folder_of(camera_id),
+                Path(folder) / f"{export_dialog.file_name(names[camera_id])}.mp4",
+            )
+            for camera_id in chosen
+        ]
+        job = export_dialog.ExportJob(jobs)
+        progress = QProgressDialog(
+            "Exporting the video...", "Cancel", 0, export_dialog.STEPS, self
+        )
+        progress.setWindowModality(Qt.WindowModality.WindowModal)
+        progress.setMinimumDuration(0)
+        progress.canceled.connect(job.cancel)
+        job.progress.connect(progress.setValue)
+        job.done.connect(
+            lambda written, error: self._exported(progress, written, error)
+        )
+        self._export_job = job  # kept while it runs
+        job.start()
+
+    def _exported(
+        self, progress: QProgressDialog, written: list[Path], error: str
+    ) -> None:
+        progress.close()
+        self._export_job = None
+        files = "".join(f"\n{path}" for path in written)
+        if error == export_dialog.CANCELLED:
+            QMessageBox.information(self, "Export video", f"Cancelled.{files}")
+        elif error:
+            QMessageBox.warning(
+                self, "Export video", f"The export stopped: {error}{files}"
+            )
+        else:
+            QMessageBox.information(self, "Export video", f"Written:{files}")
 
     def _add(self, settings: dict[str, Any]) -> None:
         camera_id = str(settings["id"])
