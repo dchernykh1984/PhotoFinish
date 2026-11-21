@@ -1,14 +1,9 @@
 package com.dchernykh.photofinish.camera
 
-import android.Manifest
-import android.content.pm.PackageManager
-import android.os.Build
 import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.ContextCompat
 import com.dchernykh.photofinish.camera.capture.CameraFormats
 import com.dchernykh.photofinish.camera.capture.CameraStreamer
 import com.dchernykh.photofinish.camera.capture.FormatChoice
@@ -74,21 +69,12 @@ class MainActivity : ComponentActivity() {
                     .line()
             },
         )
-        askToNotify()
         streamer =
             CameraStreamer(this, lenses, phone, log, logged) { lens, status ->
                 statuses.heard(lens, status)
                 runOnUiThread { state.hear(lens, status) }
             }
         setContent { CameraScreen(state, streamer) }
-    }
-
-    /** The notification that says what is left to send (specs/009, FR-006): Android 13 asks for it. */
-    private fun askToNotify() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
-        val permission = Manifest.permission.POST_NOTIFICATIONS
-        if (ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED) return
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) {}.launch(permission)
     }
 
     override fun onDestroy() {
