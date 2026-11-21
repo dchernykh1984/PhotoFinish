@@ -94,6 +94,51 @@ def test_cancel_stops_the_export_and_removes_the_file_under_way(tmp_path: Path) 
     assert not list(tmp_path.glob("Side*"))
 
 
+def test_a_failure_writing_removes_the_file_under_way(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    folder = tmp_path / "cam1"
+    record(folder, START, 40)
+
+    def full(*_: object) -> None:
+        raise OSError("No space left on device")
+
+    monkeypatch.setattr(export._Out, "add", full)
+    with pytest.raises(OSError, match="No space"):
+        export.export(folder, tmp_path / "Side.mp4")
+    assert not list(tmp_path.glob("Side*"))
+
+
+def test_a_piece_that_cannot_be_read_is_skipped_the_rest_exported(
+    tmp_path: Path,
+) -> None:
+    folder = tmp_path / "cam1"
+    record(folder, START, 70)
+    broken = export.pieces(folder)[1]
+    broken.write_bytes(b"not a video")
+    skipped: list[Path] = []
+    (written,) = export.export(folder, tmp_path / "Side.mp4", skipped=skipped)
+    assert skipped == [broken]
+    times = read(written)[1]
+    assert times[0] == 0 and len(times) < 70  # the pieces before and after it
+
+
+def test_the_files_done_before_a_cancel_are_told(tmp_path: Path) -> None:
+    folder = tmp_path / "cam1"
+    record(folder, START, 40)
+    record(folder, START + 5_000, 40, width=256)
+    written: list[Path] = []
+    with pytest.raises(export.CancelledError):
+        export.export(
+            folder,
+            tmp_path / "Side.mp4",
+            cancelled=lambda: bool(written),
+            written=written,
+        )
+    assert written == [tmp_path / "Side.mp4"]
+    assert sorted(p.name for p in tmp_path.glob("Side*")) == ["Side.mp4"]
+
+
 def test_nothing_recorded_exports_nothing(tmp_path: Path) -> None:
     assert export.export(tmp_path / "none", tmp_path / "x.mp4") == []
 

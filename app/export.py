@@ -51,57 +51,97 @@ def export(
     target: Path,
     progress: Callable[[int, int], None] = lambda done, total: None,
     cancelled: Callable[[], bool] = lambda: False,
+    written: list[Path] | None = None,
+    skipped: list[Path] | None = None,
 ) -> list[Path]:
     """The camera's pieces in ``folder`` into ``target`` -- ``<stem>-2`` on beside it
-    as the format changes --; the files written. ``progress`` hears of the pieces
-    done of all; ``cancelled`` asked between them stops it, the file under way
-    removed (CancelledError)."""
+    as the format changes --; the files written, also added to ``written`` as each
+    is done. ``progress`` hears of the pieces done of all; ``cancelled`` asked
+    between them stops it, the file under way removed (CancelledError), as a file a
+    failure leaves is. A piece that cannot be read is skipped, added to
+    ``skipped``: the rest of the camera's video still comes."""
+    writer = _Writer(target, [] if written is None else written, skipped)
     videos = pieces(folder)
-    written: list[Path] = []
-    out: _Out | None = None
     try:
         for done, video in enumerate(videos):
             if cancelled():
                 raise CancelledError
-            out = _copy(video, out, target, written)
+            writer.copy(video)
             progress(done + 1, len(videos))
-        if out is not None:
-            written.append(out.finish())
-            out = None
+        writer.finish()
     except BaseException:
-        if out is not None:
-            out.abandon()
+        writer.abandon()
         raise
-    return written
+    return writer.mine
 
 
-def _copy(
-    video: Path, out: _Out | None, target: Path, written: list[Path]
-) -> _Out | None:
-    """One piece's listed packets onto ``out``, or a new file when its format is
-    another's; the file it leaves open."""
-    times = frame_times(video.with_suffix(".times"))
-    with av.open(str(video)) as source:
-        stream = source.streams.video[0]
-        rate = stream.time_base
-        time_base = Fraction(rate.numerator, rate.denominator) if rate else MS
-        form = _form(stream)
-        if out is not None and out.form != form:
-            written.append(out.finish())
-            out = None
-        for packet in source.demux(stream):
-            if packet.pts is None or packet.dts is None:
-                continue
-            moment = times.get(in_ms(packet.pts, time_base))
-            if moment is None:
-                continue  # sent again: the piece before has it
-            if out is None:
-                if not packet.is_keyframe:
-                    continue  # a file starts where it can be decoded
-                path = free(_part(target, len(written) + 1))
-                out = _Out(path, stream, moment, form)
-            out.add(packet, moment, time_base)
-    return out
+class _Writer:
+    """The files a camera's pieces are written into, the one under way open."""
+
+    def __init__(self, target: Path, done: list[Path], skipped: list[Path] | None):
+        self.target, self.done, self.skipped = target, done, skipped
+        self.mine: list[Path] = []  # this export's, of ``done``
+        self.out: _Out | None = None
+
+    def copy(self, video: Path) -> None:
+        """One piece's listed packets onto the file under way, or a new file when its
+        format is another's; a piece that cannot be read, or the rest of it, skipped."""
+        try:
+            source = av.open(str(video))
+        except av.FFmpegError, OSError:
+            return self._skip(video)
+        with source:
+            if not source.streams.video:
+                return self._skip(video)
+            stream = source.streams.video[0]
+            rate = stream.time_base
+            time_base = Fraction(rate.numerator, rate.denominator) if rate else MS
+            if self.out is not None and self.out.form != _form(stream):
+                self.finish()
+            times = frame_times(video.with_suffix(".times"))
+            demuxed = source.demux(stream)
+            while True:
+                try:
+                    packet = next(demuxed)
+                except StopIteration:
+                    return None
+                except (
+                    av.FFmpegError,
+                    OSError,
+                ):  # the piece cut short: what was read stays
+                    return self._skip(video)
+                self._add(packet, times, stream, time_base)
+
+    def _add(
+        self, packet: av.Packet, times: dict[int, int], stream: Any, time_base: Fraction
+    ) -> None:
+        if packet.pts is None or packet.dts is None:
+            return
+        moment = times.get(in_ms(packet.pts, time_base))
+        if moment is None:
+            return  # sent again: the piece before has it
+        if self.out is None:
+            if not packet.is_keyframe:
+                return  # a file starts where it can be decoded
+            path = free(_part(self.target, len(self.mine) + 1))
+            self.out = _Out(path, stream, moment, _form(stream))
+        self.out.add(packet, moment, time_base)
+
+    def _skip(self, video: Path) -> None:
+        if self.skipped is not None:
+            self.skipped.append(video)
+
+    def finish(self) -> None:
+        if self.out is not None:
+            path = self.out.finish()
+            self.out = None
+            self.mine.append(path)
+            self.done.append(path)
+
+    def abandon(self) -> None:
+        if self.out is not None:
+            out, self.out = self.out, None
+            out.abandon()
 
 
 def _part(target: Path, n: int) -> Path:
