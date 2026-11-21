@@ -139,6 +139,21 @@ def test_the_files_done_before_a_cancel_are_told(tmp_path: Path) -> None:
     assert sorted(p.name for p in tmp_path.glob("Side*")) == ["Side.mp4"]
 
 
+def test_a_piece_whose_times_are_lost_is_skipped_and_a_garbled_list_stops_nothing(
+    tmp_path: Path,
+) -> None:
+    folder = tmp_path / "cam1"
+    record(folder, START, 70)
+    lost = export.pieces(folder)[1]
+    lost.with_suffix(".times").unlink()
+    skipped: list[Path] = []
+    assert len(export.export(folder, tmp_path / "Side.mp4", skipped=skipped)) == 1
+    assert skipped == [lost]
+    listed = folder / "segments.txt"
+    listed.write_bytes(listed.read_bytes() + b"\xff\xfe\n")
+    assert len(export.pieces(folder)) == 3
+
+
 def test_nothing_recorded_exports_nothing(tmp_path: Path) -> None:
     assert export.export(tmp_path / "none", tmp_path / "x.mp4") == []
 

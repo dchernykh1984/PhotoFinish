@@ -30,8 +30,8 @@ class CancelledError(Exception):
 
 def pieces(folder: Path) -> list[Path]:
     """A camera's closed pieces, in the order they closed: their videos."""
-    try:
-        names = (folder / SEGMENTS).read_text(encoding="ascii").split()
+    try:  # a byte gone wrong names no piece, and stops nothing
+        names = (folder / SEGMENTS).read_text("ascii", errors="replace").split()
     except OSError:
         return []
     return [folder / f"{n}.mkv" for n in names if (folder / f"{n}.mkv").is_file()]
@@ -96,9 +96,15 @@ class _Writer:
             stream = source.streams.video[0]
             rate = stream.time_base
             time_base = Fraction(rate.numerator, rate.denominator) if rate else MS
+            try:
+                times = frame_times(video.with_suffix(".times"))
+            except (
+                OSError,
+                ValueError,
+            ):  # its times lost or garbled: no moment to place by
+                return self._skip(video)
             if self.out is not None and self.out.form != _form(stream):
                 self.finish()
-            times = frame_times(video.with_suffix(".times"))
             demuxed = source.demux(stream)
             while True:
                 try:
