@@ -105,16 +105,22 @@ def has_sound(path: Path) -> bool:
         return False
 
 
-def pieces(index: VideoIndex, from_ms: int, follows: bool = False) -> Pieces:
+def pieces(
+    index: VideoIndex,
+    from_ms: int,
+    follows: bool = False,
+    cancelled: Callable[[], bool] = lambda: False,
+) -> Pieces:
     """The camera's pieces of sound from ``from_ms`` on its own times, in order, each
     once -- and the one before it, PREROLL_MS, for a decoder to begin on --: from the
     segment before the one of the frame at ``from_ms``, whose sound may reach past
     its end. The segments are listed now, on the caller's thread, which refreshes
     the index; their files are read as the pieces are asked for. ``follows``: the
-    recording grows as it plays, the segments closed since added (Pieces.extend)."""
+    recording grows as it plays, the segments closed since added (Pieces.extend).
+    ``cancelled`` asked between segments ends them, as ``Pieces.cancel`` does."""
     place = index.at_or_before(from_ms)
     found = [] if place is None else index.segments_from(place)
-    return Pieces(found, from_ms, follows)
+    return Pieces(found, from_ms, follows, cancelled)
 
 
 class Pieces:
@@ -123,11 +129,19 @@ class Pieces:
     ``extend`` adds: at the last listed it gives the pieces no next segment's can come
     before, and waits for more until ``finish``."""
 
-    def __init__(self, found: list[Path], from_ms: int, follows: bool) -> None:
+    def __init__(
+        self,
+        found: list[Path],
+        from_ms: int,
+        follows: bool,
+        cancelled: Callable[[], bool] = lambda: False,
+    ) -> None:
         self._found = list(found)
         self._from_ms = from_ms
         self._more = threading.Condition()
         self._finished = not follows
+        self._asked = cancelled
+        self._cancelled = False
         self._made = self._in_order()
 
     def __iter__(self) -> Pieces:
@@ -149,6 +163,15 @@ class Pieces:
             self._finished = True
             self._more.notify_all()
 
+    def cancel(self) -> None:
+        """Ended where they are: no segment read after the one being read."""
+        with self._more:
+            self._cancelled = self._finished = True
+            self._more.notify_all()
+
+    def _ended(self) -> bool:
+        return self._cancelled or self._asked()
+
     def _segment(self, k: int, waits: bool) -> Path | None:
         """The ``k``-th segment; ``waits``, until it comes or there are no more."""
         with self._more:
@@ -158,38 +181,41 @@ class Pieces:
 
     def _in_order(self) -> Iterator[Piece]:
         held: list[Piece] = []
-        last_end: int | None = None
+        self._last_end: int | None = None
         k, path = 0, self._segment(0, waits=True)
         while path is not None:
+            if self._ended():
+                return  # stopped, cancelled: no segment read on for nobody
             held.extend(_pieces_of(path))
             heapq.heapify(held)
-            after = self._segment(k + 1, waits=False)
-            if after is not None:
-                # A piece of the next segment comes LEAD_MS before its first frame at
-                # most.
-                safe: int | None = _first_ms(after) - LEAD_MS
-            elif not self._finished:
-                # Waiting for the next: what comes before the last frame by more
-                # than sound and frames lie apart in a stream.
-                safe = _last_ms(path) - FOLLOW_SLACK_MS
-            else:
-                safe = None
-            while held and (safe is None or held[0].ms < safe):
-                piece = heapq.heappop(held)
-                if piece.end_ms <= self._from_ms - PREROLL_MS:
-                    continue  # before the moment asked
-                if last_end is not None and piece.ms < last_end - _half(piece):
-                    continue  # heard already: sent again, or kept by a run before
-                last_end = piece.end_ms
-                yield piece
+            yield from self._given(held, self._safe(path, k))
             k, path = k + 1, self._segment(k + 1, waits=True)
-        while held:  # finished: the rest, in order
+        if not self._ended():
+            yield from self._given(held, None)  # finished: the rest, in order
+
+    def _safe(self, path: Path, k: int) -> int | None:
+        """Before when the pieces held may go, segment ``k`` at ``path`` read: none
+        of the next segment's can come before it. None: all of them."""
+        after = self._segment(k + 1, waits=False)
+        if after is not None:
+            # A piece of the next segment comes LEAD_MS before its first frame at most.
+            return _first_ms(after) - LEAD_MS
+        if not self._finished:
+            # Waiting for the next: what comes before the last frame by more than
+            # sound and frames lie apart in a stream.
+            return _last_ms(path) - FOLLOW_SLACK_MS
+        return None
+
+    def _given(self, held: list[Piece], safe: int | None) -> Iterator[Piece]:
+        """The pieces held before ``safe`` -- all, None --, in order, each once."""
+        while held and (safe is None or held[0].ms < safe) and not self._ended():
             piece = heapq.heappop(held)
             if piece.end_ms <= self._from_ms - PREROLL_MS:
-                continue
-            if last_end is not None and piece.ms < last_end - _half(piece):
-                continue
-            last_end = piece.end_ms
+                continue  # before the moment asked
+            last = self._last_end
+            if last is not None and piece.ms < last - _half(piece):
+                continue  # heard already: sent again, or kept by a run before
+            self._last_end = piece.end_ms
             yield piece
 
 

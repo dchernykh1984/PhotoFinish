@@ -437,8 +437,8 @@ def test_a_files_sound_holds_one_form_of_it_another_left_out(
     recorded(tmp_path)
     real = export.sound.pieces
 
-    def two_forms(index: Any, from_ms: int) -> Any:
-        for n, piece in enumerate(real(index, from_ms)):
+    def two_forms(index: Any, from_ms: int, **_: Any) -> Any:
+        for n, piece in enumerate(real(index, from_ms, **_)):
             if n >= 60:  # the rest in another form
                 piece = export.sound.Piece(
                     piece.ms,
