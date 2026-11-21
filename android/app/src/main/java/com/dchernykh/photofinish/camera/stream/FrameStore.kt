@@ -278,9 +278,9 @@ class FrameStore(
             cursorRun = null
             cursorFrame = 0
             lastReadUs = null
-            folder.deleteRecursively()
             more.signalAll()
         }
+        folder.deleteRecursively() // outside the lock: a store of GBs holds no reader up as it goes
     }
 
     /**
