@@ -28,6 +28,15 @@ interface VideoSink : Closeable {
         nalUnits: List<ByteArray>,
     )
 
+    /** The sound's AudioSpecificConfig, before its first piece (specs/013); nothing from a sink without sound. */
+    fun sendSoundHeader(config: ByteArray) = Unit
+
+    /** One piece of AAC sound, at [timestampMs] from the connection's first frame (specs/013). */
+    fun sendSound(
+        timestampMs: Long,
+        piece: ByteArray,
+    ) = Unit
+
     /** The bytes written to the server so far; 0 from a sink that does not count them. */
     val sentBytes: Long get() = 0
 
@@ -158,6 +167,17 @@ class RtmpPublisher(
         send(VIDEO_STREAM, timestampMs, RtmpType.VIDEO, streamId, tag)
     }
 
+    override fun sendSoundHeader(config: ByteArray) {
+        send(AUDIO_STREAM, 0, RtmpType.AUDIO, streamId, Aac.sequenceHeaderTag(config))
+    }
+
+    override fun sendSound(
+        timestampMs: Long,
+        piece: ByteArray,
+    ) {
+        send(AUDIO_STREAM, timestampMs, RtmpType.AUDIO, streamId, Aac.pieceTag(piece))
+    }
+
     override fun close() {
         closed = true
         connection?.close()
@@ -260,6 +280,7 @@ class RtmpPublisher(
         private const val CONTROL_STREAM = 2
         private const val COMMAND_STREAM = 3
         private const val DATA_STREAM = 4
+        private const val AUDIO_STREAM = 5
         private const val VIDEO_STREAM = 6
         private const val PING_REQUEST = 6
         private const val PING_RESPONSE = 7

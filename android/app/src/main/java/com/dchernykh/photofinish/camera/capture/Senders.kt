@@ -103,6 +103,7 @@ object Senders {
                 firstLens = { board.allows(lens, header.address.host) },
             )
         uplink.status = { dropped -> status(header.address, dropped) }
+        header.sound?.let { uplink.configureSound(it) } // its sound, if it had any (specs/013)
         uplink.configure(header.record)
         val off = board.register(lens, header.address.host, { uplink.connected }, { store.behindMs })
         Thread({ uplink.run() }, "kept-${lens.code}").start()

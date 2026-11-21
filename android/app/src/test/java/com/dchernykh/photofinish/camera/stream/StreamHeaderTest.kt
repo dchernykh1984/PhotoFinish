@@ -47,16 +47,16 @@ class StreamHeaderTest {
         val folder = temporary.newFolder()
         val queued = ArrayDeque<Runnable>()
         var failures = 0
-        val keep = StreamHeader.keeper({ header }, folder, { queued += it }) { failures++ }
-        assertFalse(keep(header.record)) // asked of the stores' thread: nothing written on the encoder's
+        val keep = StreamHeader.keeper({ _, _ -> header }, folder, { queued += it }) { failures++ }
+        assertFalse(keep(header.record, null)) // asked of the stores' thread: nothing written on the encoder's
         assertNull(StreamHeader.read(folder))
         folder.setWritable(false) // the storage refuses it
         queued.removeFirst().run()
         assertEquals(1, failures)
         folder.setWritable(true)
-        assertFalse(keep(header.record)) // given again: written again
+        assertFalse(keep(header.record, null)) // given again: written again
         queued.removeFirst().run()
-        assertTrue(keep(header.record)) // kept: nothing more asked
+        assertTrue(keep(header.record, null)) // kept: nothing more asked
         assertTrue(queued.isEmpty())
         assertArrayEquals(header.record, StreamHeader.read(folder)!!.record)
     }
@@ -66,8 +66,8 @@ class StreamHeaderTest {
         val folder = temporary.newFolder()
         val queued = ArrayDeque<Runnable>()
         var failures = 0
-        val keep = StreamHeader.keeper({ header }, folder, { queued += it }) { failures++ }
-        keep(header.record)
+        val keep = StreamHeader.keeper({ _, _ -> header }, folder, { queued += it }) { failures++ }
+        keep(header.record, null)
         folder.deleteRecursively() // the store discarded before the stores' thread came to it
         queued.removeFirst().run()
         assertEquals(0, failures)
@@ -83,8 +83,8 @@ class StreamHeaderTest {
             folder.deleteRecursively() // Discard, on the hand-over's thread, as the stores' thread writes
             header
         }
-        val keep = StreamHeader.keeper({ discarding() }, folder, { queued += it }) { failures++ }
-        keep(header.record)
+        val keep = StreamHeader.keeper({ _, _ -> discarding() }, folder, { queued += it }) { failures++ }
+        keep(header.record, null)
         queued.removeFirst().run()
         assertEquals(0, failures)
     }
@@ -106,5 +106,27 @@ class StreamHeaderTest {
         assertNull(StreamHeader.read(folder))
         file.writeText(text.replace("codec=hevc", "codec=vp9"))
         assertNull(StreamHeader.read(folder))
+    }
+
+    @Test
+    fun `a stream's sound config is kept with its header, and one before had none`() {
+        val folder = temporary.newFolder()
+        val config = byteArrayOf(0x11, 0x88.toByte())
+        val heard = StreamHeader(header.lens, header.address, header.format, header.record, config)
+        assertTrue(heard.write(folder))
+        assertArrayEquals(byteArrayOf(0x11, 0x88.toByte()), StreamHeader.read(folder)!!.sound)
+        assertTrue(header.write(folder))
+        assertNull(StreamHeader.read(folder)!!.sound)
+        val queued = ArrayDeque<Runnable>()
+        val made = { record: ByteArray, sound: ByteArray? ->
+            StreamHeader(header.lens, header.address, header.format, record, sound)
+        }
+        val keep = StreamHeader.keeper(made, folder, { queued += it }) {}
+        keep(header.record, null)
+        queued.removeFirst().run()
+        assertTrue(keep(header.record, null))
+        assertFalse(keep(header.record, byteArrayOf(3))) // its sound come since: written again
+        queued.removeFirst().run()
+        assertArrayEquals(byteArrayOf(3), StreamHeader.read(folder)!!.sound)
     }
 }

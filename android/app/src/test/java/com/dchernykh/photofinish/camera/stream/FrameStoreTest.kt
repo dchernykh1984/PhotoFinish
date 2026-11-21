@@ -519,4 +519,35 @@ class FrameStoreTest {
         repeat(9) { store.next(0) }
         assertEquals(1_000_000L, store.next(0)!!.ptsUs)
     }
+
+    private fun piece(ptsUs: Long) = EncodedFrame(ByteArray(10) { 7 }, ptsUs, keyframe = false, sound = true)
+
+    @Test
+    fun `a piece of sound goes in the run of the frames it was heard with, read back as sound`() {
+        val store = store()
+        assertEquals(0, store.keep(piece(0), null)) // before any keyframe: no run, and no frame dropped
+        store.keep(frame(100_000, keyframe = true), 105_000)
+        assertEquals(0, store.keep(piece(110_000), null))
+        store.keep(frame(200_000, keyframe = false), 205_000)
+        val read = List(3) { store.next(0)!! }
+        assertEquals(listOf(false, true, false), read.map { it.sound })
+        assertEquals(listOf(100_000L, 110_000L, 200_000L), read.map { it.ptsUs })
+        assertNull(read[1].momentUs)
+        store.close()
+        val again = store() // the app started again: its sound with its frames
+        assertEquals(listOf(false, true, false), List(3) { again.next(0)!!.sound })
+    }
+
+    @Test
+    fun `a connection's start passes over the sound before its keyframe`() {
+        val store = store()
+        store.keep(frame(0, keyframe = true), 5_000)
+        store.keep(piece(10_000), null)
+        store.keep(frame(100_000, keyframe = false), 105_000)
+        store.keep(frame(1_000_000, keyframe = true), 1_005_000)
+        store.keep(piece(1_010_000), null)
+        store.next(0)
+        assertEquals(1_000_000L, store.next(0, fromKeyframe = true)?.ptsUs)
+        assertTrue(store.next(0)!!.sound)
+    }
 }

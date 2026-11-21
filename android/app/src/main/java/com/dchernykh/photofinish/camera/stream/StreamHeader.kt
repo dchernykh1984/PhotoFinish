@@ -22,6 +22,8 @@ class StreamHeader(
     val address: RtmpAddress,
     val format: StreamFormat,
     val record: ByteArray,
+    /** The sound's AudioSpecificConfig, when the stream has sound (specs/013): a header written before never does. */
+    val sound: ByteArray? = null,
 ) {
     /**
      * Written into [folder], over the one there, synced to the storage with its folder before the stream's first
@@ -38,8 +40,9 @@ class StreamHeader(
                 "fps" to format.fps,
                 "bitrate" to format.bitrate,
                 "codec" to format.codec.code,
-                "record" to record.joinToString("") { "%02x".format(it) },
-            ).joinToString("") { (key, value) -> "$key=$value\n" }
+                "record" to hexOf(record),
+            ).plus(listOfNotNull(sound?.let { "sound" to hexOf(it) }))
+                .joinToString("") { (key, value) -> "$key=$value\n" }
         val temporary = File(folder, "$FILE.new")
         return try {
             FileOutputStream(temporary).use { out ->
@@ -73,20 +76,21 @@ class StreamHeader(
          * then -- its store discarded, or sent whole -- has nothing to keep it for.
          */
         fun keeper(
-            header: (ByteArray) -> StreamHeader,
+            header: (ByteArray, ByteArray?) -> StreamHeader,
             folder: File,
             later: (Runnable) -> Unit,
             failed: () -> Unit,
-        ): (ByteArray) -> Boolean {
-            val kept = AtomicReference<ByteArray?>()
-            return { record ->
-                kept.get()?.contentEquals(record) == true ||
+        ): (ByteArray, ByteArray?) -> Boolean {
+            val kept = AtomicReference<List<ByteArray?>?>()
+            return { record, sound ->
+                val asked = listOf(record, sound)
+                kept.get()?.let { same(it, asked) } == true ||
                     false.also {
                         later(
                             Runnable {
                                 when {
                                     !folder.isDirectory -> Unit
-                                    header(record).write(folder) -> kept.set(record)
+                                    header(record, sound).write(folder) -> kept.set(asked)
                                     folder.isDirectory -> failed() // gone as it was written: nothing failed
                                 }
                             },
@@ -94,6 +98,13 @@ class StreamHeader(
                     }
             }
         }
+
+        private fun same(
+            one: List<ByteArray?>,
+            other: List<ByteArray?>,
+        ): Boolean = one.zip(other).all { (a, b) -> a.contentEquals(b) }
+
+        private fun hexOf(bytes: ByteArray): String = bytes.joinToString("") { "%02x".format(it) }
 
         /** The header kept in [folder]; null when there is none, or it cannot be read whole. */
         fun read(folder: File): StreamHeader? {
@@ -127,7 +138,8 @@ class StreamHeader(
             val size = Resolution(number("width"), number("height"))
             val format = StreamFormat(size, fps, FpsRange(fps, fps), number("bitrate"), codec)
             val lens = requireNotNull(Lens.named(text("lens")))
-            return StreamHeader(lens, requireNotNull(RtmpAddress.parse(text("address"))), format, record)
+            val sound = values["sound"]?.let { hex(it) }?.takeIf { it.isNotEmpty() } // garbled: sent without
+            return StreamHeader(lens, requireNotNull(RtmpAddress.parse(text("address"))), format, record, sound)
         }
 
         private fun hex(text: String): ByteArray? {

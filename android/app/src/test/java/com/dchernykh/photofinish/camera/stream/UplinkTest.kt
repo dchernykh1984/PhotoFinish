@@ -9,6 +9,7 @@ import org.junit.After
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -86,6 +87,21 @@ private class FakeSink(
     }
 
     override fun close() = closed.countDown()
+
+    val soundHeaders = CopyOnWriteArrayList<ByteArray>()
+    val sounds = LinkedBlockingQueue<Pair<Long, ByteArray>>()
+
+    override fun sendSoundHeader(config: ByteArray) {
+        soundHeaders += config
+    }
+
+    override fun sendSound(
+        timestampMs: Long,
+        piece: ByteArray,
+    ) {
+        sentBytes += piece.size
+        sounds.put(timestampMs to piece)
+    }
 
     val pinged = AtomicInteger()
 
@@ -688,6 +704,62 @@ class UplinkTest {
         while (link.unsent && System.nanoTime() < until) Thread.sleep(20)
         assertFalse(link.unsent)
     }
+
+    private fun sound(
+        ptsUs: Long,
+        mark: Byte,
+    ) = EncodedFrame(byteArrayOf(mark), ptsUs, keyframe = false, sound = true)
+
+    @Test
+    fun `sound goes after its config, timed from the connection's first frame, none heard before it`() {
+        val sink = FakeSink()
+        val link = uplink(listOf(sink))
+        link.configureSound(byteArrayOf(0x11, 0x88.toByte()))
+        start(link)
+        awaitConnected()
+        link.offerSound(sound(50_000, 0)) // before any run: kept nowhere, no frame dropped
+        link.offer(frame(100_000, keyframe = true))
+        link.offerSound(sound(90_000, 1)) // heard before the connection's first frame: not sent on it
+        link.offerSound(sound(121_000, 2))
+        link.offer(frame(133_333, keyframe = false))
+        assertEquals(0L, sink.next().timestampMs)
+        assertEquals(33L, sink.next().timestampMs)
+        val (at, piece) = sink.sounds.poll(5, TimeUnit.SECONDS) ?: error("no sound sent")
+        assertEquals(21L, at)
+        assertArrayEquals(byteArrayOf(2), piece)
+        assertTrue(sink.sounds.isEmpty())
+        assertArrayEquals(byteArrayOf(0x11, 0x88.toByte()), sink.soundHeaders.single())
+        assertEquals(10, sink.metadata.single()["audiocodecid"])
+        assertEquals(0L, link.dropped)
+    }
+
+    @Test
+    fun `sound with no config to decode it by is not sent`() {
+        val sink = FakeSink()
+        val link = uplink(listOf(sink))
+        start(link)
+        awaitConnected()
+        link.offer(frame(100_000, keyframe = true))
+        link.offerSound(sound(121_000, 2))
+        link.offer(frame(133_333, keyframe = false))
+        sink.next()
+        sink.next()
+        assertTrue(sink.sounds.isEmpty())
+        assertTrue(sink.soundHeaders.isEmpty())
+        assertNull(sink.metadata.single()["audiocodecid"])
+    }
+
+    @Test
+    fun `the sound's config is kept with the stream's header`() {
+        val told = mutableListOf<ByteArray?>()
+        val link = Uplink(address, format, { null }, {}, {}, FrameStore(kept, freeBytes = { Long.MAX_VALUE }))
+        link.onConfigured = { _, config -> true.also { told += config } }
+        link.configureSound(byteArrayOf(1)) // no header yet: kept with it when it comes
+        assertTrue(told.isEmpty())
+        link.configure(sps, pps)
+        link.configureSound(byteArrayOf(2)) // another: the header kept again with it
+        assertEquals(listOf(1.toByte(), 2.toByte()), told.map { it!!.single() })
+    }
 }
 
 /** [Uplink.Throughput]: a lens's rates, once a second. */
@@ -914,7 +986,7 @@ class UplinkWaitsTest {
     fun `a header the storage refused is tried again at each keyframe until it is kept`() {
         var told = 0
         val link = Uplink(address, format, { null }, {}, {}, FrameStore(kept, freeBytes = { Long.MAX_VALUE }))
-        link.onConfigured = { ++told > 1 } // the first write refused
+        link.onConfigured = { _, _ -> ++told > 1 } // the first write refused
         link.configure(sps, pps)
         link.offer(frame(0, keyframe = true)) // tried again: kept
         link.offer(frame(100_000, keyframe = false))
@@ -926,8 +998,8 @@ class UplinkWaitsTest {
     fun `the stream's header is told once a new one comes, to be kept with the frames`() {
         val told = mutableListOf<ByteArray>()
         val link = Uplink(address, format, { null }, {}, {}, FrameStore(kept, freeBytes = { Long.MAX_VALUE }))
-        link.onConfigured = {
-            told += it
+        link.onConfigured = { record, _ ->
+            told += record
             told.size != 2 // the second write refused, as a full storage would
         }
         link.configure(sps, pps)
