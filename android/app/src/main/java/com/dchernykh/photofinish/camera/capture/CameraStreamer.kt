@@ -194,7 +194,9 @@ class CameraStreamer(
         closeCameras()
         val mine = ++generation
         order = targets.map { it.lens }
-        Senders.board.order = order // the code's first lens sends first (specs/009, FR-007)
+        // The code's first lens sends first (specs/009, FR-007): the preview alone, after a Stop, changes nothing --
+        // the kept streams go on in the code's order.
+        if (order.isNotEmpty()) Senders.board.order = order
         val failedWith = fallback.leftOut
         val plan =
             plan(lenses, targets.filter { it.lens !in failedWith })
