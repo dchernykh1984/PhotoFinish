@@ -97,6 +97,10 @@ class FrameStore(
     /** Closed: handed over, its files left for a store made on the folder to send. */
     private var closed = false
 
+    /** A run the storage would not read back, its files left as they are: the folder not to be removed for it. */
+    var unreadable = false
+        private set
+
     init {
         folder.mkdirs()
         readBack()
@@ -349,32 +353,54 @@ class FrameStore(
         for ((number, file) in numbered.sortedBy { it.first }) {
             named = maxOf(named, number + 1)
             val run = Run(file)
-            readIndex(run)
-            if (run.frames.firstOrNull()?.keyframe == true) {
-                runs += run
-                total += run.bytes
-            } else {
-                file.delete()
-                run.index.delete()
+            val read = readIndex(run)
+            when {
+                run.frames.firstOrNull()?.keyframe == true -> {
+                    runs += run
+                    total += run.bytes
+                }
+                read -> {
+                    file.delete()
+                    run.index.delete()
+                }
+                else -> unreadable = true // the storage failing it: left, not taken for torn
             }
         }
     }
 
-    private fun readIndex(run: Run) {
-        val records = if (run.index.isFile) run.index.readBytes() else return
+    /** [run]'s frames from its index; false when the storage would not read it -- not torn, failing. */
+    private fun readIndex(run: Run): Boolean {
+        val records =
+            try {
+                if (run.index.isFile) run.index.readBytes() else null
+            } catch (_: IOException) {
+                return false
+            }
+        if (records != null) parse(run, records)
+        return true
+    }
+
+    /** The index's records into [run]'s frames, up to the first not marked, or whose bytes are not all there. */
+    private fun parse(
+        run: Run,
+        records: ByteArray,
+    ) {
         val length = run.file.length()
         val buffer = ByteBuffer.wrap(records)
-        while (buffer.remaining() >= RECORD) {
-            if (buffer.get() != MARK) return
+        var whole = true
+        while (whole && buffer.remaining() >= RECORD) {
+            val marked = buffer.get() == MARK
             val flags = buffer.get().toInt()
             val size = buffer.int
             val ptsUs = buffer.long
             val momentUs = buffer.long
             val wallMs = buffer.long
-            if (size <= 0 || run.bytes + size > length) return
-            val moment = momentUs.takeIf { flags and HAS_MOMENT != 0 }
-            run.frames += Entry(run.bytes, size, ptsUs, flags and KEYFRAME != 0, moment, wallMs, readBack = true)
-            run.bytes += size
+            whole = marked && size > 0 && run.bytes + size <= length
+            if (whole) {
+                val moment = momentUs.takeIf { flags and HAS_MOMENT != 0 }
+                run.frames += Entry(run.bytes, size, ptsUs, flags and KEYFRAME != 0, moment, wallMs, readBack = true)
+                run.bytes += size
+            }
         }
     }
 

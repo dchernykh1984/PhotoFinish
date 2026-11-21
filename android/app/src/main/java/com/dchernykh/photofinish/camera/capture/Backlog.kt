@@ -61,6 +61,7 @@ class Backlog(
      * What the stores' root holds from the app's runs before, read back: streams to send, or folders of nothing to
      * send, removed. A folder of this run is a stream a camera feeds, perhaps its header not written yet: not its.
      */
+    @Suppress("TooGenericExceptionCaught") // whatever a folder throws, the next is read and the app goes on
     fun readBack() {
         try {
             val folders =
@@ -68,7 +69,14 @@ class Backlog(
                     .listFiles { file ->
                         file.isDirectory && !(session.isNotEmpty() && file.name.endsWith("-$session"))
                     }?.sortedBy { began(it) } ?: return
-            folders.forEach { adopt(it) }
+            folders.forEach { folder ->
+                try {
+                    adopt(folder)
+                } catch (error: Exception) {
+                    // a folder that throws, left: never the app ended at each start
+                    say(Lens.MAIN, "${folder.name}: not read back (${error.javaClass.simpleName}: ${error.message})")
+                }
+            }
         } finally {
             ready = true
         }
@@ -100,20 +108,25 @@ class Backlog(
     /** [folder] read back, outside the lock: a stream to send, or null -- removed, or left as it is. */
     private fun read(folder: File): Kept? {
         val header = StreamHeader.read(folder)
-        if (header == null && hasFrames(folder)) {
-            // Frames whose header a power cut took: not sent, not removed either -- Discard alone removes them.
-            val lens = Lens.named(folder.name.substringBefore('-')) ?: Lens.MAIN
-            say(lens, "${folder.name}: frames kept with no header to send them with; left on the phone")
-            val bytes = folder.listFiles()?.sumOf { it.length() } ?: 0L
-            synchronized(this) { orphans[folder] = bytes }
-            return null
-        }
         val store = header?.let { FrameStore(folder) }
-        if (header == null || store == null || !store.unsent) {
-            folder.deleteRecursively() // nothing to send
-            return null
+        when {
+            // Frames whose header a power cut took, or the storage would not read: not sent, not removed either --
+            // counted, and Discard alone removes them.
+            header == null && hasFrames(folder) -> leave(folder, "frames kept with no header to send them with")
+            store != null && store.unreadable && !store.unsent -> leave(folder, "its frames the storage would not read")
+            header == null || store == null || !store.unsent -> folder.deleteRecursively() // nothing to send
+            else -> return Kept(folder, header, store)
         }
-        return Kept(folder, header, store)
+        return null
+    }
+
+    private fun leave(
+        folder: File,
+        why: String,
+    ) {
+        say(Lens.named(folder.name.substringBefore('-')) ?: Lens.MAIN, "${folder.name}: $why; left on the phone")
+        val bytes = folder.listFiles()?.sumOf { it.length() } ?: 0L
+        synchronized(this) { orphans[folder] = bytes }
     }
 
     /** A stream read back, kept to send, under the lock; one kept already is not taken twice. */

@@ -210,6 +210,19 @@ class BacklogTest {
     }
 
     @Test
+    fun `a folder the storage will not read is left and told, the others read back, the app going on`() {
+        val failing = kept(began = 100)
+        File(failing, "0.idx").setReadable(false) // reading it fails, as a failing storage would
+        kept(began = 200, address = second, lens = Lens.TELEPHOTO)
+        backlog.readBack()
+        backlog.tick(0)
+        assertTrue(failing.isDirectory)
+        assertEquals(listOf("telephoto-200"), started.map { it.folder.name })
+        assertTrue(said.any { it.contains("would not read") })
+        File(failing, "0.idx").setReadable(true) // the temporary folder removed whole
+    }
+
+    @Test
     fun `discard stops and drops every stream kept`() {
         kept(began = 100)
         kept(began = 200, address = second)
