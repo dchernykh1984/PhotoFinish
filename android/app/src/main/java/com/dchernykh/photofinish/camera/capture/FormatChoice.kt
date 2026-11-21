@@ -79,6 +79,23 @@ object FormatChoice {
         return (bits / BITRATE_STEP).roundToInt() * BITRATE_STEP
     }
 
+    /**
+     * [format] in [codec] when an encoder of it [takes] its size and rate -- of every lens, for several --, else as
+     * it is, in H.264 (specs/010-hevc).
+     */
+    fun inCodecIf(
+        format: StreamFormat,
+        codec: Codec,
+        takes: (Resolution, Int, Codec) -> Boolean,
+    ): StreamFormat =
+        if (codec != Codec.AVC &&
+            takes(format.resolution, format.fps, codec)
+        ) {
+            inCodec(format, codec)
+        } else {
+            format
+        }
+
     /** [format] in [codec], at its bitrate for it (specs/010-hevc). */
     fun inCodec(
         format: StreamFormat,
