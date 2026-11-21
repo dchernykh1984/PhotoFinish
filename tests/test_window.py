@@ -798,6 +798,26 @@ def test_export_video_writes_a_file_for_each_camera_ticked(
     assert win._export_job is None
 
 
+def test_an_export_that_wrote_nothing_says_so_and_one_ended_by_the_close_says_nothing(
+    recording: Path,
+    make_window: Callable[[], mw.MainWindow],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    win = make_window()
+    warned: list[str] = []
+    monkeypatch.setattr(mw.QMessageBox, "warning", lambda *a: warned.append(a[2]))
+    job = mw.export_dialog.ExportJob([])
+    progress = mw.QProgressDialog()
+    win._export_job = job
+    win._exported(job, progress, [], "", 2)
+    assert warned == [
+        "No video could be written.\n2 pieces could not be read and were left out."
+    ]
+    win._exported(job, progress, [tmp_path / "x.mp4"], "", 0)  # its job gone
+    assert len(warned) == 1
+
+
 def test_export_video_with_nothing_recorded_says_so(
     win: mw.MainWindow, monkeypatch: pytest.MonkeyPatch
 ) -> None:
