@@ -149,13 +149,12 @@ def heard_later(index: VideoIndex, moment: int) -> bool:
     """Whether a camera kept sound in a segment from ``moment`` on, on its own times:
     one allowed the microphone later is heard in its turn, the pieces following as
     it plays -- never one whose sound is all behind it, a gap's before as much.
-    Asked at each poll: no pass over the frames before the moment, none at all for
-    a camera that kept no sound."""
+    Asked at each poll: a look at each segment's end, never at the frames, none at
+    all for a camera that kept no sound."""
     kept = sounding(index.folder)
-    after = int(np.searchsorted(index.ms, moment, side="left"))  # at or after it
-    if not kept or after >= len(index):
-        return False
-    return any(path.stem in kept for path in index.segments_on(after))
+    return bool(kept) and any(
+        path.stem in kept for path in index.segments_ending_from(moment)
+    )
 
 
 def playing_from(
