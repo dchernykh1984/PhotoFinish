@@ -40,11 +40,18 @@ object FormatChoice {
     private const val MAX_BITRATE = 16_000_000
     private const val BITRATE_STEP = 100_000
 
+    /**
+     * A debug build's size to try the app at, offered after the others: the emulator's H.265 encoder takes up to
+     * 512x512 alone (`--es size 320x240`).
+     */
+    @Volatile var trial: Resolution? = null
+
     /** The offered sizes the camera gives and the encoder takes at some offered rate. */
     fun resolutions(
         cameraSizes: Collection<Resolution>,
         encoderTakes: (Resolution, Int) -> Boolean,
-    ): List<Resolution> = SIZES.filter { size -> size in cameraSizes && RATES.any { encoderTakes(size, it) } }
+    ): List<Resolution> =
+        (SIZES + listOfNotNull(trial)).filter { size -> size in cameraSizes && RATES.any { encoderTakes(size, it) } }
 
     /** The offered rates some range of the camera reaches, at [resolution], the fastest first. */
     fun rates(
