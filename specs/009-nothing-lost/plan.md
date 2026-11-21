@@ -45,8 +45,9 @@ app/recorder/launcher.py, main_window.py  the line and its bar
 - **The first lens first.** Each uplink tells the priority board whether it is connected and how
   far behind it is; a lens not first sends only while the first is not connected or within 2 s,
   and closes its connection after 2 s of waiting, so it holds none meanwhile.
-- **Room.** The store's cap is gone: every store keeps the phone's free space above 10 GB, the
-  oldest runs of the writing stream giving way.
+- **Room.** The store's cap is gone: a store grows while the phone keeps 10 GB free, and up to a
+  gigabyte while it keeps 1 GB free -- the room 007 gave two lenses --, the oldest runs of the
+  writing stream giving way past that.
 - **The service** runs while a lens streams or the backlog holds anything, started from the
   screen; its notification says what is left; Android 15's time-out stops it, and the store stays.
 
