@@ -42,6 +42,7 @@ LEAD_MS = 1000
 CLOSED = "[0-9]*-[0-9]*-[0-9]*"  # a closed segment's name, without its suffix
 NAMED = re.compile(r"\d{8}-\d{6}-\d{4,}")  # the same, exactly
 SEGMENTS = "segments.txt"  # the closed segments' names, in the order they closed
+SOUND = "sound.txt"  # those of them that kept sound (013): found without opening any
 KEYFRAME_SLACK_MS = 100  # a camera's keyframe this much short of a second still cuts
 CLOSING = "closing.name"  # the name a close gives, written before its two renames
 READING = "reading.crash"  # there while a crash is read: one that kills is read once
@@ -212,6 +213,8 @@ class SegmentWriter:
         (self.folder / "current.mkv").replace(self.folder / f"{name}.mkv")
         _forget(meant)
         self._closed(name)
+        if isinstance(segment, _Remuxed) and segment.heard:
+            append(self.folder / SOUND, f"{name}\n".encode("ascii"))
 
     def _closed(self, name: str) -> None:
         """``name`` is a closed segment now: counted, and listed with any the list
@@ -288,6 +291,7 @@ class _Remuxed:
             self.container.add_stream_from_template(heard[0]) if heard else None
         )
         self.audio_dts: int | None = None  # the newest piece's: the muxer wants order
+        self.heard = False  # a piece of sound kept in it
         self.times: TextIO = _times(folder)
 
     def add_audio(self, packet: av.Packet) -> bool:
@@ -309,6 +313,7 @@ class _Remuxed:
         except av.FFmpegError:
             self.audio = None  # a sound the muxer refuses costs the sound alone
             return False
+        self.heard = True
         return True
 
     def add(self, packet: av.Packet, pts: int, dts: int, ms: int | None) -> None:

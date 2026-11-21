@@ -3971,17 +3971,36 @@ def test_whose_sound_plays_is_chosen_where_playing_goes_on_from(
     phone_with_sound: Path, make_window: Callable[[], mw.MainWindow], clock: list[float]
 ) -> None:
     # A gap jumped over: the sound's camera chosen on its far side, not on the frame
-    # still shown before it.
-    record(phone_with_sound, START + 10_000, 30)  # cam1 after its sound: frames alone
+    # still shown before it. The telephoto's own sound comes 10 s on; before it, its
+    # main lens's plays.
+    late_sound(phone_with_sound, "cam2", START + 10_000)
     win = make_window()
     wait_until(lambda: win.moment is not None and win.place is not None)
+    win.camera_list.setCurrentRow(1)
+    wait_until(lambda: win.current == "cam2")
     heard = sounding(win)
     win.seek_ms(START + 1500)
     win.play()
-    assert heard.calls[-1][0] == "play"
-    win._play_start = (clock[0], START + 10_500)  # on past the recording's sound
+    assert heard.calls[-1][:2] == ("play", win.cameras["cam1"].index)
+    win._play_start = (clock[0], START + 10_500)  # on past the gap: its own sound
     win._play_sound()
-    assert heard.calls[-1] == ("stop",)
+    assert heard.calls[-1][:2] == ("play", win.cameras["cam2"].index)
+
+
+def late_sound(base: Path, camera_id: str, start: int) -> None:
+    """A second of the beeping stream recorded for ``camera_id`` from ``start``."""
+    beeping(base / f"{camera_id}-late.mkv", 1)
+    writer = SegmentWriter(base / "video" / camera_id, fps=30)
+    with av.open(str(base / f"{camera_id}-late.mkv")) as container:
+        for packet in container.demux():
+            if packet.pts is None:
+                continue
+            ms = start + round((packet.pts or 0) * 1000 * packet.time_base)
+            if packet.stream.type == "video":
+                writer.write_packet(packet, ms)
+            else:
+                writer.write_audio(packet, ms)
+    writer.close()
 
 
 def test_play_from_before_the_sound_began_plays_it_as_it_comes(

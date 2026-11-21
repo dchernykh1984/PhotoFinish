@@ -1434,3 +1434,19 @@ def test_a_piece_of_sound_the_muxer_refuses_costs_the_sound_never_the_video(
                 assert not writer.write_audio(packet, ms)
     writer.close()
     assert writer.frames == 60
+
+
+def test_the_segments_that_kept_sound_are_listed_beside_the_others(
+    tmp_path: Path,
+) -> None:
+    # Whether a camera has sound, found without opening its hours of segments (013).
+    with_sound(tmp_path / "phone.mkv", 2)
+    folder = tmp_path / "cam1"
+    recorded_with_sound(tmp_path / "phone.mkv", folder)
+    listed = (folder / segments_module.SOUND).read_text().split()
+    assert listed == [path.stem for path in segments(folder)]
+    silent = tmp_path / "cam2"
+    lone = SegmentWriter(silent, fps=30)
+    record(lone, START, 40)
+    lone.close()
+    assert not (silent / segments_module.SOUND).exists()
