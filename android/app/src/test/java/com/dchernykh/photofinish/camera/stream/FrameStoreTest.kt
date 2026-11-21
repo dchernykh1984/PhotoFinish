@@ -342,6 +342,19 @@ class FrameStoreTest {
     }
 
     @Test
+    fun `a store handed over keeps its files while anything is unsent, and removes them once all is sent`() {
+        val holding = store()
+        second(holding, 0)
+        assertTrue(holding.handOver())
+        assertEquals(1, runs())
+        val sent = store() // reads the run back
+        read(sent, 10)
+        sent.confirm(5_000_000)
+        assertFalse(sent.handOver())
+        assertFalse(folder.exists())
+    }
+
+    @Test
     fun `a closed store keeps its files, its clear not the next store's to suffer`() {
         val store = store()
         second(store, 0)

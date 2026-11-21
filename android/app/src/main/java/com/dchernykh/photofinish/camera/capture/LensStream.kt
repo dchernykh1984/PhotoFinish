@@ -95,8 +95,7 @@ internal class LensStream private constructor(
     /** Stopped, what it kept and has not sent handed to the backlog to send alone (specs/009, FR-003). */
     override fun stop() {
         end()
-        store.close()
-        Senders.backlog.adopt(store.folder)
+        if (store.handOver()) Senders.backlog.adopt(store.folder) // all sent: nothing to send again
     }
 
     /** Stopped, what it kept dropped: the referee's Discard (specs/009, FR-004). */
