@@ -54,6 +54,8 @@ class CatchUp:
             # measures this break. A short one, much still to come, leaves it be.
             self.peak = held
             self.said.clear()
+        if self.said and heard < self.said[-1][0]:
+            self.said.clear()  # this computer's clock set back: the minute begins again
         if not self.said or self.said[-1][0] != heard:
             self.said.append((heard, held))
         while self.said and self.said[0][0] < heard - LOOK_BACK_MS:

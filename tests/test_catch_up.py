@@ -76,6 +76,15 @@ def test_a_short_break_while_catching_up_keeps_the_bar_of_the_long_one() -> None
     assert line.startswith(f"0:43 of video on the phone {FULL * 6}{EMPTY * 4} 64%")
 
 
+def test_a_clock_set_back_begins_the_minute_looked_back_on_again() -> None:
+    catch_up = Heard()
+    catch_up.line(said(600_000, 3_700_000))
+    catch_up.line(said(540_000, 3_730_000))
+    back = 130_000  # this computer's clock set back an hour
+    catch_up.line(said(530_000, back))
+    assert catch_up.line(said(500_000, back + 15_000)).endswith(", in about 5 min")
+
+
 def test_a_span_reads_as_a_clock() -> None:
     assert span(0) == "0:00"
     assert span(59_999) == "0:59"
