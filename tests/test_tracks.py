@@ -153,7 +153,7 @@ class FakeReader:
     def __init__(self) -> None:
         self.given: list[tuple[int, ...]] = []
 
-    def read(self, rgb: Any) -> tuple[str, float]:
+    def read(self, rgb: Any, starters: Any = None) -> tuple[str, float]:
         self.given.append(rgb.shape)
         return "27", 0.9876
 
@@ -178,7 +178,7 @@ def test_riders_crossing_on_one_sample_are_read_on_one_picture_of_it(
     pictures: list[Any] = []
 
     class Kept(FakeReader):
-        def read(self, rgb: Any) -> tuple[str, float]:
+        def read(self, rgb: Any, starters: Any = None) -> tuple[str, float]:
             pictures.append(rgb.base)  # the picture the rider's box was cut from
             return super().read(rgb)
 
@@ -207,7 +207,7 @@ def test_a_reader_that_fails_costs_the_number_not_the_crossing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     class Broken(FakeReader):
-        def read(self, rgb: Any) -> tuple[str, float]:
+        def read(self, rgb: Any, starters: Any = None) -> tuple[str, float]:
             raise RuntimeError("onnxruntime: bad input")
 
     monkeypatch.setattr(analyzer, "_reader", Broken)
