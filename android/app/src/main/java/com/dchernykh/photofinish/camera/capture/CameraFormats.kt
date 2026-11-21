@@ -79,11 +79,7 @@ class CameraFormats(
         codec: Codec = Codec.AVC,
     ): StreamFormat? {
         val chosen = FormatChoice.choose(sizes, ranges, { size, fps -> takes(size, fps) }, wanted, wantedFps)
-        return if (chosen != null && codec != Codec.AVC && takes(chosen.resolution, chosen.fps, codec)) {
-            FormatChoice.inCodec(chosen, codec)
-        } else {
-            chosen
-        }
+        return chosen?.let { FormatChoice.inCodecIf(it, codec, ::takes) }
     }
 
     companion object {
@@ -100,7 +96,13 @@ class CameraFormats(
             val takes = { size: Resolution, fps: Int -> lenses.all { it.takes(size, fps) } }
             return FormatChoice
                 .choose(sizes, first.ranges, takes, wanted.resolution, wanted.fps)
-                ?.let { FormatChoice.inCodec(it, wanted.codec) } // the codec the wanted one was found to take
+                ?.let { common ->
+                    // the size and rate fallen back to taken in the codec by every lens, else H.264
+                    FormatChoice.inCodecIf(
+                        common,
+                        wanted.codec,
+                    ) { size, fps, codec -> lenses.all { it.takes(size, fps, codec) } }
+                }
         }
     }
 }
