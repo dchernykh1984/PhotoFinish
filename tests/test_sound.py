@@ -515,6 +515,28 @@ def test_the_sound_later_is_looked_for_without_listing_a_days_frames(
     assert not sound.heard_later(silent, START)
 
 
+def test_segments_followed_are_told_apart_without_listing_all_known_again(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Following live all day: a segment a second added, never a set of every one
+    # known made anew for it.
+    index = recorded(tmp_path)
+    found = sound.Pieces(index.paths[:1], START, True, folder=index.folder)
+    made: list[int] = []
+    real = set
+
+    def counted(*args: Any) -> set[Any]:
+        made.append(1)
+        return real(*args)
+
+    monkeypatch.setattr(sound, "set", counted, raising=False)
+    found.extend(index.paths[1:2])
+    found.extend(index.paths[2:])
+    assert made == []
+    found.finish()
+    assert len(list(found)) > 100
+
+
 def test_the_sound_later_is_told_at_once_while_nothing_changed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -249,6 +249,7 @@ class Pieces:
         self._folder = folder
         self._unheard: list[Path] = []  # the newest not listed as sounding yet
         self._found = self._sounding(found)
+        self._known = set(self._found)  # those in _found, looked up as more come
         self._from_ms = from_ms
         self._more = threading.Condition()
         self._finished = not follows
@@ -268,8 +269,9 @@ class Pieces:
         with the next -- are looked at again with them."""
         found = self._sounding([*self._unheard, *paths])
         with self._more:
-            known = set(self._found)
-            self._found.extend(path for path in found if path not in known)
+            new = [path for path in dict.fromkeys(found) if path not in self._known]
+            self._found.extend(new)
+            self._known.update(new)
             self._more.notify_all()
 
     def _sounding(self, paths: Iterable[Path]) -> list[Path]:
