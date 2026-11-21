@@ -258,13 +258,21 @@ class Backlog(
                 val fed = live.map { it.second.folder }.toSet()
                 dropped to root.listFiles { file -> file.isDirectory && file !in fed }.orEmpty().toList()
             }
-        dropped.forEach {
-            // removed outside the lock: the live lenses' counts wait for none of it
-            it.store.clear()
-            say(it.header.lens, "what it kept for ${it.header.address} discarded")
-        }
-        folders.forEach { it.deleteRecursively() }
+        // Removed outside the lock, on the hand-over's thread: the live lenses' counts wait for none of it, nor the
+        // cameras' thread -- a Start right after the Discard -- for GBs going.
+        handOff(
+            Runnable {
+                dropped.forEach {
+                    it.store.clear()
+                    say(it.header.lens, "what it kept for ${it.header.address} discarded")
+                }
+                folders.forEach { it.deleteRecursively() }
+            },
+        )
     }
+
+    /** A lens's [store] discarded on the hand-over's thread, as [discard] drops what the backlog holds. */
+    fun discard(store: FrameStore) = handOff(Runnable { store.clear() })
 
     /** A folder of this run's: after every one an earlier run left, whatever the clock said when each began. */
     private fun mine(folder: File): Boolean = session.isNotEmpty() && folder.name.endsWith("-$session")
