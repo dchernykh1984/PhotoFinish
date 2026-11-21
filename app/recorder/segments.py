@@ -245,7 +245,7 @@ class _Remuxed:
     def add(self, packet: av.Packet, pts: int, dts: int, ms: int | None) -> None:
         """The packet stored; its time listed unless ``ms`` is None."""
         packet.pts, packet.dts = pts - self.base, dts - self.base
-        pts_ms = _in_ms(pts - self.base, self.time_base)
+        pts_ms = in_ms(pts - self.base, self.time_base)
         packet.stream = self.stream
         self.container.mux(packet)
         if ms is not None:
@@ -274,7 +274,7 @@ def _times(folder: Path) -> TextIO:
     return (folder / "current.times").open("w", encoding="ascii", buffering=1)
 
 
-def _in_ms(value: int, time_base: Fraction) -> int:
+def in_ms(value: int, time_base: Fraction) -> int:
     """``value`` in ``time_base`` as whole milliseconds, rounded as the muxer rounds:
     to the nearest, a half away from zero (FFmpeg's AV_ROUND_NEAR_INF), a negative
     pts of an open GOP's leading frame too."""
@@ -410,7 +410,7 @@ def _recover(folder: Path, n: int) -> str | None:
     if reading.exists():
         return None  # the last read of it never ended: it goes aside unread
     try:
-        frames = _frame_times(folder / "current.times")
+        frames = frame_times(folder / "current.times")
         reading.touch()
         kept = _copy_whole(folder / "current.mkv", copy, frames)
         with contextlib.suppress(OSError):  # read to its end; one held a moment is
@@ -478,7 +478,7 @@ def _meant(folder: Path) -> tuple[str, int] | None:
 def _first_ms(times: Path) -> int | None:
     """The time of the first frame a times file has, or None."""
     try:
-        return next(iter(_frame_times(times).values()), None)
+        return next(iter(frame_times(times).values()), None)
     except OSError, ValueError:
         return None
 
@@ -499,7 +499,7 @@ def _drop_recovery(folder: Path) -> None:
             (folder / left).unlink(missing_ok=True)
 
 
-def _frame_times(times: Path) -> dict[int, int]:
+def frame_times(times: Path) -> dict[int, int]:
     """A segment's ``pts -> ms`` as its times file has them, in frame order; a last
     line a kill cut short, its line end missing, is left out, as is one that is not
     two numbers. A pts may be negative: an open GOP's leading frames."""
@@ -538,7 +538,7 @@ def _whole(video: av.container.InputContainer) -> Iterator[tuple[av.Packet, int]
     try:
         for packet in video.demux(source):
             if packet.size and packet.pts is not None:
-                yield packet, _in_ms(packet.pts, base)
+                yield packet, in_ms(packet.pts, base)
     except av.FFmpegError:
         return  # the cluster the crash cut short: what came before is kept
 
