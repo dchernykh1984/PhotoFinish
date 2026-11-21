@@ -94,3 +94,15 @@ def test_an_output_that_takes_another_rate_and_channels_is_played_in_them(
     loud = np.flatnonzero(np.abs(samples) > 3000)
     assert loud[0] / 44100 == pytest.approx(1.0, abs=0.05)
     played.stop()
+
+
+def test_the_sound_says_it_has_ended_once_all_of_it_is_given(tmp_path: Path) -> None:
+    index = recorded(tmp_path)
+    output = Output()
+    played = player.SoundPlayer(output=lambda: (output, player.RATE, player.CHANNELS))
+    assert not played.ended  # nothing played: nothing ended
+    played.play(index, START + 2500, 1.0)
+    wait_until(lambda: played.ended)  # the half second left, given whole
+    assert len(output.taken) == pytest.approx(4 * RATE * 0.5, rel=0.2)
+    played.stop()
+    assert not played.ended
