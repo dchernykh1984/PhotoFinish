@@ -185,7 +185,12 @@ class Uplink(
         val moment = clock()?.let { inOrder(frame.ptsUs + slew.at(frame.ptsUs, it.offset), lastMomentUs) }
         moment?.let { lastMomentUs = it }
         val lost = store.keep(frame, moment)
-        if (frame.keyframe) askedKeyframe = false
+        if (frame.keyframe) {
+            askedKeyframe = false
+            // A header the storage refused, or not known kept yet, tried again at each keyframe: frames kept with no
+            // header are never sent after a Stop or a crash, and the encoder gives its header once.
+            if (!headerKept) record?.let { headerKept = onConfigured(it) }
+        }
         if (lost > 0) {
             dropped += lost
             drops.add(lost.toLong())
