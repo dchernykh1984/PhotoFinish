@@ -109,7 +109,10 @@ The camera is a phone on a tripod running PhotoFinish Camera, the Android app re
 PhotoFinish (`android/`), or a free streaming app; either pushes its video here over the local
 network (RTMP: PhotoFinish listens), and the phone's own hotspot or any Wi-Fi carries it. Adding a
 camera offers that first and shows the address to type in the app and, as a QR code, for
-PhotoFinish Camera to scan. PhotoFinish Camera streams H.264 without sound at the size and rate
+PhotoFinish Camera to scan. PhotoFinish Camera streams H.264 -- or H.265, chosen in the dialog as an
+experiment (`specs/010-hevc`): about 0.7 of H.264's bitrate for the same picture, over Enhanced
+RTMP, the phone saying when its encoder does not take it at the size and rate and streaming H.264
+then; tried on the emulator at 320x240, every frame with its moment -- without sound at the size and rate
 chosen (60 fps first), a keyframe a second and a bitrate that follows the size, and connects again
 on its own after a loss; it keeps the screen on, and can dim it while it streams. A streaming app
 is set to 60 fps, about 10 Mbit/s and a keyframe a second: the newest frame waits for the next

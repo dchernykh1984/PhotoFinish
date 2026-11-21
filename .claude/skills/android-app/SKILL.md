@@ -173,6 +173,14 @@ second waits while the first is connected and behind -- a few seconds, until the
 first's hung send is cut after 5 s -- and goes on meanwhile; once the first's
 recorder is back, the first catches up before the second sends.
 
+H.265 (`specs/010-hevc`): the emulator's encoder takes 512x512 at most, under
+every size the app offers; a debug build tries a size of its own:
+`--es size 320x240 --es address 'rtmp://10.0.2.2:1999/live/cam1|codec h265'`.
+The phone's log says `camera 0: main at 320x240, 30 fps, H.265`, or `h265 asked
+for, not taken at ...: h264`. Read it back with `frame_time.moment_ms(bytes(p),
+hevc=True)`. A recorder started before a change to `app/recorder` runs the old
+code: stop it (`stop.request`) and start it again.
+
 ## Reading what came
 
 ```python
