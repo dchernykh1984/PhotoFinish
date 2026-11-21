@@ -52,6 +52,8 @@ interface RtmpConnection : Closeable {
  */
 class RtmpPublisher(
     private val address: RtmpAddress,
+    /** H.265 goes over Enhanced RTMP's tags (specs/010-hevc). */
+    private val codec: Codec = Codec.AVC,
     private val connect: (RtmpAddress) -> RtmpConnection = ::socketConnection,
 ) : VideoSink {
     @Volatile private var connection: RtmpConnection? = null
@@ -123,14 +125,19 @@ class RtmpPublisher(
         Thread({ drain() }, "rtmp-reader").apply { isDaemon = true }.start()
     }
 
-    override fun sendSequenceHeader(record: ByteArray) =
-        send(VIDEO_STREAM, 0, RtmpType.VIDEO, streamId, Avc.sequenceHeaderTag(record))
+    override fun sendSequenceHeader(record: ByteArray) {
+        val tag = if (codec == Codec.HEVC) Hevc.sequenceHeaderTag(record) else Avc.sequenceHeaderTag(record)
+        send(VIDEO_STREAM, 0, RtmpType.VIDEO, streamId, tag)
+    }
 
     override fun sendFrame(
         timestampMs: Long,
         keyframe: Boolean,
         nalUnits: List<ByteArray>,
-    ) = send(VIDEO_STREAM, timestampMs, RtmpType.VIDEO, streamId, Avc.frameTag(keyframe, nalUnits))
+    ) {
+        val tag = if (codec == Codec.HEVC) Hevc.frameTag(keyframe, nalUnits) else Avc.frameTag(keyframe, nalUnits)
+        send(VIDEO_STREAM, timestampMs, RtmpType.VIDEO, streamId, tag)
+    }
 
     override fun close() {
         closed = true

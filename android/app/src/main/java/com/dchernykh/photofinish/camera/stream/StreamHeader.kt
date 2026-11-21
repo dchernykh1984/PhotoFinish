@@ -10,14 +10,13 @@ import java.io.IOException
 
 /**
  * What a kept stream needs to be sent by itself, the app started again since (specs/009, FR-001): its lens,
- * where it goes, its format, its codec and the header the recorder decodes it from. Kept in its folder as
- * `stream.txt`, `key=value` lines, written whole or not at all.
+ * where it goes, its format -- its codec with it (specs/010) -- and the header the recorder decodes it from. Kept
+ * in its folder as `stream.txt`, `key=value` lines, written whole or not at all.
  */
 class StreamHeader(
     val lens: Lens,
     val address: RtmpAddress,
     val format: StreamFormat,
-    val codec: String,
     val record: ByteArray,
 ) {
     /** Written into [folder], over the one there; false when the storage refuses it. */
@@ -31,7 +30,7 @@ class StreamHeader(
                 "height" to format.resolution.height,
                 "fps" to format.fps,
                 "bitrate" to format.bitrate,
-                "codec" to codec,
+                "codec" to format.codec.code,
                 "record" to record.joinToString("") { "%02x".format(it) },
             ).joinToString("") { (key, value) -> "$key=$value\n" }
         val temporary = File(folder, "$FILE.new")
@@ -76,10 +75,11 @@ class StreamHeader(
             val record = requireNotNull(hex(text("record")))
             require(record.isNotEmpty())
             val fps = number("fps")
-            val format =
-                StreamFormat(Resolution(number("width"), number("height")), fps, FpsRange(fps, fps), number("bitrate"))
+            val codec = requireNotNull(Codec.named(text("codec")))
+            val size = Resolution(number("width"), number("height"))
+            val format = StreamFormat(size, fps, FpsRange(fps, fps), number("bitrate"), codec)
             val lens = requireNotNull(Lens.named(text("lens")))
-            return StreamHeader(lens, requireNotNull(RtmpAddress.parse(text("address"))), format, text("codec"), record)
+            return StreamHeader(lens, requireNotNull(RtmpAddress.parse(text("address"))), format, record)
         }
 
         private fun hex(text: String): ByteArray? {

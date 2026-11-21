@@ -169,6 +169,24 @@ class RtmpPublisherTest {
     }
 
     @Test
+    fun `h265 goes in enhanced rtmp's tags`() {
+        val server = server()
+        server.serve()
+        val publisher = RtmpPublisher(server.address, Codec.HEVC)
+        publisher.publish(mapOf("videocodecid" to 0x68766331))
+        publisher.sendSequenceHeader(byteArrayOf(1, 2))
+        val hvc1 = "hvc1".toByteArray(Charsets.US_ASCII)
+        assertArrayEquals(
+            byteArrayOf(0x90.toByte()) + hvc1 + byteArrayOf(1, 2),
+            server.nextOfType(RtmpType.VIDEO).payload,
+        )
+        publisher.sendFrame(33, keyframe = false, nalUnits = listOf(byteArrayOf(2, 1, 9)))
+        val frame = server.nextOfType(RtmpType.VIDEO).payload
+        assertArrayEquals(byteArrayOf(0xA3.toByte()) + hvc1 + byteArrayOf(0, 0, 0, 3, 2, 1, 9), frame)
+        publisher.close()
+    }
+
+    @Test
     fun `a refused connection or publish throws`() {
         for (refuse in listOf("connect", "publish")) {
             val server = server(refuse)

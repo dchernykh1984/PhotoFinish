@@ -63,7 +63,7 @@ class Uplink(
     private val firstLens: () -> Boolean = { true },
 ) {
     /** How a connection is made; a test's stands in for the server. */
-    internal var connect: (RtmpAddress) -> VideoSink = { RtmpPublisher(it) }
+    internal var connect: (RtmpAddress) -> VideoSink = { RtmpPublisher(it, format.codec) }
 
     /** How long a connection waits for the clock before frames go without moments. */
     internal var waitForClockMs = WAIT_FOR_CLOCK_MS
@@ -359,7 +359,7 @@ class Uplink(
     ) {
         val units = Avc.splitAnnexB(kept.data).toMutableList()
         var head = 0
-        if (momentUs != null) units.add(head++, Sei.frameMoment(momentUs))
+        if (momentUs != null) units.add(head++, Sei.frameMoment(momentUs, format.codec))
         // The status after the moment: a reader looking for the moment finds it first. A status
         // the phone fails to read costs this keyframe its status, never the connection.
         if (kept.keyframe) {
@@ -367,7 +367,7 @@ class Uplink(
                 status(
                     drops.lately(),
                 )
-            }.getOrNull()?.let { units.add(head, Sei.phoneStatus(it)) }
+            }.getOrNull()?.let { units.add(head, Sei.phoneStatus(it, format.codec)) }
         }
         sendingSince = System.nanoTime()
         try {
@@ -471,6 +471,9 @@ class Uplink(
         const val HOLD_MS = 2_000L
         private const val VIDEO_CODEC_AVC = 7
 
+        /** Enhanced RTMP's `videocodecid` for H.265: its FourCC, `hvc1`, as a number (specs/010-hevc). */
+        private const val VIDEO_CODEC_HEVC = 0x68766331
+
         /**
          * Frames sent kept waiting for an acknowledgement: FFmpeg's come every 64 KiB, or every half megabyte
          * when it keeps its own window, seconds of frames; more is a server that acknowledges nothing.
@@ -507,7 +510,7 @@ class Uplink(
                 "width" to format.resolution.width,
                 "height" to format.resolution.height,
                 "framerate" to format.fps,
-                "videocodecid" to VIDEO_CODEC_AVC,
+                "videocodecid" to if (format.codec == Codec.HEVC) VIDEO_CODEC_HEVC else VIDEO_CODEC_AVC,
                 "videodatarate" to format.bitrate / 1000,
                 "encoder" to "PhotoFinish Camera",
                 "held_ms" to heldMs,

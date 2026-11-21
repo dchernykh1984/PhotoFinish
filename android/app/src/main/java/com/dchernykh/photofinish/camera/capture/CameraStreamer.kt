@@ -19,6 +19,7 @@ import com.dchernykh.photofinish.camera.diagnostics.PhoneLog
 import com.dchernykh.photofinish.camera.pairing.Lens
 import com.dchernykh.photofinish.camera.pairing.LensTarget
 import com.dchernykh.photofinish.camera.status.PhoneStatusReader
+import com.dchernykh.photofinish.camera.stream.Codec
 import com.dchernykh.photofinish.camera.stream.FrameStore
 import com.dchernykh.photofinish.camera.stream.UplinkStatus
 import java.io.File
@@ -419,7 +420,8 @@ class CameraStreamer(
                             }.orEmpty()
                 }
             val what = named.ifEmpty { "its preview" }
-            log.info(null, "camera ${plan.cameraId}: $what at ${common.resolution}, ${common.fps} fps")
+            val codec = if (common.codec == Codec.HEVC) ", H.265" else "" // specs/010-hevc
+            log.info(null, "camera ${plan.cameraId}: $what at ${common.resolution}, ${common.fps} fps$codec")
             plan.lenses.forEach { planned ->
                 val lens = planned.target.lens
                 try {

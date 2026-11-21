@@ -54,7 +54,7 @@ class BacklogTest {
             store.keep(EncodedFrame(ByteArray(100), k * 100_000L, k % 10 == 0), 5_000_000L + k * 100_000L)
         }
         store.close()
-        if (header) StreamHeader(lens, address, format, "avc", byteArrayOf(1, 2, 3)).write(folder)
+        if (header) StreamHeader(lens, address, format, byteArrayOf(1, 2, 3)).write(folder)
         return folder
     }
 
@@ -100,7 +100,7 @@ class BacklogTest {
     fun `folders with no header or nothing to send are removed as they are read back`() {
         kept(began = 100, header = false)
         val empty = File(root, "main-200").apply { mkdirs() }
-        StreamHeader(Lens.MAIN, first, format, "avc", byteArrayOf(1)).write(empty)
+        StreamHeader(Lens.MAIN, first, format, byteArrayOf(1)).write(empty)
         backlog.readBack()
         backlog.tick(0)
         assertTrue(started.isEmpty())

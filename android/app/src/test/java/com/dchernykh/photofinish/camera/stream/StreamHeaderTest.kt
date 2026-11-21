@@ -22,8 +22,7 @@ class StreamHeaderTest {
         StreamHeader(
             Lens.TELEPHOTO,
             RtmpAddress("192.168.31.89", 1936, "live", "cam22"),
-            StreamFormat(Resolution(2560, 1440), 60, FpsRange(60, 60), 16_000_000),
-            "avc",
+            StreamFormat(Resolution(2560, 1440), 60, FpsRange(60, 60), 11_200_000, Codec.HEVC),
             byteArrayOf(1, 0x64, 0, 0x28, -1),
         )
 
@@ -36,8 +35,8 @@ class StreamHeaderTest {
         assertEquals(header.address, read.address)
         assertEquals(header.format.resolution, read.format.resolution)
         assertEquals(60, read.format.fps)
-        assertEquals(16_000_000, read.format.bitrate)
-        assertEquals("avc", read.codec)
+        assertEquals(11_200_000, read.format.bitrate)
+        assertEquals(Codec.HEVC, read.format.codec)
         assertArrayEquals(header.record, read.record)
         assertEquals(listOf(StreamHeader.FILE), folder.list()!!.toList()) // the file written beside goes
     }
@@ -56,6 +55,8 @@ class StreamHeaderTest {
         file.writeText(text.replace(Regex("record=.*"), "record=abc"))
         assertNull(StreamHeader.read(folder))
         file.writeText(text.replace("lens=telephoto", "lens=fisheye"))
+        assertNull(StreamHeader.read(folder))
+        file.writeText(text.replace("codec=hevc", "codec=vp9"))
         assertNull(StreamHeader.read(folder))
     }
 }
