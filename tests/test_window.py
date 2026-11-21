@@ -818,6 +818,16 @@ def test_an_export_that_wrote_nothing_says_so_and_one_ended_by_the_close_says_no
     assert len(warned) == 1
 
 
+def test_a_cancelled_export_s_progress_stays_hidden(win: mw.MainWindow) -> None:
+    progress = mw.QProgressDialog("Exporting", "Cancel", 0, 1000, win)
+    progress.setMinimumDuration(0)
+    mw._progressed(progress, 10)
+    progress.cancel()
+    mw._progressed(progress, 500)  # the piece under way done after the Cancel
+    assert not progress.isVisible()
+    assert progress.value() != 500
+
+
 def test_export_video_with_nothing_recorded_says_so(
     win: mw.MainWindow, monkeypatch: pytest.MonkeyPatch
 ) -> None:
