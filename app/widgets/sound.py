@@ -247,7 +247,9 @@ class SoundPlayer(QObject):
         if self._asked is not None or self._output is None:
             return  # not begun
         if not self._chunks:
-            if self._drained is None and self._output.bytesFree() >= self._buffer:
+            # Empty, or as good as: an output's free room may stop a period short.
+            empty = self._output.bytesFree() >= self._buffer - self._buffer // 8
+            if self._drained is None and empty:
                 self._drained = self._clock()
             return
         if self._drained is not None:
