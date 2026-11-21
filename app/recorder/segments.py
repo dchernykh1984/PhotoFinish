@@ -411,8 +411,8 @@ def _list_missing(folder: Path) -> list[str]:
         if path.stem not in known and path.with_suffix(".times").exists()
     )
     if missing:
+        _list_sound(folder, missing)  # first, as a close lists it: read by its list
         append(folder / SEGMENTS, "".join(f"{n}\n" for n in missing).encode("ascii"))
-        _list_sound(folder, missing)
     return listed + missing
 
 

@@ -96,6 +96,15 @@ def heard_at(index: VideoIndex, moment: int, within: int) -> bool:
     return place is not None and has_sound(index.frame(place).path)
 
 
+def sounding(folder: Path) -> set[str]:
+    """The names of a camera's segments that kept sound, as its recorder lists them
+    as they close (SOUND)."""
+    try:
+        return set((folder / SOUND).read_bytes().decode("ascii", "replace").split())
+    except OSError:
+        return set()
+
+
 def heard_somewhere(folder: Path) -> bool:
     """Whether a camera kept sound in any of its segments: its recorder lists those
     that did as they close."""
@@ -109,12 +118,7 @@ def heard_later(index: VideoIndex, moment: int) -> bool:
     """Whether a camera kept sound in a segment from ``moment`` on, on its own times:
     one allowed the microphone later is heard in its turn, the pieces following as
     it plays -- never one whose sound is all behind it."""
-    try:
-        kept = set(
-            (index.folder / SOUND).read_bytes().decode("ascii", "replace").split()
-        )
-    except OSError:
-        return False
+    kept = sounding(index.folder)
     place = index.at_or_before(moment)
     if place is None:
         return False
@@ -195,7 +199,7 @@ def pieces(
     ``cancelled`` asked between segments ends them, as ``Pieces.cancel`` does."""
     place = index.at_or_before(from_ms)
     found = [] if place is None else index.segments_from(place)
-    return Pieces(found, from_ms, follows, cancelled)
+    return Pieces(found, from_ms, follows, cancelled, index.folder)
 
 
 class Pieces:
@@ -210,8 +214,12 @@ class Pieces:
         from_ms: int,
         follows: bool,
         cancelled: Callable[[], bool] = lambda: False,
+        folder: Path | None = None,
     ) -> None:
-        self._found = list(found)
+        # Those that kept sound alone, as its recorder lists them (``folder``'s):
+        # hours of segments without are never opened for it.
+        self._folder = folder
+        self._found = self._sounding(found)
         self._from_ms = from_ms
         self._more = threading.Condition()
         self._finished = not follows
@@ -227,10 +235,17 @@ class Pieces:
 
     def extend(self, paths: Iterable[Path]) -> None:
         """Segments closed since, in the order they closed: on the caller's thread."""
+        found = self._sounding(paths)
         with self._more:
             known = set(self._found)
-            self._found.extend(path for path in paths if path not in known)
+            self._found.extend(path for path in found if path not in known)
             self._more.notify_all()
+
+    def _sounding(self, paths: Iterable[Path]) -> list[Path]:
+        if self._folder is None:
+            return list(paths)
+        kept = sounding(self._folder)
+        return [path for path in paths if path.stem in kept]
 
     def finish(self) -> None:
         """No more to wait for: what is held given, then the end."""
