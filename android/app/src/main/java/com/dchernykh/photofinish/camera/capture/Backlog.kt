@@ -48,6 +48,9 @@ class Backlog(
     /** The stores of streams a camera feeds, by address: what the phone holds for a camera, all told. */
     private val live = mutableListOf<Pair<RtmpAddress, FrameStore>>()
 
+    /** Frames whose header was lost, and their bytes: counted, so the screen offers Discard for them. */
+    private val orphans = mutableMapOf<File, Long>()
+
     /** Read back: until then every address is held ([holds]), so nothing a camera feeds goes before what was kept. */
     @Volatile private var ready = false
 
@@ -101,6 +104,8 @@ class Backlog(
             // Frames whose header a power cut took: not sent, not removed either -- Discard alone removes them.
             val lens = Lens.named(folder.name.substringBefore('-')) ?: Lens.MAIN
             say(lens, "${folder.name}: frames kept with no header to send them with; left on the phone")
+            val bytes = folder.listFiles()?.sumOf { it.length() } ?: 0L
+            synchronized(this) { orphans[folder] = bytes }
             return null
         }
         val store = header?.let { FrameStore(folder) }
@@ -177,9 +182,12 @@ class Backlog(
                 live.filter { it.first == address }.map { it.second },
         )
 
-    /** What the phone holds, kept and fed, all told. */
+    /** What the phone holds, kept and fed, all told -- frames whose header was lost by their bytes alone. */
     @Synchronized
-    fun pending(): FrameStore.Pending = sum(kept.map { it.store } + live.map { it.second })
+    fun pending(): FrameStore.Pending {
+        val held = sum(kept.map { it.store } + live.map { it.second })
+        return held.copy(bytes = held.bytes + orphans.values.sum())
+    }
 
     /**
      * Every stream kept stopped and dropped, and whatever else the stores' root holds but the streams a camera feeds
@@ -193,6 +201,7 @@ class Backlog(
             say(it.header.lens, "what it kept for ${it.header.address} discarded")
         }
         kept.clear()
+        orphans.clear()
         val fed = live.map { it.second.folder }.toSet()
         root.listFiles { file -> file.isDirectory && file !in fed }?.forEach { it.deleteRecursively() }
     }
