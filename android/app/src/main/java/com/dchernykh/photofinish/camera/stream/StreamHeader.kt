@@ -87,7 +87,7 @@ class StreamHeader(
                                 when {
                                     !folder.isDirectory -> Unit
                                     header(record).write(folder) -> kept.set(record)
-                                    else -> failed()
+                                    folder.isDirectory -> failed() // gone as it was written: nothing failed
                                 }
                             },
                         )
