@@ -13,6 +13,7 @@ standard input closes.
 
 from __future__ import annotations
 
+import contextlib
 import copy
 import functools
 import json
@@ -21,7 +22,7 @@ import sys
 import threading
 import time
 from collections import deque
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -38,6 +39,7 @@ from app.interpolation import Line, camera_line
 from app.paths import app_path
 from app.recorder import CAMERA_ID, folder_of
 from app.recorder.segments import SEGMENTS
+from app.start_protocol import StartNumbers
 from app.video_index import read_times
 
 SAMPLE_MS = 200  # frames looked at for motion: five a second
@@ -102,11 +104,13 @@ class ModelWatch:
         camera_id: str,
         numbers: NumberReader | None = None,
         unread: str = "",
+        starters: Callable[[], Mapping[str, str]] = dict,
     ) -> None:
         self.detector, self.zone, self.line = detector, zone, line
         self.camera_id = camera_id
         self.numbers = numbers  # the riders' numbers read at their crossings (006)
         self.unread = unread
+        self.starters = starters  # the start protocol's numbers, if any (014)
         self.method = f"model:{detector.name}"
         self.tracker = Tracker(line)
         self.frames: list[tuple[av.VideoFrame, Ref]] = []  # since the last sample
@@ -148,7 +152,7 @@ class ModelWatch:
         if self.numbers is None:
             return {}
         try:
-            read = self.numbers.read(crop(picture(), box))
+            read = self.numbers.read(crop(picture(), box), self.starters())
         except Exception:  # onnxruntime raises its own kinds
             return {}
         return (
@@ -228,8 +232,23 @@ def _watch(camera: dict[str, Any], model: str, common: object = None) -> Watch:
             numbers = _reader()
         except Exception as error:  # onnxruntime raises its own kinds
             unread = f"the number reader cannot be loaded: {error}"
-        return ModelWatch(detector, zone, line, str(camera["id"]), numbers, unread)
+        name = str(camera["id"])
+        return ModelWatch(detector, zone, line, name, numbers, unread, start_numbers())
     return MotionWatch(Motion(zone, line))
+
+
+def start_numbers() -> StartNumbers:
+    """The numbers of the start protocol the session names, read again when the
+    session names another or the file changes (014); a session that cannot be read
+    a moment keeps the protocol read before."""
+    last = [""]
+
+    def chosen() -> str:
+        with contextlib.suppress(OSError):
+            last[0] = str(session.load().get("start_protocol") or "")
+        return last[0]
+
+    return StartNumbers(chosen)
 
 
 def _reader() -> NumberReader | None:

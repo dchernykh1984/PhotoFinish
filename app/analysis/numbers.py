@@ -10,13 +10,15 @@ pixels, and pictures are scaled by FFmpeg.
 from __future__ import annotations
 
 import re
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
 import av
 import numpy as np
 import onnxruntime
+
+from app.start_protocol import loose
 
 LEAST_CONFIDENCE = 0.8  # a reading less sure than this names no number
 MOST_PIECES = 6  # of a box's text, the largest read: a bib is a rider's largest
@@ -45,10 +47,15 @@ class NumberReader:
         meta = self.reader.get_modelmeta().custom_metadata_map
         self.chars = str(meta.get("character", "")).split("\n")
 
-    def read(self, rgb: np.ndarray) -> tuple[str, float] | None:
+    def read(
+        self, rgb: np.ndarray, starters: Mapping[str, str] | None = None
+    ) -> tuple[str, float] | None:
         """The digits most confidently read in a picture, with how sure; None when
-        none is read with LEAST_CONFIDENCE. PaddleOCR's models take their pictures
-        in BGR, as OpenCV reads them: given so."""
+        none is read with LEAST_CONFIDENCE. With ``starters`` -- a start protocol's
+        numbers by their loose form (specs/014) -- the surest reading of one of them,
+        spelled as the protocol spells it: a sticker read surer than the bib is passed
+        over, and a number nobody starts with names none. PaddleOCR's models take
+        their pictures in BGR, as OpenCV reads them: given so."""
         bgr = np.ascontiguousarray(rgb[..., ::-1])
         best: tuple[str, float] | None = None
         found = self.texts(bgr)
@@ -56,6 +63,8 @@ class NumberReader:
         for top, left, bottom, right in found[::-1][:MOST_PIECES]:  # the largest
             text, sure = self.line(bgr[top:bottom, left:right])
             digits = digits_of(text)
+            if starters and digits:
+                digits = starters.get(loose(digits), "")
             if digits and sure >= LEAST_CONFIDENCE and (best is None or sure > best[1]):
                 best = digits, sure
         return best
