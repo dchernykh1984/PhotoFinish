@@ -271,9 +271,10 @@ def has_sound(folder: Path) -> bool:
     found = pieces(folder)
     if not found:
         return False
-    step = max(len(found) // (SOUND_LOOKS - 1), 1)
-    looked = {0, len(found) - 1, *range(0, len(found), step)}
-    return any(sound.has_sound(found[n]) for n in sorted(looked)[: SOUND_LOOKS + 1])
+    last = len(found) - 1
+    step = max(last // (SOUND_LOOKS - 1), 1)
+    between = list(range(step, last, step))[: SOUND_LOOKS - 2]
+    return any(sound.has_sound(found[n]) for n in dict.fromkeys([0, last, *between]))
 
 
 @functools.cache

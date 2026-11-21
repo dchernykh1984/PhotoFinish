@@ -489,3 +489,13 @@ def test_a_sound_heard_in_the_middle_of_a_race_alone_is_exported(
     recorded(tmp_path)  # the sound's 3 s
     record(tmp_path / "cam1", HEARD + 20_000, 300)  # frames alone after
     assert export.has_sound(tmp_path / "cam1")
+
+
+def test_a_cameras_newest_pieces_are_always_looked_into_for_sound(
+    tmp_path: Path,
+) -> None:
+    # The microphone allowed late: 14 pieces without, then 3 with -- the newest.
+    record(tmp_path / "cam1", HEARD - 20_000, 14 * 30)
+    recorded(tmp_path)
+    assert len(export.pieces(tmp_path / "cam1")) == 17
+    assert export.has_sound(tmp_path / "cam1")
