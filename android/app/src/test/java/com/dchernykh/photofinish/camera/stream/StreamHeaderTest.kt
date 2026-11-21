@@ -62,6 +62,19 @@ class StreamHeaderTest {
     }
 
     @Test
+    fun `a header asked for a folder gone meanwhile is not written, nor told as refused`() {
+        val folder = temporary.newFolder()
+        val queued = ArrayDeque<Runnable>()
+        var failures = 0
+        val keep = StreamHeader.keeper({ header }, folder, { queued += it }) { failures++ }
+        keep(header.record)
+        folder.deleteRecursively() // the store discarded before the stores' thread came to it
+        queued.removeFirst().run()
+        assertEquals(0, failures)
+        assertFalse(folder.exists())
+    }
+
+    @Test
     fun `no header, one of another version, or one cut short is none`() {
         val folder = temporary.newFolder()
         assertNull(StreamHeader.read(folder))
