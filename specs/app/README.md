@@ -80,9 +80,10 @@ recorder is down and at most the 0.1 s before it.
   and the oldest first; frames without their moments are not sent then. Stop, another choice,
   the screen closed or an encoder that dies send what was kept all the same, with the screen off
   too: a foreground service runs while anything is unsent, its notification saying how much video
-  is left. Only "Discard unsent" on the phone, confirmed with how much video goes, drops it. The
-  first lens of the code sends first: while it is connected and more than 2 s behind, the others
-  to its laptop wait, holding no connection. The phone's screen says what is not sent yet; the camera list says
+  is left. Only "Discard unsent" on the phone, offered once the streams are stopped and confirmed
+  with how much video goes, drops it. The first lens of the code sends first: while it is
+  connected and more than 2 s behind, the others to its laptop wait, holding no connection. The
+  phone's screen says what is not sent yet (while it streams, from 2 s); the camera list says
   "M:SS of video on the phone", a bar of what came since it began falling behind and about when
   the rest is in; the phone's readings add its free storage, amber under 30 GB, red under 10 GB.
   Tried on the emulator: the app killed with 15 s kept, then started -- every frame in, once;
