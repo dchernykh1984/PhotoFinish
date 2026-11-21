@@ -742,6 +742,7 @@ class MainWindow(QMainWindow):
         elif camera.shown is None:
             camera.view.show_text("No video yet")
         self._refresh(force=True)  # the frame at the moment, or the newest when live
+        self._play_sound()  # playing on: the sound of the camera shown now (013)
 
     def _camera(self) -> Camera | None:
         return None if self.current is None else self.cameras.get(self.current)
@@ -2233,6 +2234,7 @@ class MainWindow(QMainWindow):
         self._refresh(force=True)
         self._go(self.place)
         self._show_suggestions()  # gathered and timed on the new offset
+        self._play_sound()  # playing on: its sound on the new offset (013)
 
     def _offset(self) -> int:
         camera = self._camera()
