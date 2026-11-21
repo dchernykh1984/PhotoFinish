@@ -10,10 +10,12 @@ import time
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pytest
 
 from app import paths, session
 from app.analysis import analyzer
+from app.analysis.detector import Box
 from app.recorder.segments import SegmentWriter
 from app.recorder.testcam import render
 
@@ -289,3 +291,31 @@ def test_a_camera_that_follows_the_common_line_is_timed_on_it() -> None:
     assert isinstance(keeps, analyzer.MotionWatch)
     assert follows.motion.line == ((0.3, 0.0), (0.3, 1.0))
     assert keeps.motion.line == ((0.6, 0.0), (0.6, 1.0))
+
+
+def test_a_number_read_at_a_crossing_is_read_against_the_start_protocol(
+    base: Path,
+) -> None:
+    # The session's protocol, read again as it changes (specs/014).
+    protocol = base / "start.txt"
+    protocol.write_text("37#Rider\n", encoding="utf-8")
+    saved = session.load()
+    saved["start_protocol"] = str(protocol)
+    session.save(saved)
+    asked: list[Any] = []
+
+    class Reader:
+        def read(self, rgb: Any, starters: Any = None) -> tuple[str, float]:
+            asked.append(dict(starters or {}))
+            return "37", 0.9
+
+    watch = analyzer.ModelWatch.__new__(analyzer.ModelWatch)
+    watch.numbers = Reader()  # type: ignore[assignment]
+    watch.starters = analyzer.start_numbers()
+    box = Box(0.0, 0.0, 1.0, 1.0, 0.9, 0)
+    picture = lambda: np.zeros((10, 10, 3), np.uint8)  # noqa: E731
+    assert watch._number(picture, box) == {"number": "37", "number_sure": 0.9}
+    saved["start_protocol"] = ""
+    session.save(saved)
+    watch._number(picture, box)
+    assert asked == [{"37": "37"}, {}]

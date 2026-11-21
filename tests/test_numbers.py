@@ -197,3 +197,22 @@ def test_the_models_are_given_bgr_as_paddleocr_trained_them() -> None:
     channels = given[0][0].mean(axis=(1, 2))
     assert channels[0] == pytest.approx((0 - 0.485) / 0.229, abs=0.05)  # blue first
     assert channels[2] == pytest.approx((1 - 0.406) / 0.225, abs=0.05)  # red last
+
+
+def test_with_a_start_protocol_the_surest_reading_of_a_start_number_wins() -> None:
+    # A sticker read surer than the bib: the bib all the same (specs/014).
+    rgb = np.full((96, 128, 3), 200, np.uint8)
+    two = [slice(4, 12), slice(40, 48)]
+    lines = [([2, 9], 0.85), ([3, 8], 0.97)]  # "18", then "27"
+    assert reader(lines, two).read(rgb)[0] == "27"  # type: ignore[index]
+    found = reader(lines, two).read(rgb, {"18": "18"})
+    assert found is not None
+    assert found == ("18", pytest.approx(0.85))
+    assert reader(lines, two).read(rgb, {"5": "5"}) is None  # none of the race's
+
+
+def test_a_start_number_is_given_as_the_protocol_spells_it() -> None:
+    rgb = np.full((96, 128, 3), 200, np.uint8)
+    found = reader([([1, 8], 0.9)], [slice(4, 12)]).read(rgb, {"7": "007"})  # "07"
+    assert found is not None
+    assert found[0] == "007"
