@@ -3,6 +3,7 @@ package com.dchernykh.photofinish.camera.ui
 import android.Manifest
 import android.app.Activity
 import android.content.pm.PackageManager
+import android.os.Build
 import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.SurfaceView
@@ -136,8 +137,22 @@ private fun rememberCameraPermission(): Boolean {
             ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED,
         )
     }
-    val askCamera = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted = it }
-    LaunchedEffect(Unit) { if (!granted) askCamera.launch(Manifest.permission.CAMERA) }
+    // The notification of what is left to send (specs/009, FR-006), asked once the camera's answer is in: two asked
+    // at once, Android answers the second "no" without a word.
+    val askNotify = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
+    val notify = {
+        val needed = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+        val asked = Manifest.permission.POST_NOTIFICATIONS
+        if (needed && ContextCompat.checkSelfPermission(context, asked) != PackageManager.PERMISSION_GRANTED) {
+            askNotify.launch(asked)
+        }
+    }
+    val askCamera =
+        rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+            granted = it
+            notify()
+        }
+    LaunchedEffect(Unit) { if (!granted) askCamera.launch(Manifest.permission.CAMERA) else notify() }
     return granted
 }
 
