@@ -83,7 +83,7 @@ def whose(
     heard: Callable[[Mapping[str, Any]], bool],
 ) -> Mapping[str, Any] | None:
     """Whose sound goes with ``chosen``: its own when ``heard`` says it has some, else
-    the first of its phone's other cameras that has -- its main lens's --; None."""
+    the first of its phone's other cameras that has -- the lens that kept it; None."""
     for camera in (chosen, *phone_mates(chosen, cameras)):
         if heard(camera):
             return camera

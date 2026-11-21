@@ -6,9 +6,9 @@ recorded, into MP4 -- the file QuickTime and the phones' players open --, timed 
 the moments, each frame once: a packet whose moment its piece does not list was sent
 again (specs/007) and written for the frames after it to decode, the piece before
 holding it. Where the stream's format changes -- another codec, size or header --
-the file ends and ``<name>-2.mp4`` goes on. The camera's sound -- or another's, its
-phone's main lens's -- goes beside the frames, by its moments, the pieces continuous
-but for a gap (specs/013).
+the file ends and ``<name>-2.mp4`` goes on. The phone's sound -- the camera's own,
+and its phone's other lenses' where one of them kept it -- goes beside the frames, by
+its moments, the pieces continuous but for a gap (specs/013).
 """
 
 from __future__ import annotations
