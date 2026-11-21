@@ -479,3 +479,13 @@ def test_a_sound_mp4_will_not_take_costs_the_sound_never_the_file(
     (written,) = export.export(tmp_path / "cam1", tmp_path / "Main.mp4")
     assert track_beep(written)[1] == 0
     assert read(written)[1]  # its frames all the same
+
+
+def test_a_sound_heard_in_the_middle_of_a_race_alone_is_exported(
+    tmp_path: Path,
+) -> None:
+    # The microphone allowed after the start and refused again before the end.
+    record(tmp_path / "cam1", HEARD - 20_000, 300)  # frames alone before
+    recorded(tmp_path)  # the sound's 3 s
+    record(tmp_path / "cam1", HEARD + 20_000, 300)  # frames alone after
+    assert export.has_sound(tmp_path / "cam1")

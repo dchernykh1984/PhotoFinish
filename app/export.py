@@ -259,11 +259,19 @@ class _Writer:
             out.abandon()
 
 
+SOUND_LOOKS = 10  # pieces looked into for sound: never thousands of an hour's
+
+
 def has_sound(folder: Path) -> bool:
-    """Whether a camera's first piece or its newest keeps sound (013): a microphone
-    refused at the start, or lost on the way, is found by one or the other."""
+    """Whether a camera's pieces keep sound (013): its first, its newest and some
+    evenly between -- a microphone refused at the start, lost on the way, or on in
+    the middle of the race alone, without opening every piece."""
     found = pieces(folder)
-    return bool(found) and (sound.has_sound(found[0]) or sound.has_sound(found[-1]))
+    if not found:
+        return False
+    step = max(len(found) // (SOUND_LOOKS - 1), 1)
+    looked = {0, len(found) - 1, *range(0, len(found), step)}
+    return any(sound.has_sound(found[n]) for n in sorted(looked)[: SOUND_LOOKS + 1])
 
 
 @functools.cache
