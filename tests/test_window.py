@@ -3904,3 +3904,25 @@ def test_a_lens_without_sound_is_exported_with_its_phones_main_lens_sound(
     for name in ("Side", "Tele"):
         with av.open(str(out / f"{name}.mp4")) as container:
             assert container.streams.audio, name  # its phone's sound with it
+
+
+def test_another_camera_chosen_while_playing_plays_its_own_sound(
+    phone_with_sound: Path, make_window: Callable[[], mw.MainWindow], clock: list[float]
+) -> None:
+    # The sound of the camera shown (013): chosen anew, its sound or none.
+    saved = session.load()
+    other = {**CAMERA, "id": "cam3", "name": "Other phone", "phone": "p2"}
+    saved["cameras"] = [*saved["cameras"], other]
+    session.save(saved)
+    record(phone_with_sound, START, 90, "cam3")
+    beating(phone_with_sound, "cam3")
+    win = make_window()
+    wait_until(lambda: win.moment is not None and win.place is not None)
+    heard = sounding(win)
+    win.step(-40)
+    win.play()
+    assert heard.calls[-1][:2] == ("play", win.cameras["cam1"].index)
+    win.camera_list.setCurrentRow(2)  # another phone's, without sound
+    assert heard.calls[-1] == ("stop",)
+    win.camera_list.setCurrentRow(1)  # the main lens's phone again: its sound
+    assert heard.calls[-1][:2] == ("play", win.cameras["cam1"].index)
