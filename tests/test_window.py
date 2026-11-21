@@ -3829,6 +3829,9 @@ class Heard:
     def stop(self) -> None:
         self.calls.append(("stop",))
 
+    def follow(self) -> None:
+        self.calls.append(("follow",))
+
 
 @pytest.fixture
 def phone_with_sound(base: Path) -> Path:
@@ -3930,24 +3933,20 @@ def test_another_camera_chosen_while_playing_plays_its_own_sound(
     assert heard.calls[-1][:2] == ("play", win.cameras["cam1"].index)
 
 
-def test_a_sound_that_ran_out_as_the_recording_grew_goes_on(
+def test_the_sound_follows_the_recording_as_the_window_polls(
     phone_with_sound: Path, make_window: Callable[[], mw.MainWindow], clock: list[float]
 ) -> None:
-    # Playing behind live: the segments closed since the sound began are heard too.
+    # Playing behind live: the segments closed since the sound began are heard on,
+    # the player told at each poll, never started again.
     win = make_window()
     wait_until(lambda: win.moment is not None and win.place is not None)
     heard = sounding(win)
     win.step(-40)
     win.play()
-    plays = len(heard.calls)
-    heard.ended = True
+    plays = sum(call[0] == "play" for call in heard.calls)
     win.poll()
-    assert len(heard.calls) == plays  # the recording no longer: its sound is over
-    index = win.cameras["cam1"].index
-    index.paths.append(index.paths[-1])  # a segment closed meanwhile
-    win.poll()
-    assert len(heard.calls) == plays + 1
-    assert heard.calls[-1][:2] == ("play", index)
+    assert heard.calls[-1] == ("follow",)
+    assert sum(call[0] == "play" for call in heard.calls) == plays
 
 
 def test_a_lens_exported_with_its_phones_sound_takes_it_on_their_offsets(

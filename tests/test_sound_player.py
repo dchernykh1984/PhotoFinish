@@ -3,14 +3,20 @@
 from __future__ import annotations
 
 import threading
+import time
+from collections.abc import Callable
 from pathlib import Path
 
+import av
 import numpy as np
 import pytest
+from PySide6.QtWidgets import QApplication
 
+from app.recorder.segments import SegmentWriter, fraction, in_ms
+from app.video_index import VideoIndex
 from app.widgets import sound as player
 from tests.conftest import wait_until
-from tests.test_sound import RATE, START, beep_at, recorded
+from tests.test_sound import RATE, START, beep_at, beeping, recorded
 
 
 def still() -> float:
@@ -35,6 +41,9 @@ class Output:
         return len(took)
 
     def bytesFree(self) -> int:  # noqa: N802 - Qt's name
+        return self.free
+
+    def bufferSize(self) -> int:  # noqa: N802 - Qt's name
         return self.free
 
     def stop(self) -> None:
@@ -113,7 +122,7 @@ def test_the_sound_says_it_has_ended_once_all_of_it_is_given(tmp_path: Path) -> 
         output=lambda: (output, player.RATE, player.CHANNELS), clock=still
     )
     assert not played.ended  # nothing played: nothing ended
-    played.play(index, START + 2500, 1.0)
+    played.play(index, START + 2500, 1.0, follows=False)
     wait_until(lambda: played.ended)  # the half second left, given whole
     assert len(output.taken) == pytest.approx(4 * RATE * 0.5, rel=0.2)
     played.stop()
@@ -146,7 +155,7 @@ def test_a_start_longer_than_the_sound_rendered_ahead_is_left_out_whole(
     now = [100.0]
     made = (output, player.RATE, player.CHANNELS)
     played = player.SoundPlayer(output=lambda: made, clock=lambda: now[0])
-    played.play(index, START, 1.0)
+    played.play(index, START, 1.0, follows=False)
     now[0] += 1.0
     wait_until(lambda: played.ended)
     assert beep_at(heard(output)) == pytest.approx(0.5, abs=0.05)  # 1.5 s in, less 1
@@ -164,7 +173,7 @@ def test_a_sound_that_cannot_be_rendered_has_ended_for_the_window_to_play_on(
     monkeypatch.setattr(player.sound.Renderer, "read", broken)
     made = (Output(), player.RATE, player.CHANNELS)
     played = player.SoundPlayer(output=lambda: made, clock=still)
-    played.play(index, START, 1.0)
+    played.play(index, START, 1.0, follows=False)
     wait_until(lambda: played.ended)
     played.stop()
 
@@ -199,3 +208,80 @@ def test_a_stopped_rendering_ending_late_leaves_the_next_ones_end_alone() -> Non
 
     played._render(Ended(), stopped)  # type: ignore[arg-type]
     assert played._rendered
+
+
+def growing(tmp_path: Path) -> tuple[VideoIndex, Callable[[], None]]:
+    """The beeping stream's first second recorded, and what records the rest: a
+    recording that grows as it plays."""
+    beeping(tmp_path / "phone.mkv", 3)
+    folder = tmp_path / "cam1"
+    # Open as long as the writing lasts: a segment takes its streams from it.
+    container = av.open(str(tmp_path / "phone.mkv"))
+    packets = [p for p in container.demux() if p.pts is not None]
+    kinds: list[str] = [p.stream.type for p in packets]
+
+    def write(part: list[tuple[av.Packet, str]]) -> None:
+        writer = SegmentWriter(folder, fps=30)
+        for packet, kind in part:
+            ms = START + in_ms(packet.pts or 0, fraction(packet.time_base))
+            if kind == "video":
+                writer.write_packet(packet, ms)
+            else:
+                writer.write_audio(packet, ms)
+        writer.close()
+
+    both: list[tuple[av.Packet, str]] = list(zip(packets, kinds, strict=True))
+    cut = next(
+        n
+        for n, (p, kind) in enumerate(both)
+        if kind == "video" and in_ms(p.pts or 0, fraction(p.time_base)) >= 1000
+    )
+    write(both[:cut])
+    index = VideoIndex(folder)
+    index.refresh()
+
+    def grow() -> None:
+        write(both[cut:])
+        index.refresh()
+
+    return index, grow
+
+
+def test_the_sound_follows_the_segments_its_recording_gains_as_it_plays(
+    tmp_path: Path,
+) -> None:
+    # Played behind live: the beep in a segment closed after play began is heard.
+    index, grow = growing(tmp_path)
+    output = Output()
+    made = (output, player.RATE, player.CHANNELS)
+    played = player.SoundPlayer(output=lambda: made, clock=still)
+    played.play(index, START, 1.0)
+    wait_until(lambda: len(output.taken) > 4 * RATE * 0.7)
+    grow()
+    played.follow()
+    wait_until(lambda: len(output.taken) > 4 * RATE * 2.0)
+    assert beep_at(heard(output)) == pytest.approx(1.5, abs=0.03)
+    played.stop()
+
+
+def test_the_time_the_output_ran_dry_is_left_out_so_the_sound_keeps_up(
+    tmp_path: Path,
+) -> None:
+    # The sound waited 0.4 s for a segment as the picture played on: that much of
+    # what came after it is left out.
+    index, grow = growing(tmp_path)
+    output = Output()
+    now = [100.0]
+    made = (output, player.RATE, player.CHANNELS)
+    played = player.SoundPlayer(output=lambda: made, clock=lambda: now[0])
+    played.play(index, START, 1.0)
+    wait_until(lambda: len(output.taken) > 4 * RATE * 0.7)
+    time.sleep(0.3)
+    QApplication.processEvents()
+    played._pump()  # dry: the first second given, none left
+    now[0] += 0.4
+    grow()
+    played.follow()
+    wait_until(lambda: len(output.taken) > 4 * RATE * 1.8)
+    assert beep_at(heard(output)) == pytest.approx(1.5 - 0.4, abs=0.05)
+    played.stop()

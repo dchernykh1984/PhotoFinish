@@ -14,7 +14,7 @@ keeps the pitch.
 from __future__ import annotations
 
 import heapq
-import itertools
+import threading
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
 from fractions import Fraction
@@ -33,6 +33,9 @@ from app.video_index import VideoIndex, read_times
 GAP_MS = 10
 PREROLL_MS = 50  # decoded before the moment asked and dropped: no click as it begins
 SILENCE_MS = 100  # a gap's silence made this much at a time
+# Following a recording, its last segment's sound is given up to this long before its
+# last frame: a piece and the frame beside it lie this far apart in a stream at most.
+FOLLOW_SLACK_MS = 200
 # atempo's range: faster in one stage, as each stage's window puts the sound earlier
 # by its lag -- x4 some 40 ms on the recording's time, two stages of x2 some 70 --;
 # slower chained, from x0.5 down.
@@ -99,30 +102,90 @@ def has_sound(path: Path) -> bool:
         return False
 
 
-def pieces(index: VideoIndex, from_ms: int) -> Iterator[Piece]:
+def pieces(index: VideoIndex, from_ms: int, follows: bool = False) -> Pieces:
     """The camera's pieces of sound from ``from_ms`` on its own times, in order, each
     once -- and the one before it, PREROLL_MS, for a decoder to begin on --: from the
     segment before the one of the frame at ``from_ms``, whose sound may reach past
     its end. The segments are listed now, on the caller's thread, which refreshes
-    the index; their files are read as the pieces are asked for."""
+    the index; their files are read as the pieces are asked for. ``follows``: the
+    recording grows as it plays, the segments closed since added (Pieces.extend)."""
     place = index.at_or_before(from_ms)
-    return _in_order([] if place is None else index.segments_from(place), from_ms)
+    found = [] if place is None else index.segments_from(place)
+    return Pieces(found, from_ms, follows)
 
 
-def _in_order(found: list[Path], from_ms: int) -> Iterator[Piece]:
-    held: list[Piece] = []
-    last_end: int | None = None
-    for path, after in itertools.zip_longest(found, found[1:]):
-        held.extend(_pieces_of(path))
-        heapq.heapify(held)
-        # A piece of the next segment comes LEAD_MS before its first frame at most.
-        safe = _first_ms(after) - LEAD_MS if after is not None else None
-        while held and (safe is None or held[0].ms < safe):
+class Pieces:
+    """A camera's pieces of sound, in order, each once (an iterator) -- of the
+    segments listed as it was made, and, following a recording that grows, of those
+    ``extend`` adds: at the last listed it gives the pieces no next segment's can come
+    before, and waits for more until ``finish``."""
+
+    def __init__(self, found: list[Path], from_ms: int, follows: bool) -> None:
+        self._found = list(found)
+        self._from_ms = from_ms
+        self._more = threading.Condition()
+        self._finished = not follows
+        self._made = self._in_order()
+
+    def __iter__(self) -> Pieces:
+        return self
+
+    def __next__(self) -> Piece:
+        return next(self._made)
+
+    def extend(self, paths: Iterable[Path]) -> None:
+        """Segments closed since, in the order they closed: on the caller's thread."""
+        with self._more:
+            known = set(self._found)
+            self._found.extend(path for path in paths if path not in known)
+            self._more.notify_all()
+
+    def finish(self) -> None:
+        """No more to wait for: what is held given, then the end."""
+        with self._more:
+            self._finished = True
+            self._more.notify_all()
+
+    def _segment(self, k: int, waits: bool) -> Path | None:
+        """The ``k``-th segment; ``waits``, until it comes or there are no more."""
+        with self._more:
+            while waits and k >= len(self._found) and not self._finished:
+                self._more.wait(0.2)
+            return self._found[k] if k < len(self._found) else None
+
+    def _in_order(self) -> Iterator[Piece]:
+        held: list[Piece] = []
+        last_end: int | None = None
+        k, path = 0, self._segment(0, waits=True)
+        while path is not None:
+            held.extend(_pieces_of(path))
+            heapq.heapify(held)
+            after = self._segment(k + 1, waits=False)
+            if after is not None:
+                # A piece of the next segment comes LEAD_MS before its first frame at
+                # most.
+                safe: int | None = _first_ms(after) - LEAD_MS
+            elif not self._finished:
+                # Waiting for the next: what comes before the last frame by more
+                # than sound and frames lie apart in a stream.
+                safe = _last_ms(path) - FOLLOW_SLACK_MS
+            else:
+                safe = None
+            while held and (safe is None or held[0].ms < safe):
+                piece = heapq.heappop(held)
+                if piece.end_ms <= self._from_ms - PREROLL_MS:
+                    continue  # before the moment asked
+                if last_end is not None and piece.ms < last_end - _half(piece):
+                    continue  # heard already: sent again, or kept by a run before
+                last_end = piece.end_ms
+                yield piece
+            k, path = k + 1, self._segment(k + 1, waits=True)
+        while held:  # finished: the rest, in order
             piece = heapq.heappop(held)
-            if piece.end_ms <= from_ms - PREROLL_MS:
-                continue  # before the moment asked
+            if piece.end_ms <= self._from_ms - PREROLL_MS:
+                continue
             if last_end is not None and piece.ms < last_end - _half(piece):
-                continue  # heard already: sent again, or kept by a run before
+                continue
             last_end = piece.end_ms
             yield piece
 
@@ -134,6 +197,11 @@ def _half(piece: Piece) -> int:
 def _first_ms(path: Path) -> int:
     times = read_times(path)
     return int(times[0, 1]) if times is not None and len(times) else 0
+
+
+def _last_ms(path: Path) -> int:
+    times = read_times(path)
+    return int(times[-1, 1]) if times is not None and len(times) else 0
 
 
 def _pieces_of(path: Path) -> list[Piece]:

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import threading
+import time
 from pathlib import Path
 
 import av
@@ -254,3 +256,22 @@ def test_a_piece_that_cannot_be_decoded_costs_its_own_length_alone(
     samples = np.frombuffer(out, np.int16).reshape(-1, 2)[:, 0]
     assert samples.size / RATE == pytest.approx(3.0, abs=0.1)
     assert beep_at(samples) == pytest.approx(1.5, abs=0.03)
+
+
+def test_pieces_follow_a_recording_that_grows_until_finished(tmp_path: Path) -> None:
+    # Played behind live: the segments closed since are heard on, in order, each once.
+    index = recorded(tmp_path)
+    first, *later = index.paths
+    found = sound.Pieces([first], START, follows=True)
+    got: list[int] = []
+    reader = threading.Thread(target=lambda: got.extend(p.ms for p in found))
+    reader.start()
+    time.sleep(0.3)
+    assert got and max(got) < START + 1000  # the first second, then waiting
+    found.extend(later)
+    time.sleep(0.3)
+    assert reader.is_alive()  # waiting for more
+    found.finish()
+    reader.join(timeout=5)
+    assert got == sorted(got)
+    assert got[-1] - got[0] == pytest.approx(3000, abs=60)
