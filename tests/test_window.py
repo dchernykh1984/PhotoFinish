@@ -3820,11 +3820,9 @@ class Heard:
 
     def __init__(self) -> None:
         self.calls: list[tuple[Any, ...]] = []
-        self.ended = False
 
     def play(self, index: Any, from_ms: int, rate: float) -> None:
         self.calls.append(("play", index, from_ms, rate))
-        self.ended = False
 
     def stop(self) -> None:
         self.calls.append(("stop",))
