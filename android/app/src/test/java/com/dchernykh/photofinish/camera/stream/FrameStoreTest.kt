@@ -225,19 +225,21 @@ class FrameStoreTest {
         read(store, 1)
         assertEquals(true, store.unsent) // none confirmed: perhaps swallowed by a dead connection
         store.confirm(0)
-        assertEquals(false, store.unsent) // 0.9 s past the newest confirmed: the acknowledgements' window
+        assertEquals(true, store.unsent) // 0.9 s past the newest confirmed: the recorder may not have it
+        store.confirm(900_000)
+        assertEquals(false, store.unsent)
     }
 
     @Test
-    fun `frames read and not confirmed a second past the newest confirmed are not taken for sent`() {
+    fun `frames read and not confirmed are not taken for sent, however near the newest confirmed`() {
         val store = store()
         second(store, 0)
         second(store, 1)
         second(store, 2)
         read(store, 30) // up to 2.9 s, written to a connection that died
-        store.confirm(500_000)
-        assertEquals(true, store.unsent)
         store.confirm(2_000_000)
+        assertEquals(true, store.unsent) // its last 0.9 s may never reach the recorder
+        store.confirm(2_900_000)
         assertEquals(false, store.unsent)
     }
 

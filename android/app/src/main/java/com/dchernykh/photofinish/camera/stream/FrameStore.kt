@@ -372,15 +372,15 @@ class FrameStore(
     }
 
     /**
-     * A frame kept and not sent yet -- one as much as many -- or sent and not confirmed, [UNCONFIRMED_US] or more past
-     * the newest the server confirmed: a dead connection may have swallowed it, to be sent again from there. The
-     * acknowledgements' own window, under it, is not waited for, no frame coming after to bring them.
+     * A frame kept and not sent yet -- one as much as many -- or sent and not confirmed: a dead connection may have
+     * swallowed it, to be sent again from there. Idle, the uplink asks the server to confirm a tail its
+     * acknowledgements leave unsaid, so a stream is done once the recorder has read it all, never before.
      */
     val unsent: Boolean
         get() =
             lock.withLock {
                 val read = lastReadUs
-                nextEntry() != null || read != null && read - (confirmedUs ?: Long.MIN_VALUE / 2) >= UNCONFIRMED_US
+                nextEntry() != null || read != null && read > (confirmedUs ?: Long.MIN_VALUE)
             }
 
     /** The frame the uplink reads next, if one is kept; the caller holds the lock. */
@@ -660,9 +660,6 @@ class FrameStore(
 
         /** A gap between two runs longer than this is a while no camera fed the stream: counted as this much video. */
         const val UNFED_FROM_US = 1_000_000L
-
-        /** Frames read and not confirmed this far past the newest confirmed: perhaps swallowed, not taken for sent. */
-        const val UNCONFIRMED_US = 1_000_000L
 
         /**
          * How far before the newest frame read it begins when the server confirms nothing: a send hangs 5 s before
