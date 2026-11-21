@@ -3974,12 +3974,26 @@ def test_whose_sound_plays_is_chosen_where_playing_goes_on_from(
 ) -> None:
     # A gap jumped over: the sound's camera chosen on its far side, not on the frame
     # still shown before it.
+    record(phone_with_sound, START + 10_000, 30)  # cam1 after its sound: frames alone
     win = make_window()
     wait_until(lambda: win.moment is not None and win.place is not None)
     heard = sounding(win)
-    win.step(-40)
+    win.seek_ms(START + 1500)
     win.play()
     assert heard.calls[-1][0] == "play"
-    win._play_start = (clock[0], START + 600_000)  # on past the recording's sound
+    win._play_start = (clock[0], START + 10_500)  # on past the recording's sound
     win._play_sound()
     assert heard.calls[-1] == ("stop",)
+
+
+def test_play_from_before_the_sound_began_plays_it_as_it_comes(
+    phone_with_sound: Path, make_window: Callable[[], mw.MainWindow], clock: list[float]
+) -> None:
+    # The microphone allowed later: played from before, its sound comes in its turn.
+    record(phone_with_sound, START - 5000, 60)  # cam1's frames alone before it
+    win = make_window()
+    wait_until(lambda: win.moment is not None and win.place is not None)
+    heard = sounding(win)
+    win.seek_ms(START - 4000)
+    win.play()
+    assert heard.calls[-1][:2] == ("play", win.cameras["cam1"].index)
