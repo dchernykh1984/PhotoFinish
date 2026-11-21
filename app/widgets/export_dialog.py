@@ -77,7 +77,9 @@ class ExportJob(QObject):
 
     def stop(self, wait_s: float) -> None:
         """Cancelled, waited for up to ``wait_s``: the program closing removes the
-        file under way rather than leaving it half written."""
+        file under way rather than leaving it half written -- unless a piece takes
+        longer than that to read, its ``<name>.mp4.part`` then left, named as not
+        finished, and taken by no later export."""
         self.cancel()
         if self._thread.is_alive():
             self._thread.join(wait_s)

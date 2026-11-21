@@ -2063,7 +2063,7 @@ class MainWindow(QMainWindow):
             if job is not None:
                 job.cancel()
         self._job = self._numbers_job = None
-        if self._export_job is not None:  # its file under way removed, not left half
+        if self._export_job is not None:  # its file under way removed (or a .part left)
             self._export_job.stop(EXPORT_STOP_S)
             self._export_job = None
         for camera in self.cameras.values():
