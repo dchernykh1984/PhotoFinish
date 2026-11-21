@@ -5,11 +5,14 @@ from __future__ import annotations
 from pathlib import Path
 
 import av
+import numpy as np
 import pytest
 
 from app import export
 from app.recorder.segments import SegmentWriter
 from app.recorder.testcam import render
+from tests.test_sound import START as HEARD
+from tests.test_sound import recorded
 
 START = 1_795_000_000_000
 
@@ -362,3 +365,44 @@ def test_each_camera_goes_up_to_the_last_piece_closed_as_the_export_began(
 
     written, _, _ = export.export_all(jobs, recording)
     assert read(written[1])[1] == [k * 33 for k in range(40)]  # not the minute after
+
+
+def track_beep(path: Path) -> tuple[float, int]:
+    """Where the beep is in an exported file's sound, seconds from its start, and the
+    file's sound streams."""
+    with av.open(str(path)) as container:
+        if not container.streams.audio:
+            return -1.0, 0
+        audio = container.streams.audio[0]
+        samples = np.concatenate(
+            [frame.to_ndarray()[0] for frame in container.decode(audio)]
+        )
+        start = float(audio.start_time * audio.time_base) if audio.start_time else 0.0
+        loud = np.flatnonzero(np.abs(samples) > 0.1)
+        return start + loud[0] / audio.sample_rate, len(container.streams.audio)
+
+
+def test_an_exported_file_has_its_sound_in_step_with_the_picture(
+    tmp_path: Path,
+) -> None:
+    # specs/013: the beep 1.5 s into the recording, heard 1.5 s into the file.
+    recorded(tmp_path)
+    (written,) = export.export(tmp_path / "cam1", tmp_path / "Main.mp4")
+    beep, streams = track_beep(written)
+    assert streams == 1
+    assert beep == pytest.approx(1.5, abs=0.03)
+
+
+def test_a_lens_without_sound_is_exported_with_its_phones(tmp_path: Path) -> None:
+    recorded(tmp_path)
+    record(tmp_path / "cam2", HEARD, 60)  # the telephoto, frames alone, beside it
+    (alone,) = export.export(tmp_path / "cam2", tmp_path / "Tele.mp4")
+    assert track_beep(alone)[1] == 0  # no sound of its own
+    written, error, _ = export.export_all(
+        [(tmp_path / "cam2", tmp_path / "Tele2.mp4")],
+        sounds={tmp_path / "cam2": tmp_path / "cam1"},
+    )
+    assert error == ""
+    beep, streams = track_beep(written[0])
+    assert streams == 1
+    assert beep == pytest.approx(1.5, abs=0.03)
