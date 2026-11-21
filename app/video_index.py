@@ -53,6 +53,7 @@ class VideoIndex:
         self.folder = folder
         self.paths: list[Path] = []
         self._ends: list[int] = []  # each segment's newest frame's moment, as paths
+        self._ends_array = np.empty(0, np.int64)  # made anew as segments come
         self.gaps: list[Gap] = []
         # Every frame's moment ascending, its pts, its segment (into paths): views of
         # buffers that double as they fill, so a new segment copies only itself.
@@ -182,7 +183,9 @@ class VideoIndex:
     def segments_ending_from(self, ms: int) -> Iterator[Path]:
         """The segments with a frame at or after ``ms``, in the order they closed: a
         look at each segment's newest frame, never at the frames."""
-        for k in np.flatnonzero(np.asarray(self._ends, np.int64) >= ms):
+        if len(self._ends_array) != len(self._ends):
+            self._ends_array = np.asarray(self._ends, np.int64)
+        for k in np.flatnonzero(self._ends_array >= ms):
             yield self.paths[int(k)]
 
     def frame(self, place: int) -> Frame:
