@@ -88,10 +88,6 @@ def span(ms: int) -> str:
 
 
 def _number(value: object) -> int | None:
-    """A reading as written, as a whole number; None when it is none: what comes
-    over the network is not to stop the window."""
-    try:
-        number = float(str(value)) if value is not None else None
-    except ValueError:
-        return None
-    return int(number) if number is not None and math.isfinite(number) else None
+    """A reading as a whole number, read as the phone's other readings are."""
+    found = phone_status.number(value)
+    return None if found is None else int(found)
