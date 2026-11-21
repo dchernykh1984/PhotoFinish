@@ -43,13 +43,13 @@ app/main_window.py                    the Sound switch; the sound started and st
   after a loss --, and the readers drop a piece that overlaps the one before.
 - **Played on one decoder.** The pieces of consecutive segments go through one AAC decoder, so
   the sound runs on across a segment's end; FFmpeg's `atempo` changes the speed and keeps the
-  pitch, chained for x1/16 to x16.
+  pitch: one stage faster, as each stage's window lags, x0.5 stages chained slower.
 - **In step.** The sound starts at the moment playing starts from, at its rate, its output's
   buffer skipped; a jump -- a gap, a new rate, a seek -- starts it again from there. A play is
   seconds to minutes: the sound card's clock drifting from the computer's, some 20 ppm, is not
   corrected.
 - **Whose sound.** The camera shown, if its recording has sound; else the camera of the same
-  phone whose recording has (`phone` in a lens's settings).
+  phone whose recording has (the `phone` the camera dialog notes on a phone's lenses).
 
 ## Tests
 
