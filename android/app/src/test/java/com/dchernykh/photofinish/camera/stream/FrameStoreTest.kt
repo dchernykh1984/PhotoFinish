@@ -378,8 +378,12 @@ class FrameStoreTest {
         second(store, 0)
         second(store, 600) // the screen away ten minutes, the stream fed again
         assertEquals(2_800L, store.pending.ms) // two seconds of frames and a second for the gap, not ten minutes
+        assertEquals(2_800L, store.behindMs) // as the other lenses ask it, its bytes not counted
         read(store, 10)
         assertEquals(900L, store.pending.ms)
+        assertEquals(900L, store.behindMs)
+        read(store, 10)
+        assertEquals(0L, store.behindMs)
     }
 
     @Test

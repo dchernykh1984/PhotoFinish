@@ -343,6 +343,20 @@ class FrameStore(
             }
 
     /**
+     * How far behind the stream is, ms -- the video held from the next frame on, as [pending] says it -- without its
+     * bytes counted: the other lenses ask at every frame ([com.dchernykh.photofinish.camera.capture.PriorityBoard]),
+     * so the runs are walked only when what is held is longer than a gap would be counted.
+     */
+    val behindMs: Long
+        get() =
+            lock.withLock {
+                val next = nextEntry() ?: return 0
+                val last = runs.last().frames
+                val span = last.ptsUs(last.size - 1) - next.ptsUs
+                if (span <= UNFED_FROM_US) maxOf(span, 0) / 1000 else maxOf(span - unfedUs(next.ptsUs), 0) / 1000
+            }
+
+    /**
      * The whiles no camera fed the stream after [fromUs] -- the screen away, a camera opened again --: the gaps
      * between runs past [UNFED_FROM_US], no video held (specs/009, FR-008).
      */
