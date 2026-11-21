@@ -302,6 +302,19 @@ class BacklogTest {
     }
 
     @Test
+    fun `what an earlier run left goes before this run's, whatever the clock said`() {
+        val left = kept(began = 9_000) // the clock ahead then
+        backlog.readBack()
+        val folder = File(root, "main-100-run2") // this run's, the clock set back since
+        val store = FrameStore(folder, freeBytes = { Long.MAX_VALUE })
+        store.keep(EncodedFrame(ByteArray(10), 0, true), 1)
+        StreamHeader(Lens.MAIN, first, format, byteArrayOf(1)).write(folder)
+        backlog.handOver(store, first) {}
+        backlog.tick()
+        assertEquals(listOf(left.name), started.map { it.folder.name })
+    }
+
+    @Test
     fun `discard stops and drops every stream kept`() {
         kept(began = 100)
         kept(began = 200, address = second)

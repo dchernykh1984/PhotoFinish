@@ -68,7 +68,7 @@ class Backlog(
     fun readBack() {
         try {
             root
-                .listFiles { file -> file.isDirectory && !(session.isNotEmpty() && file.name.endsWith("-$session")) }
+                .listFiles { file -> file.isDirectory && !mine(file) }
                 ?.sortedBy { began(it) }
                 ?.forEach { readBack(it) }
         } finally {
@@ -185,7 +185,7 @@ class Backlog(
                         .groupBy { it.header.address }
                         .values
                         .forEach { streams ->
-                            val oldest = streams.minBy { began(it.folder) }
+                            val oldest = streams.minWith(compareBy({ mine(it.folder) }, { began(it.folder) }))
                             if (streams.none { it.sending != null }) oldest.sending = send(oldest.header, oldest.store)
                         }
                 }
@@ -250,6 +250,9 @@ class Backlog(
         }
         folders.forEach { it.deleteRecursively() }
     }
+
+    /** A folder of this run's: after every one an earlier run left, whatever the clock said when each began. */
+    private fun mine(folder: File): Boolean = session.isNotEmpty() && folder.name.endsWith("-$session")
 
     companion object {
         private const val MS_PER_S = 1_000
