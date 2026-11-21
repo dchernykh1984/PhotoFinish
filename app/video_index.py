@@ -10,7 +10,7 @@ its place in that order. Gaps come from ``gaps.txt``.
 from __future__ import annotations
 
 import threading
-from collections.abc import Iterator
+from collections.abc import Set as AbstractSet
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from fractions import Fraction
@@ -53,7 +53,6 @@ class VideoIndex:
         self.folder = folder
         self.paths: list[Path] = []
         self._ends: list[int] = []  # each segment's newest frame's moment, as paths
-        self._ends_array = np.empty(0, np.int64)  # made anew as segments come
         self.gaps: list[Gap] = []
         # Every frame's moment ascending, its pts, its segment (into paths): views of
         # buffers that double as they fill, so a new segment copies only itself.
@@ -180,13 +179,12 @@ class VideoIndex:
         found = np.nonzero((self._segment == segment) & (self._pts == frame.pts))[0]
         return int(found[0]) if found.size else None
 
-    def segments_ending_from(self, ms: int) -> Iterator[Path]:
-        """The segments with a frame at or after ``ms``, in the order they closed: a
-        look at each segment's newest frame, never at the frames."""
-        if len(self._ends_array) != len(self._ends):
-            self._ends_array = np.asarray(self._ends, np.int64)
-        for k in np.flatnonzero(self._ends_array >= ms):
-            yield self.paths[int(k)]
+    def newest_end_of(self, stems: AbstractSet[str]) -> int | None:
+        """The newest frame's moment of the segments named in ``stems``; None when
+        none of them is listed: a look at each segment's end, never at the frames."""
+        segments = zip(self.paths, self._ends, strict=True)
+        ends = [end for path, end in segments if path.stem in stems]
+        return max(ends) if ends else None
 
     def frame(self, place: int) -> Frame:
         place = min(max(place, 0), len(self) - 1)
