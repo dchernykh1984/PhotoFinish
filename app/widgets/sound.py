@@ -175,7 +175,8 @@ class SoundPlayer(QObject):
                     self._chunks.append(chunk)
                     self._held += len(chunk)
         except Exception as error:  # a sound that cannot be played is not heard
-            self.failed.emit(f"The sound cannot be played: {error}")
+            if not stopped.is_set():  # replaced: the one playing now has not failed
+                self.failed.emit(f"The sound cannot be played: {error}")
 
     def _pump(self) -> None:
         """What the output has room for, given it; the first time, the time since
