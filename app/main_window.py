@@ -6,7 +6,7 @@ from __future__ import annotations
 import html
 import math
 import time
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path
@@ -95,7 +95,7 @@ from app.recorder.launcher import (
     recording,
 )
 from app.recorder.phone_log import last_word
-from app.sound import has_sound, shift_ms, whose
+from app.sound import playing_from, shift_ms, whose
 from app.start_protocol import StartNumbers
 from app.video_index import FileIndex, Frame, VideoIndex
 from app.widgets import export_dialog
@@ -2027,22 +2027,12 @@ class MainWindow(QMainWindow):
         if chosen is None:
             return None
 
-        def heard_there(settings: Mapping[str, Any]) -> bool:
-            index = self.cameras[str(settings["id"])].index
-            own = moment - int(settings.get("offset_ms", 0))
-            place = index.nearest(own, within=NEAR_MS)
-            return place is not None and has_sound(index.frame(place).path)
-
-        def heard_later(settings: Mapping[str, Any]) -> bool:
-            # In its newest segment, in time: one allowed the microphone later is
-            # heard in its turn, the pieces following as it plays.
-            index = self.cameras[str(settings["id"])].index
-            newest = len(index) - 1
-            return newest >= 0 and has_sound(index.frame(newest).path)
-
-        cameras = [c.settings for c in self.cameras.values()]
-        found = whose(chosen.settings, cameras, heard_there) or whose(
-            chosen.settings, cameras, heard_later
+        found = playing_from(
+            chosen.settings,
+            [c.settings for c in self.cameras.values()],
+            lambda settings: self.cameras[str(settings["id"])].index,
+            moment,
+            NEAR_MS,
         )
         return None if found is None else self.cameras[str(found["id"])]
 
