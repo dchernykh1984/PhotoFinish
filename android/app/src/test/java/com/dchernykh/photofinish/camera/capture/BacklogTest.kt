@@ -136,6 +136,7 @@ class BacklogTest {
         assertEquals(FrameStore.Pending(1_900, 2_050), backlog.pending())
         off()
         assertEquals(FrameStore.Pending(1_900, 2_000), backlog.pending())
+        backlog.readBack() // what a crash left read back: then it starts
         backlog.tick()
         assertEquals(1, started.size)
     }
@@ -265,6 +266,21 @@ class BacklogTest {
         backlog.readBack()
         assertFalse(old.exists())
         assertEquals(FrameStore.Pending(0, 0), backlog.pending())
+    }
+
+    @Test
+    fun `a stream handed over before the read back ends waits, and the oldest of its address goes first`() {
+        val older = kept(began = 100)
+        val newer = File(root, "main-500-run2")
+        val store = FrameStore(newer, freeBytes = { Long.MAX_VALUE })
+        store.keep(EncodedFrame(ByteArray(10), 0, true), 1)
+        StreamHeader(Lens.MAIN, first, format, byteArrayOf(1)).write(newer)
+        backlog.handOver(store) {} // in while the read back has not run
+        backlog.tick()
+        assertTrue(started.isEmpty()) // nothing sent before all is read back
+        backlog.readBack()
+        backlog.tick()
+        assertEquals(listOf(older.name), started.map { it.folder.name })
     }
 
     @Test

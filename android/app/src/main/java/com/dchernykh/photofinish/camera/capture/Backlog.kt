@@ -164,13 +164,17 @@ class Backlog(
                 val done = kept.filter { stream -> stream.sending?.uplink?.unsent == false }
                 done.forEach { it.sending?.stop() } // a socket's close: quick
                 kept.removeAll(done)
-                kept
-                    .groupBy { it.header.address }
-                    .values
-                    .forEach { streams ->
-                        val oldest = streams.first()
-                        if (streams.none { it.sending != null }) oldest.sending = send(oldest.header, oldest.store)
-                    }
+                // None started before all is read back, then the oldest of each address by when it began: a stream
+                // handed over meanwhile is newer than what a crash left, whatever came in first.
+                if (ready) {
+                    kept
+                        .groupBy { it.header.address }
+                        .values
+                        .forEach { streams ->
+                            val oldest = streams.minBy { began(it.folder) }
+                            if (streams.none { it.sending != null }) oldest.sending = send(oldest.header, oldest.store)
+                        }
+                }
                 done
             }
         finished.forEach {
