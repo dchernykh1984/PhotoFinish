@@ -639,8 +639,13 @@ def _copy_whole(
         sound = out.add_stream_from_template(heard[0]) if heard else None
         for packet, pts in _whole(video):
             if packet.stream.type == "audio":
+                if sound is None:
+                    continue
                 packet.stream = sound
-                out.mux(packet)
+                try:
+                    out.mux(packet)
+                except av.FFmpegError:
+                    sound = None  # a sound the copy refuses costs the sound alone
             elif pts in frames:
                 packet.stream = into
                 out.mux(packet)
