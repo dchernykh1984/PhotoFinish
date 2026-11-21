@@ -188,14 +188,17 @@ def shift_ms(own: Mapping[str, Any], heard: Mapping[str, Any]) -> int:
 
 def exported_sound(
     own: Mapping[str, Any], cameras: Iterable[Mapping[str, Any]]
-) -> tuple[Path, int] | None:
-    """Whose sound ``own``'s exported file takes: a camera's of its phone, when its
-    own recording kept none and that one's did, with how much later that sound goes
-    -- the two offsets apart, as it plays --; None, its own or none."""
-    found = whose(own, cameras, lambda c: heard_somewhere(folder_of(str(c["id"]))))
-    if found is None or found is own:
-        return None
-    return folder_of(str(found["id"])), shift_ms(own, found)
+) -> list[tuple[Path, int]]:
+    """Whose sound ``own``'s exported file takes: its own and its phone's other
+    lenses' that kept some -- the phone's sound, whichever lens kept it at each
+    moment, as it plays --, each with how much later it goes: the two offsets apart.
+    None kept any: none."""
+    phone = [own, *phone_mates(own, cameras)]
+    return [
+        (folder_of(str(camera["id"])), shift_ms(own, camera))
+        for camera in phone
+        if heard_somewhere(folder_of(str(camera["id"])))
+    ]
 
 
 def pieces(

@@ -314,8 +314,9 @@ recorded, all ticked; each ticked becomes one MP4 in a folder chosen, named afte
 number added when the name is taken. The frames are copied as recorded, not encoded again, timed
 by their moments, each once -- a frame the phone sent again is skipped --, from the first keyframe;
 a gap stays a gap. Where the stream's format changes, the file ends and `<name>-2.mp4` goes on.
-H.265 is tagged `hvc1`, as QuickTime wants it. Each file has its camera's sound -- a lens without,
-its phone's main lens's -- in step with the picture, the pieces continuous but for a gap
+H.265 is tagged `hvc1`, as QuickTime wants it. Each file has its phone's sound -- its camera's
+own, and its phone's other lenses' where one of them kept it, as the microphone went with the
+first lens not left out -- in step with the picture, the pieces continuous but for a gap
 (`specs/013-sound`). It runs in the background with a progress bar;
 Cancel removes the file under way. A camera still recording is exported up to its last piece
 closed.

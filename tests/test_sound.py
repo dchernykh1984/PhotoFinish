@@ -241,9 +241,17 @@ def test_an_exported_file_takes_its_phones_sound_when_its_own_kept_none(
     folder_of("cam1").mkdir(parents=True)
     (folder_of("cam1") / SOUND).write_text("0001.mkv\n")  # the main lens kept some
     # Its phone's, 30 ms later: the main lens aligned that much later than it.
-    assert sound.exported_sound(tele, cameras) == (folder_of("cam1"), 30)
-    assert sound.exported_sound(main, cameras) is None  # its own
-    assert sound.exported_sound(other, cameras) is None  # another phone's: none
+    assert sound.exported_sound(tele, cameras) == [(folder_of("cam1"), 30)]
+    assert sound.exported_sound(main, cameras) == [(folder_of("cam1"), 0)]  # its own
+    assert sound.exported_sound(other, cameras) == []  # another phone's: none
+    folder_of("cam2").mkdir(parents=True)
+    (folder_of("cam2") / SOUND).write_text(
+        "0002.mkv\n"
+    )  # the telephoto took it a while
+    assert sound.exported_sound(tele, cameras) == [
+        (folder_of("cam2"), 0),
+        (folder_of("cam1"), 30),
+    ]
 
 
 def test_a_piece_that_cannot_be_decoded_costs_its_own_length_alone(

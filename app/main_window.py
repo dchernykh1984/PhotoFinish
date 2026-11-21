@@ -607,9 +607,7 @@ class MainWindow(QMainWindow):
             for camera_id in chosen
         ]
         sounds = {
-            folder_of(camera_id): heard
-            for camera_id in chosen
-            if (heard := self._sound_folder(camera_id)) is not None
+            folder_of(camera_id): self._sound_folder(camera_id) for camera_id in chosen
         }
         job = export_dialog.ExportJob(jobs, sounds)
         progress = QProgressDialog(
@@ -2044,12 +2042,11 @@ class MainWindow(QMainWindow):
         go while it beats still; not a file's, nor one let go that ended or died."""
         return camera.watchdog.wanted or alive(camera.info)
 
-    def _sound_folder(self, camera_id: str) -> tuple[Path, int] | None:
-        """Whose sound a camera's exported file takes, and how much later (013);
-        None, its own."""
+    def _sound_folder(self, camera_id: str) -> list[tuple[Path, int]]:
+        """Whose sound a camera's exported file takes, each how much later (013)."""
         camera = self.cameras.get(camera_id)
         if camera is None:
-            return None
+            return []
         return exported_sound(
             camera.settings, [c.settings for c in self.cameras.values()]
         )
