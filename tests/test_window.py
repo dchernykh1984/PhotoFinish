@@ -818,6 +818,12 @@ def test_an_export_that_wrote_nothing_says_so_and_one_ended_by_the_close_says_no
     ]
     win._exported(job, progress, [tmp_path / "x.mp4"], "", 0)  # its job gone
     assert len(warned) == 1
+    one = mw.export_dialog.ExportJob([])
+    win._export_job = one
+    win._exported(one, mw.QProgressDialog(), [], "", 1)
+    assert warned[-1] == (
+        "No video could be written.\n1 piece could not be read and was left out."
+    )
 
 
 def test_a_cancelled_export_s_progress_stays_hidden(win: mw.MainWindow) -> None:

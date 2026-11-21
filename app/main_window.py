@@ -586,7 +586,11 @@ class MainWindow(QMainWindow):
         self._export_job = None
         files = "".join(f"\n{path}" for path in written)
         if skipped:
-            files += f"\n{skipped} pieces could not be read and were left out."
+            files += (
+                "\n1 piece could not be read and was left out."
+                if skipped == 1
+                else f"\n{skipped} pieces could not be read and were left out."
+            )
         if error == export.CANCELLED:
             QMessageBox.information(self, "Export video", f"Cancelled.{files}")
         elif error:
