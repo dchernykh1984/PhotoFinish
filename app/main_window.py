@@ -6,7 +6,7 @@ from __future__ import annotations
 import html
 import math
 import time
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path
@@ -95,7 +95,7 @@ from app.recorder.launcher import (
     recording,
 )
 from app.recorder.phone_log import last_word
-from app.sound import has_sound, phone_mates, shift_ms
+from app.sound import has_sound, shift_ms, whose
 from app.start_protocol import StartNumbers
 from app.video_index import FileIndex, Frame, VideoIndex
 from app.widgets import export_dialog
@@ -2018,30 +2018,34 @@ class MainWindow(QMainWindow):
         later that sound goes -- the two offsets apart, as it plays --; else None,
         its own."""
         camera = self.cameras.get(camera_id)
-        if camera is None or export.has_sound(folder_of(camera_id)):
+        if camera is None:
             return None
-        settings = [c.settings for c in self.cameras.values()]
-        for mate in phone_mates(camera.settings, settings):
-            if export.has_sound(folder_of(str(mate["id"]))):
-                return folder_of(str(mate["id"])), shift_ms(camera.settings, mate)
-        return None
+        found = whose(
+            camera.settings,
+            [c.settings for c in self.cameras.values()],
+            lambda heard: export.has_sound(folder_of(str(heard["id"]))),
+        )
+        if found is None or found is camera.settings:
+            return None
+        return folder_of(str(found["id"])), shift_ms(camera.settings, found)
 
     def _sound_camera(self) -> Camera | None:
         """Whose sound plays (013): the camera shown, when its recording has sound
         there; else a camera of its phone's whose has -- the main lens's."""
-        chosen = self._camera()
-        if chosen is None or self.moment is None:
+        chosen, moment = self._camera(), self.moment
+        if chosen is None or moment is None:
             return None
-        mates = phone_mates(
-            chosen.settings, [c.settings for c in self.cameras.values()]
-        )
-        siblings = [self.cameras[str(mate["id"])] for mate in mates]
-        for camera in (chosen, *siblings):
-            own = self.moment - int(camera.settings.get("offset_ms", 0))
+
+        def heard_there(settings: Mapping[str, Any]) -> bool:
+            camera = self.cameras[str(settings["id"])]
+            own = moment - int(settings.get("offset_ms", 0))
             place = camera.index.nearest(own, within=NEAR_MS)
-            if place is not None and has_sound(camera.index.frame(place).path):
-                return camera
-        return None
+            return place is not None and has_sound(camera.index.frame(place).path)
+
+        found = whose(
+            chosen.settings, [c.settings for c in self.cameras.values()], heard_there
+        )
+        return None if found is None else self.cameras[str(found["id"])]
 
     def _show_rate(self) -> None:
         rate = self.rate

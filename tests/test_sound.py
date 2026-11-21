@@ -218,3 +218,17 @@ def test_a_phones_other_lenses_are_its_cameras_beside_the_one_shown() -> None:
     assert sound.phone_mates(alone, cameras) == []  # no phone: none of its own
     assert sound.shift_ms(tele, main) == 30  # the main lens's sound 30 ms later
     assert sound.shift_ms(main, main) == 0
+
+
+def test_whose_sound_is_the_cameras_own_else_its_phones_first_that_has_some() -> None:
+    main: dict[str, object] = {"id": "cam1", "phone": "p1"}
+    tele: dict[str, object] = {"id": "cam2", "phone": "p1"}
+    other: dict[str, object] = {"id": "cam3", "phone": "p2"}
+    cameras = [main, tele, other]
+    has = {"cam1"}
+    heard = lambda camera: camera["id"] in has  # noqa: E731
+    assert sound.whose(tele, cameras, heard) is main  # its phone's
+    assert sound.whose(main, cameras, heard) is main  # its own
+    assert sound.whose(other, cameras, heard) is None  # another phone's: none
+    has.add("cam2")
+    assert sound.whose(tele, cameras, heard) is tele
