@@ -41,7 +41,8 @@ internal class Microphone(
 
     /**
      * Started, unless it runs: whether it runs; said when the microphone or its encoder cannot be opened. Not while
-     * the thread of a stop before still reads -- the audio server stalled --: two would send each piece twice.
+     * the thread of a stop before still reads -- ending, or the audio server stalled --: two would send each piece
+     * twice; started once it has ended, waited for off the caller's thread, the camera's.
      */
     @Synchronized
     fun start(): Boolean {
@@ -90,20 +91,15 @@ internal class Microphone(
         return null
     }
 
-    /** The thread of a stop before still reads after a moment more: the audio server stalled. */
-    private fun stillReading(): Boolean {
-        val before = thread ?: return false
-        before.join(JOIN_MS)
-        return before.isAlive
-    }
+    /** The thread of a stop before still reads: never waited for here, on the camera's thread. */
+    private fun stillReading(): Boolean = thread?.isAlive == true
 
-    /** Stopped, its thread waited for a moment: a piece on its way is let go. */
+    /** Stopped: its thread told to end, never waited for on the caller's -- the camera's -- thread. */
     @Synchronized
     fun stop() {
         wanted = false
         running?.set(false)
         running = null
-        thread?.join(JOIN_MS)
     }
 
     @SuppressLint("MissingPermission") // the caller asks; one refused fails to open, and is said
@@ -257,7 +253,6 @@ internal class Microphone(
         private const val READ_BYTES = 2048 * 2 // two AAC frames' samples at a time
         private const val BUFFER_BYTES = RATE / 5 * 2 // a fifth of a second: a slow thread loses nothing
         private const val WAIT_US = 10_000L
-        private const val JOIN_MS = 500L
         private const val LATER_MS = 5_000L
         private const val NANOS = 1_000_000_000L
     }
