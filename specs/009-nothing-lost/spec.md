@@ -139,8 +139,8 @@ reading at their levels.
 - **FR-008**: The status a keyframe carries adds `free`, the phone's free storage in MB, and
   `unsent_ms` and `unsent_mb`, the video the phone holds for the lens's camera, its span in
   milliseconds and its size in MB (contract).
-- **FR-009**: The laptop's camera line adds, while the phone holds video for it, "N min M s of video
-  on the phone", a bar of how much has come since it began falling behind, and "in about N min"
+- **FR-009**: The laptop's camera line adds, while the phone holds video for it, "M:SS of video on
+  the phone", a bar of how much has come since it began falling behind, and "in about N min"
   once that can be told; the readings add the phone's free storage, amber under 30 GB, red under
   10 GB.
 - **FR-010**: The phone's screen shows how much video is unsent, and the Discard button while any
