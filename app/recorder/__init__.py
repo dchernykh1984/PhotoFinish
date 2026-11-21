@@ -331,6 +331,7 @@ class _Recording:
                     raise
                 except Exception as error:  # any camera failure: try again
                     detail = str(error) or type(error).__name__
+                self.ended = ""  # said as the wait's detail now, not after it
                 if self._wait(detail):
                     break
             self._close()
