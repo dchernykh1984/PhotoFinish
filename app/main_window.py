@@ -175,6 +175,7 @@ class MainWindow(QMainWindow):
         self.sound = SoundPlayer(self)  # the sound played forwards (013)
         self.sound.failed.connect(self._say)
         self._sound_from: str | None = None  # the camera whose sound plays
+        self._sound_ended = False  # its pieces finished: heard to the recording's end
         self.sound_box = QCheckBox("Sound")
         self.shared_event: shared_event.SharedEvent | None = None
 
@@ -2011,6 +2012,7 @@ class MainWindow(QMainWindow):
         due = playback.moment_due(self._play_start, time.monotonic(), self.rate)
         heard = self._sound_camera(due) if forwards else None  # where it goes on
         self._sound_from = None if heard is None else heard.id
+        self._sound_ended = False
         if heard is None:
             self.sound.stop()
             return
@@ -2028,7 +2030,12 @@ class MainWindow(QMainWindow):
                 self._play_sound()  # or begun: the microphone allowed as it plays
                 return
         heard = self.cameras.get(self._sound_from or "")
-        self.sound.follow(grows=heard is not None and self._grows(heard))
+        grows = heard is not None and self._grows(heard)
+        if grows and self._sound_ended and self.playing:
+            self._play_sound()  # heard to its end, then grown again: on from here
+            return
+        self._sound_ended = self._sound_ended or not grows
+        self.sound.follow(grows=grows)
 
     @staticmethod
     def _grows(camera: Camera) -> bool:
