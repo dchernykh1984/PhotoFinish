@@ -559,6 +559,23 @@ def test_a_piece_before_a_files_first_frame_chooses_no_form_for_its_sound(
     assert len(heard) > 100  # its 3 s, never passed over as another form
 
 
+def test_a_sound_that_fails_as_a_file_begins_leaves_no_part_behind(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Its first pieces failing to be read: the file half begun is gone, its name free.
+    recorded(tmp_path)
+
+    def failing(*_: Any, **__: Any) -> Any:
+        raise KeyboardInterrupt  # a failure no reader catches
+
+        yield  # pragma: no cover - a generator, as the pieces are
+
+    monkeypatch.setattr(export.sound, "pieces", failing)
+    with pytest.raises(KeyboardInterrupt):
+        export.export(tmp_path / "cam1", tmp_path / "Main.mp4")
+    assert not list(tmp_path.glob("*.part"))
+
+
 def test_a_gap_in_an_exported_files_sound_is_silence_so_it_stays_in_step(
     tmp_path: Path,
 ) -> None:

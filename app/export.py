@@ -366,13 +366,14 @@ class _Out:
         self.partial = path.with_name(path.name + ".part")
         self.container = av.open(str(self.partial), "w", format="mp4")
         self.found = iter(()) if found is None else found
-        self.piece = next(self.found, None)
-        while self.piece is not None and self.piece.ms < first:
-            self.piece = next(self.found, None)  # before the file: its form no matter
+        self.piece: sound.Piece | None = None
         self.audio: Any = None
         self.heard_form: sound.Form | None = None
         self.heard_next: int | None = None  # where the sound written so far ends
         try:
+            self.piece = next(self.found, None)
+            while self.piece is not None and self.piece.ms < first:
+                self.piece = next(self.found, None)  # before the file: no matter
             when = datetime.datetime.fromtimestamp(first / 1000, datetime.UTC)
             self.container.metadata["creation_time"] = when.isoformat()
             self.stream = self.container.add_stream_from_template(template)
