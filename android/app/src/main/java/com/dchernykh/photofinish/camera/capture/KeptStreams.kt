@@ -34,6 +34,9 @@ internal interface KeptStream {
 internal class KeptStreams<S : KeptStream> {
     private val streams = linkedMapOf<Lens, S>()
 
+    /** [lens]'s stream, if one is kept. */
+    fun of(lens: Lens): S? = streams[lens]
+
     /** Since when no camera feeds each idle lens's stream. */
     private val idleSince = mutableMapOf<Lens, Long>()
 
