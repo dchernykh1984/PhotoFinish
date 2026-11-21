@@ -16,10 +16,15 @@ class FrameStoreTest {
 
     private val folder: File get() = File(temporary.root, "kept")
 
+    private var wallMs = 1_000_000L
+
     private fun store(
         capBytes: Long = Long.MAX_VALUE,
         free: () -> Long = { Long.MAX_VALUE },
-    ) = FrameStore(folder, capBytes, reserveBytes = 1_000, freeBytes = free)
+    ) = FrameStore(folder, capBytes, reserveBytes = 1_000, freeBytes = free, wallClock = { wallMs })
+
+    /** The runs kept, by their frames' files. */
+    private fun runs(): Int = folder.listFiles()!!.count { it.name.endsWith(".h264") }
 
     /** A frame of [size] bytes, each its capture second's low byte: what is read back can be told apart. */
     private fun frame(
@@ -112,7 +117,7 @@ class FrameStoreTest {
         repeat(8) { second(store, it + 3) } // read on to 10.9 s
         read(store, 80)
         second(store, 11) // its keyframe makes room
-        assertEquals(8, folder.listFiles()!!.size) // 4 s to 10 s, kept to be sent again; then 11 s
+        assertEquals(8, runs()) // 4 s to 10 s, kept to be sent again; then 11 s
         store.rewind()
         assertEquals(4_000_000L, store.next(0)!!.ptsUs)
     }
@@ -124,10 +129,11 @@ class FrameStoreTest {
         read(store, 110)
         store.confirm(2_500_000) // the server stopped reading there: the rest may be lost
         second(store, 11)
-        assertEquals(12, folder.listFiles()!!.size) // 0.5 s on: none goes
+        assertEquals(12, runs()) // 0.5 s on: none goes
         store.confirm(9_000_000)
+        assertEquals(5, runs()) // the 7 runs ending before 7 s go as the server says so
         second(store, 12)
-        assertEquals(6, folder.listFiles()!!.size) // the 7 runs ending before 7 s go
+        assertEquals(6, runs())
     }
 
     @Test
@@ -239,22 +245,115 @@ class FrameStoreTest {
     }
 
     @Test
-    fun `clear removes what is kept and keeps nothing after`() {
+    fun `clear removes what is kept, its folder too, and keeps nothing after`() {
         val store = store()
         second(store, 0)
         store.clear()
-        assertTrue(folder.listFiles()!!.isEmpty())
+        assertFalse(folder.exists())
         assertEquals(0, store.keep(frame(1_000_000, keyframe = true), null))
         assertNull(store.next(0))
-        assertTrue(folder.listFiles()!!.isEmpty())
+        assertFalse(folder.exists())
     }
 
     @Test
-    fun `what an earlier store left is removed at the start`() {
-        folder.mkdirs()
-        File(folder, "0.h264").writeBytes(ByteArray(10))
-        store()
-        assertTrue(folder.listFiles()!!.isEmpty())
+    fun `what a store before left is read back, frames, moments and all, and sent`() {
+        val before = store()
+        second(before, 0)
+        second(before, 1, moment = false)
+        before.close()
+        val store = store()
+        val first = store.next(0)!!
+        assertTrue(first.keyframe)
+        assertEquals(5_000_000L, first.momentUs)
+        assertArrayEquals(frame(0, keyframe = true).data, first.data)
+        assertEquals((1 until 20).map { it * 100_000L }, read(store, 19))
+        assertNull(store.next(0))
+        assertEquals(2, runs())
+    }
+
+    @Test
+    fun `a store made on a folder goes on numbering after the runs it read back`() {
+        val before = store()
+        second(before, 0)
+        before.close()
+        val store = store()
+        second(store, 5)
+        assertEquals(listOf("0.h264", "1.h264"), folder.list()!!.filter { it.endsWith(".h264") }.sorted())
+        assertEquals(listOf(0L, 100_000L), read(store, 2))
+    }
+
+    @Test
+    fun `a frame not all written is not read back, nor anything after it in its run`() {
+        val before = store()
+        second(before, 0)
+        second(before, 1)
+        before.close()
+        val data = File(folder, "0.h264")
+        data.writeBytes(data.readBytes().copyOf(450)) // a power cut in the fifth frame's bytes
+        val store = store()
+        assertEquals(listOf(0L, 100_000L, 200_000L, 300_000L, 1_000_000L), read(store, 5))
+    }
+
+    @Test
+    fun `an index record cut short or not marked ends its run`() {
+        val before = store()
+        second(before, 0)
+        second(before, 1)
+        before.close()
+        val index = File(folder, "0.idx")
+        val records = index.readBytes()
+        index.writeBytes(records.copyOf(records.size / 10 * 3 + 7)) // three records and a piece
+        File(folder, "1.idx").writeBytes(ByteArray(records.size)) // zeros, as a power cut may leave
+        val store = store()
+        assertEquals(listOf(0L, 100_000L, 200_000L), read(store, 3))
+        assertNull(store.next(0))
+        assertEquals(1, runs()) // the run with no frame read back is removed
+    }
+
+    @Test
+    fun `a run without its index is removed at the start`() {
+        val before = store()
+        second(before, 0)
+        before.close()
+        File(folder, "0.idx").delete()
+        val store = store()
+        assertNull(store.next(0))
+        assertEquals(0, runs())
+    }
+
+    @Test
+    fun `frames read back are held by the wall clock, their capture clock started again since`() {
+        val before = store()
+        second(before, 0)
+        before.close()
+        wallMs += 90_000 // the phone restarted: its frames' clock is no clock to go by
+        val store = store()
+        assertEquals(90_000L, store.heldMs(5L))
+        assertEquals(90_000L, store.heldMs(null))
+    }
+
+    @Test
+    fun `a closed store keeps its files, its clear not the next store's to suffer`() {
+        val store = store()
+        second(store, 0)
+        store.close()
+        store.clear()
+        assertEquals(0, store.keep(frame(1_000_000, keyframe = true), null))
+        assertNull(store.next(0))
+        assertEquals(1, runs())
+    }
+
+    @Test
+    fun `what is pending is the span from the next frame to the newest and its bytes`() {
+        val store = store()
+        assertEquals(FrameStore.Pending(0, 0), store.pending)
+        second(store, 0, size = 10)
+        second(store, 1, size = 10)
+        assertEquals(FrameStore.Pending(1_900, 200), store.pending)
+        read(store, 12)
+        assertEquals(FrameStore.Pending(700, 80), store.pending)
+        read(store, 8)
+        assertEquals(FrameStore.Pending(0, 0), store.pending)
     }
 
     @Test
