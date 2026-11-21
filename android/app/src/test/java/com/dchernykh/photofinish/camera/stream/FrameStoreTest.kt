@@ -539,6 +539,22 @@ class FrameStoreTest {
     }
 
     @Test
+    fun `a piece read before a frame taken earlier confirms nothing past it, which a rewind never skips`() {
+        // A piece encoded sooner than a frame taken before it is kept, and read, first: the server's word on the
+        // piece says nothing of the frame. A connection held for the first lens begins from the newest confirmed.
+        val store = store()
+        store.keep(frame(100_000, keyframe = true), 105_000)
+        store.keep(piece(150_000), null)
+        store.keep(frame(133_333, keyframe = false), 138_333) // taken before the piece, encoded after it
+        store.keep(frame(140_000, keyframe = true), 145_000) // a run of its own
+        read(store, 2) // the keyframe and the piece, sent
+        store.confirm(150_000)
+        store.rewind(0)
+        val again = List(4) { store.next(0, fromKeyframe = it == 0)!!.ptsUs }
+        assertEquals(listOf(100_000L, 150_000L, 133_333L, 140_000L), again)
+    }
+
+    @Test
     fun `a connection's start passes over the sound before its keyframe`() {
         val store = store()
         store.keep(frame(0, keyframe = true), 5_000)
