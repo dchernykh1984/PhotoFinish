@@ -154,17 +154,6 @@ def test_a_gap_in_the_sound_is_silence_of_its_length(tmp_path: Path) -> None:
     assert beep_at(samples) == pytest.approx(1.5, abs=0.03)  # still where it was
 
 
-def test_a_segment_keeps_sound_or_not(tmp_path: Path) -> None:
-    index = recorded(tmp_path)
-    assert all(sound.has_sound(path) for path in index.paths)
-    assert not sound.has_sound(tmp_path / "missing.mkv")
-    silent = tmp_path / "cam2"
-    writer = SegmentWriter(silent, fps=30)
-    writer.write(render(START, 160, 96), START)
-    writer.close()
-    assert not sound.has_sound(next(silent.glob("*-*-*.mkv")))
-
-
 def test_the_segments_from_a_frame_begin_with_the_one_before_it(
     tmp_path: Path,
 ) -> None:
@@ -296,25 +285,6 @@ def test_pieces_follow_a_recording_that_grows_until_finished(tmp_path: Path) -> 
     assert got[-1] - got[0] == pytest.approx(3000, abs=60)
 
 
-def test_whether_a_segment_has_sound_is_read_once(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    # A closed segment never changes: the window opens no file twice for it.
-    index = recorded(tmp_path)
-    path = index.paths[0]
-    assert sound.has_sound(path)
-    opened: list[object] = []
-    real = av.open
-
-    def counted(*args: Any, **kwargs: Any) -> Any:
-        opened.append(args[0])
-        return real(*args, **kwargs)
-
-    monkeypatch.setattr(sound.av, "open", counted)
-    assert sound.has_sound(path)
-    assert opened == []
-
-
 def test_pieces_cancelled_read_no_more_segments(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -342,26 +312,6 @@ def test_pieces_cancelled_read_no_more_segments(
     assert len(rest) < 60
 
 
-def test_a_segment_held_a_moment_is_read_for_sound_again_not_taken_for_silent(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    # Held by its writer or a scan a moment (Windows): asked again, its sound found.
-    index = recorded(tmp_path)
-    path = index.paths[1]
-    real = av.open
-    held = [True]
-
-    def opening(*args: Any, **kwargs: Any) -> Any:
-        if held[0]:
-            held[0] = False
-            raise OSError(13, "held by another process")
-        return real(*args, **kwargs)
-
-    monkeypatch.setattr(sound.av, "open", opening)
-    assert not sound.has_sound(path)
-    assert sound.has_sound(path)
-
-
 def test_whose_sound_plays_from_a_moment_is_one_with_it_there_else_later(
     tmp_path: Path,
 ) -> None:
@@ -381,6 +331,14 @@ def test_whose_sound_plays_from_a_moment_is_one_with_it_there_else_later(
     assert later is main  # none there: its sound later, heard in its turn
     assert sound.heard_at(index, START + 1500, 1000)
     assert not sound.heard_at(index, START + 600_000, 1000)
+    # Its sound line lost at a last close: not heard there, as its pieces would not be
+    # played -- its phone's other lens's, or later, instead of silence.
+    listed = index.folder / sound.SOUND
+    middle = index.paths[1].stem
+    listed.write_text(
+        "".join(f"{n}\n" for n in listed.read_text().split() if n != middle)
+    )
+    assert not sound.heard_at(index, START + 1500, 1000)
     assert not sound.heard_later(silent, START)
 
 
