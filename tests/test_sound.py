@@ -1,0 +1,171 @@
+"""A camera's sound from a moment, as it is played (specs/013-sound)."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import av
+import numpy as np
+import pytest
+
+from app import sound
+from app.recorder.segments import SegmentWriter, fraction, in_ms
+from app.recorder.testcam import render
+from app.video_index import VideoIndex
+from tests.test_segments import START
+
+RATE = 48000
+BEEP_MS = 1500  # into the recording
+TONE = 1000  # Hz
+
+
+def beeping(path: Path, seconds: int) -> None:
+    """A phone's stream, H.264 and AAC mono at 48 kHz: silence but for a 1 kHz beep
+    of 100 ms at BEEP_MS."""
+    with av.open(str(path), "w", format="matroska") as out:
+        video = out.add_stream("libx264", rate=30, options={"g": "30", "bf": "0"})
+        video.width, video.height, video.pix_fmt = 160, 96, "yuv420p"
+        audio = out.add_stream("aac", rate=RATE)
+        audio.layout = "mono"
+        heard = 0
+        for k in range(30 * seconds):
+            frame = av.VideoFrame.from_ndarray(render(START + k * 33, 160, 96))
+            frame.pts = k
+            for packet in video.encode(frame):
+                out.mux(packet)
+            while heard * 1024 * 1000 < (k + 1) * 33 * RATE:
+                at = (np.arange(1024) + heard * 1024) / RATE
+                on = (at >= BEEP_MS / 1000) & (at < BEEP_MS / 1000 + 0.1)
+                tone = np.where(on, 0.5 * np.sin(2 * np.pi * TONE * at), 0.0)
+                piece = av.AudioFrame.from_ndarray(
+                    tone.astype(np.float32)[None], format="fltp", layout="mono"
+                )
+                piece.sample_rate, piece.pts = RATE, heard * 1024
+                for packet in audio.encode(piece):
+                    out.mux(packet)
+                heard += 1
+        for stream in (video, audio):
+            for packet in stream.encode(None):
+                out.mux(packet)
+
+
+def recorded(
+    tmp_path: Path, seconds: int = 3, again: int = 0, gap: tuple[int, int] | None = None
+) -> VideoIndex:
+    """The beeping stream recorded at its own moments from START, ``again`` pieces of
+    sound sent twice, none heard within ``gap`` (ms into it)."""
+    beeping(tmp_path / "phone.mkv", seconds)
+    folder = tmp_path / "cam1"
+    writer = SegmentWriter(folder, fps=30)
+    with av.open(str(tmp_path / "phone.mkv")) as container:
+        sent: list[tuple[av.Packet, int]] = []
+        for packet in container.demux():
+            if packet.pts is None:
+                continue
+            into = in_ms(packet.pts, fraction(packet.time_base))
+            if packet.stream.type == "video":
+                writer.write_packet(packet, START + into)
+            elif gap is None or not gap[0] <= into < gap[1]:
+                writer.write_audio(packet, START + into)
+                sent.append((packet, START + into))
+                for old, ms in sent[-again - 1 : -1] if again and into > 2000 else []:
+                    writer.write_audio(old, ms)  # sent again, out of order: once
+    writer.close()
+    index = VideoIndex(folder)
+    index.refresh()
+    return index
+
+
+def played(index: VideoIndex, from_ms: int, rate: float = 1.0) -> np.ndarray:
+    """What the renderer gives from ``from_ms`` at ``rate``: one channel of it."""
+    renderer = sound.Renderer(sound.pieces(index, from_ms), from_ms, rate)
+    out = b""
+    while chunk := renderer.read():
+        out += chunk
+    return np.frombuffer(out, np.int16).reshape(-1, 2)[:, 0]
+
+
+def beep_at(samples: np.ndarray) -> float:
+    """Where the beep begins, seconds into the samples."""
+    loud = np.flatnonzero(np.abs(samples) > 3000)
+    assert loud.size, "no beep heard"
+    return float(loud[0] / RATE)
+
+
+def pitch(samples: np.ndarray) -> float:
+    """The beep's frequency, from its zero crossings."""
+    loud = np.flatnonzero(np.abs(samples) > 3000)
+    beep = samples[loud[0] : loud[-1]].astype(np.int32)
+    crossings = np.count_nonzero(np.diff(np.signbit(beep)))
+    return crossings / 2 / (beep.size / RATE)
+
+
+def test_the_sound_from_a_moment_has_the_beep_where_it_was_heard(
+    tmp_path: Path,
+) -> None:
+    index = recorded(tmp_path)
+    samples = played(index, START + 500)
+    assert beep_at(samples) == pytest.approx(1.0, abs=0.03)
+    assert samples.size / RATE == pytest.approx(2.5, abs=0.1)  # to the recording's end
+
+
+@pytest.mark.parametrize("rate", [0.25, 0.5, 2.0, 4.0])
+def test_a_rate_stretches_the_time_and_keeps_the_pitch(
+    tmp_path: Path, rate: float
+) -> None:
+    index = recorded(tmp_path)
+    samples = played(index, START + 500, rate)
+    # On the recording's time: atempo's windows put a sound up to 40 ms early.
+    assert beep_at(samples) * rate == pytest.approx(1.0, abs=0.05)
+    assert pitch(samples) == pytest.approx(TONE, rel=0.1)
+
+
+def test_at_x16_the_sound_plays_a_sixteenth_as_long(tmp_path: Path) -> None:
+    index = recorded(tmp_path)
+    samples = played(index, START, 16.0)
+    assert samples.size / RATE == pytest.approx(3.0 / 16, abs=0.03)
+
+
+def test_the_pieces_come_in_order_each_once_across_segments(tmp_path: Path) -> None:
+    index = recorded(tmp_path, again=15)
+    assert len(index.paths) == 3
+    found = [piece.ms for piece in sound.pieces(index, START)]
+    assert found == sorted(found)
+    steps = np.diff(found)
+    assert steps.min() >= 20  # none twice
+    assert steps.max() <= 22  # none lost at a segment's end
+    assert found[-1] - found[0] == pytest.approx(3000, abs=60)
+
+
+def test_a_gap_in_the_sound_is_silence_of_its_length(tmp_path: Path) -> None:
+    index = recorded(tmp_path, gap=(500, 1000))
+    samples = played(index, START)
+    assert beep_at(samples) == pytest.approx(1.5, abs=0.03)  # still where it was
+
+
+def test_a_segment_keeps_sound_or_not(tmp_path: Path) -> None:
+    index = recorded(tmp_path)
+    assert all(sound.has_sound(path) for path in index.paths)
+    assert not sound.has_sound(tmp_path / "missing.mkv")
+    silent = tmp_path / "cam2"
+    writer = SegmentWriter(silent, fps=30)
+    writer.write(render(START, 160, 96), START)
+    writer.close()
+    assert not sound.has_sound(next(silent.glob("*-*-*.mkv")))
+
+
+def test_the_segments_from_a_frame_begin_with_the_one_before_it(
+    tmp_path: Path,
+) -> None:
+    index = recorded(tmp_path)
+    first, second, third = index.paths
+    assert index.segments_from(0) == [first, second, third]
+    middle = index.at_or_before(START + 1500)
+    assert middle is not None
+    assert index.frame(middle).path == second
+    assert index.segments_from(middle) == [first, second, third]
+    last = index.at_or_before(START + 2900)
+    assert last is not None
+    assert index.segments_from(last) == [second, third]
+    assert index.at_or_before(START - 10_000) == 0
+    assert VideoIndex(tmp_path / "none").segments_from(0) == []

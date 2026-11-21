@@ -129,6 +129,26 @@ class VideoIndex:
             return None
         return after - 1, after
 
+    def at_or_before(self, ms: int) -> int | None:
+        """The place of the last frame at or before ``ms``, else the first; None when
+        there is none."""
+        if not len(self):
+            return None
+        return max(int(np.searchsorted(self.ms, ms, side="right")) - 1, 0)
+
+    def segments_from(self, place: int) -> list[Path]:
+        """The segments of the frames from ``place`` on, each once in the frames'
+        order, the one before the segment of the frame at ``place`` first: its sound
+        may reach past its end (specs/013)."""
+        if not len(self):
+            return []
+        segment = self._segment
+        place = min(max(place, 0), len(self) - 1)
+        others = np.flatnonzero(segment[:place] != segment[place])
+        tail = segment[int(others[-1]) if others.size else place :]
+        firsts = np.concatenate(([0], np.flatnonzero(np.diff(tail)) + 1))
+        return [self.paths[s] for s in dict.fromkeys(int(k) for k in tail[firsts])]
+
     def step(self, place: int, frames: int) -> int:
         """The place ``frames`` on from ``place``, within the recording."""
         return min(max(place + frames, 0), len(self) - 1)
