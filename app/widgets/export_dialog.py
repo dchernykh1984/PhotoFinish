@@ -18,9 +18,6 @@ from PySide6.QtWidgets import (
 
 from app import export
 
-CANCELLED = "cancelled"
-STEPS = 1000  # the progress's whole
-
 
 class ExportChoice(QDialog):
     """The cameras with video to export, all ticked at first."""
@@ -59,7 +56,7 @@ class ExportJob(QObject):
     """The cameras' files written one after another on a thread of its own, heard of
     through signals, which Qt hands to the window's thread."""
 
-    progress = Signal(int)  # the share done, of STEPS
+    progress = Signal(int)  # the share done, of export.STEPS
     # The files written; what went wrong, "" for nothing; the pieces left unreadable.
     done = Signal(object, str, int)
 
@@ -85,24 +82,7 @@ class ExportJob(QObject):
             self._thread.join(wait_s)
 
     def _run(self) -> None:
-        written: list[Path] = []  # each file as it is done: those a stop leaves too
-        skipped: list[Path] = []
-        failed: list[str] = []  # a camera's failure told, the cameras after it exported
-        cancelled = False
-        count = len(self.jobs)
-        for n, (folder, target) in enumerate(self.jobs):
-
-            def told(done: int, total: int, n: int = n) -> None:
-                self.progress.emit((n * STEPS + done * STEPS // max(total, 1)) // count)
-
-            try:
-                export.export(folder, target, told, self._stop.is_set, written, skipped)
-            except export.CancelledError:
-                cancelled = True
-                break
-            except Exception as failure:
-                failed.append(
-                    f"{target.stem}: {str(failure) or type(failure).__name__}"
-                )
-        error = CANCELLED if cancelled else "; ".join(failed)
-        self.done.emit(written, error, len(skipped))
+        written, error, skipped = export.export_all(
+            self.jobs, self.progress.emit, self._stop.is_set
+        )
+        self.done.emit(written, error, skipped)

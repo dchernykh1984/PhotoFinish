@@ -556,7 +556,7 @@ class MainWindow(QMainWindow):
         ]
         job = export_dialog.ExportJob(jobs)
         progress = QProgressDialog(
-            "Exporting the video...", "Cancel", 0, export_dialog.STEPS, self
+            "Exporting the video...", "Cancel", 0, export.STEPS, self
         )
         progress.setWindowModality(Qt.WindowModality.WindowModal)
         progress.setMinimumDuration(0)
@@ -587,7 +587,7 @@ class MainWindow(QMainWindow):
         files = "".join(f"\n{path}" for path in written)
         if skipped:
             files += f"\n{skipped} pieces could not be read and were left out."
-        if error == export_dialog.CANCELLED:
+        if error == export.CANCELLED:
             QMessageBox.information(self, "Export video", f"Cancelled.{files}")
         elif error:
             QMessageBox.warning(

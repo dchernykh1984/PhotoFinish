@@ -23,6 +23,8 @@ import av
 from app.recorder.segments import NAMED, SEGMENTS, frame_times, in_ms
 
 MS = Fraction(1, 1000)
+CANCELLED = "cancelled"  # what an export of the cameras stopped by the referee tells
+STEPS = 1000  # the whole of its progress
 RESERVED = {"CON", "PRN", "AUX", "NUL"} | {
     f"{d}{n}" for d in ("COM", "LPT") for n in range(1, 10)
 }
@@ -68,6 +70,33 @@ def free(path: Path) -> Path:
         n += 1
         found = path.with_name(f"{path.stem} ({n}){path.suffix}")
     return found
+
+
+def export_all(
+    jobs: list[tuple[Path, Path]],
+    progress: Callable[[int], None] = lambda share: None,
+    cancelled: Callable[[], bool] = lambda: False,
+) -> tuple[list[Path], str, int]:
+    """Each camera's ``(folder, target)`` exported in turn: the files written --
+    those a stop leaves too --, what went wrong -- CANCELLED, or each camera's
+    failure, the cameras after it exported still; "" for nothing -- and how many
+    pieces could not be read. ``progress`` hears the share done, of STEPS."""
+    written: list[Path] = []
+    skipped: list[Path] = []
+    failed: list[str] = []
+    count = len(jobs)
+    for n, (folder, target) in enumerate(jobs):
+
+        def told(done: int, total: int, n: int = n) -> None:
+            progress((n * STEPS + done * STEPS // max(total, 1)) // count)
+
+        try:
+            export(folder, target, told, cancelled, written, skipped)
+        except CancelledError:
+            return written, CANCELLED, len(skipped)
+        except Exception as failure:
+            failed.append(f"{target.stem}: {str(failure) or type(failure).__name__}")
+    return written, "; ".join(failed), len(skipped)
 
 
 def export(

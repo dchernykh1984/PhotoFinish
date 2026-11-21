@@ -44,7 +44,7 @@ def test_the_job_writes_each_camera_and_says_how_far_it_is(tmp_path: Path) -> No
     job.start()
     wait(heard)
     assert heard == [([tmp_path / "cam1.mp4", tmp_path / "cam2.mp4"], "", 0)]
-    assert steps[-1] == export_dialog.STEPS
+    assert steps[-1] == export_dialog.export.STEPS
     assert steps == sorted(steps)
 
 
@@ -55,7 +55,7 @@ def test_a_job_cancelled_says_so_and_one_that_fails_says_why(tmp_path: Path) -> 
     job.cancel()
     job.start()
     wait(heard)
-    assert heard == [([], export_dialog.CANCELLED, 0)]
+    assert heard == [([], export_dialog.export.CANCELLED, 0)]
     gone = export_dialog.ExportJob([(tmp_path / "cam1", tmp_path / "no" / "a.mp4")])
     failed = finished(gone)
     gone.start()
