@@ -20,6 +20,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.Semaphore
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
 /** A frame as a sink received it. */
@@ -607,7 +608,7 @@ class UplinkTest {
     }
 
     @Test
-    fun `stop ends the loop and drops what is kept`() {
+    fun `stop ends the loop and leaves what is kept to the store's owner, to hand over or drop`() {
         val sink = FakeSink()
         val link = uplink(listOf(sink))
         val thread = start(link)
@@ -617,7 +618,8 @@ class UplinkTest {
         link.stop()
         thread.join(5_000)
         assertFalse(thread.isAlive)
-        assertTrue(kept.listFiles()!!.isEmpty())
+        assertFalse(link.connected)
+        assertEquals(2, kept.listFiles()!!.size) // the run's frames and their index
     }
 
     @Test
@@ -672,5 +674,146 @@ class ThroughputTest {
         count(2_500_000_000L) // a send hung 1.5 s, the network stalled: never idle meanwhile
         assertEquals(2, rates.size)
         assertTrue(rates.toString(), rates[1] < 25) // the stall told, not hidden
+    }
+}
+
+/** The uplink's waits (specs/009): kept frames sent alone, its turn at an address, the first lens first. */
+class UplinkWaitsTest {
+    @get:Rule
+    val temporary = TemporaryFolder()
+
+    private val address = RtmpAddress("127.0.0.1", 1935, "live", "cam1")
+    private val format = StreamFormat(Resolution(1920, 1080), 30, FpsRange(30, 30), 5_000_000)
+    private val sps = byteArrayOf(0x67, 0x64, 0, 0x28)
+    private val pps = byteArrayOf(0x68, 1)
+    private val statuses = CopyOnWriteArrayList<UplinkStatus>()
+    private val keyframesAsked = Semaphore(0)
+    private val running = mutableListOf<Uplink>()
+    private val kept: File get() = File(temporary.root, "kept")
+
+    private fun start(link: Uplink) = Thread { link.run() }.apply { start() }
+
+    private fun exchange(offset: Long) = Sample(t1 = 0, t2 = offset + 750, t3 = offset + 750, t4 = 1_500)
+
+    private fun awaitConnected() = assertTrue(keyframesAsked.tryAcquire(5, TimeUnit.SECONDS))
+
+    private fun frame(
+        ptsUs: Long,
+        keyframe: Boolean,
+    ) = EncodedFrame(byteArrayOf(0, 0, 0, 1, if (keyframe) 0x65 else 0x41, 7), ptsUs, keyframe)
+
+    @After
+    fun stop() = running.forEach { it.stop() }
+
+    /** A store read back from one that kept a second of frames without moments, then [seconds] with. */
+    private fun keptBefore(seconds: Int): FrameStore {
+        val before = FrameStore(kept, freeBytes = { Long.MAX_VALUE })
+        repeat(10 + seconds * 10) {
+            val pts = it * 100_000L
+            before.keep(frame(pts, keyframe = it % 10 == 0), if (it < 10) null else pts + 7_000_000)
+        }
+        before.close()
+        return FrameStore(kept, freeBytes = { Long.MAX_VALUE })
+    }
+
+    @Test
+    fun `kept frames sent alone go from the first keyframe with a moment, with theirs, waiting for no clock`() {
+        val sink = FakeSink()
+        val record = byteArrayOf(1, 0x64, 0, 0x28)
+        val link =
+            Uplink(address, format, clock = {
+                null
+            }, requestKeyframe = {}, report = { statuses += it }, keptBefore(2), alone = true)
+        link.connect = { sink }
+        link.waitForClockMs = 60_000 // waited for, it would hold the frames a minute
+        link.configure(record)
+        running += link
+        start(link)
+        val key = sink.next()
+        assertTrue(key.keyframe)
+        assertEquals(1_000_000L + 7_000_000, momentOf(key.units[0]))
+        assertEquals(1_100_000L + 7_000_000, momentOf(sink.next().units[0]))
+        assertArrayEquals(record, sink.headers.single())
+        assertTrue((sink.metadata.single()["held_ms"] as Long) >= 0)
+    }
+
+    @Test
+    fun `a stream connects only once its address is free of the streams kept before it`() {
+        val sink = FakeSink()
+        val free =
+            java.util.concurrent.atomic
+                .AtomicBoolean(false)
+        val link =
+            Uplink(
+                address,
+                format,
+                clock = { exchange(1_000_000) },
+                requestKeyframe = { keyframesAsked.release() },
+                report = { statuses += it },
+                FrameStore(kept, freeBytes = { Long.MAX_VALUE }),
+                turn = { free.get() },
+            )
+        link.connect = { sink }
+        link.configure(sps, pps)
+        running += link
+        start(link)
+        link.offer(frame(0, keyframe = true))
+        Thread.sleep(300)
+        assertTrue(sink.metadata.isEmpty())
+        assertEquals(listOf(UplinkStatus.Waiting(first = false)), statuses.toList())
+        free.set(true)
+        awaitConnected()
+        assertEquals(1_000_000L, momentOf(sink.next().units[0]))
+    }
+
+    @Test
+    fun `a lens not first sends nothing while the first is behind, and lets its connection go meanwhile`() {
+        val held = FakeSink()
+        val again = FakeSink()
+        val allowed =
+            java.util.concurrent.atomic
+                .AtomicBoolean(true)
+        val queue = ArrayDeque(listOf(held, again))
+        val link =
+            Uplink(
+                address,
+                format,
+                clock = { exchange(1_000_000) },
+                requestKeyframe = { keyframesAsked.release() },
+                report = { statuses += it },
+                FrameStore(kept, freeBytes = { Long.MAX_VALUE }),
+                firstLens = { allowed.get() },
+            )
+        link.connect = { queue.removeFirst() }
+        link.configure(sps, pps)
+        running += link
+        start(link)
+        awaitConnected()
+        link.offer(frame(0, keyframe = true))
+        held.next()
+        allowed.set(false)
+        link.offer(frame(100_000, keyframe = false))
+        assertTrue(held.closed.await(Uplink.HOLD_MS + 2_000, TimeUnit.MILLISECONDS))
+        assertTrue(held.frames.isEmpty())
+        assertFalse(link.connected)
+        allowed.set(true)
+        awaitConnected()
+        assertEquals(0L, again.next().timestampMs) // sent again from its keyframe: nothing lost
+        assertEquals(100L, again.next().timestampMs)
+        assertTrue(statuses.none { it is UplinkStatus.Reconnecting })
+        assertTrue(UplinkStatus.Waiting(first = true) in statuses)
+    }
+
+    @Test
+    fun `the stream's header is told once a new one comes, to be kept with the frames`() {
+        val told = mutableListOf<ByteArray>()
+        val link = Uplink(address, format, { null }, {}, {}, FrameStore(kept, freeBytes = { Long.MAX_VALUE }))
+        link.onConfigured = { told += it }
+        link.configure(sps, pps)
+        link.configure(sps, pps)
+        link.configure(byteArrayOf(9, 9))
+        assertEquals(2, told.size)
+        assertArrayEquals(Avc.configurationRecord(sps, pps), told[0])
+        assertArrayEquals(byteArrayOf(9, 9), told[1])
     }
 }

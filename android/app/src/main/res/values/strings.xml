@@ -16,6 +16,8 @@
     <string name="ready">Ready: %1$s at %2$d fps</string>
     <string name="connecting">Connecting to %1$s</string>
     <string name="reconnecting">Connection lost (%1$s); connecting again</string>
+    <string name="waiting_first">Waiting for the first lens to catch up; frames kept meanwhile</string>
+    <string name="waiting_kept">Waiting: the frames kept before are sent first</string>
     <string name="streaming_clock">Streaming: %1$.1f fps, %2$.1f Mbit/s, clock in step within %3$.1f ms</string>
     <string name="streaming_no_clock">Streaming: %1$.1f fps, %2$.1f Mbit/s; no clock exchange, frames placed when they arrive</string>
     <string name="lens_main">Main</string>

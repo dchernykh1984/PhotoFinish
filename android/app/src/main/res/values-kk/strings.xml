@@ -16,6 +16,8 @@
     <string name="ready">Дайын: %1$s, %2$d кадр/с</string>
     <string name="connecting">%1$s мекенжайына қосылу</string>
     <string name="reconnecting">Байланыс үзілді (%1$s), қайта қосылуда</string>
+    <string name="waiting_first">Бірінші линзаның қуып жетуін күтуде; кадрлар сақталуда</string>
+    <string name="waiting_kept">Күтуде: алдымен бұрын сақталған кадрлар жіберіледі</string>
     <string name="streaming_clock">Трансляция: %1$.1f кадр/с, %2$.1f Мбит/с, сағат %3$.1f мс дәлдікпен салыстырылды</string>
     <string name="streaming_no_clock">Трансляция: %1$.1f кадр/с, %2$.1f Мбит/с; сағат салыстырылмаған, кадрлар келген уақыты бойынша орналастырылады</string>
     <string name="lens_main">Негізгі</string>
