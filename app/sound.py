@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import heapq
 import itertools
-from collections.abc import Iterable, Iterator, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
 from fractions import Fraction
 from pathlib import Path
@@ -66,6 +66,19 @@ def phone_mates(
     lenses (``phone``): the ones whose sound it takes when its own has none."""
     phone = chosen.get("phone")
     return [c for c in cameras if c is not chosen and phone and c.get("phone") == phone]
+
+
+def whose(
+    chosen: Mapping[str, Any],
+    cameras: Iterable[Mapping[str, Any]],
+    heard: Callable[[Mapping[str, Any]], bool],
+) -> Mapping[str, Any] | None:
+    """Whose sound goes with ``chosen``: its own when ``heard`` says it has some, else
+    the first of its phone's other cameras that has -- its main lens's --; None."""
+    for camera in (chosen, *phone_mates(chosen, cameras)):
+        if heard(camera):
+            return camera
+    return None
 
 
 def shift_ms(own: Mapping[str, Any], heard: Mapping[str, Any]) -> int:
