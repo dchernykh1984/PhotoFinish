@@ -911,6 +911,18 @@ class UplinkWaitsTest {
     }
 
     @Test
+    fun `a header the storage refused is tried again at each keyframe until it is kept`() {
+        var told = 0
+        val link = Uplink(address, format, { null }, {}, {}, FrameStore(kept, freeBytes = { Long.MAX_VALUE }))
+        link.onConfigured = { ++told > 1 } // the first write refused
+        link.configure(sps, pps)
+        link.offer(frame(0, keyframe = true)) // tried again: kept
+        link.offer(frame(100_000, keyframe = false))
+        link.offer(frame(1_000_000, keyframe = true)) // kept already: not told again
+        assertEquals(2, told)
+    }
+
+    @Test
     fun `the stream's header is told once a new one comes, to be kept with the frames`() {
         val told = mutableListOf<ByteArray>()
         val link = Uplink(address, format, { null }, {}, {}, FrameStore(kept, freeBytes = { Long.MAX_VALUE }))
