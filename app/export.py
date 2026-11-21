@@ -338,6 +338,8 @@ class _Out:
         self.container = av.open(str(self.partial), "w", format="mp4")
         self.found = iter(()) if found is None else found
         self.piece = next(self.found, None)
+        while self.piece is not None and self.piece.ms + shift < first:
+            self.piece = next(self.found, None)  # before the file: its form no matter
         self.audio: Any = None
         self.heard_form: sound.Form | None = None
         self.heard_next: int | None = None  # where the sound written so far ends
