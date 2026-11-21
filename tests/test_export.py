@@ -294,3 +294,11 @@ def test_frames_out_of_moment_order_as_b_frames_come_stay_in_one_file(
     written = export.export(folder, tmp_path / "Side.mp4")
     assert written == [tmp_path / "Side.mp4"]
     assert len(read(written[0])[1]) == 70
+
+
+def test_a_camera_whose_list_names_no_piece_has_no_video(tmp_path: Path) -> None:
+    folder = tmp_path / "cam1"
+    folder.mkdir()
+    (folder / "odd.mkv").write_bytes(b"x")
+    (folder / "segments.txt").write_text("odd\n")
+    assert not export.has_video(folder)

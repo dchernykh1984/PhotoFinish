@@ -47,7 +47,7 @@ def has_video(folder: Path) -> bool:
         names = (folder / SEGMENTS).read_text("ascii", errors="replace").split()
     except OSError:
         return False
-    return any((folder / f"{n}.mkv").is_file() for n in names)
+    return any((folder / f"{n}.mkv").is_file() for n in names if NAMED.fullmatch(n))
 
 
 def free(path: Path) -> Path:
