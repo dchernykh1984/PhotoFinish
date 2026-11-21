@@ -248,11 +248,13 @@ class SoundPlayer(QObject):
             return  # not begun
         if not self._chunks:
             # Empty, or as good as: an output's free room may stop a period short.
-            empty = self._output.bytesFree() >= self._buffer - self._buffer // 8
-            if self._drained is None and empty:
-                self._drained = self._clock()
+            # Dry once what it still holds has played: never counted as silence.
+            queued = self._buffer - int(self._output.bytesFree())
+            if self._drained is None and queued <= self._buffer // 8:
+                held = max(queued, 0) / (self._out_rate * self._frame)
+                self._drained = self._clock() + held
             return
         if self._drained is not None:
-            late = self._clock() - self._drained
+            late = max(self._clock() - self._drained, 0.0)
             self._drained = None
             self._unskipped += round(late * self._out_rate) * self._frame
