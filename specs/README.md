@@ -41,3 +41,4 @@ request.
   its free storage shown on the laptop.
 - [010-hevc](010-hevc/spec.md): H.265 as an experimental choice for PhotoFinish Camera, at 0.7 of
   H.264's bitrate.
+- [011-video-export](011-video-export/spec.md): a camera's video exported as one MP4 file.
