@@ -49,6 +49,16 @@ def test_while_it_catches_up_the_line_says_about_when_the_rest_is_in() -> None:
     assert catch_up.line(said(40_000, 430_000)).endswith("%")  # falling behind again
 
 
+def test_no_estimate_while_the_phone_falls_behind_again_within_the_minute() -> None:
+    catch_up = Heard()
+    for s in range(41):  # 50 s held, falling to 20 s over 40 s
+        catch_up.line(said(50_000 - 750 * s, 1_000 * s))
+    line = ""
+    for s in range(1, 20):  # then rising 0.9 s a second: a minute's fall hides it
+        line = catch_up.line(said(20_000 + 900 * s, 40_000 + 1_000 * s))
+    assert line.endswith("%")
+
+
 def test_the_peak_is_forgotten_once_the_phone_is_live_again() -> None:
     catch_up = Heard()
     catch_up.line(said(600_000, 0))
