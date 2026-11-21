@@ -13,6 +13,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.IBinder
+import android.os.SystemClock
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
@@ -59,7 +60,8 @@ class SendingService : Service() {
             ServiceCompat.startForeground(this, ID, notification(null), type) // counted at its first tick
         } catch (_: IllegalStateException) {
             // Android refusing it -- the day's time for sending in the background spent --: the app goes on unkept,
-            // never ended for it; what is kept is sent at its next start.
+            // never ended for it; what is kept is sent at its next start. Not asked again for a minute.
+            refusedMs = SystemClock.elapsedRealtime()
             stopSelf()
             return START_NOT_STICKY
         }
@@ -122,11 +124,20 @@ class SendingService : Service() {
         @Volatile var running = false
             private set
 
-        /** Whether the screen starts it now: frames to send, the screen shown, and it not running already. */
+        /** When Android last refused it the foreground, on the elapsed clock: asked again a minute on. */
+        @Volatile internal var refusedMs = Long.MIN_VALUE / 2
+
+        /**
+         * Whether the screen starts it at [nowMs]: frames to send, the screen shown, it not running already, and
+         * not refused within the minute -- never asked again and again of an Android that keeps saying no.
+         */
         fun wanted(
             sending: Boolean,
             shown: Boolean,
-        ): Boolean = sending && shown && !running
+            nowMs: Long = SystemClock.elapsedRealtime(),
+        ): Boolean = sending && shown && !running && nowMs - refusedMs >= REFUSED_WAIT_MS
+
+        private const val REFUSED_WAIT_MS = 60_000L
 
         private const val ID = 9
         private const val CHANNEL = "sending"
