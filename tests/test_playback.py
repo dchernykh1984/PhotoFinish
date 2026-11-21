@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from app.playback import FASTEST, SLOWEST, play_on, speed_name
+from app.playback import FASTEST, SLOWEST, moment_due, play_on, speed_name
 
 
 class Frames:
@@ -110,3 +110,9 @@ def test_a_speed_is_named_as_its_button_names_it() -> None:
     names = [speed_name(2.0**n) for n in range(-4, 5)]
     assert names == ["x1/16", "x1/8", "x0.25", "x0.5", "x1", "x2", "x4", "x8", "x16"]
     assert (SLOWEST, FASTEST) == (1 / 16, 16.0)
+
+
+def test_the_moment_due_is_where_playing_went_on_from_and_the_time_since() -> None:
+    assert moment_due((10.0, 5_000), 10.5, 1.0) == 5_500
+    assert moment_due((10.0, 5_000), 10.5, 4.0) == 7_000
+    assert moment_due((10.0, 5_000), 10.5, -0.5) == 4_750

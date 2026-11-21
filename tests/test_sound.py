@@ -206,3 +206,15 @@ def test_a_long_gap_is_silence_made_a_little_at_a_time(tmp_path: Path) -> None:
         sizes.append(len(chunk))
     assert sum(sizes) / 4 / RATE == pytest.approx(3.0 + 120.0, abs=0.2)
     assert max(sizes) <= 4 * RATE * 0.15
+
+
+def test_a_phones_other_lenses_are_its_cameras_beside_the_one_shown() -> None:
+    main: dict[str, object] = {"id": "cam1", "phone": "p1", "offset_ms": 50}
+    tele: dict[str, object] = {"id": "cam2", "phone": "p1", "offset_ms": 20}
+    other: dict[str, object] = {"id": "cam3", "phone": "p2"}
+    alone: dict[str, object] = {"id": "cam4"}
+    cameras = [main, tele, other, alone]
+    assert sound.phone_mates(tele, cameras) == [main]
+    assert sound.phone_mates(alone, cameras) == []  # no phone: none of its own
+    assert sound.shift_ms(tele, main) == 30  # the main lens's sound 30 ms later
+    assert sound.shift_ms(main, main) == 0

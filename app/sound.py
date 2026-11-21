@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import heapq
 import itertools
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
 from fractions import Fraction
 from pathlib import Path
@@ -57,6 +57,21 @@ class Piece:
     packet: av.Packet = field(compare=False)
     form: Form = field(compare=False)
     path: Path = field(compare=False)  # the segment it came from
+
+
+def phone_mates(
+    chosen: Mapping[str, Any], cameras: Iterable[Mapping[str, Any]]
+) -> list[Mapping[str, Any]]:
+    """The other cameras of ``chosen``'s phone, as the camera dialog notes a phone's
+    lenses (``phone``): the ones whose sound it takes when its own has none."""
+    phone = chosen.get("phone")
+    return [c for c in cameras if c is not chosen and phone and c.get("phone") == phone]
+
+
+def shift_ms(own: Mapping[str, Any], heard: Mapping[str, Any]) -> int:
+    """How much later than its own moments ``heard``'s sound goes in ``own``'s video:
+    the two cameras' offsets apart, as it plays."""
+    return int(heard.get("offset_ms", 0)) - int(own.get("offset_ms", 0))
 
 
 def has_sound(path: Path) -> bool:
