@@ -105,6 +105,40 @@ class MicrophoneTurnsTest {
     }
 
     @Test
+    fun `two streams starting at once open the microphone once, the second put off for the first's reader`() {
+        // The camera's thread starts one as a put-off start of another resumes on its own: one reader, never two.
+        val shared = MicrophoneTurns.Reader()
+        val opening = CountDownLatch(1)
+        val opened = CountDownLatch(1)
+        val first = AtomicInteger()
+        val slow =
+            MicrophoneTurns(
+                { true },
+                {
+                    opening.countDown()
+                    opened.await(5, TimeUnit.SECONDS) // the microphone a while to open
+                    first.incrementAndGet()
+                },
+                { _, going -> Thread { while (going.get()) Thread.sleep(5) }.apply { start() } },
+                {},
+                {},
+                shared,
+            )
+        val other = Mic(shared)
+        val starting = Thread { slow.start() }.apply { start() }
+        assertTrue(opening.await(5, TimeUnit.SECONDS))
+        val second = Thread { other.turns.start() }.apply { start() }
+        Thread.sleep(100) // the second asks as the first opens
+        opened.countDown()
+        starting.join(5_000)
+        second.join(5_000)
+        assertEquals(1, first.get())
+        assertEquals(0, other.opened.get()) // put off for the first's reader
+        slow.stop()
+        other.turns.stop()
+    }
+
+    @Test
     fun `a refusal is said once, then again after the microphone was allowed and refused anew`() {
         val mic = Mic(MicrophoneTurns.Reader(), allowed = false)
         assertFalse(mic.turns.start())

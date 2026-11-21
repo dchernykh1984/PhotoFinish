@@ -42,20 +42,31 @@ internal class MicrophoneTurns<T : Any>(
     /** A start put off waits for the reader before: one at a time. */
     private var putOff = false
 
-    /** Started, unless it runs: whether it runs now. */
+    /**
+     * Started, unless it runs: whether it runs now. The reader looked at and taken under the shared reader's lock:
+     * two streams starting at once -- the camera's thread, and another's start put off -- open it once.
+     */
     @Synchronized
     fun start(): Boolean {
         wanted = true
         if (running?.get() == true) return true
+        if (!allowed()) {
+            refuse()
+            sounded(false)
+            return false
+        }
+        return synchronized(reader) { begin() }
+    }
+
+    /** Opened and read, unless another's reader still reads; the caller holds both locks. */
+    private fun begin(): Boolean {
         val before = reader.thread
         val opened =
-            when {
-                !allowed() -> refuse()
-                before?.isAlive == true -> later(before)
-                else -> {
-                    refusalSaid = false // allowed again: a refusal after it said again
-                    open()
-                }
+            if (before?.isAlive == true) {
+                later(before)
+            } else {
+                refusalSaid = false // allowed again: a refusal after it said again
+                open()
             }
         if (opened == null) return false.also { sounded(false) }
         val going = AtomicBoolean(true)
@@ -74,10 +85,9 @@ internal class MicrophoneTurns<T : Any>(
     }
 
     /** Not allowed the microphone: said the first time, the stream going without sound; nothing opened. */
-    private fun refuse(): T? {
+    private fun refuse() {
         if (!refusalSaid) refused()
         refusalSaid = true
-        return null
     }
 
     /** Started once [before] has stopped reading, if still wanted then; not two waiting at once. */
