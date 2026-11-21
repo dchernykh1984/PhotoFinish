@@ -25,6 +25,7 @@ from typing import Any
 import av
 import numpy as np
 
+from app.files import Appended
 from app.recorder import folder_of
 from app.recorder.segments import LEAD_MS, SOUND, fraction, in_ms, kept_sound
 from app.video_index import VideoIndex, read_times
@@ -96,13 +97,20 @@ def heard_at(index: VideoIndex, moment: int, within: int) -> bool:
     return place is not None and has_sound(index.frame(place).path)
 
 
-def sounding(folder: Path) -> set[str]:
+_SOUNDING: dict[Path, tuple[Appended, set[str]]] = {}
+_SOUNDING_LOCK = threading.Lock()  # the window's thread and an export's ask
+
+
+def sounding(folder: Path) -> frozenset[str]:
     """The names of a camera's segments that kept sound, as its recorder lists them
-    as they close (SOUND)."""
-    try:
-        return set((folder / SOUND).read_bytes().decode("ascii", "replace").split())
-    except OSError:
-        return set()
+    as they close (SOUND): followed as the list grows, a line a second all day, the
+    lines added since the last ask read alone."""
+    with _SOUNDING_LOCK:
+        follower, names = _SOUNDING.setdefault(
+            folder, (Appended(folder / SOUND), set())
+        )
+        names.update(follower.new_lines())
+        return frozenset(names)
 
 
 def heard_somewhere(folder: Path) -> bool:

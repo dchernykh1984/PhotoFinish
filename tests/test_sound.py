@@ -384,6 +384,24 @@ def test_whose_sound_plays_from_a_moment_is_one_with_it_there_else_later(
     assert not sound.heard_later(silent, START)
 
 
+def test_the_list_of_segments_that_kept_sound_is_followed_never_read_again(
+    tmp_path: Path,
+) -> None:
+    # A line a second all day: the lines added since the last ask read alone.
+    listed = tmp_path / sound.SOUND
+    listed.write_text("20251029-103000-0001\n20251029-103001-0002\n")
+    assert sound.sounding(tmp_path) == {"20251029-103000-0001", "20251029-103001-0002"}
+    with listed.open("r+b") as f:  # what was read, never read again
+        f.write(b"20251029-103000-9999")
+    with listed.open("ab") as f:
+        f.write(b"20251029-103002-0003\n")
+    assert sound.sounding(tmp_path) == {
+        "20251029-103000-0001",
+        "20251029-103001-0002",
+        "20251029-103002-0003",
+    }
+
+
 def test_the_segments_that_kept_no_sound_are_never_opened_for_it(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
