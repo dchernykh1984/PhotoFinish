@@ -109,9 +109,16 @@ class SendingService : Service() {
         private const val CHANNEL = "sending"
         private const val TICK_MS = 2_000L
 
-        /** Started from the screen, in the foreground, as there are frames to send. */
-        fun start(context: Context) {
-            ContextCompat.startForegroundService(context, Intent(context, SendingService::class.java))
-        }
+        /**
+         * Started from the screen, in the foreground, as there are frames to send; false when Android refuses it --
+         * an app in the background may not start one (Android 12) --: the screen starts it again once it is back.
+         */
+        fun start(context: Context): Boolean =
+            try {
+                ContextCompat.startForegroundService(context, Intent(context, SendingService::class.java))
+                true
+            } catch (_: IllegalStateException) {
+                false
+            }
     }
 }
