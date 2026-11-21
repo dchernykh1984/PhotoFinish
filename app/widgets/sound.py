@@ -82,7 +82,6 @@ class SoundPlayer(QObject):
         self._room = threading.Condition(self._lock)
         self._thread: threading.Thread | None = None
         self._stopped = threading.Event()
-        self._rendered = False  # the rendering has given all the sound there is
         self._pieces: sound.Pieces | None = None  # what it plays, following its index
         self._index: VideoIndex | None = None
         self._listed = 0  # the index's segments the pieces know of
@@ -94,13 +93,6 @@ class SoundPlayer(QObject):
     @property
     def playing(self) -> bool:
         return self._thread is not None
-
-    @property
-    def ended(self) -> bool:
-        """All the sound there was has been given: a recording that grew since may
-        have more, for the window to play on."""
-        with self._lock:
-            return self.playing and self._rendered and not self._chunks
 
     def play(
         self, index: VideoIndex, from_ms: int, rate: float, follows: bool = True
@@ -154,7 +146,6 @@ class SoundPlayer(QObject):
             self._chunks.clear()
             self._held = 0
             self._unskipped = 0
-            self._rendered = False
             self._room.notify_all()
         self._thread = None  # a daemon: it ends at its next piece, waited for by none
         if self._output is not None:
@@ -169,9 +160,6 @@ class SoundPlayer(QObject):
             while not stopped.is_set():
                 chunk = renderer.read()
                 if not chunk:
-                    with self._lock:  # a stopped one's end is not the next play's
-                        if not stopped.is_set():
-                            self._rendered = True
                     return
                 with self._lock:
                     while self._held > ahead and not stopped.is_set():
@@ -181,9 +169,7 @@ class SoundPlayer(QObject):
                     self._chunks.append(chunk)
                     self._held += len(chunk)
         except Exception:  # a sound that cannot be played is not heard
-            with self._lock:  # ended: the window plays on as the recording grows
-                if not stopped.is_set():
-                    self._rendered = True
+            return
 
     def _pump(self) -> None:
         """What the output has room for, given it; the first time, the time since

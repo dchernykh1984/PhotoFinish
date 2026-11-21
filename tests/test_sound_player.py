@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import threading
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -48,6 +47,12 @@ class Output:
 
     def stop(self) -> None:
         self.stopped = True
+
+
+def given(played: player.SoundPlayer) -> bool:
+    """All its sound rendered and given to the output: its thread ended."""
+    thread = played._thread
+    return thread is not None and not thread.is_alive() and not played._chunks
 
 
 def heard(output: Output) -> np.ndarray:
@@ -115,20 +120,6 @@ def test_an_output_that_takes_another_rate_and_channels_is_played_in_them(
     played.stop()
 
 
-def test_the_sound_says_it_has_ended_once_all_of_it_is_given(tmp_path: Path) -> None:
-    index = recorded(tmp_path)
-    output = Output()
-    played = player.SoundPlayer(
-        output=lambda: (output, player.RATE, player.CHANNELS), clock=still
-    )
-    assert not played.ended  # nothing played: nothing ended
-    played.play(index, START + 2500, 1.0, follows=False)
-    wait_until(lambda: played.ended)  # the half second left, given whole
-    assert len(output.taken) == pytest.approx(4 * RATE * 0.5, rel=0.2)
-    played.stop()
-    assert not played.ended
-
-
 def test_the_time_the_sound_took_to_start_is_skipped_so_it_keeps_up(
     tmp_path: Path,
 ) -> None:
@@ -157,12 +148,12 @@ def test_a_start_longer_than_the_sound_rendered_ahead_is_left_out_whole(
     played = player.SoundPlayer(output=lambda: made, clock=lambda: now[0])
     played.play(index, START, 1.0, follows=False)
     now[0] += 1.0
-    wait_until(lambda: played.ended)
+    wait_until(lambda: given(played))
     assert beep_at(heard(output)) == pytest.approx(0.5, abs=0.05)  # 1.5 s in, less 1
     played.stop()
 
 
-def test_a_sound_that_cannot_be_rendered_has_ended_for_the_window_to_play_on(
+def test_a_sound_that_cannot_be_rendered_ends_quietly(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     index = recorded(tmp_path)
@@ -173,8 +164,8 @@ def test_a_sound_that_cannot_be_rendered_has_ended_for_the_window_to_play_on(
     monkeypatch.setattr(player.sound.Renderer, "read", broken)
     made = (Output(), player.RATE, player.CHANNELS)
     played = player.SoundPlayer(output=lambda: made, clock=still)
-    played.play(index, START, 1.0, follows=False)
-    wait_until(lambda: played.ended)
+    played.play(index, START, 1.0)
+    wait_until(lambda: given(played))  # its thread ended, nothing raised
     played.stop()
 
 
@@ -192,22 +183,6 @@ def test_the_time_an_output_takes_to_open_is_left_out_too(tmp_path: Path) -> Non
     wait_until(lambda: len(output.taken) > 4 * RATE * 1.5)
     assert beep_at(heard(output)) == pytest.approx(0.8, abs=0.05)
     played.stop()
-
-
-def test_a_stopped_rendering_ending_late_leaves_the_next_ones_end_alone() -> None:
-    # A stop's renderer, still reading as the next play began, ends after the next
-    # play's has: the next one's end stands, for the window to play on.
-    played = player.SoundPlayer(output=lambda: None, clock=still)
-    played._rendered = True  # the next play's sound, all given
-    stopped = threading.Event()
-
-    class Ended:
-        def read(self) -> bytes:
-            stopped.set()  # stopped as it read
-            return b""
-
-    played._render(Ended(), stopped)  # type: ignore[arg-type]
-    assert played._rendered
 
 
 def growing(tmp_path: Path) -> tuple[VideoIndex, Callable[[], None]]:
