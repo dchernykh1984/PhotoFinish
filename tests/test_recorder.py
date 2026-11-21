@@ -1247,3 +1247,35 @@ def test_a_sources_sound_is_kept_beside_its_frames_and_counted_as_none(
                 heard += sum(1 for p in container.demux(audio=0) if p.size)
     assert heard > 80  # two seconds' pieces, but for the first's before any frame
     assert heartbeat(folder)["frames"] == 60 + 1  # the frames alone, and the stop's
+
+
+class SoundAlone(WithSound):
+    """A phone's source whose frames stall after the first while its sound goes on."""
+
+    def frames(self) -> Iterator[tuple[av.Packet, int]]:
+        framed = False
+        for packet, ms in super().frames():
+            if packet.stream.type == "video":
+                if framed:
+                    continue
+                framed = True
+            yield packet, ms
+
+
+def test_a_recorder_that_hears_sound_alone_still_beats(
+    folder: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The frames stalled, the sound going on: the recorder is alive, not stuck.
+    with_sound(tmp_path / "phone.mkv", 2)
+    stop = Camera(folder, START + 10_000, 1, stop_after=0)
+    cameras(monkeypatch, SoundAlone(tmp_path / "phone.mkv"), stop)
+    beats: list[str] = []
+    real = Heartbeat.beat
+
+    def beat(self: Heartbeat, **changes: Any) -> None:
+        real(self, **changes)
+        beats.append(self.info["state"])
+
+    monkeypatch.setattr(Heartbeat, "beat", beat)
+    assert run("cam1") == 0
+    assert beats.count("recording") > 50  # a beat at each piece of sound, not one

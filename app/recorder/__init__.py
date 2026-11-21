@@ -374,6 +374,9 @@ class _Recording:
         ):
             if self.writer is not None:  # sound beside the frames of its segment (013)
                 _disk(self.writer.write_audio, image, ms)
+                # The frames stalled, the sound going on: alive, not stuck -- once
+                # a second, as the beat writes.
+                self.beat.beat(state="recording", phone=source.phone)
             return
         if self.writer is None:  # its own recovery writes too: a full disk said so
             self.writer = _disk(
