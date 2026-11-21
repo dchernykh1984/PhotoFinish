@@ -20,6 +20,7 @@ import androidx.core.content.ContextCompat
 import com.dchernykh.photofinish.camera.capture.Senders
 import com.dchernykh.photofinish.camera.stream.FrameStore
 import com.dchernykh.photofinish.camera.ui.megabytes
+import com.dchernykh.photofinish.camera.ui.said
 import com.dchernykh.photofinish.camera.ui.span
 
 /**
@@ -91,7 +92,7 @@ class SendingService : Service() {
             NotificationChannel(CHANNEL, getString(R.string.sending_channel), NotificationManager.IMPORTANCE_LOW)
         manager?.createNotificationChannel(channel)
         val text =
-            if (held != null && held.bytes > 0) {
+            if (held != null && said(held, stopped = !Senders.backlog.streaming)) {
                 getString(R.string.sending_left, span(held.ms), megabytes(held.bytes))
             } else {
                 getString(R.string.sending_live)

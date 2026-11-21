@@ -360,6 +360,16 @@ class BacklogTest {
     }
 
     @Test
+    fun `the backlog tells whether a lens streams`() {
+        backlog.readBack()
+        assertFalse(backlog.streaming)
+        val off = backlog.live(first, FrameStore(File(root, "main-900"), freeBytes = { Long.MAX_VALUE }))
+        assertTrue(backlog.streaming)
+        off()
+        assertFalse(backlog.streaming)
+    }
+
+    @Test
     fun `discard stops and drops every stream kept`() {
         kept(began = 100)
         kept(began = 200, address = second)
