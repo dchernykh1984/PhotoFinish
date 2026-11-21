@@ -276,13 +276,12 @@ private fun WatchUnsent(state: ScreenState) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     LaunchedEffect(Unit) {
-        var started = false
         while (true) {
             val (held, sending) = withContext(Dispatchers.IO) { Senders.backlog.pending() to Senders.active }
             state.unsent = held
+            // Started again whenever it is not running -- it stopped itself, Android's time ran out --: never left off.
             val shown = lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
-            if (sending && !started && shown) started = SendingService.start(context)
-            if (!sending) started = false
+            if (SendingService.wanted(sending, shown)) SendingService.start(context)
             delay(UNSENT_EVERY_MS)
         }
     }
