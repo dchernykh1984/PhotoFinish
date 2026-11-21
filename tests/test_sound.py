@@ -468,6 +468,24 @@ def test_the_segments_that_kept_no_sound_are_never_opened_for_it(
     assert opened == sounding
 
 
+def test_the_sound_later_is_looked_for_without_listing_a_days_frames(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Asked at each poll as it plays through a stretch without sound: never a pass
+    # over every frame of the day, nor any for a camera that kept none.
+    index = recorded(tmp_path)
+
+    def listed(*_: object) -> object:
+        raise AssertionError("every frame looked over")
+
+    monkeypatch.setattr(index, "segments_from", listed)
+    assert sound.heard_later(index, START)
+    assert not sound.heard_later(index, START + 600_000)
+    silent = VideoIndex(tmp_path / "none")
+    monkeypatch.setattr(silent, "segments_from", listed)
+    assert not sound.heard_later(silent, START)
+
+
 def test_the_sound_later_is_one_from_the_moment_on_never_one_all_behind(
     tmp_path: Path,
 ) -> None:
