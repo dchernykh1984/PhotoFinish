@@ -80,9 +80,13 @@ class WindowLog:
             text = "".join(traceback.format_exception(kind, value, tb)).rstrip("\n")
             way, name = _way(kind, tb)
             if about:  # a finalizer's: what Python said of it, whose
-                text, name = f"{about}\n{text}", f"{name} ({about})"
-                if tb is None:  # no way to know it by: by whose, then, wherever
-                    way = f"{way} ({_ADDRESS.sub('', about)})"  # it lives
+                text = f"{about}\n{text}"
+                if tb is None:
+                    # No way to know it by: by whose, wherever it lives. Its
+                    # repeats are all of that, so its count may name it too; one
+                    # known by its way may come from other objects.
+                    whose = _ADDRESS.sub("", about)
+                    way, name = f"{way} ({whose})", f"{name} ({whose})"
             now = self._steady()
             self._said_again(now)
             seen = self._seen.get(way)  # an error come back in may have let it go

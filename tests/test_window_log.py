@@ -731,3 +731,15 @@ def test_the_watch_looks_at_the_log_every_second() -> None:
     # faulthandler writes between two looks unbounded: at every 10 s, a native
     # exception at each frame could put megabytes past the stacks' room.
     assert window_log.WATCH_S <= 1.0
+
+
+def test_a_count_names_no_object_of_the_first_error_when_others_came() -> None:
+    # Two objects' finalizers failing on one line come one way, counted together:
+    # the count names their kind and line, not the first one's object.
+    file = io.StringIO()
+    log = window_log.WindowLog(file)
+    log.error(*raised("closing"), "Exception ignored in: <Decoder A>")
+    log.error(*raised("closing"), "Exception ignored in: <SoundPlayer B>")
+    counts = [line for line in file.getvalue().splitlines() if "so far" in line]
+    assert len(counts) == 1
+    assert "<Decoder A>" not in counts[0]
