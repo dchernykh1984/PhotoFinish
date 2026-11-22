@@ -97,10 +97,12 @@ def _ms(info: dict[str, Any], key: str) -> int:
 
 
 def alive(info: dict[str, Any] | None) -> bool:
-    """A recorder that is running: a fresh heartbeat, a state that is not an end."""
+    """A recorder that is running: a fresh heartbeat, a state that is not an end. A
+    beat as far ahead of this computer's clock -- the clock set back since -- is as
+    old: one that lives beats again within the second, on the clock set back."""
     if info is None or info.get("state") in ENDED:
         return False
-    return time.time_ns() // 1_000_000 - _ms(info, "heartbeat_ms") <= STALE_MS
+    return abs(time.time_ns() // 1_000_000 - _ms(info, "heartbeat_ms")) <= STALE_MS
 
 
 def recording(info: dict[str, Any] | None) -> bool:

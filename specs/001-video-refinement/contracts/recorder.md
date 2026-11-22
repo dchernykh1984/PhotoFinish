@@ -16,7 +16,8 @@ it keeps recording when the window is gone.
 `clock`: for a phone camera, why its clock exchange is left out -- its UDP port taken -- and so
 its frames placed by their arrival; "" otherwise. The camera list says it in every state.
 A heartbeat older than 15 s means the recorder is gone: a camera open blocks up to 10 s without
-one. A recorder whose process the window started and saw end is gone at once, unless it ended
+one. So does one more than 15 s ahead of this computer's clock, the clock set back since: a
+recorder that lives beats again within the second. A recorder whose process the window started and saw end is gone at once, unless it ended
 with exit code 3: then the other recorder's heartbeat tells.
 While an RTMP camera has not called in, the state is `connecting` with `detail` "waiting for
 rtmp://<this computer>:<port>/<path>", the address to type in the camera app.
