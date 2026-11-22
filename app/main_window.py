@@ -204,11 +204,11 @@ class MainWindow(QMainWindow):
             "Added to the video's time to give the timing source's: set with "
             "'Align with source'"
         )
-        self.recording_banner = WholeLabel()  # whether the cameras record now (FR-019)
+        self.recording_banner = WholeLabel(steady=True)  # cameras recording (FR-019)
         self.recording_banner.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.recording_banner.setTextFormat(Qt.TextFormat.RichText)
         self.recording_banner.hide()  # until a camera records
-        self.phones = WholeLabel()  # what may stop each phone's stream (specs/005)
+        self.phones = WholeLabel(steady=True)  # what may stop a phone (specs/005)
         self.phones.setTextFormat(Qt.TextFormat.RichText)
         self.phones.setStyleSheet("QLabel { font-size: 13px; }")
         self.phones.hide()  # until a phone says how it is

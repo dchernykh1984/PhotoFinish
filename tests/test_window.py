@@ -4449,3 +4449,27 @@ def test_a_camera_s_line_is_whole_in_its_tip_a_word_too_long_cut_in_the_list(
     item = win.cameras["cam1"].item
     assert path in item.text()
     assert item.toolTip() == item.text()
+
+
+def test_the_lists_stay_put_while_a_phone_s_line_wraps_to_fewer_lines(
+    base: Path, make_window: Callable[[], mw.MainWindow]
+) -> None:
+    # Its readings shorter a poll later -- no frames dropped in the last minute --,
+    # the phone's line wraps to fewer lines: the lists below stay where the referee
+    # is about to click.
+    phone = {**CAMERA, "connection": "rtmp", "settings": {"port": 1999, "path": "x"}}
+    session.save({**session.DEFAULTS, "cameras": [phone]})
+    now = time.time_ns() // 1_000_000
+    full: dict[str, Any] = {"battery": "47", "temp": "41.5", "thermal": "3"}
+    full |= {"wifi": "-72", "saver": "1", "dropped": "1234", "free": "25000"}
+    beating(base, phone=full | {"at_ms": now, "heard_ms": now})
+    win = make_window()
+    win.resize(100, 100)
+    win.show()
+    win.poll()
+    QApplication.processEvents()
+    lists = win.camera_list.mapTo(win, win.camera_list.rect().topLeft()).y()
+    beating(base, phone={"battery": "47", "at_ms": now, "heard_ms": now})
+    win.poll()
+    QApplication.processEvents()
+    assert win.camera_list.mapTo(win, win.camera_list.rect().topLeft()).y() == lists

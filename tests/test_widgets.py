@@ -726,3 +726,33 @@ def test_a_whole_label_is_as_high_as_its_text_in_the_font_a_style_gives_it() -> 
     assert label.width() == wide
     assert label.minimumHeight() == label.heightForWidth(label.width()) > small
     holder.close()
+
+
+def test_a_steady_whole_label_keeps_its_height_while_its_lines_come_and_go() -> None:
+    # A phone's readings wrap to two lines, then one, then two, a poll apart: the
+    # lists below would move under the referee's click at each. Held at the most its
+    # text took at this width; given back with another width, or once hidden.
+    from PySide6.QtWidgets import QVBoxLayout, QWidget
+
+    from app.widgets.whole_label import WholeLabel
+
+    holder = QWidget()
+    label = WholeLabel(steady=True)
+    QVBoxLayout(holder).addWidget(label)
+    label.setText(" ".join(["word"] * 40))
+    holder.resize(300, 600)
+    holder.show()
+    QApplication.processEvents()
+    tall = label.minimumHeight()
+    label.setText("short")
+    QApplication.processEvents()
+    assert label.minimumHeight() == tall
+    holder.resize(1200, 600)
+    QApplication.processEvents()
+    assert label.minimumHeight() == label.heightForWidth(label.width()) < tall
+    label.hide()
+    label.setText("one line")
+    label.show()
+    QApplication.processEvents()
+    assert label.minimumHeight() == label.heightForWidth(label.width())
+    holder.close()
