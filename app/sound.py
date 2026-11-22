@@ -284,8 +284,9 @@ class Pieces:
         if self._folder is None:
             return listed
         kept = sounding(self._folder)
-        self._unheard = [path for path in listed if path.stem not in kept][-UNHEARD:]
-        return [path for path in listed if path.stem in kept]
+        named = [(path, path.stem in kept) for path in listed]  # each named once
+        self._unheard = [path for path, heard in named if not heard][-UNHEARD:]
+        return [path for path, heard in named if heard]
 
     def finish(self) -> None:
         """No more to wait for: what is held given, then the end."""
