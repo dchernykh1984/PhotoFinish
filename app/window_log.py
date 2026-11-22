@@ -103,6 +103,13 @@ class WindowLog:
             self._seen[way] = _Seen(now, name, said=now)
             self._write(f"{heading}\n{text}")
 
+    def tick(self) -> None:
+        """The counts of the errors whose minute has ended written now -- not at
+        the next error, an hour on maybe, stamped then: the watch calls it every
+        WATCH_S."""
+        with self._lock:
+            self._said_again(self._steady())
+
     def end(self) -> None:
         with self._lock:
             self._said_again(math.inf)
@@ -276,6 +283,7 @@ def _watch(log: WindowLog, room: int, disable: Callable[[], object]) -> None:
     run, it is turned off, and that is said."""
     while True:
         time.sleep(WATCH_S)
+        log.tick()
         try:
             size = os.fstat(log.file.fileno()).st_size
         except OSError, ValueError:  # the file closed: nothing to watch

@@ -643,3 +643,32 @@ def test_the_same_error_come_back_while_it_is_formatted_is_counted_once(
     text = file.getvalue()
     assert text.count("ValueError: first") == 1
     assert "came 1 time more so far" in text
+
+
+def test_a_minute_s_count_is_written_as_it_ends_not_at_the_next_error() -> None:
+    # A burst that stops: its count waited for another error, maybe an hour on,
+    # and was stamped then, reading as a second burst.
+    file = io.StringIO()
+    now = [1000.0]
+    log = window_log.WindowLog(file, clock=lambda: now[0], steady=lambda: now[0])
+    for second in range(10):
+        now[0] = 1000.0 + second
+        log.error(*raised("a burst"))
+    now[0] = 1061.0
+    log.tick()  # as the watch does, every WATCH_S
+    assert "came 9 times more in its minute" in file.getvalue()
+
+
+def test_the_watch_has_the_minutes_said_each_time_it_looks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(window_log, "WATCH_S", 0.0)
+
+    class Closed:
+        def fileno(self) -> int:
+            raise ValueError("I/O operation on closed file")
+
+    ticks: list[int] = []
+    log = SimpleNamespace(tick=lambda: ticks.append(1), file=Closed())
+    window_log._watch(log, 0, lambda: None)  # type: ignore[arg-type]
+    assert ticks == [1]
