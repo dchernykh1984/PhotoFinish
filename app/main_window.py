@@ -18,6 +18,7 @@ from PySide6.QtCore import (
     QObject,
     QProcess,
     QProcessEnvironment,
+    QSize,
     Qt,
     QTimer,
     Signal,
@@ -128,6 +129,7 @@ BANNER = (
     " padding: 6px; border-radius: 4px; }}"
 )
 GREEN, RED = "#2e7d32", "#c62828"
+TITLE_BAR_PX = 40  # a window's title bar and frame, about, the most of them
 LEVELS = {phone_status.WARN: "#b26a00", phone_status.BAD: RED}  # a phone's readings
 
 
@@ -289,7 +291,10 @@ class MainWindow(QMainWindow):
         self.suggestion_list.itemClicked.connect(self._suggestion_picked)
 
         self.setCentralWidget(self._layout())
-        self.resize(1660, 900)  # as it opened before its lists could be lower
+        # As large as it opened before its lists could be lower, within the screen's
+        # room, its title bar left room for: a smaller screen's bottom not cut.
+        room = self.screen().availableGeometry().size() - QSize(0, TITLE_BAR_PX)
+        self.resize(QSize(1660, 900).boundedTo(room))
         self._shortcuts()
         self._menus()
         for camera in self.session["cameras"]:

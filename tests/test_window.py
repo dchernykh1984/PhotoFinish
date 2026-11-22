@@ -16,8 +16,8 @@ import av
 import numpy as np
 import pytest
 import shiboken6
-from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
-from PySide6.QtGui import QAction, QImage, QWheelEvent
+from PySide6.QtCore import QEvent, QPoint, QPointF, QRect, Qt
+from PySide6.QtGui import QAction, QImage, QScreen, QWheelEvent
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import (
     QApplication,
@@ -4610,11 +4610,16 @@ def test_the_window_fits_a_full_hd_screen_a_phone_of_four_lenses_none_recording(
     assert win.minimumHeight() <= 1080 - 37 - 80 - 28
 
 
-def test_the_window_opens_as_large_as_it_did_not_at_its_least(
-    make_window: Callable[[], mw.MainWindow],
+def test_the_window_opens_as_large_as_it_did_within_the_screen_s_room(
+    make_window: Callable[[], mw.MainWindow], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # Its lists may be lower than they were: opened at its least, it would open
-    # smaller than before.
+    # smaller than before. A smaller screen -- 1920x1200 at 125 %, its taskbar --
+    # bounds it, its title bar left room for.
+    room = {"screen": QRect(0, 0, 1920, 1040)}
+    monkeypatch.setattr(QScreen, "availableGeometry", lambda self: room["screen"])
     win = make_window()
-    assert win.width() >= 1660
-    assert win.height() >= 900
+    assert (win.width(), win.height()) == (1660, 900)
+    room["screen"] = QRect(0, 0, 1536, 912)
+    win = make_window()
+    assert win.height() <= 912 - 40
