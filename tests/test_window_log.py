@@ -515,3 +515,23 @@ def test_the_watch_on_the_log_s_size_ends_with_its_file(
     log.file.close()
     watch.join(timeout=5)
     assert not watch.is_alive()
+
+
+def test_the_same_error_come_back_while_it_is_written_is_counted_once() -> None:
+    # The collector runs a finalizer failing the same way inside the write of
+    # that error: its traceback was written twice, its count begun again.
+    class Reentered(io.StringIO):
+        again = False
+
+        def write(self, text: str) -> int:
+            if "ValueError: first" in text and not self.again:
+                self.again = True
+                log.error(*raised("first"))
+            return super().write(text)
+
+    file = Reentered()
+    log = window_log.WindowLog(file)
+    log.error(*raised("first"))
+    text = file.getvalue()
+    assert text.count("ValueError: first") == 1
+    assert "came 1 time more so far" in text
