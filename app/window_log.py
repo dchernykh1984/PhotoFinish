@@ -264,8 +264,9 @@ def start(
     def excepthook(
         kind: type[BaseException], value: BaseException, tb: TracebackType | None
     ) -> None:
-        with contextlib.suppress(Exception):
-            log.error(kind, value, tb)
+        if not issubclass(kind, KeyboardInterrupt):  # Ctrl+C: a way out, no error
+            with contextlib.suppress(Exception):
+                log.error(kind, value, tb)
         hooked(kind, value, tb)
 
     def thread_hook(args: threading.ExceptHookArgs) -> None:

@@ -899,3 +899,18 @@ def test_the_watch_turns_the_stacks_off_when_the_log_s_size_goes(
         "a crash's stacks are not written this run: "
         "OSError: the network share went away"
     ]
+
+
+def test_a_keyboard_interrupt_is_no_error(tmp_path: Path, hooks: list[object]) -> None:
+    # Ctrl+C in a terminal run: Python's own way out, no crash to report.
+    path = tmp_path / "window.log"
+    log = window_log.start(
+        path, "1.0.0", enable=lambda file: None, disable=lambda: None
+    )
+    assert log is not None
+    try:
+        raise KeyboardInterrupt
+    except KeyboardInterrupt as error:
+        sys.excepthook(KeyboardInterrupt, error, error.__traceback__)
+    assert "KeyboardInterrupt" not in path.read_text(encoding="utf-8")
+    assert hooks == [KeyboardInterrupt]  # the hook before still asked
