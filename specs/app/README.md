@@ -110,7 +110,8 @@ after it up to the next keyframe, none shown with another's picture.
   keeps them in `video/<camera>/phone.log`, in the phone's order and each once, with the phone's
   time; a lens camera that does not record shows after its state the phone's last
   warning or error of its lens, or of the phone as a whole, until the phone says otherwise --
-  how long ago, past a minute. Lines sent while the recorder is down come once it is back.
+  how long ago, past a minute, or that it was heard before the computer's clock was set back.
+  Lines sent while the recorder is down come once it is back.
 - A segment is shown once it is closed, about a second after its first frame: the newest frame
   is on screen within 2 s of its capture for cameras with a keyframe at least every second.
 - Below 2 GB free the camera list says so; a full disk stops the recorder, which keeps what it
