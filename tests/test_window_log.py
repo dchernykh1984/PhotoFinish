@@ -254,3 +254,23 @@ def test_an_error_raised_while_the_log_writes_does_not_hang_the_window() -> None
     writer.join(timeout=5)
     assert not writer.is_alive()
     assert "ValueError: first" in file.getvalue()
+
+
+def test_a_failure_of_the_log_itself_still_hands_each_error_on(
+    tmp_path: Path, hooks: list[object], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Its traceback too deep to format, say: the error still reaches the hook
+    # before the log's, and nothing of the log's own escapes into the window.
+    path = tmp_path / "window.log"
+    assert window_log.start(path, "1.0.0", enable=lambda file: None) is not None
+
+    def broken(*args: object) -> None:
+        raise RecursionError("too deep a chain")
+
+    monkeypatch.setattr(window_log.WindowLog, "error", broken)
+    sys.excepthook(*raised("in a slot"))
+    thread = threading.Thread(target=lambda: 1 / 0)
+    thread.start()
+    thread.join()
+    _FailingAtItsEnd()  # dropped at once
+    assert hooks == [ValueError, ZeroDivisionError, RuntimeError]

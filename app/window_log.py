@@ -171,21 +171,26 @@ def start(
         sys.unraisablehook,
     )
 
+    # Each error handed on to the hook before whatever the log does: a failure
+    # of its own -- a traceback too deep to format -- loses the error nowhere.
     def excepthook(
         kind: type[BaseException], value: BaseException, tb: TracebackType | None
     ) -> None:
-        log.error(kind, value, tb)
+        with contextlib.suppress(Exception):
+            log.error(kind, value, tb)
         hooked(kind, value, tb)
 
     def thread_hook(args: threading.ExceptHookArgs) -> None:
         if not issubclass(args.exc_type, SystemExit):  # Python's hook ignores it too
-            log.error(args.exc_type, args.exc_value, args.exc_traceback)
+            with contextlib.suppress(Exception):
+                log.error(args.exc_type, args.exc_value, args.exc_traceback)
         threads(args)
 
     def unraisable_hook(args: sys.UnraisableHookArgs) -> None:
         # In a finalizer, a weakref's callback: Python prints these to a stderr
         # a window started from Finder or Explorer does not have.
-        log.error(args.exc_type, args.exc_value, args.exc_traceback)
+        with contextlib.suppress(Exception):
+            log.error(args.exc_type, args.exc_value, args.exc_traceback)
         unraisable(args)
 
     sys.excepthook = excepthook
