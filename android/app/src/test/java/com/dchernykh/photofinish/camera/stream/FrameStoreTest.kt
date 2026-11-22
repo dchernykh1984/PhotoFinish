@@ -555,6 +555,20 @@ class FrameStoreTest {
     }
 
     @Test
+    fun `a run ending on a piece of sound taken before its last frame tells that frame its newest`() {
+        // The encoder behind the microphone: a run's last entry a piece older than its last frame. How far behind
+        // the stream is goes by its newest frame, never by that piece.
+        val store = store()
+        store.keep(frame(100_000, keyframe = true), 105_000)
+        store.keep(frame(200_000, keyframe = false), 205_000)
+        store.keep(frame(1_000_000, keyframe = true), 1_005_000) // the newest run
+        store.keep(piece(950_000), null) // heard before its frame, kept after it
+        store.next(0)
+        assertEquals(800L, store.behindMs) // from the next frame, 200 ms, to the newest, 1000 ms
+        assertEquals(800L, store.pending.ms)
+    }
+
+    @Test
     fun `a connection's start passes over the sound before its keyframe`() {
         val store = store()
         store.keep(frame(0, keyframe = true), 5_000)
