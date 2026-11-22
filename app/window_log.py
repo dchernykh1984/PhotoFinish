@@ -35,8 +35,8 @@ class WindowLog:
         self._steady = steady  # an error's minute: a clock set back stops neither
         self._lock = threading.Lock()  # errors come from the threads too
         self._inside = threading.local()  # a thread writing the log already
-        self._seen: dict[str, tuple[float, int]] = {}  # an error's place: when
-        # it was written, on the steady clock, how often it came since
+        self._seen: dict[str, tuple[float, int, str]] = {}  # an error's way: when
+        # it was written, on the steady clock, how often it came since, its name
         self._room = LIMIT_BYTES  # what this run may still write of its errors
         self._full = False
 
@@ -51,7 +51,7 @@ class WindowLog:
         value: BaseException | None,
         tb: TracebackType | None,
     ) -> None:
-        """An error no handler took, with its traceback. One from the same place
+        """An error no handler took, with its traceback. One come the same way
         again within AGAIN_S of its writing -- by turns with others, its words
         changed -- is counted instead: a paint failing at every frame fills no
         disk."""
@@ -59,18 +59,18 @@ class WindowLog:
             if not entered:
                 return
             text = "".join(traceback.format_exception(kind, value, tb)).rstrip("\n")
-            place = _place(kind, tb)
+            way, name = _way(kind, tb)
             now = self._steady()
             self._said_again(now)
-            if place in self._seen:
-                written, again = self._seen[place]
-                self._seen[place] = (written, again + 1)
+            if way in self._seen:
+                written, again, _ = self._seen[way]
+                self._seen[way] = (written, again + 1, name)
                 if str(again + 1).rstrip("0") == "1":  # 1, 10, 100...: a crash
                     # ends the minute unsaid, so how often is written on the way
-                    self._write(f"{place} came {_times(again + 1)} more so far")
+                    self._write(f"{name} came {_times(again + 1)} more so far")
                 return
             self._write(f"an error no handler took:\n{text}")
-            self._seen[place] = (now, 0)
+            self._seen[way] = (now, 0, name)
 
     def end(self) -> None:
         with self._entered() as entered:
@@ -97,11 +97,11 @@ class WindowLog:
     def _said_again(self, now: float) -> None:
         """The errors written AGAIN_S ago or more let go, how often each came since
         said."""
-        for place, (written, again) in list(self._seen.items()):
+        for way, (written, again, name) in list(self._seen.items()):
             if now - written >= AGAIN_S:
                 if again:
-                    self._write(f"{place} came {_times(again)} more in its minute")
-                del self._seen[place]
+                    self._write(f"{name} came {_times(again)} more in its minute")
+                del self._seen[way]
 
     def _write(self, text: str, always: bool = False) -> None:
         """A line written; an error's only while the run has room for it -- once it
@@ -137,12 +137,15 @@ def _times(count: int) -> str:
     return f"{count} time" if count == 1 else f"{count} times"
 
 
-def _place(kind: type[BaseException] | None, tb: TracebackType | None) -> str:
-    """An error's kind and where it was raised: the same error, whatever its words
-    say."""
+def _way(kind: type[BaseException] | None, tb: TracebackType | None) -> tuple[str, str]:
+    """An error known by its kind and the lines it came through -- the same
+    whatever its words say, another when it came another way to the line that
+    raised it -- and named by its kind and that line."""
     name = getattr(kind, "__name__", str(kind))
-    frames = traceback.extract_tb(tb)
-    return f"{name} at {frames[-1].filename}:{frames[-1].lineno}" if frames else name
+    lines = [f"{frame.filename}:{frame.lineno}" for frame in traceback.extract_tb(tb)]
+    if not lines:
+        return name, name
+    return f"{name} at {' < '.join(reversed(lines))}", f"{name} at {lines[-1]}"
 
 
 def start(

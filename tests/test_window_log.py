@@ -274,3 +274,32 @@ def test_a_failure_of_the_log_itself_still_hands_each_error_on(
     thread.join()
     _FailingAtItsEnd()  # dropped at once
     assert hooks == [ValueError, ZeroDivisionError, RuntimeError]
+
+
+def _fail(text: str) -> None:
+    raise ValueError(text)  # the line both ways reach: a library's, say
+
+
+def through(way: int) -> Raised:
+    try:
+        if way == 1:
+            _fail("one way")
+        else:
+            _fail("another way")
+    except ValueError as error:
+        return type(error), error, error.__traceback__
+    raise AssertionError("_fail raises")
+
+
+def test_errors_raised_at_one_line_by_two_ways_are_two_errors() -> None:
+    # Two bugs handing bad input to one library function: one line raises both,
+    # each come its own way -- the second is no repeat of the first.
+    file = io.StringIO()
+    log = window_log.WindowLog(file)
+    log.error(*through(1))
+    log.error(*through(2))
+    log.error(*through(2))
+    text = file.getvalue()
+    assert "ValueError: one way" in text
+    assert "ValueError: another way" in text
+    assert text.count("came 1 time more so far") == 1  # the other way, again
