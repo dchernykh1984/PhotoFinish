@@ -79,19 +79,15 @@ def start(
     version: str,
     enable: Callable[[TextIO], object] = faulthandler.enable,
 ) -> WindowLog | None:
-    """The log opened -- started over past LIMIT_BYTES --, the window's start
-    written, the errors no handler takes sent to it, and a crash's stacks
-    (``enable``, faulthandler's). None when it cannot be opened: the window starts
-    all the same."""
+    """The log opened -- one past LIMIT_BYTES kept aside as ``<name>.1``, a new one
+    begun --, the window's start written, the errors no handler takes sent to it,
+    and a crash's stacks (``enable``, faulthandler's). None when it cannot be
+    opened: the window starts all the same."""
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        over = path.exists() and path.stat().st_size > LIMIT_BYTES
-        file = path.open(
-            "w" if over else "a",
-            encoding="utf-8",
-            errors="backslashreplace",
-            buffering=1,
-        )
+        if path.exists() and path.stat().st_size > LIMIT_BYTES:
+            _set_aside(path)
+        file = path.open("a", encoding="utf-8", errors="backslashreplace", buffering=1)
     except OSError:
         return None
     log = WindowLog(file)
@@ -114,3 +110,13 @@ def start(
     threading.excepthook = thread_hook
     enable(file)
     return log
+
+
+def _set_aside(path: Path) -> None:
+    """The log grown past its limit kept as ``<name>.1``, the one there before
+    replaced: grown by errors before a crash, it is the log that explains it. One
+    that cannot be moved -- open in another window on Windows -- is written on."""
+    try:
+        path.replace(path.with_name(f"{path.name}.1"))
+    except OSError:
+        pass
