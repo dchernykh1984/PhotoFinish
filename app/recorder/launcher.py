@@ -261,7 +261,7 @@ def describe(info: dict[str, Any] | None) -> str:
     if state not in ENDED and not alive(info):
         return "not responding"
     if state == "recording":
-        text = f"recording, {_ms(info, 'frames')} frames"
+        text = f"recording, {whole(info.get('frames')) or 0} frames"
         text = f"{text}, under 2 GB free" if detail == "low disk" else text
         behind = _ms(info, "behind_ms")
         if behind >= BEHIND_SAID_MS:
