@@ -29,6 +29,7 @@ ChronometerPython issue #49.
 | `app/widgets/` | Camera view, timeline, lists, camera dialog, number field, decode worker, sound player. |
 | `app/lines.py` | Crossing lines and times, read with the older tools' encodings. |
 | `app/session.py` | `data/session.json`: the files chosen, the cameras, the offsets. |
+| `app/window_log.py` | `data/window.log`: the window's starts, the errors no handler took, a crash's stacks. |
 | `app/output_list.py` | The output file, its state and its journal. |
 | `app/input_follow.py` | The chronometer's file followed into the output. |
 | `app/cameras.py` | Connections and what a camera's settings must be. |
