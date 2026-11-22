@@ -1,5 +1,62 @@
 # Changelog
 
+## [0.15.0](https://github.com/dchernykh1984/PhotoFinish/compare/v0.14.0...v0.15.0) (2026-11-22)
+
+
+### Features
+
+* keep the window's starts, the errors no handler took and a crash's stacks in data/window.log ([0fa4ccc](https://github.com/dchernykh1984/PhotoFinish/commit/0fa4ccc1f2b47699f9d629607a9a698450131413))
+
+
+### Bug Fixes
+
+* count a finalizer failing for each new object as one error, its address no longer making every one new and filling the run's room ([bfb9625](https://github.com/dchernykh1984/PhotoFinish/commit/bfb9625011e92a2e2aa3aca7906339cee6d5cbe4))
+* count a Qt object's finalizer error as one whatever its C++ pointer, each new widget's no longer filling the window log's room ([c3624b5](https://github.com/dchernykh1984/PhotoFinish/commit/c3624b5ed1e30a7a5cc36a32986d9a57da9d2896))
+* count an error from the same place within its minute however it comes, and cap what a run writes, so the window log fills no disk ([117d298](https://github.com/dchernykh1984/PhotoFinish/commit/117d2981a7f7a1726e784a47b2522366bf37317f))
+* count the same error come back in while it is written as a repeat, its traceback no longer written twice and its count begun again ([e258bb0](https://github.com/dchernykh1984/PhotoFinish/commit/e258bb02ad5a21e22074c8614315f6371bc4b49c))
+* draw the timeline's spans cut to its sides, a moment far from the view no longer failing its paint and crashing the window ([67d4ed1](https://github.com/dchernykh1984/PhotoFinish/commit/67d4ed1e8ce82268dffc7606f874b579ac01bf36))
+* end a widget's painter when its drawing fails, one failed paint no longer leaving the window's later paints to crash it ([f0a3c92](https://github.com/dchernykh1984/PhotoFinish/commit/f0a3c92d46f8a65b852e31ca09a48d46d53c604e))
+* end the window log's lines in a plain newline on every system, its room counted as written on Windows too ([86b7e76](https://github.com/dchernykh1984/PhotoFinish/commit/86b7e76ccf0ae49b23de12fbad755225274f98be))
+* hand each error on to the hook before the window log's even when the log itself fails ([3f39247](https://github.com/dchernykh1984/PhotoFinish/commit/3f392476e381899a81adca450297e8072983e1d6))
+* keep a window log grown past its limit as window.log.1 at the next start, not wipe the log that explains a crash ([fd288bb](https://github.com/dchernykh1984/PhotoFinish/commit/fd288bbc667783c52757fae451b044c3b2152698))
+* keep the window log's watch going through an error of its own, saying it, the minutes and the stacks' room no longer left unwatched ([9e965aa](https://github.com/dchernykh1984/PhotoFinish/commit/9e965aa956c1fa127ed7d2798bde2b8ad15adba2))
+* keep the window log's watch having minutes said after the crash stacks are off, or could not be kept ([dd8607f](https://github.com/dchernykh1984/PhotoFinish/commit/dd8607f8892d280c7b4cbeba876aa4bf24244253))
+* know a repeated error by the whole way it came, two bugs through one library line no longer counted as one ([740a3ae](https://github.com/dchernykh1984/PhotoFinish/commit/740a3aefcad7ec369569c48c61bfd70208e5836c))
+* leave a thread ending by SystemExit out of the window log, as Python's own hook leaves it unsaid ([1eca4b4](https://github.com/dchernykh1984/PhotoFinish/commit/1eca4b4cb1fc661209cdf87c4651921b8428fa57))
+* leave Ctrl+C out of the window log, a way out and no error ([73ea8cf](https://github.com/dchernykh1984/PhotoFinish/commit/73ea8cf95afad41c88211ad718038100d86718eb))
+* let an error raised while the window log writes pass it by, no longer waiting on the log's own lock and hanging the window ([57c6559](https://github.com/dchernykh1984/PhotoFinish/commit/57c6559151130eb286dd914ef5b3027bcae43487))
+* look at the window log every second, a crash's stacks past their room by a second's at most and a minute's count said within one ([866ccc0](https://github.com/dchernykh1984/PhotoFinish/commit/866ccc064bf27081f37ba35aed0a683db6c9bd6c))
+* mark a camera's riders on its new offset at once when it is aligned on an event ([ab28221](https://github.com/dchernykh1984/PhotoFinish/commit/ab28221daf29ed30fbca85c9850993304f9090f9))
+* mark the riders of the camera chosen on the timeline at its choice, not the camera's before till the next poll ([c7aad8b](https://github.com/dchernykh1984/PhotoFinish/commit/c7aad8bcae40b7c7c78dc852a318520a702c7ba6))
+* name a repeated finalizer error's count by its kind and line, not by the first object it came from ([61cd7a1](https://github.com/dchernykh1984/PhotoFinish/commit/61cd7a13b02826d64c4c8e4d04e4eadbefa11dd9))
+* name an object of any kind whole in the window log, up to 300 characters, by its kind when its repr fails ([0868eef](https://github.com/dchernykh1984/PhotoFinish/commit/0868eefa6f9e7ac4adf3f0fc0b858f30721ba85f))
+* name the object Python says an error came from whole in the window log, not cut to its address ([38addec](https://github.com/dchernykh1984/PhotoFinish/commit/38addec5b5f7fd09e7a911f6508f93d9dde7d155))
+* name the thread a thread's error came from in the window log ([47097e0](https://github.com/dchernykh1984/PhotoFinish/commit/47097e06ec4bdd0b031a20b92621326dde1c26b1))
+* say an error written after the window ended is one at its exit, a clean end no longer reading as a crash after it ([593121c](https://github.com/dchernykh1984/PhotoFinish/commit/593121c57034c6131ffc89307d7a0c5126cd8e29))
+* start the window even when its crash stacks cannot be kept, turning them off and saying why in the log ([cde6b0a](https://github.com/dchernykh1984/PhotoFinish/commit/cde6b0a044754bb0deb44a7c49d4c6ae0882e9e1))
+* start the window log's watch even when the log's size cannot be had, its minutes said and the stacks off ([6c22ccc](https://github.com/dchernykh1984/PhotoFinish/commit/6c22ccc123f13d7878be80a22b146358eafc9ab4))
+* stop the window log's watch at the window's end and wait for the log only a second after it, the process no longer hanging at its exit ([9bd74c1](https://github.com/dchernykh1984/PhotoFinish/commit/9bd74c12f357264b0ae0f933045e5dac21ce4c21))
+* time an error's minute in the window log on the steady clock, a clock set back no longer holding its repeats back for an hour ([2d9e5fe](https://github.com/dchernykh1984/PhotoFinish/commit/2d9e5feeac40e308c647bb40adbfd7afc896d2e5))
+* turn a crash's stacks off once the window log has grown by twice its room in a run, so stacks written outside it fill no disk either ([44062c6](https://github.com/dchernykh1984/PhotoFinish/commit/44062c6baea6e747958b9b4bdebd66c04c481bbf))
+* wait for the window log a second in all after the window's end, not a second for each error at its exit ([65c719e](https://github.com/dchernykh1984/PhotoFinish/commit/65c719e7e5e9296b86c52e4545971f3a1a6a147f))
+* write an error in a finalizer to the window log too, as Python hands it to no console a window started from Finder has ([5621a20](https://github.com/dchernykh1984/PhotoFinish/commit/5621a20c44574ee341d757d9d3b4fc1381772f9d))
+* write an error raised inside the log file's own write once that write ends, a buffered file no longer refusing it ([f473f0c](https://github.com/dchernykh1984/PhotoFinish/commit/f473f0c157626bebc8aad2339ca71679153f57ee))
+* write an error raised while the window log writes as well, taking the log's lock again rather than passing it by ([80b7231](https://github.com/dchernykh1984/PhotoFinish/commit/80b7231acca288e198f650bfe3b9372eca8a3a21))
+* write how often an error came as the count grows, a crash no longer hiding the storm of errors before it ([9c3bb0f](https://github.com/dchernykh1984/PhotoFinish/commit/9c3bb0fcebd77153bd0bfb63aebd01216d84e2a6))
+* write how often an error came every 5 s while it repeats, a crash leaving the count at most 5 s short, not ten times ([8e9cf9b](https://github.com/dchernykh1984/PhotoFinish/commit/8e9cf9b731598246e4d445e5dcf465308c878f14))
+* write how often an error came in its minute within 10 s of that minute's end, not at the next error an hour on ([11b78a5](https://github.com/dchernykh1984/PhotoFinish/commit/11b78a5f1f0f88677f29715b66104739523fde12))
+* write no error after the window log says it is full for the run, a smaller one no longer slipping in below ([24c5160](https://github.com/dchernykh1984/PhotoFinish/commit/24c516000185c46aa49466ea105f615628eaea00))
+* write the window log watch's own error as any, counted and in the run's room, and try turning the stacks off once ([7ffcae4](https://github.com/dchernykh1984/PhotoFinish/commit/7ffcae482c2d94bd2fd0c8bb35a52bafb331dd84))
+* write what Python says of a finalizer's error and the object it names, two objects' errors with no traceback no longer counted as one ([7ac8570](https://github.com/dchernykh1984/PhotoFinish/commit/7ac85703a4cd6e59945563a7825b815b6d0c5daf))
+
+
+### Documentation
+
+* list the window log's module in the guides' layout ([ccdc34a](https://github.com/dchernykh1984/PhotoFinish/commit/ccdc34a944b968fc3a893b9cc25ba5dd465d0cd9))
+* say a Windows stack in the window log with more of its run after it was no crash ([00e108b](https://github.com/dchernykh1984/PhotoFinish/commit/00e108b374291dff50189be3bda090a370ea95ab))
+* say the window log's 5 MB are its Python errors' and how often a repeat's count is written ([51e776b](https://github.com/dchernykh1984/PhotoFinish/commit/51e776bb90c78bfdd173d32f45a913af662f0b5d))
+* **skills:** paint with the painter ended whatever happens, spans cut to the widget, and read a crash of the window ([87736b6](https://github.com/dchernykh1984/PhotoFinish/commit/87736b6d2d44e1e8d14b4140af38f827acf2438e))
+
 ## [0.14.0](https://github.com/dchernykh1984/PhotoFinish/compare/v0.13.1...v0.14.0) (2026-11-22)
 
 
