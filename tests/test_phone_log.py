@@ -587,3 +587,22 @@ def test_an_older_lens_log_not_to_be_read_leaves_the_run_s_start_to_the_others(
     (main / (phone_log.FILE + ".1")).unlink()
     with pytest.raises(OSError):
         phone_log.newest_start([main, tele])
+
+
+def test_a_lens_recorded_now_gives_the_run_at_work_whatever_its_log_s_time(
+    tmp_path: Path,
+) -> None:
+    # The clock set back after the tele was last recorded: its log's time is later
+    # than the main's, recorded now, whose log holds the app started since.
+    def log(name: str, run: str, version_said: str, written: int) -> Path:
+        folder = tmp_path / name
+        folder.mkdir()
+        start = f"2026-11-22 09:00:00.000 I - #1 {APP.format(version_said)}"
+        (folder / phone_log.FILE).write_text(f"--- run {run} from line 1\n{start}\n")
+        os.utime(folder / phone_log.FILE, (written, written))
+        return folder
+
+    tele = log("tele", RUN, "0.12.0", 10)
+    main = log("main", LATER, "0.13.1", 5)
+    assert phone_log.newest_start([tele, main], at_work=[main]) == APP.format("0.13.1")
+    assert phone_log.newest_start([tele, main]) == APP.format("0.12.0")  # by time

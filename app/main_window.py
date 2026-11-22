@@ -547,8 +547,10 @@ class MainWindow(QMainWindow):
         if phones:
             lines.append("")
         for ids in phones.values():
+            # A lens recorded now has its phone's run at work, whatever its log's time.
+            at_work = [folder_of(i) for i in ids if alive(self.cameras[i].info)]
             try:
-                said = newest_start(folder_of(i) for i in ids)
+                said = newest_start((folder_of(i) for i in ids), at_work)
             except OSError as error:
                 said = f"its log cannot be read: {error.strerror or error}"
             names = ", ".join(self._name(i) for i in ids)

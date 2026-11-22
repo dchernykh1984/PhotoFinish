@@ -4510,3 +4510,35 @@ def test_the_lists_stay_put_when_the_corner_turns_green_again(
     QApplication.processEvents()
     assert win.recording_banner.text() == "RECORDING"
     assert win.camera_list.mapTo(win, win.camera_list.rect().topLeft()).y() == lists
+
+
+def test_about_takes_the_run_at_work_from_a_lens_recorded_now(
+    base: Path,
+    make_window: Callable[[], mw.MainWindow],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The clock set back after the tele was last recorded: its log's time is later
+    # than the main's, whose recorder runs now and whose log holds the app at work.
+    lens: dict[str, Any] = {"connection": "rtmp", "phone": "cam1"}
+    main = {**lens, "id": "cam1", "name": "Mi main", "lens": "main"}
+    main["settings"] = {"port": 1999, "path": "live/cam1"}
+    tele = {**lens, "id": "cam2", "name": "Mi tele", "lens": "telephoto"}
+    tele["settings"] = {"port": 2000, "path": "live/cam2"}
+    tele["record"] = False  # no longer recorded
+    session.save({**session.DEFAULTS, "cameras": [main, tele]})
+    app = "PhotoFinish Camera {} on Xiaomi 25113PN0EC, Android 16 (API 36)"
+    for camera_id, run, version_said, written in (
+        ("cam1", "fedcba9876543210", "0.13.1", 1_000_000),
+        ("cam2", "0123456789abcdef", "0.12.0", 2_000_000),
+    ):
+        folder = base / "video" / camera_id
+        folder.mkdir(parents=True, exist_ok=True)
+        start = f"2026-11-22 09:00:00.000 I - #1 {app.format(version_said)}"
+        log = folder / "phone.log"
+        log.write_text(f"--- run {run} from line 1\n{start}\n", encoding="utf-8")
+        os.utime(log, (written, written))
+    beating(base, "cam1")  # the main's recorder runs
+    win = make_window()
+    win.poll()
+    (text,) = about(win, monkeypatch)
+    assert f"Mi main, Mi tele: {app.format('0.13.1')}" in text.split("<br>")
