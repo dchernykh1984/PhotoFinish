@@ -505,3 +505,15 @@ def test_a_log_there_that_cannot_be_read_is_said_so_not_taken_from_the_one_befor
     (tmp_path / phone_log.FILE).mkdir()  # there, and no file to be read
     with pytest.raises(OSError):
         phone_log.newest_start([tmp_path])
+
+
+def test_a_run_at_work_its_mark_torn_is_none_taken_from_the_file_kept_before(
+    tmp_path: Path,
+) -> None:
+    # A crash, or a full disk, as the new run's mark was written: whose run is at
+    # work is not known -- the file kept before holds an older run's start.
+    said = APP.format("0.12.0")
+    before = f"--- run {RUN} from line 1\n2026-11-21 10:00:00.000 I - #1 {said}\n"
+    (tmp_path / (phone_log.FILE + ".1")).write_text(before, encoding="utf-8")
+    (tmp_path / phone_log.FILE).write_text("--- run fedc", encoding="utf-8")
+    assert phone_log.newest_start([tmp_path]) == ""

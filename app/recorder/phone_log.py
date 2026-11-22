@@ -218,13 +218,15 @@ def newest_start(folders: Iterable[Path]) -> str | None:
     cannot be read: whose run is at work is not known then."""
     logs = [(w, folder) for folder in folders if (w := _written(folder)) is not None]
     run: str | None = None
+    read = False  # the newest file read: its last mark's run is at work, or none known
     for _, folder in sorted(logs, reverse=True):
         for path in (folder / FILE, folder / (FILE + ".1")):
             try:
                 kept = path.read_bytes()
             except FileNotFoundError:  # gone since: moved to the file kept before
                 continue
-            run = run or _run_at(kept, len(kept))
+            if not read:
+                run, read = _run_at(kept, len(kept)), True
             if run is not None and (said := _start_of(kept, run)):
                 return said
     return "" if logs else None
