@@ -210,6 +210,11 @@ class MainWindow(QMainWindow):
         self.phones.hide()  # until a phone says how it is
         self.camera_list = QListWidget()
         self.camera_list.setWordWrap(True)
+        # Wrapped at its width, its lines need no bar sideways: Qt shows one for a
+        # line laid out a pixel wider, a line's height taken from a short list.
+        self.camera_list.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
         self.camera_list.currentRowChanged.connect(self._choose_camera)
         self.one_camera = QPushButton("One camera")  # the chosen one alone (004)
         self.one_camera.setCheckable(True)
