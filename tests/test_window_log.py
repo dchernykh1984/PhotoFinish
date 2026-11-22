@@ -620,3 +620,26 @@ def test_qt_objects_failing_at_their_end_are_one_error_whatever_their_pointers()
         )
         log.error(RuntimeError, RuntimeError("bare"), None, said)
     assert file.getvalue().count("RuntimeError: bare") == 1
+
+
+def test_the_same_error_come_back_while_it_is_formatted_is_counted_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The collector runs a finalizer failing the same way while the traceback is
+    # formatted, before the log has written anything of it.
+    file = io.StringIO()
+    log = window_log.WindowLog(file)
+    real = window_log.traceback.format_exception
+    first = [True]
+
+    def formatting(*args: Any, **kwargs: Any) -> list[str]:
+        if first:
+            first.clear()
+            log.error(*raised("first"))
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(window_log.traceback, "format_exception", formatting)
+    log.error(*raised("first"))
+    text = file.getvalue()
+    assert text.count("ValueError: first") == 1
+    assert "came 1 time more so far" in text
