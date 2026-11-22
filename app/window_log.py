@@ -22,6 +22,7 @@ from typing import TextIO
 LIMIT_BYTES = 5_000_000  # a log past this at a start is set aside; a run's room
 AGAIN_S = 60.0  # an error again within this of its writing is counted, not written
 SAY_S = 5.0  # how often it came, written at its first repeat, then this often
+WATCH_S = 10.0  # how often the log's size is looked at, for the crash stacks' room
 NAMED_CHARS = 300  # an object Python names with an error: this much of its repr
 _ADDRESS = re.compile(r" at 0x[0-9a-fA-F]+")  # where an object lives, not what
 
@@ -189,11 +190,13 @@ def start(
     path: Path,
     version: str,
     enable: Callable[[TextIO], object] = faulthandler.enable,
+    disable: Callable[[], object] = faulthandler.disable,
 ) -> WindowLog | None:
     """The log opened -- one past LIMIT_BYTES kept aside as ``<name>.1``, a new one
     begun --, the window's start written, the errors no handler takes sent to it,
-    and a crash's stacks (``enable``, faulthandler's). None when it cannot be
-    opened: the window starts all the same."""
+    and a crash's stacks (``enable``, faulthandler's; ``disable`` turns them off
+    past their room). None when it cannot be opened: the window starts all the
+    same."""
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         if path.exists() and path.stat().st_size > LIMIT_BYTES:
@@ -240,7 +243,32 @@ def start(
     threading.excepthook = thread_hook
     sys.unraisablehook = unraisable_hook
     enable(file)
+    began = os.fstat(file.fileno()).st_size
+    threading.Thread(
+        target=_watch,
+        args=(log, began + 2 * LIMIT_BYTES, disable),
+        name="the window log's size",
+        daemon=True,
+    ).start()
     return log
+
+
+def _watch(log: WindowLog, room: int, disable: Callable[[], object]) -> None:
+    """faulthandler writes outside the log's room -- on Windows also for an
+    exception native code handles itself: the log grown past ``room`` in this
+    run, it is turned off, and that is said."""
+    while True:
+        time.sleep(WATCH_S)
+        try:
+            size = os.fstat(log.file.fileno()).st_size
+        except OSError, ValueError:  # the file closed: nothing to watch
+            return
+        if size > room:
+            disable()
+            log.write(
+                "the log is full for this run: a crash's stacks are no longer written"
+            )
+            return
 
 
 def _set_aside(path: Path) -> None:

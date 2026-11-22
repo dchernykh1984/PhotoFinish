@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 import sys
 import threading
+import time
 from pathlib import Path
 from types import SimpleNamespace, TracebackType
 
@@ -44,7 +45,7 @@ def test_the_window_s_errors_go_to_its_log_and_on_to_the_hooks_before(
 ) -> None:
     enabled: list[object] = []
     path = tmp_path / "data" / "window.log"
-    log = window_log.start(path, "9.9.9", enable=enabled.append)
+    log = window_log.start(path, "9.9.9", enable=enabled.append, disable=lambda: None)
     assert log is not None
     assert enabled == [log.file]  # a crash's stacks: faulthandler writes them there
     sys.excepthook(*raised("in a slot"))
@@ -66,7 +67,10 @@ def test_a_thread_ending_by_system_exit_is_no_error(
     # Python's own hook lets SystemExit from a thread pass in silence: no fault to
     # send anyone looking for.
     path = tmp_path / "window.log"
-    assert window_log.start(path, "1.0.0", enable=lambda file: None) is not None
+    assert (
+        window_log.start(path, "1.0.0", enable=lambda file: None, disable=lambda: None)
+        is not None
+    )
     thread = threading.Thread(target=sys.exit)
     thread.start()
     thread.join()
@@ -131,10 +135,16 @@ def test_a_log_past_its_limit_is_kept_aside_and_a_new_one_begun(
     # the window again keeps it for the report.
     path = tmp_path / "window.log"
     path.write_text("an old run\n", encoding="utf-8")
-    assert window_log.start(path, "1.0.0", enable=lambda file: None) is not None
+    assert (
+        window_log.start(path, "1.0.0", enable=lambda file: None, disable=lambda: None)
+        is not None
+    )
     assert "an old run" in path.read_text(encoding="utf-8")  # under the limit: kept
     monkeypatch.setattr(window_log, "LIMIT_BYTES", 10)
-    assert window_log.start(path, "1.0.1", enable=lambda file: None) is not None
+    assert (
+        window_log.start(path, "1.0.1", enable=lambda file: None, disable=lambda: None)
+        is not None
+    )
     text = path.read_text(encoding="utf-8")
     assert "an old run" not in text
     assert "PhotoFinish 1.0.1 started" in text
@@ -154,7 +164,10 @@ def test_a_log_that_cannot_be_set_aside_is_written_on(
         raise PermissionError("open in another window")  # as Windows says
 
     monkeypatch.setattr(Path, "replace", busy)
-    assert window_log.start(path, "1.0.1", enable=lambda file: None) is not None
+    assert (
+        window_log.start(path, "1.0.1", enable=lambda file: None, disable=lambda: None)
+        is not None
+    )
     text = path.read_text(encoding="utf-8")
     assert "an old run" in text
     assert "PhotoFinish 1.0.1 started" in text
@@ -166,7 +179,10 @@ def test_a_log_that_cannot_be_opened_leaves_the_window_to_start(
     before = sys.excepthook
     (tmp_path / "data").write_text("a file where its folder would be")
     started = window_log.start(
-        tmp_path / "data" / "window.log", "1.0.0", enable=lambda file: None
+        tmp_path / "data" / "window.log",
+        "1.0.0",
+        enable=lambda file: None,
+        disable=lambda: None,
     )
     assert started is None
     assert sys.excepthook is before  # nothing hooked to a log that is not there
@@ -231,7 +247,10 @@ def test_an_error_in_a_finalizer_goes_to_the_log(
     # Python hands it to sys.unraisablehook, which prints to a stderr a window
     # started from Finder or Explorer does not have.
     path = tmp_path / "window.log"
-    assert window_log.start(path, "1.0.0", enable=lambda file: None) is not None
+    assert (
+        window_log.start(path, "1.0.0", enable=lambda file: None, disable=lambda: None)
+        is not None
+    )
     _FailingAtItsEnd()  # dropped at once
     text = path.read_text(encoding="utf-8")
     assert "RuntimeError: in a finalizer" in text
@@ -265,7 +284,10 @@ def test_a_failure_of_the_log_itself_still_hands_each_error_on(
     # Its traceback too deep to format, say: the error still reaches the hook
     # before the log's, and nothing of the log's own escapes into the window.
     path = tmp_path / "window.log"
-    assert window_log.start(path, "1.0.0", enable=lambda file: None) is not None
+    assert (
+        window_log.start(path, "1.0.0", enable=lambda file: None, disable=lambda: None)
+        is not None
+    )
 
     def broken(*args: object) -> None:
         raise RecursionError("too deep a chain")
@@ -327,7 +349,10 @@ def test_an_object_python_names_with_an_error_is_in_the_log(
 ) -> None:
     # A native extension names the object it could not finish, no words of its own.
     path = tmp_path / "window.log"
-    assert window_log.start(path, "1.0.0", enable=lambda file: None) is not None
+    assert (
+        window_log.start(path, "1.0.0", enable=lambda file: None, disable=lambda: None)
+        is not None
+    )
 
     class Decoder:
         def __repr__(self) -> str:  # as long as a real object's
@@ -366,7 +391,10 @@ def test_an_object_of_any_kind_is_named_whole_up_to_its_limit(
     # A string or a tuple named with an error: reprlib cut them to 30 characters
     # or 6 items whatever its limit for other objects.
     path = tmp_path / "window.log"
-    assert window_log.start(path, "1.0.0", enable=lambda file: None) is not None
+    assert (
+        window_log.start(path, "1.0.0", enable=lambda file: None, disable=lambda: None)
+        is not None
+    )
 
     class Unnamable:
         def __repr__(self) -> str:
@@ -445,3 +473,45 @@ def test_an_error_raised_inside_the_file_s_own_write_is_written_after_it() -> No
     text = file.getvalue()
     assert "ValueError: first" in text
     assert "KeyError: 'from a finalizer'" in text
+
+
+def test_stacks_written_past_twice_the_room_turn_the_crash_stacks_off(
+    tmp_path: Path, hooks: list[object], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # faulthandler writes outside the log's room -- on Windows also for an
+    # exception native code handles itself, a frame each, say: the run's log
+    # grown by twice the room, it is turned off, and that is said.
+    monkeypatch.setattr(window_log, "WATCH_S", 0.01)
+    monkeypatch.setattr(window_log, "LIMIT_BYTES", 100)
+    path = tmp_path / "window.log"
+    turned_off: list[bool] = []
+    log = window_log.start(
+        path, "1.0.0", enable=lambda file: None, disable=lambda: turned_off.append(True)
+    )
+    assert log is not None
+    log.file.write("Windows fatal exception: access violation\n" * 10)  # as it would
+    log.file.flush()
+    said = "a crash's stacks are no longer written"
+    deadline = time.monotonic() + 5
+    while said not in path.read_text(encoding="utf-8") and time.monotonic() < deadline:
+        time.sleep(0.01)
+    assert said in path.read_text(encoding="utf-8")
+    assert turned_off == [True]
+
+
+def test_the_watch_on_the_log_s_size_ends_with_its_file(
+    tmp_path: Path, hooks: list[object], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(window_log, "WATCH_S", 0.01)
+    before = set(threading.enumerate())
+    log = window_log.start(
+        tmp_path / "window.log",
+        "1.0.0",
+        enable=lambda file: None,
+        disable=lambda: None,
+    )
+    assert log is not None
+    (watch,) = set(threading.enumerate()) - before
+    log.file.close()
+    watch.join(timeout=5)
+    assert not watch.is_alive()
