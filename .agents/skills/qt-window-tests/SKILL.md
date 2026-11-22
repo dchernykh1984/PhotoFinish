@@ -141,7 +141,9 @@ grab: keep the painter -- patch a method it is handed to -- and ask its
 ## When the window crashed
 
 - `data/window.log` next to the program: each start, the Python errors no handler
-  took, the stacks of a crash.
+  took, the stacks of a crash. On Windows `faulthandler` writes a stack, as
+  `Windows fatal exception`, for an exception native code then handles itself
+  too: one with more lines of the same run after it was no crash.
 - On macOS, `~/Library/Logs/DiagnosticReports/PhotoFinish-*.ips` holds the native
   stack, and the system log the minutes before it, Qt's warnings among them:
   `/usr/bin/log show --style compact --start "<time>" --end "<time>" --predicate
