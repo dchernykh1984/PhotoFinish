@@ -306,16 +306,13 @@ def _keep_stacks(
     except Exception as error:
         _stacks_off(log, disable, error)
         stacks = None
+    log.watch = threading.Thread(
+        target=_watch, args=(log, stacks), name="the window log's size", daemon=True
+    )
     try:
-        began = os.fstat(file.fileno()).st_size
-        log.watch = threading.Thread(
-            target=_watch,
-            args=(log, began + 2 * LIMIT_BYTES, stacks),
-            name="the window log's size",
-            daemon=True,
-        )
         log.watch.start()
     except Exception as error:  # stacks with no watch on them: none
+        log.watch = None
         if stacks is not None:
             _stacks_off(log, disable, error)
 
@@ -330,12 +327,19 @@ def _stacks_off(
     )
 
 
-def _watch(log: WindowLog, room: int, disable: Callable[[], object] | None) -> None:
+def _watch(log: WindowLog, disable: Callable[[], object] | None) -> None:
     """Every WATCH_S the minutes ended are said (``tick``), and while the stacks
     are on the log's size looked at: faulthandler writes them outside the log's
     room -- on Windows also for an exception native code handles itself --, so
-    the log grown past ``room`` in this run, they are turned off and that is said.
-    It ends with the log's file."""
+    the log grown by twice the room in this run, they are turned off and that is
+    said; a size not to be had, at once. It ends with the window, or its file."""
+    room = 0
+    if disable is not None:
+        try:
+            room = os.fstat(log.file.fileno()).st_size + 2 * LIMIT_BYTES
+        except (OSError, ValueError) as error:
+            _stacks_off(log, disable, error)
+            disable = None
     while not log.stopped.wait(WATCH_S) and not log.file.closed:
         log.tick()
         if disable is None:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import os
 import sys
 import threading
 import time
@@ -663,18 +664,17 @@ def test_the_watch_has_the_minutes_said_each_time_it_looks(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(window_log, "WATCH_S", 0.0)
-
-    class Closed:
-        closed = False  # closed as it is looked at
-
-        def fileno(self) -> int:
-            raise ValueError("I/O operation on closed file")
-
     ticks: list[int] = []
+    stopped = threading.Event()
+
+    def tick() -> None:
+        ticks.append(1)
+        stopped.set()  # the window's end
+
     log = SimpleNamespace(
-        tick=lambda: ticks.append(1), file=Closed(), stopped=threading.Event()
+        tick=tick, file=SimpleNamespace(closed=False), stopped=stopped
     )
-    window_log._watch(log, 0, lambda: None)  # type: ignore[arg-type]
+    window_log._watch(log, None)  # type: ignore[arg-type]
     assert ticks == [1]
 
 
@@ -684,12 +684,11 @@ def test_the_watch_goes_on_having_minutes_said_after_the_stacks_are_off(
     # It turned the stacks off and stopped: a burst's count waited again for the
     # next error, an hour on maybe.
     monkeypatch.setattr(window_log, "WATCH_S", 0.0)
-    grown = tmp_path / "grown.log"
-    grown.write_text("x" * 300)
+    monkeypatch.setattr(window_log, "LIMIT_BYTES", 10)
     turned_off: list[bool] = []
     said: list[str] = []
 
-    with grown.open("a") as file:
+    with (tmp_path / "grown.log").open("a") as file:
 
         class Log:
             def __init__(self) -> None:
@@ -699,6 +698,9 @@ def test_the_watch_goes_on_having_minutes_said_after_the_stacks_are_off(
 
             def tick(self) -> None:
                 self.ticks += 1
+                if self.ticks == 1:  # stacks past the room: 2 x 10 bytes
+                    file.write("Windows fatal exception: access violation\n")
+                    file.flush()
                 if self.ticks == 3:
                     file.close()  # the window gone: the watch ends
 
@@ -706,7 +708,7 @@ def test_the_watch_goes_on_having_minutes_said_after_the_stacks_are_off(
                 said.append(text)
 
         log = Log()
-        window_log._watch(log, 100, lambda: turned_off.append(True))  # type: ignore[arg-type]
+        window_log._watch(log, lambda: turned_off.append(True))  # type: ignore[arg-type]
     assert turned_off == [True]
     assert said == [
         "the log is full for this run: a crash's stacks are no longer written"
@@ -776,3 +778,55 @@ def test_the_end_stops_the_watch_and_no_error_after_it_waits_for_ever(
     log.error(*raised("at teardown"))
     assert time.monotonic() - began < 5
     freed.set()
+
+
+def test_the_watch_starts_when_the_log_s_size_cannot_be_had(
+    tmp_path: Path, hooks: list[object], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The file's size not to be had at the start: no watch was started at all,
+    # and a burst's count waited for the next error again. The stacks, with no
+    # room to keep, are off.
+    def no_size(*args: object) -> None:
+        raise OSError("not on this file system")
+
+    # The log's own view of os: the test's machinery keeps the real one.
+    monkeypatch.setattr(
+        window_log, "os", SimpleNamespace(fstat=no_size, getpid=os.getpid)
+    )
+    path = tmp_path / "window.log"
+    log = window_log.start(
+        path, "1.0.0", enable=lambda file: None, disable=lambda: None
+    )
+    assert log is not None
+    assert log.watch is not None
+    deadline = time.monotonic() + 5
+    said = "a crash's stacks are not written this run: OSError"
+    while said not in path.read_text(encoding="utf-8") and time.monotonic() < deadline:
+        time.sleep(0.01)
+    assert said in path.read_text(encoding="utf-8")
+    assert log.watch.is_alive()  # on, to have the minutes said
+
+
+def test_the_watch_ends_when_the_log_s_file_goes_while_it_looks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(window_log, "WATCH_S", 0.0)
+    with (tmp_path / "window.log").open("a") as real:
+
+        class Going:
+            closed = False  # closed between its look and its size
+            calls = 0
+
+            def fileno(self) -> int:
+                self.calls += 1
+                if self.calls > 1:
+                    raise ValueError("I/O operation on closed file")
+                return real.fileno()
+
+        log = SimpleNamespace(
+            tick=lambda: None,
+            file=Going(),
+            stopped=threading.Event(),
+            write=lambda text: None,
+        )
+        window_log._watch(log, lambda: None)  # type: ignore[arg-type]
