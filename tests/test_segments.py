@@ -1580,6 +1580,27 @@ def test_a_segments_sound_is_listed_before_it_and_a_sound_list_refused_costs_it_
     assert sorted(listed) == [path.stem for path in segments(folder)]
 
 
+def test_a_copy_held_a_moment_as_its_sound_is_looked_for_is_heard(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A scanner opening a crash's copy just named: looked into again a moment on.
+    with_sound(tmp_path / "phone.mkv", 1)
+    folder = tmp_path / "cam1"
+    recorded_with_sound(tmp_path / "phone.mkv", folder)
+    (path,) = segments(folder)
+    real = av.open
+    held = [True]
+
+    def opening(name: Any, *args: Any, **kwargs: Any) -> Any:
+        if held[0]:
+            held[0] = False
+            raise av.error.PermissionError(13, "held by another process")
+        return real(name, *args, **kwargs)
+
+    monkeypatch.setattr(segments_module.av, "open", opening)
+    assert segments_module.kept_sound(path)
+
+
 def test_a_sound_track_without_a_piece_is_no_sound(tmp_path: Path) -> None:
     # A phone whose microphone failed, its stream still saying AAC: its tracks empty.
     with_sound(tmp_path / "phone.mkv", 2)

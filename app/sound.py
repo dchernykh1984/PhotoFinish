@@ -26,7 +26,7 @@ from typing import Any
 import av
 import numpy as np
 
-from app.files import Appended
+from app.files import Appended, retried
 from app.recorder import folder_of
 from app.recorder.segments import LEAD_MS, SOUND, fraction, in_ms
 from app.video_index import VideoIndex, read_times
@@ -136,7 +136,7 @@ def _first_line(path: Path) -> bytes | None:
     a filesystem may give a file made again; None when there is none. Raises when it
     is there and cannot be read."""
     try:
-        with path.open("rb") as f:
+        with retried(lambda: path.open("rb")) as f:  # held a moment (Windows)
             return f.readline(64)
     except FileNotFoundError:
         return None
@@ -381,7 +381,7 @@ def _pieces_of(path: Path) -> list[Piece]:
     by_pts = times[np.argsort(times[:, 0], kind="stable")]
     found: list[Piece] = []
     try:
-        with av.open(str(path)) as container:
+        with retried(lambda: av.open(str(path))) as container:  # held a moment
             if not container.streams.audio:
                 return []
             audio = container.streams.audio[0]
