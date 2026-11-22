@@ -11,6 +11,7 @@ Stopping is ``stop.request``.
 
 from __future__ import annotations
 
+import math
 import os
 import subprocess
 import sys
@@ -135,6 +136,9 @@ class Watchdog:
         # The heartbeat when this window last tried to start one: a beat since is the
         # one it started's -- whatever the clock was set to between, back or ahead.
         self._start_beat = 0
+        # The beat last read, and when it changed on this window's steady clock: a beat
+        # ahead of the wall clock tells nothing of how long it has stood.
+        self._beat_seen: tuple[int | None, float] = (None, -math.inf)
         self._retry_at: float | None = None
         # The end of a recorder this window started, first seen (monotonic), which one,
         # and the heartbeat then: a later one is another recorder's.
@@ -218,11 +222,15 @@ class Watchdog:
         if code is None:
             # This window's own, running, its beat since its start ahead of the clock:
             # the clock set back as it was held by a camera's open, not a recorder
-            # gone. A beat from before its start is a dead one's, maybe.
+            # gone -- while its beat changes, by this window's steady clock. A beat
+            # from before its start is a dead one's, maybe.
             beat = None if info is None else _ms(info, "heartbeat_ms")
+            if beat != self._beat_seen[0]:
+                self._beat_seen = (beat, time.monotonic())
+            beating = time.monotonic() - self._beat_seen[1] <= STALE_MS / 1000
             own = process is not None and beat != self._start_beat
             at_work = info is not None and info.get("state") not in ENDED
-            return alive(info) or (own and at_work and _ahead(info))
+            return alive(info) or (own and at_work and beating and _ahead(info))
         now = time.monotonic()
         if code != 3 and self._dead is not process:
             info = heartbeat(self.camera_id)  # read since its end: no beat of it after
