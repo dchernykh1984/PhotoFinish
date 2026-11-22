@@ -370,3 +370,19 @@ def test_a_long_file_is_kept_aside_and_a_new_one_says_whose(
     log.heard(message(4, (4, "I", "-", "four")))
     assert (tmp_path / "phone.log.1").exists()
     assert kept(tmp_path) == [f"--- run {RUN} from line 4", "I - #4 four"]
+
+
+def test_the_phones_last_word_is_said_whatever_number_its_times_are_written_as() -> (
+    None
+):
+    # A heartbeat written by another version, its times floats or strings: the
+    # phone's warning said all the same, never hidden; a time that is none, nothing.
+    from app.recorder.phone_log import last_word
+
+    times = {"at_ms": 1000, "phone_ms": 1000, "heard_ms": 5000}
+    said: dict[str, object] = {"text": "camera error 4", **times}
+    for written in (float, str):
+        word = {**said, **{k: written(v) for k, v in times.items()}}
+        assert last_word(word, 5_000) == "the phone: camera error 4"
+    assert last_word({**said, "at_ms": "soon"}, 5_000) == ""
+    assert last_word({**said, "at_ms": float("inf")}, 5_000) == ""

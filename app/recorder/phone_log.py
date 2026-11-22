@@ -181,13 +181,17 @@ def last_word(said: object, now_ms: int) -> str:
     while the camera does not record: till its next warning or error, a failure it
     says once going on -- how long ago it was said, past SAID_MS; "" when there is
     none."""
+    # Its times read as numbers, however written -- imported here, as phone_status's
+    # import of cameras comes back to this package --; one that is none, nothing.
+    from app.phone_status import number
+
     if not isinstance(said, dict):
         return ""
     text = said.get("text")
-    times = [t for t in (said.get(key) for key in TIMES) if isinstance(t, int)]
-    if not isinstance(text, str) or not text or len(times) != len(TIMES):
+    times = [number(said.get(key)) for key in TIMES]
+    if not isinstance(text, str) or not text or None in times:
         return ""
-    at, phone, heard = times
+    at, phone, heard = (int(t or 0) for t in times)
     # The phone's own clock tells how old the word was when the newest line came,
     # this computer's how long since: a backlog's old word is old, whatever the
     # two clocks say.
