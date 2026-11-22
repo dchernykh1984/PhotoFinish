@@ -22,7 +22,7 @@ from typing import TextIO
 LIMIT_BYTES = 5_000_000  # a log past this at a start is set aside; a run's room
 AGAIN_S = 60.0  # an error again within this of its writing is counted, not written
 SAY_S = 5.0  # how often it came, written at its first repeat, then this often
-WATCH_S = 10.0  # how often the log's size is looked at, for the crash stacks' room
+WATCH_S = 1.0  # how often the minutes are said and the crash stacks' room looked at
 NAMED_CHARS = 300  # an object Python names with an error: this much of its repr
 _ADDRESS = re.compile(r"0x[0-9a-fA-F]+")  # where an object lives -- its C++ side too
 

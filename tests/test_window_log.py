@@ -725,3 +725,9 @@ def test_the_watch_has_minutes_said_when_the_stacks_cannot_be_kept(
     assert [t.name for t in set(threading.enumerate()) - before] == [
         "the window log's size"
     ]
+
+
+def test_the_watch_looks_at_the_log_every_second() -> None:
+    # faulthandler writes between two looks unbounded: at every 10 s, a native
+    # exception at each frame could put megabytes past the stacks' room.
+    assert window_log.WATCH_S <= 1.0
