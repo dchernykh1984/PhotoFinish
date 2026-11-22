@@ -60,6 +60,9 @@ class WindowLog:
             if place in self._seen:
                 written, again = self._seen[place]
                 self._seen[place] = (written, again + 1)
+                if str(again + 1).rstrip("0") == "1":  # 1, 10, 100...: a crash
+                    # ends the minute unsaid, so how often is written on the way
+                    self._write(f"{place} came {_times(again + 1)} more so far")
                 return
             self._write(f"an error no handler took:\n{text}")
             self._seen[place] = (now, 0)
@@ -75,8 +78,7 @@ class WindowLog:
         for place, (written, again) in list(self._seen.items()):
             if now - written >= AGAIN_S:
                 if again:
-                    times = "time" if again == 1 else "times"
-                    self._write(f"{place} came {again} {times} more in its minute")
+                    self._write(f"{place} came {_times(again)} more in its minute")
                 del self._seen[place]
 
     def _write(self, text: str, always: bool = False) -> None:
@@ -107,6 +109,10 @@ class WindowLog:
             self.file.flush()
         except OSError, ValueError:  # a full disk, a file gone: the window goes on
             pass
+
+
+def _times(count: int) -> str:
+    return f"{count} time" if count == 1 else f"{count} times"
 
 
 def _place(kind: type[BaseException] | None, tb: TracebackType | None) -> str:
