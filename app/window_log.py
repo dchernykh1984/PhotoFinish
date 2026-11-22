@@ -56,6 +56,7 @@ class WindowLog:
         self._seen: dict[str, _Seen] = {}  # by the way each error came
         self._room = LIMIT_BYTES  # what this run may still write of its errors
         self._full = False
+        self._ended = False  # an error after: at the window's exit, no crash
 
     def write(self, text: str) -> None:
         with self._lock:
@@ -89,13 +90,19 @@ class WindowLog:
                     seen.said = now
                     self._write(f"{seen.name} came {_times(seen.again)} more so far")
                 return
-            self._write(f"an error no handler took:\n{text}")
+            heading = (
+                "an error at the window's exit, after its end:"
+                if self._ended
+                else "an error no handler took:"
+            )
+            self._write(f"{heading}\n{text}")
             self._seen[way] = _Seen(now, name, said=now)
 
     def end(self) -> None:
         with self._lock:
             self._said_again(math.inf)
             self._write("the window ended", always=True)
+            self._ended = True
 
     def _said_again(self, now: float) -> None:
         """The errors written AGAIN_S ago or more let go, how often each came since

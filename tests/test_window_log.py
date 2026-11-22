@@ -407,3 +407,15 @@ def test_a_log_full_for_its_run_writes_no_error_after_saying_so(
     assert "the log is full for this run" in text
     assert "small again" not in text
     assert text.rstrip().endswith("the window ended")
+
+
+def test_an_error_after_the_window_ended_is_said_to_be_at_its_exit() -> None:
+    # A finalizer failing as Python ends, past "the window ended": not a crash
+    # after a clean end, and the log says which.
+    file = io.StringIO()
+    log = window_log.WindowLog(file)
+    log.end()
+    log.error(*raised("tearing down"))
+    text = file.getvalue()
+    assert "an error at the window's exit, after its end:" in text
+    assert "an error no handler took:" not in text
