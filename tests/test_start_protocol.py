@@ -71,6 +71,25 @@ def test_the_numbers_are_read_again_when_the_path_or_the_file_changes(
     assert numbers.problem.startswith("the start protocol cannot be read")
 
 
+def test_a_protocol_held_a_moment_as_it_is_written_keeps_the_numbers_read(
+    tmp_path: Path,
+) -> None:
+    # StartProtocolMaker writing a late entry as a rider crosses: the numbers read
+    # before still name only starters, never none -- the problem said meanwhile.
+    path = protocol(tmp_path, ["1#A", "2#B"])
+    numbers = StartNumbers(lambda: str(path))
+    assert numbers() == {"1": "1", "2": "2"}
+    path.write_text("1#A\n2#B\n3#C\n")
+    os.utime(path, ns=(path.stat().st_atime_ns, path.stat().st_mtime_ns + 10**9))
+    path.chmod(0)  # held by its writer a moment
+    try:
+        assert numbers() == {"1": "1", "2": "2"}
+        assert "cannot be read" in numbers.problem
+    finally:
+        path.chmod(0o644)
+    assert numbers() == {"1": "1", "2": "2", "3": "3"}
+
+
 def test_a_lines_fields_are_split_at_hashes_alone_a_comma_in_a_group_kept(
     tmp_path: Path,
 ) -> None:
