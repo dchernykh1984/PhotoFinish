@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import sys
 import threading
 import time
+import types
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -119,15 +121,27 @@ def test_a_device_that_takes_no_format_it_plays_is_said_so_not_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # A device there that prefers seven channels and refuses 48 kHz stereo: the
-    # referee told the format, never sent looking for a device.
-    from PySide6 import QtMultimedia
+    # referee told the format, never sent looking for a device. Qt's multimedia
+    # stood in for, as CI's machine has no sound libraries to load it with.
 
     class Format:
+        class SampleFormat:
+            Int16 = 2
+
         def sampleRate(self) -> int:  # noqa: N802 - Qt's name
             return 48000
 
         def channelCount(self) -> int:  # noqa: N802 - Qt's name
             return 7
+
+        def setSampleRate(self, _: int) -> None:  # noqa: N802 - Qt's name
+            pass
+
+        def setChannelCount(self, _: int) -> None:  # noqa: N802 - Qt's name
+            pass
+
+        def setSampleFormat(self, _: int) -> None:  # noqa: N802 - Qt's name
+            pass
 
     class Device:
         def isNull(self) -> bool:  # noqa: N802 - Qt's name
@@ -139,9 +153,14 @@ def test_a_device_that_takes_no_format_it_plays_is_said_so_not_missing(
         def isFormatSupported(self, _: object) -> bool:  # noqa: N802 - Qt's name
             return False
 
-    monkeypatch.setattr(
-        QtMultimedia.QMediaDevices, "defaultAudioOutput", staticmethod(Device)
-    )
+    class Devices:
+        defaultAudioOutput = staticmethod(Device)  # noqa: N815 - Qt's name
+
+    multimedia = types.ModuleType("PySide6.QtMultimedia")
+    multimedia.QAudioFormat = Format  # type: ignore[attr-defined]
+    multimedia.QAudioSink = object  # type: ignore[attr-defined]
+    multimedia.QMediaDevices = Devices  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "PySide6.QtMultimedia", multimedia)
     played = player.SoundPlayer(clock=still)
     said: list[str] = []
     played.failed.connect(said.append)
