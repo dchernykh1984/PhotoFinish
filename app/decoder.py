@@ -23,7 +23,8 @@ KEEP_BYTES = 96 << 20
 
 
 class Decoder:
-    """Keeps the last segment open between requests, and its frames decoded lately."""
+    """Keeps the last segment open between requests, and the frames decoded lately --
+    the segment before's too: a crossing on a segment's first frame stepped around."""
 
     def __init__(self, keep_bytes: int = KEEP_BYTES) -> None:
         self._path: Path | None = None
@@ -32,7 +33,9 @@ class Decoder:
         self._last = -1  # the timestamp last decoded
         self.seeks = 0
         self._keep_bytes = keep_bytes
-        self._kept: OrderedDict[int, tuple[av.VideoFrame, int]] = OrderedDict()
+        self._kept: OrderedDict[tuple[Path, int], tuple[av.VideoFrame, int]] = (
+            OrderedDict()
+        )
         self._kept_bytes = 0
 
     @property
@@ -43,40 +46,47 @@ class Decoder:
     def decode(self, path: Path, pts: int) -> av.VideoFrame | None:
         """The frame at ``pts`` in segment ``path``, or the first after it; None
         when the segment holds none from there."""
-        if path != self._path or self._container is None:
-            self.close()
-            self._container = av.open(str(path))
-            self._path = path
-        if (kept := self._kept.get(pts)) is not None:
-            self._kept.move_to_end(pts)  # looked at lately: the last to go
+        if (kept := self._kept.get((path, pts))) is not None:
+            self._kept.move_to_end((path, pts))  # looked at lately: the last to go
             return kept[0]
-        stream = self._container.streams.video[0]
+        container = self._container
+        if path != self._path or container is None:
+            container = self._open(path)
+        stream = container.streams.video[0]
         rate = stream.time_base
         far = FAR_S * rate.denominator / rate.numerator if rate else FAR_S * 1000
         if self._frames is None or pts <= self._last or pts - self._last > far:
-            self._container.seek(pts, stream=stream, backward=True, any_frame=False)
-            self._frames = self._container.decode(stream)
+            container.seek(pts, stream=stream, backward=True, any_frame=False)
+            self._frames = container.decode(stream)
             self.seeks += 1
         for frame in self._frames:
             if frame.pts is None:
                 continue
             self._last = frame.pts
-            self._keep(frame, frame.pts)
+            self._keep(frame, (path, frame.pts))
             if frame.pts >= pts:
                 return frame
         self._frames = None
         return None
 
-    def _keep(self, frame: av.VideoFrame, pts: int) -> None:
+    def _keep(self, frame: av.VideoFrame, key: tuple[Path, int]) -> None:
         """``frame`` kept, the oldest kept let go past KEEP_BYTES; the newest stays."""
         size = sum(plane.buffer_size for plane in frame.planes)
-        if (old := self._kept.pop(pts, None)) is not None:
+        if (old := self._kept.pop(key, None)) is not None:
             self._kept_bytes -= old[1]
-        self._kept[pts] = (frame, size)
+        self._kept[key] = (frame, size)
         self._kept_bytes += size
         while self._kept_bytes > self._keep_bytes and len(self._kept) > 1:
             _, (_, gone) = self._kept.popitem(last=False)
             self._kept_bytes -= gone
+
+    def _open(self, path: Path) -> InputContainer:
+        """Another segment open, the one before closed; the frames kept stay."""
+        if self._container is not None:
+            self._container.close()
+        container = self._container = av.open(str(path))
+        self._path, self._frames, self._last = path, None, -1
+        return container
 
     def close(self) -> None:
         if self._container is not None:
