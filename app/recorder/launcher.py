@@ -133,6 +133,7 @@ class Watchdog:
         self._process: subprocess.Popen[bytes] | None = None
         self._started = 0.0  # monotonic, when this window last started one
         self._started_ms = 0  # wall clock, when it last tried to
+        self._start_beat = 0  # the heartbeat then: one since is the one it started's
         self._retry_at: float | None = None
         # The end of a recorder this window started, first seen (monotonic), which one,
         # and the heartbeat then: a later one is another recorder's.
@@ -161,6 +162,7 @@ class Watchdog:
                 return
             (folder_of(self.camera_id) / "stop.request").touch()
         self._started_ms = time.time_ns() // 1_000_000  # an end before: not its own
+        self._start_beat = 0 if info is None else _ms(info, "heartbeat_ms")
         try:
             self._process = (self._spawn or spawn)(self.camera_id)
         except OSError as error:  # moved, or blocked: tried again after the pause
@@ -214,9 +216,12 @@ class Watchdog:
         process = self._process
         code = None if process is None else process.poll()
         if code is None:
-            # This window's own, running: a beat ahead of the clock is the clock set
-            # back as it was held by a camera's open, not a recorder gone.
-            return alive(info) or (process is not None and _ahead(info))
+            # This window's own, running, its beat since its start ahead of the clock:
+            # the clock set back as it was held by a camera's open, not a recorder
+            # gone. A beat from before its start is a dead one's, maybe.
+            beat = None if info is None else _ms(info, "heartbeat_ms")
+            own = process is not None and beat != self._start_beat
+            return alive(info) or (own and _ahead(info))
         now = time.monotonic()
         if code != 3 and self._dead is not process:
             info = heartbeat(self.camera_id)  # read since its end: no beat of it after
