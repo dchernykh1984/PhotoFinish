@@ -257,11 +257,13 @@ def _start_of(kept: bytes, run: str) -> str:
 
 def _run_at(kept: bytes, end: int) -> str | None:
     """The run of a log's line ending before ``end``: its last mark's before it -- a
-    mark begins its line; a phone's text saying one is no mark --; None for none."""
+    mark begins its line; a phone's text saying one is no mark, nor one torn, which
+    the recorder passes over too (``_where``) --; None for none."""
     while (at := kept.rfind(_MARK_AT, 0, end)) >= 0:
         if at == 0 or kept[at - 1] == ord("\n"):
             found = _MARK.match(kept[at : at + 64].decode(errors="replace"))
-            return None if found is None else found.group(1)
+            if found is not None:
+                return found.group(1)
         end = at
     return None
 

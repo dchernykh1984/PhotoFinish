@@ -517,3 +517,20 @@ def test_a_run_at_work_its_mark_torn_is_none_taken_from_the_file_kept_before(
     (tmp_path / (phone_log.FILE + ".1")).write_text(before, encoding="utf-8")
     (tmp_path / phone_log.FILE).write_text("--- run fedc", encoding="utf-8")
     assert phone_log.newest_start([tmp_path]) == ""
+
+
+def test_a_torn_mark_the_run_went_on_after_is_passed_over_as_the_recorder_does(
+    tmp_path: Path,
+) -> None:
+    # Power cut as a mark was written: the recorder, started again, goes on with the
+    # run of the mark before it, the next lines on the torn one's -- its run is the
+    # one at work, its start held.
+    said = APP.format("0.13.1")
+    lines = [
+        f"--- run {RUN} from line 1, heard",
+        f"2026-11-22 10:00:00.000 I - #1 {said}",
+        "--- run fedc2026-11-22 11:00:00.000 I main #5 the camera opened",
+        "2026-11-22 11:00:01.000 I main #6 frames",
+    ]
+    (tmp_path / phone_log.FILE).write_text("\n".join(lines) + "\n", encoding="utf-8")
+    assert phone_log.newest_start([tmp_path]) == said
