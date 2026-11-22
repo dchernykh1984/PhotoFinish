@@ -647,3 +647,24 @@ def test_a_word_heard_before_this_computer_s_clock_was_set_back_is_not_said_now(
             "the phone, before the clock was set back: camera error 4"
         )
     assert last_word(log.said, heard - 2_000) == "the phone: camera error 4"
+
+
+def test_a_lens_folder_not_to_be_looked_into_leaves_the_others_to_answer(
+    tmp_path: Path,
+) -> None:
+    # The tele's folder shut, the main's log at work holds the start: said, not
+    # "cannot be read" for the phone. All shut: said they cannot be.
+    said = APP.format("0.13.1")
+    main, tele = tmp_path / "main", tmp_path / "tele"
+    main.mkdir()
+    log = f"--- run {RUN} from line 1\n2026-11-22 09:00:00.000 I - #1 {said}\n"
+    (main / phone_log.FILE).write_text(log, encoding="utf-8")
+    tele.mkdir()
+    (tele / phone_log.FILE).write_text(log, encoding="utf-8")
+    tele.chmod(0)
+    try:
+        assert said_of(phone_log.newest_start([main, tele], at_work=[main])) == said
+        with pytest.raises(PermissionError):
+            phone_log.newest_start([tele])
+    finally:
+        tele.chmod(0o755)

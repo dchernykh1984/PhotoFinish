@@ -226,20 +226,17 @@ def newest_start(folders: Iterable[Path], at_work: Collection[Path] = ()) -> str
     another's is of a run before. OSError for a log there that cannot be read -- the
     newest, whose run is at work then not known, or one that may hold the start no
     other does."""
-    logs = [
-        (folder in at_work, w, folder)
-        for folder in folders
-        if (w := _written(folder)) is not None
-    ]
+    logs, unread = _logs(folders, at_work)
     if not logs or (at_work and not any(working for working, *_ in logs)):
+        if unread is not None:  # the one at work may be the one not to be read
+            raise unread
         return None
     ordered = [folder for *_, folder in sorted(logs, reverse=True)]
     newest = _newest_file(ordered[0])
     run = None if newest is None else _run_at(newest[1], len(newest[1]))
     if newest is None or run is None:  # gone since, or no whole mark: not known
         return ""
-    unread: OSError | None = None  # an older log's: the start may be another's
-    for folder in ordered:
+    for folder in ordered:  # an older log not to be read: the start may be another's
         for path in (folder / FILE, folder / (FILE + ".1")):
             try:
                 kept = newest[1] if path == newest[0] else _bytes_of(path)
@@ -251,6 +248,25 @@ def newest_start(folders: Iterable[Path], at_work: Collection[Path] = ()) -> str
     if unread is not None:  # held by none read: the one not read may hold it
         raise unread
     return ""
+
+
+def _logs(
+    folders: Iterable[Path], at_work: Collection[Path]
+) -> tuple[list[tuple[bool, float, Path]], OSError | None]:
+    """The folders that have a log: whether each is at work, and when its log was
+    written last; and the first error of one whose time is not to be had -- another's
+    may hold what is looked for."""
+    logs: list[tuple[bool, float, Path]] = []
+    unread: OSError | None = None
+    for folder in folders:
+        try:
+            written = _written(folder)
+        except OSError as error:
+            unread = unread or error
+            continue
+        if written is not None:
+            logs.append((folder in at_work, written, folder))
+    return logs, unread
 
 
 def _written(folder: Path) -> float | None:
