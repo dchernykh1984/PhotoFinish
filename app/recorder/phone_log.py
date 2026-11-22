@@ -187,8 +187,8 @@ class PhoneLog:
 def last_word(said: object, now_ms: int) -> str:
     """The phone's last warning or error a heartbeat holds, as a camera's line says it
     while the camera does not record: till its next warning or error, a failure it
-    says once going on -- how long ago it was said, past SAID_MS; "" when there is
-    none."""
+    says once going on -- how long ago it was said, past SAID_MS, or that it was heard
+    before this computer's clock was set back; "" when there is none."""
     # Its times read as numbers, however written -- imported here, as phone_status's
     # import of cameras comes back to this package --; one that is none, nothing.
     from app.phone_status import number
@@ -200,6 +200,9 @@ def last_word(said: object, now_ms: int) -> str:
     if not isinstance(text, str) or not text or None in times:
         return ""
     at, phone, heard = (int(t or 0) for t in times)
+    if heard - now_ms > SAID_MS:  # heard on the far side of this computer's clock set
+        # back: how long since, it no longer tells -- the word is no word of now.
+        return f"the phone, before the clock was set back: {text}"
     # The phone's own clock tells how old the word was when the newest line came,
     # this computer's how long since: a backlog's old word is old, whatever the
     # two clocks say.

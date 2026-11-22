@@ -632,3 +632,17 @@ def test_a_lens_streaming_with_no_log_leaves_the_run_at_work_unheard(
     assert phone_log.newest_start([main, tele], at_work=[main]) is None
     none_streaming = phone_log.newest_start([main, tele])
     assert said_of(none_streaming) == said  # the newest log's
+
+
+def test_a_word_heard_before_this_computer_s_clock_was_set_back_is_not_said_now(
+    tmp_path: Path,
+) -> None:
+    # Heard, then the clock set back an hour: how long ago is not known by it -- not
+    # said as now. A clock set back a moment changes nothing.
+    log = PhoneLog(tmp_path, clock=lambda: START + 10_000)
+    log.heard(message(1, (1, "E", "-", "camera error 4")))
+    heard = START + 10_000
+    assert last_word(log.said, heard - 3_600_000) == (
+        "the phone, before the clock was set back: camera error 4"
+    )
+    assert last_word(log.said, heard - 30_000) == "the phone: camera error 4"
