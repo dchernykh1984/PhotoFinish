@@ -5,6 +5,7 @@ from __future__ import annotations
 import html
 import json
 import os
+import sys
 import threading
 import time
 from collections.abc import Callable
@@ -17,7 +18,7 @@ import numpy as np
 import pytest
 import shiboken6
 from PySide6.QtCore import QEvent, QPoint, QPointF, QRect, Qt
-from PySide6.QtGui import QAction, QImage, QScreen, QWheelEvent
+from PySide6.QtGui import QAction, QImage, QKeySequence, QScreen, QWheelEvent
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import (
     QApplication,
@@ -4241,7 +4242,7 @@ def about(win: mw.MainWindow, monkeypatch: pytest.MonkeyPatch) -> list[str]:
 
     monkeypatch.setattr(mw.QMessageBox, "about", box)
     menus = win.menuBar().findChildren(QMenu)
-    (help_menu,) = [menu for menu in menus if menu.title() == "Help"]
+    (help_menu,) = [menu for menu in menus if menu.title().replace("&", "") == "Help"]
     (action,) = help_menu.actions()
     assert action.text() == "About PhotoFinish"
     assert action.menuRole() == QAction.MenuRole.AboutRole  # macOS: the program's menu
@@ -4402,6 +4403,16 @@ def test_about_says_the_phone_s_newest_start_whichever_lens_s_log_holds_it(
     (text,) = about(make_window(), monkeypatch)
     lines = [line.split(", started ")[0] for line in text.split("<br>")]
     assert f"Mi main, Mi tele: {app.format('0.13.1')}" in lines
+
+
+def test_help_opens_from_the_keyboard_with_alt_h(win: mw.MainWindow) -> None:
+    # Alt alone hands the menu bar no keys: Alt+H, its mnemonic, still opens Help --
+    # but on macOS, whose menu bar is the system's and has no mnemonics.
+    menus = win.menuBar().findChildren(QMenu)
+    (help_menu,) = [menu for menu in menus if menu.title().replace("&", "") == "Help"]
+    assert help_menu.title() == "&Help"
+    if sys.platform != "darwin":
+        assert QKeySequence.mnemonic(help_menu.title()) == QKeySequence("Alt+H")
 
 
 def test_alt_pressed_alone_leaves_the_arrows_to_the_video(
