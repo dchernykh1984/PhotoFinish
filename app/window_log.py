@@ -109,18 +109,19 @@ class WindowLog:
                 self._seen.pop(way, None)  # let go already by an error come in
 
     def _write(self, text: str, always: bool = False) -> None:
-        """A line written; an error's only while the run has room for it -- once it
-        has not, that is said, once."""
+        """A line written; an error's only while the run has room for it -- the
+        first that has none says the log is full, and none is written after."""
         line = f"{self._stamp()} {text}\n"
         if not always:
+            if self._full:
+                return
             size = len(line.encode("utf-8", "backslashreplace"))
             if size > self._room:
-                if not self._full:
-                    self._full = True
-                    self._put(
-                        f"{self._stamp()} the log is full for this run: no more "
-                        "of its errors are written\n"
-                    )
+                self._full = True
+                self._put(
+                    f"{self._stamp()} the log is full for this run: no more "
+                    "of its errors are written\n"
+                )
                 return
             self._room -= size
         self._put(line)

@@ -388,3 +388,22 @@ def test_an_object_of_any_kind_is_named_whole_up_to_its_limit(
     assert "Unnamable" in text  # its repr failing: named by its kind
     assert f"'{'x' * 296}..." in text  # past its limit: cut there
     assert "x" * 400 not in text
+
+
+def test_a_log_full_for_its_run_writes_no_error_after_saying_so(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(window_log, "LIMIT_BYTES", 1500)
+    file = io.StringIO()
+    now = [1000.0]
+    log = window_log.WindowLog(file, clock=lambda: now[0], steady=lambda: now[0])
+    log.error(*raised("small"))
+    now[0] += 61
+    log.error(*raised("x" * 2000))  # past the room left: the log says it is full
+    now[0] += 61
+    log.error(*raised_elsewhere("small again"))  # would fit: written no more
+    log.end()
+    text = file.getvalue()
+    assert "the log is full for this run" in text
+    assert "small again" not in text
+    assert text.rstrip().endswith("the window ended")
