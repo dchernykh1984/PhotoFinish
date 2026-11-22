@@ -387,6 +387,27 @@ def test_a_segment_listed_late_is_heard_in_the_order_the_segments_were_made(
     assert any(START + 1400 <= ms < START + 1600 for ms in moments)
 
 
+def test_a_segment_whose_times_are_held_a_moment_is_heard_all_the_same(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A scanner holding its times as it is read for sound (Windows): read again a
+    # moment later, its sound -- the beep -- never taken for none.
+    index = recorded(tmp_path)
+    middle = index.paths[1]
+    real = sound.read_times
+    held = [2]  # each look at it a moment: its first and last times, its pieces
+
+    def read_times(path: Path) -> Any:
+        if path == middle and held[0]:
+            held[0] -= 1
+            return None
+        return real(path)
+
+    monkeypatch.setattr(sound, "read_times", read_times)
+    found = sound.pieces(index, START)
+    assert any(START + 1400 <= piece.ms < START + 1600 for piece in found)
+
+
 def test_a_segment_whose_sound_line_came_late_is_heard_as_it_comes(
     tmp_path: Path,
 ) -> None:
