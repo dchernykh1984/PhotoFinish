@@ -1327,3 +1327,19 @@ def test_a_sound_the_recorder_does_not_keep_beats_no_heartbeat(
     monkeypatch.setattr(Heartbeat, "beat", beat)
     assert run("cam1") == 0
     assert beats.count("recording") <= 3  # the frame, and the stop's: no piece's
+
+
+def test_a_recorder_stopped_lately_is_told_as_the_window_tells_it(
+    tmp_path: Path,
+) -> None:
+    # Its heartbeat's time read as the window reads it -- a number, however written:
+    # one the window takes for fresh is waited for here too, as it lets the lock go.
+    from app.recorder import _stopping
+
+    beat = tmp_path / "recorder.json"
+    now = time.time_ns() // 1_000_000
+    for written in (now, str(now), float(now)):
+        beat.write_text(json.dumps({"state": "stopped", "heartbeat_ms": written}))
+        assert _stopping(tmp_path), written
+    beat.write_text(json.dumps({"state": "stopped", "heartbeat_ms": "soon"}))
+    assert not _stopping(tmp_path)
