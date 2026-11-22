@@ -1,5 +1,72 @@
 # Changelog
 
+## [0.14.0](https://github.com/dchernykh1984/PhotoFinish/compare/v0.13.1...v0.14.0) (2026-11-22)
+
+
+### Features
+
+* say each phone's PhotoFinish Camera in About, its version, phone and Android as its log says the app started ([a6cc7bf](https://github.com/dchernykh1984/PhotoFinish/commit/a6cc7bf77cf95d8800a8a8556e05950439f657f2))
+* say in About when each phone's start was said, a start of a day before seen for one ([5842f8a](https://github.com/dchernykh1984/PhotoFinish/commit/5842f8a95d379105e404c4dbcfa8205c6af24528))
+* say the program's version in an About box, from a Help menu ([9ffa7f9](https://github.com/dchernykh1984/PhotoFinish/commit/9ffa7f99139c668e2e77bfd9fcacb3ae4556f3b4))
+
+
+### Bug Fixes
+
+* find a phone's start in its other lens logs when one lens folder cannot be looked into, said only when none answers ([4564f94](https://github.com/dchernykh1984/PhotoFinish/commit/4564f94c57f441b266153f0dace87dcee409fed2))
+* find the phone's start in the lens logs that can be read, an older one not to be read said only when none holds it ([9bb93ba](https://github.com/dchernykh1984/PhotoFinish/commit/9bb93ba8f4bf6b8d26e4ff4146a847b360be101e))
+* fit the window to a 1920x1080 screen, the lists two lines at least below the phones' lines, opened as large as before ([e932897](https://github.com/dchernykh1984/PhotoFinish/commit/e93289717c792f266fa51612ea1b7dee486fc835))
+* give each camera's line its whole text as its tip, a word wider than the list being cut there ([9edd89d](https://github.com/dchernykh1984/PhotoFinish/commit/9edd89df771b88f39d951b149d7776cddbde52e8))
+* hold a whole label as high as its text in the font a style gives it after the text ([6fcde86](https://github.com/dchernykh1984/PhotoFinish/commit/6fcde8605b31d676c65eed144157cd1fcddbd1b1))
+* hold the banner and the phones' lines at their most at a width, the lists below kept still under the referee's click ([a4a9d38](https://github.com/dchernykh1984/PhotoFinish/commit/a4a9d3870186941aa133f137cecbc10a40fb2141))
+* keep Alt pressed alone from handing the menu bar the arrows that step the video ([8192d84](https://github.com/dchernykh1984/PhotoFinish/commit/8192d84e02b665918cae8dc3263d1a5d7f7cda3f))
+* keep only a beat written since this window started its recorder for that recorder at work, a dead one's ahead of the clock not ([92fd98e](https://github.com/dchernykh1984/PhotoFinish/commit/92fd98edcaf62a786dc437f78799a942ea25e540))
+* keep the camera dialog's lens advice and QR code whole, the dialog as high as they need ([5a1eb19](https://github.com/dchernykh1984/PhotoFinish/commit/5a1eb19194601306b7e1cf1217b6f90d3b93df0c))
+* keep the corner's held height when it turns green again, the lists below kept still ([cf8f959](https://github.com/dchernykh1984/PhotoFinish/commit/cf8f959e216502c4757b0f8306d4318cb2476d8d))
+* keep the recorder this window started, still running, at work while its beat is ahead of the clock set back ([0fda20c](https://github.com/dchernykh1984/PhotoFinish/commit/0fda20cc0f332b3fa326decd1245370674efaf90))
+* keep the recording banner and the phones' lines whole above the lists, the window as high as they need ([bbaa487](https://github.com/dchernykh1984/PhotoFinish/commit/bbaa4872d6f8d94c4e98a1c23a20ad28a7f294cc))
+* leave a recorder that failed since this window started it for the referee, its end earlier on a clock set back or not ([1ffc624](https://github.com/dchernykh1984/PhotoFinish/commit/1ffc624407c8c55d1d8ed9170514f3c53c85e776))
+* leave the window's layout be when a whole label is given its own text again or only grows higher ([7dc8509](https://github.com/dchernykh1984/PhotoFinish/commit/7dc8509b0c87435de4e9421260bd132bb0b7332c))
+* let a whole label give back its height once its text is shorter or it is wider ([fdde84b](https://github.com/dchernykh1984/PhotoFinish/commit/fdde84b0bb7abe8d34837f287768613ec2f440ef))
+* name the input's and output's files on their buttons, the path in the tip, the number field left its room ([8bf0215](https://github.com/dchernykh1984/PhotoFinish/commit/8bf0215cac6b2e9f740615d269c9acba7269ef7a))
+* open Help from the keyboard with Alt+H, Alt alone handing the menu bar no keys ([b3f5322](https://github.com/dchernykh1984/PhotoFinish/commit/b3f53222654f8a32dc25cebde60677124a19231e))
+* open the window within a smaller screen's room, its title bar left room for, not cut at the bottom ([5edb7cf](https://github.com/dchernykh1984/PhotoFinish/commit/5edb7cf2536609f5db470e98c767151395ca1dfd))
+* pass over a torn mark in a phone's log for About, as the recorder does, the run it went on with at work ([d880609](https://github.com/dchernykh1984/PhotoFinish/commit/d880609ad03a3442e91b03eb4926e81bf7224030))
+* say a phone's last word heard before the clock was set back by more than a moment as such, as a status is ([12071d3](https://github.com/dchernykh1984/PhotoFinish/commit/12071d37913f0931c4a95dc8bc02b8f7d8e8fed0))
+* say a phone's last word heard before this computer's clock was set back as such, not as said now ([08da7b6](https://github.com/dchernykh1984/PhotoFinish/commit/08da7b69e0fbb2d4f2bb4bd6fde588dac142f0ce))
+* say in About a phone's log that cannot be read, its run at work unknown, not one taken from the file kept before ([b114b06](https://github.com/dchernykh1984/PhotoFinish/commit/b114b06701d68073aba21b18fb0e10aa27a752cd))
+* say in About that a phone's log no longer holds its app's start, not that the phone sent no word ([76ed1fe](https://github.com/dchernykh1984/PhotoFinish/commit/76ed1fe1263286e649d203f45ac5c74de4ac6c8d))
+* say in About the newest app start of a phone's lens logs, not the first lens's, which an old one may hold ([e02183d](https://github.com/dchernykh1984/PhotoFinish/commit/e02183d48158107e64a592499def84a67e1e38b3))
+* say in About the start of the phone's lens log written last, read from it on, not the latest by the lines' local times ([36a3f84](https://github.com/dchernykh1984/PhotoFinish/commit/36a3f843d780b2bd96587030ba388002c8daea8f))
+* say in About the start of the phone's run at work, from whichever lens log holds it, never an earlier run's ([584dd27](https://github.com/dchernykh1984/PhotoFinish/commit/584dd27162603b332925f6690814baaa0fb26953))
+* say no word yet in About of a phone whose lenses streaming now have no log, not another lens's older run ([74f8cd9](https://github.com/dchernykh1984/PhotoFinish/commit/74f8cd9bc044c0cb76901ac3ad4146c45dcae4a5))
+* say the phone's app start without the line end Windows writes its log with ([593e3cd](https://github.com/dchernykh1984/PhotoFinish/commit/593e3cd187b52dbdda4872339f04a22f7499329d))
+* start this window's recorder again once its beat ahead of the clock set back stands still, stuck, not when the clock gets back to it ([cfc1395](https://github.com/dchernykh1984/PhotoFinish/commit/cfc13952a0403c828510aedc08b9bb028b530a5a))
+* take a recorder's heartbeat from ahead of this computer's clock for none at work, as one as far behind ([385d4a2](https://github.com/dchernykh1984/PhotoFinish/commit/385d4a26aecf3e7dcb5fd7eda5bcb4155ae5af81))
+* take no end of this window's own recorder, written ahead of the clock, for it at work ([e80b162](https://github.com/dchernykh1984/PhotoFinish/commit/e80b162a2ac224e8022068f168ba0db8547182bd))
+* take the phone's run at work from its newest lens folder alone, and say a log whose time cannot be had cannot be read ([cea0bc3](https://github.com/dchernykh1984/PhotoFinish/commit/cea0bc3dfc7459658728a10dd3145c603ead29f9))
+* take the phone's run at work from its newest log alone, a torn mark there leaving it unknown, never an older file's ([e4abe12](https://github.com/dchernykh1984/PhotoFinish/commit/e4abe12f27c539f91215e8a68224630ccc3672b2))
+* take the phone's run at work in About from a lens recorded now first, a log's time no guide once the clock is set back ([3c4332b](https://github.com/dchernykh1984/PhotoFinish/commit/3c4332b3fec3b2bd7b09f9748a1d2b1070ac85ef))
+* take the phone's run at work in About from a lens streaming now, not one whose recorder waits for the phone ([f20363d](https://github.com/dchernykh1984/PhotoFinish/commit/f20363dbe5652f56860807e73708ac18ac981a55))
+* wait for the lock of a recorder stopped before the clock was set back, as for one stopped lately, its camera not left unrecorded ([28b5dde](https://github.com/dchernykh1984/PhotoFinish/commit/28b5ddef840e320302ea81e567d2fb568b6d719f))
+* wrap the camera list's lines with no bar to scroll them sideways, a line's height kept ([92e8880](https://github.com/dchernykh1984/PhotoFinish/commit/92e88802e3a588a02b2cd1bc98e904bf940d0667))
+
+
+### Performance Improvements
+
+* look for the phone's app start from its log's end, no line split, as About asks it on the window's thread ([ef3a9b2](https://github.com/dchernykh1984/PhotoFinish/commit/ef3a9b2f67283e8d7dcea66f18cf7ca699eee0d7))
+
+
+### Documentation
+
+* say a recorder held by a camera's open beats again once it returns, taken for gone till then if the clock was set back ([82142e7](https://github.com/dchernykh1984/PhotoFinish/commit/82142e7eb143ef89162dd0c5b03418b57c0eae67))
+* say About gives each phone's start of its run at work, from whichever lens log holds it ([3ab62d1](https://github.com/dchernykh1984/PhotoFinish/commit/3ab62d1f88354251454150f399179f2958060af4))
+* say About gives when each phone's start was said ([30d4c1f](https://github.com/dchernykh1984/PhotoFinish/commit/30d4c1fcf6d6782b67e51d395172d7e284ac6de4))
+* say About reads a phone's start from its lens log written last, and says one no longer held ([c289dec](https://github.com/dchernykh1984/PhotoFinish/commit/c289dec500c34dc6029f21a77c23c03985bcc4f5))
+* say About reads the start of a phone's run at work, from whichever lens log holds it ([1a046b4](https://github.com/dchernykh1984/PhotoFinish/commit/1a046b4da49f62075d1026585b647162020e9816))
+* say About takes a phone's run at work from a lens recorded now first ([08c1027](https://github.com/dchernykh1984/PhotoFinish/commit/08c1027ee56955ffebcf2711e6feb7ee182262e3))
+* say About takes the run at work from a lens streaming now, and says a log not come yet or not to be read ([039ae1d](https://github.com/dchernykh1984/PhotoFinish/commit/039ae1d8532164b4e83405bc4e3fff212cd05878))
+* say how a layout is looked at as macOS draws it, and how a wrapped label cut is found and kept whole ([04fd4a6](https://github.com/dchernykh1984/PhotoFinish/commit/04fd4a68ab8a4f6a2e76ba2c4ef877d5fd97f95a))
+
 ## [0.13.1](https://github.com/dchernykh1984/PhotoFinish/compare/v0.13.0...v0.13.1) (2026-11-22)
 
 
