@@ -216,15 +216,16 @@ def newest_start(folders: Iterable[Path], at_work: Collection[Path] = ()) -> str
     at work and the newest first, till one holds that run's start:
     a recorder that heard the run late, the phone no longer holding its start, has
     none of it. About asks it on the window's thread. "" when no log holds it -- or
-    days of a log since --; None for no log at all. OSError for a log there that
-    cannot be read -- the newest, whose run is at work then not known, or one that
-    may hold the start no other does."""
+    days of a log since --; None for no log at all, or none yet of a lens at work:
+    another's is of a run before. OSError for a log there that cannot be read -- the
+    newest, whose run is at work then not known, or one that may hold the start no
+    other does."""
     logs = [
         (folder in at_work, w, folder)
         for folder in folders
         if (w := _written(folder)) is not None
     ]
-    if not logs:
+    if not logs or (at_work and not any(working for working, *_ in logs)):
         return None
     ordered = [folder for *_, folder in sorted(logs, reverse=True)]
     newest = _newest_file(ordered[0])
