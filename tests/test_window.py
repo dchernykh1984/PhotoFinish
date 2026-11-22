@@ -4416,3 +4416,20 @@ def test_alt_pressed_alone_leaves_the_arrows_to_the_video(
         assert not bar.style().styleHint(hint, None, bar)
     finally:
         app.setStyle(kept)
+
+
+def test_about_says_a_phone_whose_log_no_longer_holds_its_app_s_start(
+    base: Path,
+    make_window: Callable[[], mw.MainWindow],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Days of a phone's log since the app started: its start in no file kept now.
+    # The phone has been heard: not "no word".
+    phone = {**CAMERA, "connection": "rtmp", "settings": {"port": 1999, "path": "x"}}
+    session.save({**session.DEFAULTS, "cameras": [phone]})
+    folder = base / "video" / "cam1"
+    folder.mkdir(parents=True)
+    kept = "--- run 0123456789abcdef from line 90000\n"
+    (folder / "phone.log").write_text(kept, encoding="utf-8")
+    (text,) = about(make_window(), monkeypatch)
+    assert f"Side: {html.escape(mw.NO_START)}" in text.split("<br>")

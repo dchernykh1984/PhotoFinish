@@ -121,6 +121,7 @@ EXPORT_STOP_S = 5.0  # how long the window closing waits for an export to stop
 NEAR_MS = 1000  # another camera's frame further from the moment than this: none
 STOP_MS = 3000  # an analyser stopped is killed if it has not ended by then
 OUTSIDE = "The output file was changed outside PhotoFinish: kept beside it"
+NO_START = "PhotoFinish Camera's start no longer in its log"  # About's, of a phone
 # The corner's word on recording (FR-019): large, white on green or on red.
 BANNER = (
     "QLabel {{ background: {}; color: white; font-size: 24px; font-weight: bold;"
@@ -547,8 +548,11 @@ class MainWindow(QMainWindow):
         for ids in phones.values():
             said = newest_start(folder_of(i) for i in ids)
             names = ", ".join(self._name(i) for i in ids)
-            word = said or "no word from PhotoFinish Camera yet"
-            lines.append(html.escape(f"{names}: {word}"))
+            if said is None:  # a free streaming app's, or one never heard
+                said = "no word from PhotoFinish Camera yet"
+            lines.append(
+                html.escape(f"{names}: {said or NO_START}")  # its log gone past it
+            )
         QMessageBox.about(self, "About PhotoFinish", "<br>".join(lines))
 
     def show_alone(self, row: int | None) -> None:
