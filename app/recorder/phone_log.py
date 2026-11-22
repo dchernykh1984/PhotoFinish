@@ -206,17 +206,18 @@ def last_word(said: object, now_ms: int) -> str:
     return f"the phone, {ago // MINUTE_MS} min ago: {text}"
 
 
-def newest_start(folders: Iterable[Path]) -> str:
+def newest_start(folders: Iterable[Path]) -> str | None:
     """The app's newest start a phone's lens cameras' logs hold: the one of the log
     written last that holds one -- a lens no longer recorded keeps an older, and the
     times the lines keep are this computer's local ones, the hour the clocks go back
     said twice. Read from the newest log on till one holds it: About asks it on the
-    window's thread. "" when none does."""
+    window's thread. "" when none holds one any longer -- days of a log since the
+    app started --; None for no log at all."""
     logs = [(w, folder) for folder in folders if (w := _written(folder)) is not None]
     for _, folder in sorted(logs, reverse=True):
         if said := started(folder):
             return said
-    return ""
+    return "" if logs else None
 
 
 def _written(folder: Path) -> float | None:

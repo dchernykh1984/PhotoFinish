@@ -482,4 +482,5 @@ def test_a_phone_s_newest_start_is_the_one_of_its_lens_log_written_last(
     gone = log("front", f"--- run {RUN} from line 900\n", 3)
     assert phone_log.newest_start([old, gone, new]) == APP.format("0.13.1")
     assert phone_log.newest_start([old, gone]) == APP.format("0.12.0")
-    assert phone_log.newest_start([gone, tmp_path / "none"]) == ""
+    assert phone_log.newest_start([gone, tmp_path / "none"]) == ""  # gone from it
+    assert phone_log.newest_start([tmp_path / "none"]) is None  # no log at all
