@@ -720,11 +720,14 @@ def _copied(
     decodable: bool,
 ) -> bool:
     """``packet`` copied into ``out``: whether the frames from it on decode -- a
-    keyframe begins them, one refused ends them till the next keyframe."""
+    keyframe begins them, one refused ends them till the next keyframe. A file that
+    cannot be written, its disk full among them, is no refusal: raised, for recover."""
     packet.stream = into
     try:
         out.mux(packet)
-    except av.FFmpegError:
+    except av.FFmpegError as error:
+        if isinstance(error, OSError):
+            raise
         return False
     return decodable or packet.is_keyframe
 
