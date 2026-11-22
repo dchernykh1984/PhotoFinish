@@ -641,6 +641,20 @@ def test_a_recorder_is_described_as_the_referee_needs() -> None:
     assert describe({"state": "stopped", "heartbeat_ms": 0}) == "stopped"
 
 
+def test_a_heartbeat_holding_anything_never_stops_the_window_reading_it() -> None:
+    # Written by hand, or by a recorder of another version: a value not a number is
+    # read as none, the camera's line said, the window's poll going on.
+    from app.recorder.launcher import describe
+
+    fresh = now_ms()
+    for behind in ("n/a", [1], {"s": 2}, "nan"):
+        beat = {"state": "recording", "heartbeat_ms": fresh, "behind_ms": behind}
+        assert describe(beat) == "recording, 0 frames"
+    for beat_ms in ("soon", None, [fresh]):
+        assert not alive({"state": "recording", "heartbeat_ms": beat_ms})
+    assert describe({"state": "recording", "heartbeat_ms": "x"}) == "not responding"
+
+
 def test_a_phone_catching_up_says_how_far_behind_live_it_is() -> None:
     from app.recorder.launcher import describe
 
