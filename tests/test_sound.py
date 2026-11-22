@@ -408,6 +408,38 @@ def test_a_segment_whose_times_are_held_a_moment_is_heard_all_the_same(
     assert any(START + 1400 <= piece.ms < START + 1600 for piece in found)
 
 
+def test_a_segment_or_its_list_held_a_moment_as_opened_are_read_all_the_same(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A scanner holding a segment just closed, or the list, as it is opened (Windows):
+    # opened again a moment on, its sound -- the beep -- heard, the list read.
+    index = recorded(tmp_path)
+    middle = str(index.paths[1])
+    real_open, real_path_open = av.open, Path.open
+    held = {"segment": True, "list": True}
+
+    def opening(path: Any, *args: Any, **kwargs: Any) -> Any:
+        if str(path) == middle and held["segment"]:
+            held["segment"] = False
+            raise av.error.PermissionError(13, "held by another process")
+        return real_open(path, *args, **kwargs)
+
+    def path_opening(path: Path, *args: Any, **kwargs: Any) -> Any:
+        if path.name == sound.SOUND and held["list"]:
+            held["list"] = False
+            raise PermissionError(13, "held by another process")
+        return real_path_open(path, *args, **kwargs)
+
+    fresh = tmp_path / "fresh"
+    fresh.mkdir()
+    (fresh / sound.SOUND).write_text("20251029-103000-0001\n")
+    monkeypatch.setattr(sound.av, "open", opening)
+    monkeypatch.setattr(Path, "open", path_opening)
+    assert sound.sounding(fresh) == {"20251029-103000-0001"}  # nothing known before
+    found = sound.pieces(index, START)
+    assert any(START + 1400 <= piece.ms < START + 1600 for piece in found)
+
+
 def test_a_segment_whose_sound_line_came_late_is_heard_as_it_comes(
     tmp_path: Path,
 ) -> None:

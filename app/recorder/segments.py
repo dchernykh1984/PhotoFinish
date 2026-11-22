@@ -28,7 +28,7 @@ from typing import Any, TextIO
 import av
 import numpy as np
 
-from app.files import append, write_in_one_step
+from app.files import append, retried, write_in_one_step
 
 SEGMENT_MS = 1000  # a segment's first frame is shown once it closes: SC-006's 2 s
 # A phone sends again up to 7 s it may have lost (specs/007): the moments listed this
@@ -466,7 +466,7 @@ def _keeps_audio(path: Path) -> bool:
 def kept_sound(path: Path) -> bool:
     """Whether a closed segment holds a piece of sound -- a track alone, of a stream
     that said AAC and sent none, is no sound --; raises as ``av.open`` does."""
-    with av.open(str(path)) as container:
+    with retried(lambda: av.open(str(path))) as container:  # a copy held a moment
         heard = container.streams.audio
         return bool(heard) and any(p.size for p in container.demux(heard[0]))
 
