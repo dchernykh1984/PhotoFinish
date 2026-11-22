@@ -871,7 +871,7 @@ def test_the_timeline_marks_the_riders_of_the_camera_chosen_from_its_choice(
 ) -> None:
     # Another camera chosen, or the one left when the chosen is removed: the
     # rider marks of the camera before stayed on the timeline till the next poll.
-    second = {**CAMERA, "id": "cam2", "name": "Front"}
+    second = {**CAMERA, "id": "cam2", "name": "Front", "offset_ms": 250}
     session.save({**session.DEFAULTS, "cameras": [CAMERA, second]})
     for camera_id in ("cam1", "cam2"):
         record(base, START, 70, camera_id)
@@ -881,14 +881,18 @@ def test_the_timeline_marks_the_riders_of_the_camera_chosen_from_its_choice(
     )
     win = make_window()
     wait_until(lambda: win.moment is not None)
+    monkeypatch.setattr(win.analysis_box, "isChecked", lambda: True)
+    win.cameras["cam1"].activity.stretches = [(START, START + 500)]
+    win.cameras["cam2"].activity.stretches = [(START + 100, START + 300)]
+    theirs = [(START + 350, START + 550)]  # cam2's, on its offset
     win.timeline.set_stretches([(START, START + 500)])  # cam1's, as a poll sets them
     win.camera_list.setCurrentRow(1)
-    assert win.timeline.stretches == []  # cam2's: riders are not looked for
+    assert win.timeline.stretches == theirs
     win.camera_list.setCurrentRow(0)
-    win.timeline.set_stretches([(START, START + 500)])
+    assert win.timeline.stretches == [(START, START + 500)]
     win.remove_camera()
     assert win.current == "cam2"
-    assert win.timeline.stretches == []
+    assert win.timeline.stretches == theirs
 
 
 def test_the_timeline_paints_after_the_last_camera_is_removed_with_riders_marked(
