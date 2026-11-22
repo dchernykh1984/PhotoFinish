@@ -48,6 +48,7 @@ class Decoder:
             self._container = av.open(str(path))
             self._path = path
         if (kept := self._kept.get(pts)) is not None:
+            self._kept.move_to_end(pts)  # looked at lately: the last to go
             return kept[0]
         stream = self._container.streams.video[0]
         rate = stream.time_base
