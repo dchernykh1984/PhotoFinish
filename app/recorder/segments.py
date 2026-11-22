@@ -679,9 +679,10 @@ def frame_times(times: Path) -> dict[int, int]:
 def _copy_whole(
     left: Path, copy: Path, frames: dict[int, int]
 ) -> list[tuple[int, int]]:
-    """The packets of ``left`` that came whole and have a time, copied as they are
-    into a file of their own, which ends as a file should, its sound with them
-    (specs/013); the frames' ``(pts, ms)``."""
+    """The packets of ``left`` that came whole, copied as they are into a file of
+    their own, which ends as a file should, its sound with them (specs/013) -- those a
+    phone sent again as much, written for the frames after them to decode, never
+    listed, as the segment kept them --; the listed frames' ``(pts, ms)``."""
     kept: set[int] = set()
     with av.open(str(left)) as video, av.open(str(copy), "w", format="matroska") as out:
         into = out.add_stream_from_template(video.streams.video[0])
@@ -696,7 +697,7 @@ def _copy_whole(
                     out.mux(packet)
                 except av.FFmpegError:
                     sound = None  # a sound the copy refuses costs the sound alone
-            elif pts in frames:
+            else:
                 packet.stream = into
                 out.mux(packet)
                 kept.add(pts)
