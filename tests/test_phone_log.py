@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -396,14 +397,14 @@ def test_the_app_s_last_start_is_read_from_the_phone_s_log(
 ) -> None:
     # FR-001: each start of the app logs its version, phone and Android first; the
     # newest the log holds is the app at work, whatever was said after it.
-    assert phone_log.started(tmp_path) == ("", "")  # no log yet
+    assert phone_log.started(tmp_path) == ""  # no log yet
     log.heard(message(1, (1, "I", "-", APP.format("0.12.0")), (2, "W", "main", "x")))
-    assert phone_log.started(tmp_path)[1] == APP.format("0.12.0")
+    assert phone_log.started(tmp_path) == APP.format("0.12.0")
     started_again = message(
         1, (1, "I", "-", APP.format("0.13.1")), (2, "I", "-", "main"), run=LATER
     )
     log.heard(started_again)
-    assert phone_log.started(tmp_path)[1] == APP.format("0.13.1")
+    assert phone_log.started(tmp_path) == APP.format("0.13.1")
 
 
 def test_no_line_but_the_app_s_own_start_is_taken_for_it(
@@ -424,7 +425,7 @@ def test_no_line_but_the_app_s_own_start_is_taken_for_it(
     ):
         log.heard(message(1, (seq, level, lens, text), prev=seq - 1))
     assert len(kept(tmp_path)) == 7  # each kept, after the run's mark
-    assert phone_log.started(tmp_path) == ("", "")
+    assert phone_log.started(tmp_path) == ""
 
 
 def test_the_app_s_start_is_read_from_the_file_kept_before_a_new_one_began(
@@ -436,7 +437,7 @@ def test_the_app_s_start_is_read_from_the_file_kept_before_a_new_one_began(
     (tmp_path / (phone_log.FILE + ".1")).write_text(before, encoding="utf-8")
     after = f"--- run {RUN} from line 90000\n2026-11-22 12:00:00.000 I main #90000 x\n"
     (tmp_path / phone_log.FILE).write_text(after, encoding="utf-8")
-    assert phone_log.started(tmp_path) == ("1794918339001 ms", APP.format("1.0"))
+    assert phone_log.started(tmp_path) == APP.format("1.0")
 
 
 def test_the_app_s_start_is_read_whole_from_a_log_written_with_windows_line_ends(
@@ -447,7 +448,7 @@ def test_the_app_s_start_is_read_whole_from_a_log_written_with_windows_line_ends
     said = APP.format("0.13.1")
     lines = [f"--- run {RUN} from line 1", f"2026-11-22 10:15:03.123 I - #1 {said}"]
     (tmp_path / phone_log.FILE).write_bytes("\r\n".join(lines).encode() + b"\r\n")
-    assert phone_log.started(tmp_path)[1] == said
+    assert phone_log.started(tmp_path) == said
 
 
 def test_the_app_s_start_is_found_at_the_head_of_a_long_log(tmp_path: Path) -> None:
@@ -460,4 +461,25 @@ def test_the_app_s_start_is_found_at_the_head_of_a_long_log(tmp_path: Path) -> N
         for n in range(2, 100_002)
     )
     (tmp_path / phone_log.FILE).write_text(head + body, encoding="utf-8")
-    assert phone_log.started(tmp_path)[1] == said
+    assert phone_log.started(tmp_path) == said
+
+
+def test_a_phone_s_newest_start_is_the_one_of_its_lens_log_written_last(
+    tmp_path: Path,
+) -> None:
+    # A lens no longer recorded keeps the start before the app was updated, its line
+    # timed later on this computer's clock -- the hour the clocks go back said twice
+    # --; a log written since that holds no start any longer is looked past.
+    def log(name: str, text: str, written: int) -> Path:
+        folder = tmp_path / name
+        folder.mkdir()
+        (folder / phone_log.FILE).write_text(text, encoding="utf-8")
+        os.utime(folder / phone_log.FILE, (written, written))
+        return folder
+
+    old = log("main", f"2026-10-25 02:40:00.000 I - #1 {APP.format('0.12.0')}\n", 1)
+    new = log("tele", f"2026-10-25 02:10:00.000 I - #1 {APP.format('0.13.1')}\n", 2)
+    gone = log("front", f"--- run {RUN} from line 900\n", 3)
+    assert phone_log.newest_start([old, gone, new]) == APP.format("0.13.1")
+    assert phone_log.newest_start([old, gone]) == APP.format("0.12.0")
+    assert phone_log.newest_start([gone, tmp_path / "none"]) == ""
