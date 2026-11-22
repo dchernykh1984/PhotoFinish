@@ -1308,12 +1308,9 @@ os._exit(1)  # killed: nothing closed, nothing flushed on the way out
 """
 
 
-def test_a_crash_that_began_on_frames_sent_again_recovers_from_its_keyframe(
-    tmp_path: Path,
-) -> None:
-    # A phone sending its last second again as the recorder restarts: the segment
-    # begins on that second's keyframe, written to decode the frames after it, never
-    # listed. Recovered after a kill, it begins there still, never on a frame after.
+def resent_crash(tmp_path: Path) -> tuple[Path, int]:
+    """A phone sending its last stretch again as the recorder restarts, the recorder
+    killed before that segment closed: its folder, and the segments closed before."""
     with_sound(tmp_path / "phone.mkv", 3)
     folder = tmp_path / "cam1"
     first = SegmentWriter(folder, fps=30)
@@ -1333,7 +1330,16 @@ def test_a_crash_that_began_on_frames_sent_again_recovers_from_its_keyframe(
     ]
     killed = subprocess.run(run, cwd=ROOT, check=False)  # noqa: S603 - this interpreter
     assert killed.returncode == 1  # killed as it wrote, never failed before
-    closed = len(segments(folder))
+    return folder, len(segments(folder))
+
+
+def test_a_crash_that_began_on_frames_sent_again_recovers_from_its_keyframe(
+    tmp_path: Path,
+) -> None:
+    # A phone sending its last second again as the recorder restarts: the segment
+    # begins on that second's keyframe, written to decode the frames after it, never
+    # listed. Recovered after a kill, it begins there still, never on a frame after.
+    folder, closed = resent_crash(tmp_path)
     names = segments_module.recover(folder)
     assert len(names) == closed + 1  # the crash made one
     times = segments_module.frame_times(folder / f"{names[-1]}.times")
@@ -1342,6 +1348,36 @@ def test_a_crash_that_began_on_frames_sent_again_recovers_from_its_keyframe(
     with av.open(str(recovered)) as container:
         opening = next(p for p in container.demux(container.streams.video[0]) if p.size)
     assert opening.is_keyframe  # every frame listed in it decoded from it
+
+
+def test_a_frame_sent_again_the_copy_refuses_costs_itself_never_the_recovery(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    folder, closed = resent_crash(tmp_path)
+
+    class RefusingUnlisted(RefusingSound):
+        """A copy whose muxer refuses the first frame, one sent again."""
+
+        refused = False
+
+        def mux(self, packet: av.Packet) -> None:
+            if packet.stream.type == "video" and not RefusingUnlisted.refused:
+                RefusingUnlisted.refused = True
+                raise av.FFmpegError(22, "refused")
+            self.real.mux(packet)
+
+    real = av.open
+
+    def opened(path: Any, *args: Any, **kwargs: Any) -> Any:
+        made = real(path, *args, **kwargs)
+        copy = str(path).endswith(segments_module.RECOVERED_MKV)
+        return RefusingUnlisted(made) if copy else made
+
+    monkeypatch.setattr(segments_module.av, "open", opened)
+    names = segments_module.recover(folder)
+    monkeypatch.undo()
+    assert RefusingUnlisted.refused
+    assert len(names) == closed + 1  # its listed frames recovered all the same
 
 
 def test_a_crash_whose_sound_the_copy_refuses_keeps_its_frames(
