@@ -21,7 +21,7 @@ from typing import Any
 
 import app
 from app import files, paths
-from app.phone_status import number
+from app.phone_status import whole
 from app.recorder import STALE_MS, Backoff, folder_of
 from app.version import version
 
@@ -93,8 +93,7 @@ def heartbeat(camera_id: str) -> dict[str, Any] | None:
 def _ms(info: dict[str, Any], key: str) -> int:
     """A heartbeat's number as written; 0 when it is not one: a heartbeat written by
     hand, or by a recorder of another version, never stops the window's poll."""
-    found = number(info.get(key))
-    return int(found) if found is not None else 0
+    return whole(info.get(key)) or 0
 
 
 def alive(info: dict[str, Any] | None) -> bool:
