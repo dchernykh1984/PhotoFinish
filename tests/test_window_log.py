@@ -35,6 +35,7 @@ def hooks(monkeypatch: pytest.MonkeyPatch) -> list[object]:
     called: list[object] = []
     monkeypatch.setattr(sys, "excepthook", lambda *error: called.append(error[0]))
     monkeypatch.setattr(threading, "excepthook", lambda a: called.append(a.exc_type))
+    monkeypatch.setattr(sys, "unraisablehook", lambda a: called.append(a.exc_type))
     return called
 
 
@@ -217,3 +218,20 @@ def test_an_error_repeating_till_a_crash_has_its_count_written_as_it_grows() -> 
     assert "came 10 times more so far" in text
     assert "came 100 times more so far" in text
     assert text.count("so far") == 3
+
+
+class _FailingAtItsEnd:
+    def __del__(self) -> None:
+        raise RuntimeError("in a finalizer")
+
+
+def test_an_error_in_a_finalizer_goes_to_the_log(
+    tmp_path: Path, hooks: list[object]
+) -> None:
+    # Python hands it to sys.unraisablehook, which prints to a stderr a window
+    # started from Finder or Explorer does not have.
+    path = tmp_path / "window.log"
+    assert window_log.start(path, "1.0.0", enable=lambda file: None) is not None
+    _FailingAtItsEnd()  # dropped at once
+    assert "RuntimeError: in a finalizer" in path.read_text(encoding="utf-8")
+    assert hooks == [RuntimeError]

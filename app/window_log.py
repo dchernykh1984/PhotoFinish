@@ -143,7 +143,11 @@ def start(
     log.write(
         f"PhotoFinish {version or '(version unknown)'} started, pid {os.getpid()}"
     )
-    hooked, threads = sys.excepthook, threading.excepthook
+    hooked, threads, unraisable = (
+        sys.excepthook,
+        threading.excepthook,
+        sys.unraisablehook,
+    )
 
     def excepthook(
         kind: type[BaseException], value: BaseException, tb: TracebackType | None
@@ -156,8 +160,15 @@ def start(
             log.error(args.exc_type, args.exc_value, args.exc_traceback)
         threads(args)
 
+    def unraisable_hook(args: sys.UnraisableHookArgs) -> None:
+        # In a finalizer, a weakref's callback: Python prints these to a stderr
+        # a window started from Finder or Explorer does not have.
+        log.error(args.exc_type, args.exc_value, args.exc_traceback)
+        unraisable(args)
+
     sys.excepthook = excepthook
     threading.excepthook = thread_hook
+    sys.unraisablehook = unraisable_hook
     enable(file)
     return log
 
