@@ -4542,3 +4542,35 @@ def test_about_takes_the_run_at_work_from_a_lens_recorded_now(
     win.poll()
     (text,) = about(win, monkeypatch)
     assert f"Mi main, Mi tele: {app.format('0.13.1')}" in text.split("<br>")
+
+
+def test_about_takes_the_run_at_work_from_a_lens_streaming_not_one_waiting(
+    base: Path,
+    make_window: Callable[[], mw.MainWindow],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Both lenses' recorders run; the tele's waits for the phone, its log's last run
+    # an older one, its time later with the clock set back. The main streams now.
+    lens: dict[str, Any] = {"connection": "rtmp", "phone": "cam1"}
+    main = {**lens, "id": "cam1", "name": "Mi main", "lens": "main"}
+    main["settings"] = {"port": 1999, "path": "live/cam1"}
+    tele = {**lens, "id": "cam2", "name": "Mi tele", "lens": "telephoto"}
+    tele["settings"] = {"port": 2000, "path": "live/cam2"}
+    session.save({**session.DEFAULTS, "cameras": [main, tele]})
+    app = "PhotoFinish Camera {} on Xiaomi 25113PN0EC, Android 16 (API 36)"
+    for camera_id, run, version_said, written in (
+        ("cam1", "fedcba9876543210", "0.13.1", 1_000_000),
+        ("cam2", "0123456789abcdef", "0.12.0", 2_000_000),
+    ):
+        folder = base / "video" / camera_id
+        folder.mkdir(parents=True, exist_ok=True)
+        start = f"2026-11-22 09:00:00.000 I - #1 {app.format(version_said)}"
+        log = folder / "phone.log"
+        log.write_text(f"--- run {run} from line 1\n{start}\n", encoding="utf-8")
+        os.utime(log, (written, written))
+    beating(base, "cam1")
+    beating(base, "cam2", state="connecting", detail="waiting for the phone")
+    win = make_window()
+    win.poll()
+    (text,) = about(win, monkeypatch)
+    assert f"Mi main, Mi tele: {app.format('0.13.1')}" in text.split("<br>")
