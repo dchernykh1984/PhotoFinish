@@ -112,27 +112,36 @@ class Timeline(QWidget):
         painter = QPainter(self)
         height = self.height()
         painter.fillRect(self.rect(), QColor(45, 45, 45))
-        if self.frames.size:
-            x1, x2 = self.x_at(self.start), self.x_at(self.end)
-            painter.fillRect(
-                round(x1), 8, round(x2 - x1) + 1, height - 16, QColor(70, 110, 70)
-            )
-        for gap_start, gap_end in self.gaps:
-            x1, x2 = self.x_at(gap_start), self.x_at(gap_end)
-            painter.fillRect(
-                round(x1), 8, round(x2 - x1) + 1, height - 16, QColor(140, 60, 60)
-            )
-        for start, end in self.stretches:
-            x1, x2 = self.x_at(start), self.x_at(end)
+        recorded = [(self.start, self.end)] if self.frames.size else []
+        for spans, color in (
+            (recorded, QColor(70, 110, 70)),
+            (self.gaps, QColor(140, 60, 60)),
+        ):
+            for x1, x2 in self._shown(spans):
+                painter.fillRect(round(x1), 8, round(x2 - x1) + 1, height - 16, color)
+        for x1, x2 in self._shown(self.stretches):
             painter.fillRect(
                 round(x1), 2, max(round(x2 - x1), 2), 6, QColor(80, 160, 255)
             )
         self._tick_frames(painter)
-        if self.position is not None:
+        x = None if self.position is None else self.x_at(self.position)
+        if x is not None and 0 <= x <= self.width():
             painter.setPen(QColor(255, 210, 0))
-            x = self.x_at(self.position)
             painter.drawLine(QPointF(x, 0), QPointF(x, height))
         painter.end()
+
+    def _shown(self, spans: list[tuple[int, int]]) -> list[tuple[float, float]]:
+        """Where each span lies across the widget, cut a pixel past its sides; one
+        wholly past a side is left out. A moment far from the view -- a camera's
+        stretches kept a moment after its recording is gone, days zoomed in on --
+        is millions of pixels away, past the ints Qt draws with."""
+        width = self.width()
+        shown = []
+        for start, end in spans:
+            x1, x2 = self.x_at(start), self.x_at(end)
+            if x2 >= 0 and x1 <= width:
+                shown.append((max(x1, -1.0), min(x2, width + 1.0)))
+        return shown
 
     def _tick_frames(self, painter: QPainter) -> None:
         start, end = self.view

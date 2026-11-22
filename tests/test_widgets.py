@@ -10,7 +10,7 @@ import numpy as np
 import pytest
 import segno
 from PySide6.QtCore import QPoint, QPointF, Qt
-from PySide6.QtGui import QFont, QImage, QPixmap, QWheelEvent
+from PySide6.QtGui import QColor, QFont, QImage, QPixmap, QWheelEvent
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QFileDialog
 
@@ -592,6 +592,44 @@ def test_a_click_in_a_gap_of_the_recording_seeks() -> None:
     timeline.view = noted
     QTest.mouseClick(timeline, Qt.MouseButton.LeftButton, pos=QPoint(500, 20))
     assert len(sought) == 1
+
+
+def test_the_timeline_paints_spans_far_from_its_view() -> None:
+    # The last camera removed with riders marked: its recording cleared, its
+    # stretches kept till the next poll, millions of pixels off -- past the ints
+    # Qt draws with: the paint failed (0.14.0).
+    timeline = Timeline()
+    timeline.resize(1000, 48)
+    recording(timeline)
+    timeline.set_stretches([(START + 1000, START + 2000)])
+    timeline.set_position(START + 1500)
+    timeline.set_recording(np.empty(0, np.int64), [])
+    timeline.grab()
+    # Zoomed all the way in on four days of recording: its start as far off.
+    days = 4 * 86_400_000
+    timeline.set_recording(
+        np.array([START, START + days], np.int64),
+        [(START + 1000, START + days - 1000)],
+    )
+    timeline.zoom(0.0, 1000)
+    assert timeline.view[1] - timeline.view[0] == LEAST_VIEW_MS
+    timeline.grab()
+
+
+def test_the_timeline_draws_a_span_cut_at_its_side_and_none_past_it() -> None:
+    timeline = Timeline()
+    timeline.resize(1000, 48)
+    recording(timeline)
+    timeline.zoom(0.1, 500)
+    start, end = timeline.view
+    blue = QColor(80, 160, 255)
+    timeline.set_stretches([(start - 10**7, start - 10**6)])  # wholly before it
+    assert timeline.grab().toImage().pixelColor(0, 4) != blue
+    timeline.set_stretches([(start - 10**7, (start + end) // 2)])
+    image = timeline.grab().toImage()
+    assert image.pixelColor(0, 4) == blue
+    assert image.pixelColor(480, 4) == blue
+    assert image.pixelColor(520, 4) != blue
 
 
 def test_the_choice_follows_its_line_when_rows_move() -> None:

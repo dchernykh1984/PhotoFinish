@@ -864,6 +864,25 @@ def test_a_removed_camera_stops_recording_and_keeps_its_video(
     assert free_ids(win.cameras, 1) == ["cam2"]  # cam1's recording is still on disk
 
 
+def test_the_timeline_paints_after_the_last_camera_is_removed_with_riders_marked(
+    recording: Path,
+    make_window: Callable[[], mw.MainWindow],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Find riders on: the removed camera's stretches stayed till the next poll,
+    # the timeline already empty. Its paint failed and left its painter open, and
+    # the window crashed at a later paint (0.14.0, twice on 2026-11-22).
+    monkeypatch.setattr(
+        QMessageBox, "question", lambda *a: QMessageBox.StandardButton.Yes
+    )
+    win = make_window()
+    wait_until(lambda: win.moment is not None)
+    first = int(win.cameras["cam1"].index.ms[0])
+    win.timeline.set_stretches([(first, first + 500)])
+    win.remove_camera()
+    win.timeline.grab()
+
+
 def test_the_list_says_how_much_video_the_phone_still_holds_and_when_it_is_in(
     recording: Path, make_window: Callable[[], mw.MainWindow]
 ) -> None:
