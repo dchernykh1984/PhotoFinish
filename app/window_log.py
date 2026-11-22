@@ -98,8 +98,10 @@ class WindowLog:
                 if self._ended
                 else "an error no handler took:"
             )
-            self._write(f"{heading}\n{text}")
+            # Known before it is written: one come back in while it is -- a
+            # finalizer failing the same way -- is a repeat of it.
             self._seen[way] = _Seen(now, name, said=now)
+            self._write(f"{heading}\n{text}")
 
     def end(self) -> None:
         with self._lock:
@@ -111,12 +113,13 @@ class WindowLog:
         """The errors written AGAIN_S ago or more let go, how often each came since
         said."""
         for way, seen in list(self._seen.items()):
-            if now - seen.written >= AGAIN_S:
+            # Let go before its count is written: an error come back in while
+            # it is said finds it gone, and says it no second time.
+            if now - seen.written >= AGAIN_S and self._seen.pop(way, None) is seen:
                 if seen.again:
                     self._write(
                         f"{seen.name} came {_times(seen.again)} more in its minute"
                     )
-                self._seen.pop(way, None)  # let go already by an error come in
 
     def _write(self, text: str, always: bool = False) -> None:
         """A line written; an error's only while the run has room for it -- the
