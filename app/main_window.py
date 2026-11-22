@@ -546,7 +546,7 @@ class MainWindow(QMainWindow):
         bar = self.menuBar()
         self._bar_style = _NoAltKeys(self.style().name())  # a widget's is not owned
         bar.setStyle(self._bar_style)
-        bar.addMenu("Help").addAction(about)
+        bar.addMenu("&Help").addAction(about)  # Alt+H, Alt alone handing no keys
 
     def about(self) -> None:
         """This program's version, and each phone's app as it said at its start
