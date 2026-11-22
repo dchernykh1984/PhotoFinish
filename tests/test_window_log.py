@@ -419,3 +419,29 @@ def test_an_error_after_the_window_ended_is_said_to_be_at_its_exit() -> None:
     text = file.getvalue()
     assert "an error at the window's exit, after its end:" in text
     assert "an error no handler took:" not in text
+
+
+def test_an_error_raised_inside_the_file_s_own_write_is_written_after_it() -> None:
+    # A real file's buffered layer refuses a write from inside its own write --
+    # "reentrant call": a finalizer's error raised there waits for the write
+    # under way to end, and is written then.
+    class Buffered(io.StringIO):
+        writing = False
+
+        def write(self, text: str) -> int:
+            if self.writing:
+                raise RuntimeError("reentrant call inside <_io.BufferedWriter>")
+            self.writing = True
+            try:
+                if "first" in text:
+                    log.error(*raised_elsewhere("from a finalizer"))
+                return super().write(text)
+            finally:
+                self.writing = False
+
+    file = Buffered()
+    log = window_log.WindowLog(file)
+    log.error(*raised("first"))
+    text = file.getvalue()
+    assert "ValueError: first" in text
+    assert "KeyError: 'from a finalizer'" in text

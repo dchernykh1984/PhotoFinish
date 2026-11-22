@@ -57,6 +57,8 @@ class WindowLog:
         self._room = LIMIT_BYTES  # what this run may still write of its errors
         self._full = False
         self._ended = False  # an error after: at the window's exit, no crash
+        self._waiting: list[str] = []  # lines to write, one come in mid-write too
+        self._putting = False
 
     def write(self, text: str) -> None:
         with self._lock:
@@ -139,11 +141,23 @@ class WindowLog:
         return f"{stamp}.{int(now * 1000) % 1000:03d}"
 
     def _put(self, line: str) -> None:
+        """A line written out at once. One come in while a line is being written --
+        an error raised inside the file's own write, a finalizer's -- waits for
+        that write to end: a buffered file refuses a write from inside its own."""
+        self._waiting.append(line)
+        if self._putting:
+            return
+        self._putting = True
         try:
-            self.file.write(line)
-            self.file.flush()
-        except OSError, ValueError:  # a full disk, a file gone: the window goes on
-            pass
+            while self._waiting:
+                text = self._waiting.pop(0)
+                try:
+                    self.file.write(text)
+                    self.file.flush()
+                except OSError, ValueError, RuntimeError:  # a full disk, a file
+                    pass  # gone, a write refused: the window goes on
+        finally:
+            self._putting = False
 
 
 def _named(thing: object) -> str:
