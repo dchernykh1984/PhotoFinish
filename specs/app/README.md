@@ -261,9 +261,10 @@ or a swaying patch.
   journaled, and written again from the referee's list.
 - **About.** Help, About PhotoFinish -- on macOS in the program's own menu -- says the program's
   version, and each phone's PhotoFinish Camera as the phone said at the app's last start: its
-  version, the phone and its Android, read from the phone's log (`specs/008-phone-log`), of its
-  lens written last; a phone with no log, a free streaming app's among them, is said so, and one
-  whose log no longer holds the start, days of it since, too.
+  version, the phone and its Android, read from the phone's log (`specs/008-phone-log`): the start
+  of the run of its lens log written last, from whichever lens's log holds it. A phone with no
+  log, a free streaming app's among them, is said so, and one whose logs no longer hold that
+  start -- heard late, or days of a log since -- too.
 
 ## Finding riders (experimental, off by default)
 
