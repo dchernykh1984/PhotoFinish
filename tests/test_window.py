@@ -4210,3 +4210,13 @@ def test_the_sound_hears_of_a_segment_in_the_poll_that_lists_it(
     listed = len(index.paths)
     win.poll()
     assert seen == [listed + 1]
+
+
+def test_a_phone_status_heard_at_no_time_is_said_as_last_heard(
+    recording: Path, make_window: Callable[[], mw.MainWindow]
+) -> None:
+    # Its time infinite (1e400 read from JSON) or not a number: no poll stopped by it.
+    win = make_window()
+    camera = win.cameras["cam1"]
+    for at in (float("inf"), "soon", None):
+        assert win._heard(camera, {"at_ms": at}) == "last heard"

@@ -1900,11 +1900,14 @@ class MainWindow(QMainWindow):
 
     def _heard(self, camera: Camera, status: dict[str, Any]) -> str:
         """When a phone's last status came, on the timing source's scale."""
-        try:
-            at = int(status["at_ms"]) + int(camera.settings.get("offset_ms", 0))
-        except KeyError, TypeError, ValueError:
+        # Numbers as written, none for a word or an infinity: no poll stopped by it.
+        at = phone_status.number(status.get("at_ms"))
+        offset = phone_status.number(camera.settings.get("offset_ms", 0))
+        if at is None or offset is None:
             return "last heard"
-        return "at " + clock_of(self._line_ms(at), whole_seconds=True)
+        return "at " + clock_of(
+            self._line_ms(int(at) + int(offset)), whole_seconds=True
+        )
 
     def _riders_progress(self, camera: Camera) -> str:
         """How far the camera's analyser has got (FR-009)."""
