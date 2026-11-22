@@ -1331,8 +1331,13 @@ def test_a_crash_that_began_on_frames_sent_again_recovers_from_its_keyframe(
         str(tmp_path / "phone.mkv"),
         str(START),
     ]
-    subprocess.run(run, cwd=ROOT, check=False)  # noqa: S603 - this interpreter
+    killed = subprocess.run(run, cwd=ROOT, check=False)  # noqa: S603 - this interpreter
+    assert killed.returncode == 1  # killed as it wrote, never failed before
+    closed = len(segments(folder))
     names = segments_module.recover(folder)
+    assert len(names) == closed + 1  # the crash made one
+    times = segments_module.frame_times(folder / f"{names[-1]}.times")
+    assert min(times.values()) - START >= 1500  # its listed frames: the new ones
     recovered = folder / f"{names[-1]}.mkv"
     with av.open(str(recovered)) as container:
         opening = next(p for p in container.demux(container.streams.video[0]) if p.size)
