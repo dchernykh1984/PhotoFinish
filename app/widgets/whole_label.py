@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QEvent, Qt
 from PySide6.QtGui import QResizeEvent
 from PySide6.QtWidgets import QLabel
 
@@ -25,6 +25,11 @@ class WholeLabel(QLabel):
         super().resizeEvent(event)
         if event.size().width() != event.oldSize().width():  # its text wraps anew
             self._hold()
+
+    def changeEvent(self, event: QEvent) -> None:  # noqa: N802 - Qt's name
+        super().changeEvent(event)
+        if event.type() in (QEvent.Type.FontChange, QEvent.Type.StyleChange):
+            self._hold()  # a style's font, given after the text: as high as it is now
 
     def _hold(self) -> None:
         # Once laid out: the width it had before is none it is shown at, and the
