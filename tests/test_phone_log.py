@@ -392,6 +392,11 @@ def test_the_phones_last_word_is_said_whatever_number_its_times_are_written_as()
 APP = "PhotoFinish Camera {} on Xiaomi 25113PN0EC, Android 16 (API 36)"
 
 
+def said_of(found: str | None) -> str | None:
+    """What a phone's start said, without when: its version, phone and Android."""
+    return None if found is None else found.split(", started ")[0]
+
+
 def test_the_app_s_last_start_is_read_from_the_phone_s_log(
     log: PhoneLog, tmp_path: Path
 ) -> None:
@@ -399,12 +404,12 @@ def test_the_app_s_last_start_is_read_from_the_phone_s_log(
     # newest the log holds is the app at work, whatever was said after it.
     assert phone_log.newest_start([tmp_path]) is None  # no log yet
     log.heard(message(1, (1, "I", "-", APP.format("0.12.0")), (2, "W", "main", "x")))
-    assert phone_log.newest_start([tmp_path]) == APP.format("0.12.0")
+    assert said_of(phone_log.newest_start([tmp_path])) == APP.format("0.12.0")
     started_again = message(
         1, (1, "I", "-", APP.format("0.13.1")), (2, "I", "-", "main"), run=LATER
     )
     log.heard(started_again)
-    assert phone_log.newest_start([tmp_path]) == APP.format("0.13.1")
+    assert said_of(phone_log.newest_start([tmp_path])) == APP.format("0.13.1")
 
 
 def test_no_line_but_the_app_s_own_start_is_taken_for_it(
@@ -437,7 +442,9 @@ def test_the_app_s_start_is_read_from_the_file_kept_before_a_new_one_began(
     (tmp_path / (phone_log.FILE + ".1")).write_text(before, encoding="utf-8")
     after = f"--- run {RUN} from line 90000\n2026-11-22 12:00:00.000 I main #90000 x\n"
     (tmp_path / phone_log.FILE).write_text(after, encoding="utf-8")
-    assert phone_log.newest_start([tmp_path]) == APP.format("1.0")
+    assert phone_log.newest_start([tmp_path]) == (
+        f"{APP.format('1.0')}, started 1794918339001 ms"  # when, as the line keeps it
+    )
 
 
 def test_the_app_s_start_is_read_whole_from_a_log_written_with_windows_line_ends(
@@ -448,7 +455,7 @@ def test_the_app_s_start_is_read_whole_from_a_log_written_with_windows_line_ends
     said = APP.format("0.13.1")
     lines = [f"--- run {RUN} from line 1", f"2026-11-22 10:15:03.123 I - #1 {said}"]
     (tmp_path / phone_log.FILE).write_bytes("\r\n".join(lines).encode() + b"\r\n")
-    assert phone_log.newest_start([tmp_path]) == said
+    assert said_of(phone_log.newest_start([tmp_path])) == said
 
 
 def test_the_app_s_start_is_found_at_the_head_of_a_long_log(tmp_path: Path) -> None:
@@ -461,7 +468,7 @@ def test_the_app_s_start_is_found_at_the_head_of_a_long_log(tmp_path: Path) -> N
         for n in range(2, 100_002)
     )
     (tmp_path / phone_log.FILE).write_text(head + body, encoding="utf-8")
-    assert phone_log.newest_start([tmp_path]) == said
+    assert said_of(phone_log.newest_start([tmp_path])) == said
 
 
 def test_a_phone_s_start_is_its_run_at_work_s_from_whichever_lens_log_holds_it(
@@ -488,9 +495,9 @@ def test_a_phone_s_start_is_its_run_at_work_s_from_whichever_lens_log_holds_it(
         "2026-10-25 09:00:00.000 I x #1500 y",
     ]
     front = log("front", [f"--- run {RUN} from line 1, heard", old_start, *late], 3)
-    assert phone_log.newest_start([main, front, tele]) == APP.format("0.13.1")
+    assert said_of(phone_log.newest_start([main, front, tele])) == APP.format("0.13.1")
     assert phone_log.newest_start([main, front]) == ""  # the run's start held nowhere
-    assert phone_log.newest_start([main]) == APP.format("0.12.0")
+    assert said_of(phone_log.newest_start([main])) == APP.format("0.12.0")
     assert phone_log.newest_start([tmp_path / "none"]) is None  # no log at all
 
 
@@ -533,7 +540,7 @@ def test_a_torn_mark_the_run_went_on_after_is_passed_over_as_the_recorder_does(
         "2026-11-22 11:00:01.000 I main #6 frames",
     ]
     (tmp_path / phone_log.FILE).write_text("\n".join(lines) + "\n", encoding="utf-8")
-    assert phone_log.newest_start([tmp_path]) == said
+    assert said_of(phone_log.newest_start([tmp_path])) == said
 
 
 def test_a_lens_folder_that_cannot_be_looked_into_is_said_not_to_be_read(
@@ -583,7 +590,7 @@ def test_an_older_lens_log_not_to_be_read_leaves_the_run_s_start_to_the_others(
     os.utime(main / phone_log.FILE, (1, 1))
     held = f"--- run {LATER} from line 1\n2026-11-22 09:00:00.000 I - #1 {said}\n"
     (main / (phone_log.FILE + ".1")).write_text(held, encoding="utf-8")
-    assert phone_log.newest_start([main, tele]) == said
+    assert said_of(phone_log.newest_start([main, tele])) == said
     (main / (phone_log.FILE + ".1")).unlink()
     with pytest.raises(OSError):
         phone_log.newest_start([main, tele])
@@ -604,8 +611,10 @@ def test_a_lens_recorded_now_gives_the_run_at_work_whatever_its_log_s_time(
 
     tele = log("tele", RUN, "0.12.0", 10)
     main = log("main", LATER, "0.13.1", 5)
-    assert phone_log.newest_start([tele, main], at_work=[main]) == APP.format("0.13.1")
-    assert phone_log.newest_start([tele, main]) == APP.format("0.12.0")  # by time
+    streaming = phone_log.newest_start([tele, main], at_work=[main])
+    assert said_of(streaming) == APP.format("0.13.1")
+    by_time = phone_log.newest_start([tele, main])
+    assert said_of(by_time) == APP.format("0.12.0")
 
 
 def test_a_lens_streaming_with_no_log_leaves_the_run_at_work_unheard(
@@ -621,4 +630,5 @@ def test_a_lens_streaming_with_no_log_leaves_the_run_at_work_unheard(
     log = f"--- run {RUN} from line 1\n2026-11-21 09:00:00.000 I - #1 {said}\n"
     (tele / phone_log.FILE).write_text(log, encoding="utf-8")
     assert phone_log.newest_start([main, tele], at_work=[main]) is None
-    assert phone_log.newest_start([main, tele]) == said  # none streaming: the newest
+    none_streaming = phone_log.newest_start([main, tele])
+    assert said_of(none_streaming) == said  # the newest log's

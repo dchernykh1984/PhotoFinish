@@ -4286,8 +4286,9 @@ def test_about_says_each_phone_s_app_as_the_phone_said_it_at_its_start(
     log = f"{mark}\n2026-11-22 10:15:03.123 I - #1 {said}\n"
     (folder / "phone.log").write_text(log, encoding="utf-8")
     (text,) = about(make_window(), monkeypatch)
-    lines = text.split("<br>")
+    lines = [line.split(", started ")[0] for line in text.split("<br>")]
     assert f"Mi main, Mi tele: {html.escape(said)}" in lines
+    assert ", started 2026-11-22 10:15:03" in text  # when it said it, to the second
     assert "Larix &lt;i&gt;: no word from PhotoFinish Camera yet" in lines
     assert not any("Side" in line for line in lines)
 
@@ -4399,7 +4400,8 @@ def test_about_says_the_phone_s_newest_start_whichever_lens_s_log_holds_it(
         (folder / "phone.log").write_text(line, encoding="utf-8")
         os.utime(folder / "phone.log", (written, written))
     (text,) = about(make_window(), monkeypatch)
-    assert f"Mi main, Mi tele: {app.format('0.13.1')}" in text.split("<br>")
+    lines = [line.split(", started ")[0] for line in text.split("<br>")]
+    assert f"Mi main, Mi tele: {app.format('0.13.1')}" in lines
 
 
 def test_alt_pressed_alone_leaves_the_arrows_to_the_video(
@@ -4541,7 +4543,8 @@ def test_about_takes_the_run_at_work_from_a_lens_recorded_now(
     win = make_window()
     win.poll()
     (text,) = about(win, monkeypatch)
-    assert f"Mi main, Mi tele: {app.format('0.13.1')}" in text.split("<br>")
+    lines = [line.split(", started ")[0] for line in text.split("<br>")]
+    assert f"Mi main, Mi tele: {app.format('0.13.1')}" in lines
 
 
 def test_about_takes_the_run_at_work_from_a_lens_streaming_not_one_waiting(
@@ -4573,4 +4576,5 @@ def test_about_takes_the_run_at_work_from_a_lens_streaming_not_one_waiting(
     win = make_window()
     win.poll()
     (text,) = about(win, monkeypatch)
-    assert f"Mi main, Mi tele: {app.format('0.13.1')}" in text.split("<br>")
+    lines = [line.split(", started ")[0] for line in text.split("<br>")]
+    assert f"Mi main, Mi tele: {app.format('0.13.1')}" in lines
