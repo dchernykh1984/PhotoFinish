@@ -204,7 +204,8 @@ or a swaying patch.
   stream is at risk: 10 % or less and not charging, 45 degrees C, thermal severe, -80 dBm. A
   status not heard for 5 s, by this computer's clock, stays greyed with its time on the
   recorder's. The corner's word and these lines are shown whole above the lists, the window
-  as high as they need.
+  as high as they need: at its least, a phone of four lenses none recording, it fits a 1920x1080
+  screen, the lists below two lines each and scrolled. It opens at 1660x900.
 - **Keys** (they work while a number is typed): Left/Right one frame, Shift ten, Ctrl one second,
   End back to Live (L too, when no number is being typed: a number may hold an L). Live follows
   the newest frame. Ctrl+1 to Ctrl+9 show camera 1 to 9 alone, Ctrl+0 all of them, Ctrl+Up and

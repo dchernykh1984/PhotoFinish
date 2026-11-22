@@ -4578,3 +4578,43 @@ def test_about_takes_the_run_at_work_from_a_lens_streaming_not_one_waiting(
     (text,) = about(win, monkeypatch)
     lines = [line.split(", started ")[0] for line in text.split("<br>")]
     assert f"Mi main, Mi tele: {app.format('0.13.1')}" in lines
+
+
+def test_the_window_fits_a_full_hd_screen_a_phone_of_four_lenses_none_recording(
+    base: Path, make_window: Callable[[], mw.MainWindow]
+) -> None:
+    # The least the window may be, with the corner naming four lenses lost and each
+    # lens's line of its phone's readings wrapped: within 1920x1080, room left for
+    # the system's bars and the window's frame -- the lists lowest, two lines each,
+    # and scrolled.
+    made = []
+    for n, lens in enumerate(("main", "telephoto", "ultrawide", "front"), start=1):
+        camera: dict[str, Any] = {"id": f"cam{n}", "name": f"Mi 17 {lens}"}
+        camera |= {"lens": lens, "connection": "rtmp", "phone": "cam1"}
+        made.append(camera | {"settings": {"port": 1999 + n, "path": f"live/cam{n}"}})
+    session.save({**session.DEFAULTS, "cameras": made})
+    now = time.time_ns() // 1_000_000
+    status: dict[str, Any] = {"battery": "47", "charging": "0", "temp": "41.5"}
+    status |= {"thermal": "3", "wifi": "-72", "saver": "1", "dropped": "1234"}
+    status |= {"free": "25000", "unsent_ms": "93000", "at_ms": now, "heard_ms": now}
+    for n in range(1, 5):
+        beating(base, f"cam{n}", state="connecting", detail="waiting", phone=status)
+    win = make_window()
+    win.resize(100, 100)
+    win.show()
+    win.poll()
+    QApplication.processEvents()
+    assert win.recording_banner.text().count("<br>") == 4  # each lens named
+    assert win.minimumWidth() <= 1920 - 16  # a window's frame
+    # A menu bar with a notch, a Dock, a title bar: macOS's, the most of them.
+    assert win.minimumHeight() <= 1080 - 37 - 80 - 28
+
+
+def test_the_window_opens_as_large_as_it_did_not_at_its_least(
+    make_window: Callable[[], mw.MainWindow],
+) -> None:
+    # Its lists may be lower than they were: opened at its least, it would open
+    # smaller than before.
+    win = make_window()
+    assert win.width() >= 1660
+    assert win.height() >= 900
