@@ -24,7 +24,7 @@ AGAIN_S = 60.0  # an error again within this of its writing is counted, not writ
 SAY_S = 5.0  # how often it came, written at its first repeat, then this often
 WATCH_S = 10.0  # how often the log's size is looked at, for the crash stacks' room
 NAMED_CHARS = 300  # an object Python names with an error: this much of its repr
-_ADDRESS = re.compile(r" at 0x[0-9a-fA-F]+")  # where an object lives, not what
+_ADDRESS = re.compile(r"0x[0-9a-fA-F]+")  # where an object lives -- its C++ side too
 
 
 @dataclass
