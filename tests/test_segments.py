@@ -1291,6 +1291,54 @@ class RefusingSound:
         self.real.mux(packet)
 
 
+KILLED_RESENDING = """
+import os, sys
+from pathlib import Path
+import av
+from app.recorder.segments import SegmentWriter, fraction, in_ms
+writer = SegmentWriter(Path(sys.argv[1]), fps=30)
+with av.open(sys.argv[2]) as container:
+    for packet in container.demux(container.streams.video[0]):
+        if packet.pts is None:
+            continue
+        into = in_ms(packet.pts, fraction(packet.time_base))
+        if 1000 <= into < 1900:  # from its last keyframe sent again, then on
+            writer.write_packet(packet, int(sys.argv[3]) + into)
+os._exit(1)  # killed: nothing closed, nothing flushed on the way out
+"""
+
+
+def test_a_crash_that_began_on_frames_sent_again_recovers_from_its_keyframe(
+    tmp_path: Path,
+) -> None:
+    # A phone sending its last second again as the recorder restarts: the segment
+    # begins on that second's keyframe, written to decode the frames after it, never
+    # listed. Recovered after a kill, it begins there still, never on a frame after.
+    with_sound(tmp_path / "phone.mkv", 3)
+    folder = tmp_path / "cam1"
+    first = SegmentWriter(folder, fps=30)
+    with av.open(str(tmp_path / "phone.mkv")) as container:
+        for packet in container.demux(container.streams.video[0]):
+            into = in_ms(packet.pts or 0, fraction(packet.time_base))
+            if packet.pts is not None and into < 1500:  # mid-second: half its GOP
+                first.write_packet(packet, START + into)
+    first.close()
+    run = [
+        sys.executable,
+        "-c",
+        KILLED_RESENDING,
+        str(folder),
+        str(tmp_path / "phone.mkv"),
+        str(START),
+    ]
+    subprocess.run(run, cwd=ROOT, check=False)  # noqa: S603 - this interpreter
+    names = segments_module.recover(folder)
+    recovered = folder / f"{names[-1]}.mkv"
+    with av.open(str(recovered)) as container:
+        opening = next(p for p in container.demux(container.streams.video[0]) if p.size)
+    assert opening.is_keyframe  # every frame listed in it decoded from it
+
+
 def test_a_crash_whose_sound_the_copy_refuses_keeps_its_frames(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
