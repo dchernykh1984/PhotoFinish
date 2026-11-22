@@ -23,7 +23,7 @@ LIMIT_BYTES = 5_000_000  # a log past this at a start is set aside; a run's room
 AGAIN_S = 60.0  # an error again within this of its writing is counted, not written
 SAY_S = 5.0  # how often it came, written at its first repeat, then this often
 WATCH_S = 1.0  # how often the minutes are said and the crash stacks' room looked at
-EXIT_WAIT_S = 1.0  # after the end, how long the log's lock is waited for
+EXIT_WAIT_S = 1.0  # after the end, how long the log's lock is waited for, in all
 NAMED_CHARS = 300  # an object Python names with an error: this much of its repr
 _ADDRESS = re.compile(r"0x[0-9a-fA-F]+")  # where an object lives -- its C++ side too
 
@@ -59,6 +59,7 @@ class WindowLog:
         self._room = LIMIT_BYTES  # what this run may still write of its errors
         self._full = False
         self._ended = False  # an error after: at the window's exit, no crash
+        self._exit_by = math.inf  # after the end, the lock waited for till then
         self._waiting: list[str] = []  # lines to write, one come in mid-write too
         self._putting = False
         self.watch: threading.Thread | None = None  # the thread watching it
@@ -130,15 +131,19 @@ class WindowLog:
                 self._said_again(math.inf)
                 self._write("the window ended", always=True)
             self._ended = True
+            self._exit_by = time.monotonic() + EXIT_WAIT_S
         self.stopped.set()
         if self.watch is not None:
             self.watch.join(timeout=EXIT_WAIT_S)
 
     @contextlib.contextmanager
     def _held(self) -> Iterator[bool]:
-        """True with the lock taken -- after the end, waited for EXIT_WAIT_S at
-        most: a daemon thread Python froze at its exit may hold it for ever."""
-        taken = self._lock.acquire(timeout=EXIT_WAIT_S if self._ended else -1)
+        """True with the lock taken -- after the end, waited for till EXIT_WAIT_S
+        past it, all errors together: a daemon thread Python froze at its exit
+        may hold it for ever, and each error waiting its own second would keep
+        the process as many."""
+        wait = max(self._exit_by - time.monotonic(), 0.0) if self._ended else -1
+        taken = self._lock.acquire(timeout=wait)
         try:
             yield taken
         finally:

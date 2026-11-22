@@ -914,3 +914,25 @@ def test_a_keyboard_interrupt_is_no_error(tmp_path: Path, hooks: list[object]) -
         sys.excepthook(KeyboardInterrupt, error, error.__traceback__)
     assert "KeyboardInterrupt" not in path.read_text(encoding="utf-8")
     assert hooks == [KeyboardInterrupt]  # the hook before still asked
+
+
+def test_errors_after_the_end_wait_one_second_for_the_log_in_all() -> None:
+    # A thread Python froze holding the lock: each error at teardown waited its
+    # own second, and sixty of them kept the process a minute.
+    file = io.StringIO()
+    log = window_log.WindowLog(file)
+    log.end()
+    taken, freed = threading.Event(), threading.Event()
+
+    def frozen() -> None:
+        with log._lock:
+            taken.set()
+            freed.wait()
+
+    threading.Thread(target=frozen, daemon=True).start()
+    taken.wait()
+    began = time.monotonic()
+    for _ in range(5):
+        log.error(*raised("at teardown"))
+    assert time.monotonic() - began < 2.5  # not 5 s
+    freed.set()
