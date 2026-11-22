@@ -11,7 +11,7 @@ import av
 import numpy as np
 import pytest
 
-from app import sound
+from app import files, sound
 from app.recorder import folder_of
 from app.recorder.segments import SOUND, SegmentWriter, fraction, in_ms
 from app.recorder.testcam import render
@@ -508,6 +508,29 @@ def test_segments_whose_lines_came_closes_late_are_heard_as_they_come(
     found.finish()
     moments = [piece.ms for piece in found]
     assert any(START + 1000 <= ms < START + 1100 for ms in moments)  # the oldest's
+
+
+def test_a_sound_list_known_and_held_a_moment_never_holds_the_window_up(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Asked at each poll on the window's thread: once its names are known, a list a
+    # scanner holds gives them at once, never waited for.
+    listed = tmp_path / sound.SOUND
+    listed.write_text("20251029-103000-0001\n")
+    assert len(sound.sounding(tmp_path)) == 1
+    waited: list[float] = []
+    monkeypatch.setattr(sound.time, "sleep", waited.append)
+    monkeypatch.setattr(files.time, "sleep", waited.append)
+    real = Path.open
+
+    def held(path: Path, *args: Any, **kwargs: Any) -> Any:
+        if path.name == sound.SOUND:
+            raise PermissionError(13, "held by another process")
+        return real(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", held)
+    assert len(sound.sounding(tmp_path)) == 1
+    assert waited == []
 
 
 def test_a_sound_list_begun_anew_in_a_cleared_folder_is_read_from_its_start(
