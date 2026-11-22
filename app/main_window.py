@@ -2072,9 +2072,10 @@ class MainWindow(QMainWindow):
 
     def _show_rate(self) -> None:
         rate = self.rate
-        self.slower_button.setText(playback.speed_name(rate / 2))
+        # At a limit the button greyed names the limit: never a speed not offered.
+        self.slower_button.setText(playback.speed_name(max(rate / 2, playback.SLOWEST)))
         self.slower_button.setEnabled(rate / 2 >= playback.SLOWEST)
-        self.faster_button.setText(playback.speed_name(rate * 2))
+        self.faster_button.setText(playback.speed_name(min(rate * 2, playback.FASTEST)))
         self.faster_button.setEnabled(rate * 2 <= playback.FASTEST)
         self.normal_button.setEnabled(rate != 1.0)
         self.speed_label.setText(playback.speed_name(rate))

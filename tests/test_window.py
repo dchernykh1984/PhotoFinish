@@ -274,11 +274,12 @@ def test_the_speed_buttons_halve_and_double_it_x1_always_there(
         win.faster_button.click()
     assert win.speed_label.text() == "x16"
     assert not win.faster_button.isEnabled()  # x16 at most
+    assert win.faster_button.text() == "x16"  # never a speed not offered, x32
     win.normal_button.click()
     assert names() == ("x0.5", False, "x2", "x1")
     for _ in range(4):
         win.slower_button.click()
-    assert names() == ("x1/32", True, "x1/8", "x1/16")
+    assert names() == ("x1/16", True, "x1/8", "x1/16")  # never x1/32
     assert not win.slower_button.isEnabled()  # x1/16 at least
     win.slower_button.click()
     assert win.speed_label.text() == "x1/16"
