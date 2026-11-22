@@ -396,14 +396,14 @@ def test_the_app_s_last_start_is_read_from_the_phone_s_log(
 ) -> None:
     # FR-001: each start of the app logs its version, phone and Android first; the
     # newest the log holds is the app at work, whatever was said after it.
-    assert phone_log.started(tmp_path) == ""  # no log yet
+    assert phone_log.started(tmp_path) == ("", "")  # no log yet
     log.heard(message(1, (1, "I", "-", APP.format("0.12.0")), (2, "W", "main", "x")))
-    assert phone_log.started(tmp_path) == APP.format("0.12.0")
+    assert phone_log.started(tmp_path)[1] == APP.format("0.12.0")
     started_again = message(
         1, (1, "I", "-", APP.format("0.13.1")), (2, "I", "-", "main"), run=LATER
     )
     log.heard(started_again)
-    assert phone_log.started(tmp_path) == APP.format("0.13.1")
+    assert phone_log.started(tmp_path)[1] == APP.format("0.13.1")
 
 
 def test_no_line_but_the_app_s_own_start_is_taken_for_it(
@@ -424,7 +424,7 @@ def test_no_line_but_the_app_s_own_start_is_taken_for_it(
     ):
         log.heard(message(1, (seq, level, lens, text), prev=seq - 1))
     assert len(kept(tmp_path)) == 7  # each kept, after the run's mark
-    assert phone_log.started(tmp_path) == ""
+    assert phone_log.started(tmp_path) == ("", "")
 
 
 def test_the_app_s_start_is_read_from_the_file_kept_before_a_new_one_began(
@@ -436,7 +436,7 @@ def test_the_app_s_start_is_read_from_the_file_kept_before_a_new_one_began(
     (tmp_path / (phone_log.FILE + ".1")).write_text(before, encoding="utf-8")
     after = f"--- run {RUN} from line 90000\n2026-11-22 12:00:00.000 I main #90000 x\n"
     (tmp_path / phone_log.FILE).write_text(after, encoding="utf-8")
-    assert phone_log.started(tmp_path) == APP.format("1.0")
+    assert phone_log.started(tmp_path) == ("1794918339001 ms", APP.format("1.0"))
 
 
 def test_the_app_s_start_is_read_whole_from_a_log_written_with_windows_line_ends(
@@ -447,7 +447,7 @@ def test_the_app_s_start_is_read_whole_from_a_log_written_with_windows_line_ends
     said = APP.format("0.13.1")
     lines = [f"--- run {RUN} from line 1", f"2026-11-22 10:15:03.123 I - #1 {said}"]
     (tmp_path / phone_log.FILE).write_bytes("\r\n".join(lines).encode() + b"\r\n")
-    assert phone_log.started(tmp_path) == said
+    assert phone_log.started(tmp_path)[1] == said
 
 
 def test_the_app_s_start_is_found_at_the_head_of_a_long_log(tmp_path: Path) -> None:
@@ -460,4 +460,4 @@ def test_the_app_s_start_is_found_at_the_head_of_a_long_log(tmp_path: Path) -> N
         for n in range(2, 100_002)
     )
     (tmp_path / phone_log.FILE).write_text(head + body, encoding="utf-8")
-    assert phone_log.started(tmp_path) == said
+    assert phone_log.started(tmp_path)[1] == said

@@ -30,9 +30,12 @@ _RUN = re.compile(r"[0-9a-f]{16}")
 _LINE = re.compile(r"(\d+) (\d+) ([IWEwe]) (\S+) (.*)")
 _MARK = re.compile(r"--- run ([0-9a-f]{16}) from line (\d+)")
 _SEQ = re.compile(r"\S+ \S+ [IWEwe] \S+ #(\d+) ")
-# The app's start, as kept: its own line, of no lens, saying its version, phone and
-# Android (FR-001) -- no longer than such a line is, as it came over the network.
-_START = re.compile(r"\S+ \S+ I - #\d+ (PhotoFinish Camera [\w.+-]{1,40} on .{1,120})")
+# The app's start, as kept: when, and its own line, of no lens, saying its version,
+# phone and Android (FR-001) -- no longer than such a line is, as it came over the
+# network.
+_START = re.compile(
+    r"(\S+ \S+) I - #\d+ (PhotoFinish Camera [\w.+-]{1,40} on .{1,120})"
+)
 _SAID = b"PhotoFinish Camera "  # in each such line: what is looked for first
 
 
@@ -205,11 +208,12 @@ def last_word(said: object, now_ms: int) -> str:
     return f"the phone, {ago // MINUTE_MS} min ago: {text}"
 
 
-def started(folder: Path) -> str:
-    """The app's newest start a camera's log holds: its version, its phone and
-    Android, as the app said them first (FR-001) -- read from the file kept before
-    when the one begun since holds none; "" when neither does. Looked for from the
-    end, the lines that may be one only: About asks it on the window's thread."""
+def started(folder: Path) -> tuple[str, str]:
+    """The app's newest start a camera's log holds: when the app said it, as the line
+    keeps it -- the newer the later --, and what it said, its version, phone and
+    Android (FR-001); read from the file kept before when the one begun since holds
+    none; ("", "") when neither does. Looked for from the end, the lines that may be
+    one only: About asks it on the window's thread."""
     for path in (folder / FILE, folder / (FILE + ".1")):
         try:
             kept = path.read_bytes()
@@ -222,8 +226,8 @@ def started(folder: Path) -> str:
             line = kept[end : len(kept) if stop < 0 else stop].decode(errors="replace")
             found = _START.fullmatch(line.removesuffix("\r"))  # written as text
             if found is not None:
-                return found.group(1)
-    return ""
+                return found.group(1), found.group(2)
+    return "", ""
 
 
 def _read(
