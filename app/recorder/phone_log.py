@@ -14,7 +14,7 @@ from __future__ import annotations
 import contextlib
 import re
 import time
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Collection, Iterable
 from pathlib import Path
 from typing import Any
 
@@ -207,20 +207,26 @@ def last_word(said: object, now_ms: int) -> str:
     return f"the phone, {ago // MINUTE_MS} min ago: {text}"
 
 
-def newest_start(folders: Iterable[Path]) -> str | None:
+def newest_start(folders: Iterable[Path], at_work: Collection[Path] = ()) -> str | None:
     """The phone's app's start as it said it (FR-001) for its run at work: the run of
-    the lens log written last -- a lens no longer recorded keeps an older run, and the
-    times the lines keep are this computer's local ones, the hour the clocks go back
-    said twice --; read from the logs, newest first, till one holds that run's start:
+    the lens log of a recorder ``at_work`` now, else of the one written last -- a lens
+    no longer recorded keeps an older run, its log's time later than the others'
+    with the clock set back since, and the times the lines keep are this computer's
+    local ones, the hour the clocks go back said twice --; read from the logs, those
+    at work and the newest first, till one holds that run's start:
     a recorder that heard the run late, the phone no longer holding its start, has
     none of it. About asks it on the window's thread. "" when no log holds it -- or
     days of a log since --; None for no log at all. OSError for a log there that
     cannot be read -- the newest, whose run is at work then not known, or one that
     may hold the start no other does."""
-    logs = [(w, folder) for folder in folders if (w := _written(folder)) is not None]
+    logs = [
+        (folder in at_work, w, folder)
+        for folder in folders
+        if (w := _written(folder)) is not None
+    ]
     if not logs:
         return None
-    ordered = [folder for _, folder in sorted(logs, reverse=True)]
+    ordered = [folder for *_, folder in sorted(logs, reverse=True)]
     newest = _newest_file(ordered[0])
     run = None if newest is None else _run_at(newest[1], len(newest[1]))
     if newest is None or run is None:  # gone since, or no whole mark: not known
