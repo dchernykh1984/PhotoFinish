@@ -13,7 +13,7 @@ import sys
 import threading
 import time
 import traceback
-from collections.abc import Callable, Iterator
+from collections.abc import Callable
 from pathlib import Path
 from types import TracebackType
 from typing import TextIO
@@ -34,17 +34,18 @@ class WindowLog:
         self.file = file
         self._clock = clock  # the lines' times
         self._steady = steady  # an error's minute: a clock set back stops neither
-        self._lock = threading.Lock()  # errors come from the threads too
-        self._inside = threading.local()  # a thread writing the log already
+        # Errors come from the threads too, and one raised while this thread
+        # writes -- a finalizer's, the collector runs it there -- comes back in:
+        # it is written, the lock taken again, no longer waited on for ever.
+        self._lock = threading.RLock()
         self._seen: dict[str, tuple[float, int, str]] = {}  # an error's way: when
         # it was written, on the steady clock, how often it came since, its name
         self._room = LIMIT_BYTES  # what this run may still write of its errors
         self._full = False
 
     def write(self, text: str) -> None:
-        with self._entered() as entered:
-            if entered:
-                self._write(text, always=True)
+        with self._lock:
+            self._write(text, always=True)
 
     def error(
         self,
@@ -57,9 +58,7 @@ class WindowLog:
         ``about`` it. One come the same way again within AGAIN_S of its writing --
         by turns with others, its words changed -- is counted instead: a paint
         failing at every frame fills no disk."""
-        with self._entered() as entered:
-            if not entered:
-                return
+        with self._lock:
             text = "".join(traceback.format_exception(kind, value, tb)).rstrip("\n")
             way, name = _way(kind, tb)
             if about:  # a finalizer's: whose, its traceback maybe none
@@ -70,8 +69,9 @@ class WindowLog:
                 )
             now = self._steady()
             self._said_again(now)
-            if way in self._seen:
-                written, again, _ = self._seen[way]
+            seen = self._seen.get(way)  # an error come back in may have let it go
+            if seen is not None:
+                written, again, _ = seen
                 self._seen[way] = (written, again + 1, name)
                 if str(again + 1).rstrip("0") == "1":  # 1, 10, 100...: a crash
                     # ends the minute unsaid, so how often is written on the way
@@ -81,26 +81,9 @@ class WindowLog:
             self._seen[way] = (now, 0, name)
 
     def end(self) -> None:
-        with self._entered() as entered:
-            if entered:
-                self._said_again(math.inf)
-                self._write("the window ended", always=True)
-
-    @contextlib.contextmanager
-    def _entered(self) -> Iterator[bool]:
-        """True with the lock held; False, untaken, when this thread is in the log
-        already: an error raised while it writes -- a finalizer's, the collector
-        runs it there -- would wait on its own lock for ever. That error is left
-        to the hook before the log's."""
-        if getattr(self._inside, "on", False):
-            yield False
-            return
-        self._inside.on = True
-        try:
-            with self._lock:
-                yield True
-        finally:
-            self._inside.on = False
+        with self._lock:
+            self._said_again(math.inf)
+            self._write("the window ended", always=True)
 
     def _said_again(self, now: float) -> None:
         """The errors written AGAIN_S ago or more let go, how often each came since
@@ -109,7 +92,7 @@ class WindowLog:
             if now - written >= AGAIN_S:
                 if again:
                     self._write(f"{name} came {_times(again)} more in its minute")
-                del self._seen[way]
+                self._seen.pop(way, None)  # let go already by an error come in
 
     def _write(self, text: str, always: bool = False) -> None:
         """A line written; an error's only while the run has room for it -- once it
