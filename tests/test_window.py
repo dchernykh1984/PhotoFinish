@@ -4433,3 +4433,18 @@ def test_about_says_a_phone_whose_log_no_longer_holds_its_app_s_start(
     (folder / "phone.log").write_text(kept, encoding="utf-8")
     (text,) = about(make_window(), monkeypatch)
     assert f"Side: {html.escape(mw.NO_START)}" in text.split("<br>")
+
+
+def test_a_camera_s_line_is_whole_in_its_tip_a_word_too_long_cut_in_the_list(
+    base: Path, make_window: Callable[[], mw.MainWindow]
+) -> None:
+    # A line wraps at spaces only, and the list scrolls no way but down: an address
+    # wider than a narrow list is cut there, and read whole in the line's tip.
+    path = "live/" + "a-path-typed-at-length-for-a-phone" * 2
+    camera = {**CAMERA, "connection": "rtmp", "settings": {"port": 1999, "path": path}}
+    session.save({**session.DEFAULTS, "cameras": [camera]})
+    beating(base, state="connecting", detail=f"waiting for rtmp://10.0.0.5:1999/{path}")
+    win = make_window()
+    item = win.cameras["cam1"].item
+    assert path in item.text()
+    assert item.toolTip() == item.text()
