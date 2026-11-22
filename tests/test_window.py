@@ -4220,3 +4220,7 @@ def test_a_phone_status_heard_at_no_time_is_said_as_last_heard(
     camera = win.cameras["cam1"]
     for at in (float("inf"), "soon", None):
         assert win._heard(camera, {"at_ms": at}) == "last heard"
+    # Nor one past what the platform's clock holds, as summer time asks it the date.
+    win.session["summer_time"] = True
+    for at in (1e20, "1e20", -1e20):
+        assert win._heard(camera, {"at_ms": at}) == "last heard"
