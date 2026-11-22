@@ -864,6 +864,33 @@ def test_a_removed_camera_stops_recording_and_keeps_its_video(
     assert free_ids(win.cameras, 1) == ["cam2"]  # cam1's recording is still on disk
 
 
+def test_the_timeline_marks_the_riders_of_the_camera_chosen_from_its_choice(
+    base: Path,
+    make_window: Callable[[], mw.MainWindow],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Another camera chosen, or the one left when the chosen is removed: the
+    # rider marks of the camera before stayed on the timeline till the next poll.
+    second = {**CAMERA, "id": "cam2", "name": "Front"}
+    session.save({**session.DEFAULTS, "cameras": [CAMERA, second]})
+    for camera_id in ("cam1", "cam2"):
+        record(base, START, 70, camera_id)
+        beating(base, camera_id)
+    monkeypatch.setattr(
+        QMessageBox, "question", lambda *a: QMessageBox.StandardButton.Yes
+    )
+    win = make_window()
+    wait_until(lambda: win.moment is not None)
+    win.timeline.set_stretches([(START, START + 500)])  # cam1's, as a poll sets them
+    win.camera_list.setCurrentRow(1)
+    assert win.timeline.stretches == []  # cam2's: riders are not looked for
+    win.camera_list.setCurrentRow(0)
+    win.timeline.set_stretches([(START, START + 500)])
+    win.remove_camera()
+    assert win.current == "cam2"
+    assert win.timeline.stretches == []
+
+
 def test_the_timeline_paints_after_the_last_camera_is_removed_with_riders_marked(
     recording: Path,
     make_window: Callable[[], mw.MainWindow],
