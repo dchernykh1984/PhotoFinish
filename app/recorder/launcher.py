@@ -21,6 +21,7 @@ from typing import Any
 
 import app
 from app import files, paths
+from app.phone_status import number
 from app.recorder import STALE_MS, Backoff, folder_of
 from app.version import version
 
@@ -89,11 +90,18 @@ def heartbeat(camera_id: str) -> dict[str, Any] | None:
     return files.read_json(folder_of(camera_id) / "recorder.json")
 
 
+def _ms(info: dict[str, Any], key: str) -> int:
+    """A heartbeat's number as written; 0 when it is not one: a heartbeat written by
+    hand, or by a recorder of another version, never stops the window's poll."""
+    found = number(info.get(key))
+    return int(found) if found is not None else 0
+
+
 def alive(info: dict[str, Any] | None) -> bool:
     """A recorder that is running: a fresh heartbeat, a state that is not an end."""
     if info is None or info.get("state") in ENDED:
         return False
-    return time.time_ns() // 1_000_000 - int(info.get("heartbeat_ms", 0)) <= STALE_MS
+    return time.time_ns() // 1_000_000 - _ms(info, "heartbeat_ms") <= STALE_MS
 
 
 def recording(info: dict[str, Any] | None) -> bool:
@@ -205,8 +213,8 @@ class Watchdog:
             if info is None:
                 return False  # unread: its end marked at the next poll, read again
             self._died_at, self._dead = now, process
-            self._died_beat = int(info.get("heartbeat_ms", 0))
-        beat_ms = 0 if info is None else int(info.get("heartbeat_ms", 0))
+            self._died_beat = _ms(info, "heartbeat_ms")
+        beat_ms = 0 if info is None else _ms(info, "heartbeat_ms")
         beating = beat_ms != self._died_beat  # since that end: another recorder's
         if code != 3:
             return beating and alive(info)
@@ -220,7 +228,7 @@ class Watchdog:
         return (
             info is not None
             and info.get("state") in ("failed", "disk_full")
-            and int(info.get("heartbeat_ms", 0)) >= self._started_ms
+            and _ms(info, "heartbeat_ms") >= self._started_ms
         )
 
     def _starting(self, now: float) -> bool:
@@ -256,7 +264,7 @@ def describe(info: dict[str, Any] | None) -> str:
     if state == "recording":
         text = f"recording, {info.get('frames', 0)} frames"
         text = f"{text}, under 2 GB free" if detail == "low disk" else text
-        behind = int(info.get("behind_ms") or 0)
+        behind = _ms(info, "behind_ms")
         if behind >= BEHIND_SAID_MS:
             text = f"{text}, {behind // 1000} s behind"
     else:
