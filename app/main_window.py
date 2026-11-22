@@ -99,7 +99,7 @@ from app.recorder.launcher import (
     heartbeat,
     recording,
 )
-from app.recorder.phone_log import last_word, started
+from app.recorder.phone_log import last_word, newest_start
 from app.sound import exported_sound, playing_from
 from app.start_protocol import StartNumbers
 from app.version import version
@@ -533,8 +533,7 @@ class MainWindow(QMainWindow):
 
     def about(self) -> None:
         """This program's version, and each phone's app as it said at its start
-        (specs/008, FR-001): the newest start its lens cameras' logs hold -- a lens
-        no longer recorded keeps an older one."""
+        (specs/008, FR-001): the newest start its lens cameras' logs hold."""
         mine = version()
         name = f"PhotoFinish {mine}" if mine else "PhotoFinish, its version unknown"
         lines = [f"<b>{html.escape(name)}</b>", "Photo finish for offline race timing."]
@@ -546,7 +545,7 @@ class MainWindow(QMainWindow):
         if phones:
             lines.append("")
         for ids in phones.values():
-            _, said = max(started(folder_of(i)) for i in ids)
+            said = newest_start(folder_of(i) for i in ids)
             names = ", ".join(self._name(i) for i in ids)
             word = said or "no word from PhotoFinish Camera yet"
             lines.append(html.escape(f"{names}: {word}"))
