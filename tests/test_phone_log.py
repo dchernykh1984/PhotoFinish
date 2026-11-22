@@ -606,3 +606,19 @@ def test_a_lens_recorded_now_gives_the_run_at_work_whatever_its_log_s_time(
     main = log("main", LATER, "0.13.1", 5)
     assert phone_log.newest_start([tele, main], at_work=[main]) == APP.format("0.13.1")
     assert phone_log.newest_start([tele, main]) == APP.format("0.12.0")  # by time
+
+
+def test_a_lens_streaming_with_no_log_leaves_the_run_at_work_unheard(
+    tmp_path: Path,
+) -> None:
+    # The main streams now, its log not come yet -- its clock's port taken, say --;
+    # the tele was recorded yesterday, its log the app's before an update. Its run
+    # is no answer: no word yet of the one at work.
+    main, tele = tmp_path / "main", tmp_path / "tele"
+    main.mkdir()
+    tele.mkdir()
+    said = APP.format("0.11.0")
+    log = f"--- run {RUN} from line 1\n2026-11-21 09:00:00.000 I - #1 {said}\n"
+    (tele / phone_log.FILE).write_text(log, encoding="utf-8")
+    assert phone_log.newest_start([main, tele], at_work=[main]) is None
+    assert phone_log.newest_start([main, tele]) == said  # none streaming: the newest
