@@ -53,6 +53,7 @@ class VideoIndex:
         self.folder = folder
         self.paths: list[Path] = []
         self._ends: list[int] = []  # each segment's newest frame's moment, as paths
+        self._end_of: dict[str, int] = {}  # the same, by the segment's name
         self.gaps: list[Gap] = []
         # Every frame's moment ascending, its pts, its segment (into paths): views of
         # buffers that double as they fill, so a new segment copies only itself.
@@ -107,7 +108,11 @@ class VideoIndex:
             return False
         first = len(self.paths)
         self.paths += [path for path, _ in added]
-        self._ends += [int(times[:, 1].max()) for _, times in added]
+        ends = [int(times[:, 1].max()) for _, times in added]
+        self._ends += ends
+        self._end_of.update(
+            (path.stem, end) for (path, _), end in zip(added, ends, strict=True)
+        )
         segment = np.concatenate(
             [
                 np.full(len(times), first + k, np.int32)
@@ -182,8 +187,8 @@ class VideoIndex:
     def newest_end_of(self, stems: AbstractSet[str]) -> int | None:
         """The newest frame's moment of the segments named in ``stems``; None when
         none of them is listed: a look at each segment's end, never at the frames."""
-        segments = zip(self.paths, self._ends, strict=True)
-        ends = [end for path, end in segments if path.stem in stems and end]
+        end_of = self._end_of
+        ends = [end_of[stem] for stem in stems if stem in end_of]
         return max(ends) if ends else None
 
     def frame(self, place: int) -> Frame:
@@ -267,6 +272,7 @@ class FileIndex(VideoIndex):
         ms, pts = self._found
         self.paths = [self.file]
         self._ends = [int(ms.max()) if ms.size else 0]  # one for each path, as listed
+        self._end_of = {self.file.stem: self._ends[0]} if ms.size else {}
         self._append(ms, pts, np.zeros(pts.size, np.int32))
         return True
 

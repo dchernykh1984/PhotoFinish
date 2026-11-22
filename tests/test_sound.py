@@ -561,6 +561,25 @@ def test_the_sound_later_is_told_at_once_while_nothing_changed(
     assert walked == []
 
 
+def test_the_newest_sounding_end_is_found_by_name_never_a_path_at_a_time(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Found again as each segment comes, a day of them: looked up by name, never each
+    # path's name made anew (some 30 ms for a day of one-second segments).
+    index = recorded(tmp_path)
+    kept = sound.sounding(index.folder)
+    walked: list[int] = []
+    real = PurePath.__dict__["stem"]
+
+    def stem(path: Path) -> str:
+        walked.append(1)
+        return str(real.__get__(path))
+
+    monkeypatch.setattr(Path, "stem", property(stem))
+    assert index.newest_end_of(kept) == int(index.ms[-1])
+    assert walked == []
+
+
 def test_the_sound_later_is_one_from_the_moment_on_never_one_all_behind(
     tmp_path: Path,
 ) -> None:
