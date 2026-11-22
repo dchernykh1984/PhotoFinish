@@ -905,3 +905,23 @@ def test_a_recorder_failed_after_the_clock_was_set_back_is_left_for_the_referee(
         clock["now"] = moment
         watchdog.poll()
     assert len(spawns.processes) == 1
+
+
+def test_this_window_s_recorder_stuck_after_the_clock_set_back_is_started_again(
+    folder: Path, clock: dict[str, float]
+) -> None:
+    # Its beat an hour ahead of the clock set back, then no other: a recorder stuck,
+    # not one held by a camera's open -- tried again once it has beaten none for as
+    # long as a beat may be late, not when the clock gets back to it.
+    spawns = Spawns()
+    watchdog = Watchdog("cam1", spawns)
+    watchdog.start()
+    beat(folder, "recording", age_ms=-3_600_000)
+    for moment in (1040, 1050):
+        clock["now"] = moment
+        watchdog.poll()
+    assert len(spawns.processes) == 1  # held by an open: up to 10 s
+    for moment in (1060, 1062, 1064):
+        clock["now"] = moment
+        watchdog.poll()
+    assert len(spawns.processes) > 1
