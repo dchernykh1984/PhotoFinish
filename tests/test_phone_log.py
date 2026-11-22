@@ -534,3 +534,34 @@ def test_a_torn_mark_the_run_went_on_after_is_passed_over_as_the_recorder_does(
     ]
     (tmp_path / phone_log.FILE).write_text("\n".join(lines) + "\n", encoding="utf-8")
     assert phone_log.newest_start([tmp_path]) == said
+
+
+def test_a_lens_folder_that_cannot_be_looked_into_is_said_not_to_be_read(
+    tmp_path: Path,
+) -> None:
+    # Its log's time not to be had: no log is not what it is.
+    folder = tmp_path / "cam1"
+    folder.mkdir()
+    (folder / phone_log.FILE).write_text(f"--- run {RUN} from line 1\n")
+    folder.chmod(0)
+    try:
+        with pytest.raises(PermissionError):
+            phone_log.newest_start([folder])
+    finally:
+        folder.chmod(0o755)
+
+
+def test_the_newest_lens_log_gone_since_leaves_the_run_at_work_unknown(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Written last, then gone -- moved away while About read --: whose run is at
+    # work is not known, and an older lens's is no answer.
+    old = tmp_path / "main"
+    old.mkdir()
+    said = APP.format("0.12.0")
+    log = f"--- run {RUN} from line 1\n2026-11-21 10:00:00.000 I - #1 {said}\n"
+    (old / phone_log.FILE).write_text(log, encoding="utf-8")
+    gone = tmp_path / "tele"  # its log there as About looked, and not as it read
+    written = {old: 1.0, gone: 2.0}
+    monkeypatch.setattr(phone_log, "_written", lambda folder: written.get(folder))
+    assert phone_log.newest_start([old, gone]) == ""
