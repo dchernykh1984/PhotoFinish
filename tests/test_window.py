@@ -1109,7 +1109,8 @@ def test_enter_adds_a_crossing_at_the_frame_shown(
     choose(monkeypatch, out)
     win.choose_output()
     assert session.load()["output"] == str(out)
-    assert win.output_button.text() == f"Output: {out}"
+    assert win.output_button.text() == f"Output: {out.name}"
+    assert win.output_button.toolTip() == str(out)
     wait_until(showing(win, START + 69 * 33))
     win.step(-9)
     win.number.setText(" 15 ")
@@ -4345,3 +4346,26 @@ def test_the_camera_list_wraps_its_lines_with_no_bar_to_scroll_them_sideways(
         assert listed.verticalScrollBar().isVisible()
         sideways.append(listed.horizontalScrollBar().isVisible())
     assert not any(sideways)
+
+
+def test_the_files_are_named_on_their_buttons_the_number_left_room_beside_them(
+    base: Path, make_window: Callable[[], mw.MainWindow]
+) -> None:
+    # A race's files deep in folders: each button names its file, the path in its
+    # tip -- written out, the output's would leave the number typed beside it no
+    # room, and the input's push the window past the screen.
+    deep = base / "races" / "2026-11-22 the race of the day, its long name" / "files"
+    deep.mkdir(parents=True)
+    results, out = deep / "results.txt", deep / "output_video.txt"
+    results.write_text("7#20389 11:35:29.500#nextLap#\n")
+    session.save({**session.DEFAULTS, "input": str(results), "output": str(out)})
+    win = make_window()
+    assert win.input_button.text() == "Input: results.txt"
+    assert win.input_button.toolTip() == str(results)
+    assert win.output_button.text() == "Output: output_video.txt"
+    assert win.output_button.toolTip() == str(out)
+    win.resize(100, 100)  # as narrow as it goes
+    win.show()
+    QApplication.processEvents()
+    hint = win.number.placeholderText()
+    assert win.number.width() > win.number.fontMetrics().horizontalAdvance(hint)

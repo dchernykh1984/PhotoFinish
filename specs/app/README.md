@@ -232,7 +232,8 @@ or a swaying patch.
 - **Input.** New lines of the chronometer's file arrive in the output within 2 s, as they are. A
   line the chronometer changes is held back, highlighted with both contents, until "Copy to
   output"; a line that is gone leaves its output line marked; a line the referee removed is not
-  brought back. A restart knows which lines were taken.
+  brought back. A restart knows which lines were taken. The input's and the output's buttons
+  name their files, each one's path in its tip.
 - **Output.** Number and Enter: a crossing at the frame shown, a finish or a lap as the Finish box
   says. On the chosen output line: Time from frame, Type time (a full `D H:M:S.mmm`), Number,
   Remove after a confirmation. Every change is written at once, journaled, and copied to `temp/`.

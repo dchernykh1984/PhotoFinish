@@ -903,7 +903,7 @@ class MainWindow(QMainWindow):
 
     def _open_input(self) -> None:
         chosen = str(self.session.get("input") or "")
-        self.input_button.setText(f"Input: {chosen}" if chosen else "Input file...")
+        _name_file(self.input_button, "Input", chosen)
         self.follow = None
         if chosen and self.output is not None:
             self.follow = InputFollow(app_path(chosen), self.output)
@@ -1734,7 +1734,7 @@ class MainWindow(QMainWindow):
         """The output chosen opened, and the input followed into it. One that cannot
         be opened -- held a moment by another program -- is tried at every poll."""
         chosen = str(self.session.get("output") or "")
-        self.output_button.setText(f"Output: {chosen}" if chosen else "Output file...")
+        _name_file(self.output_button, "Output", chosen)
         self.output = None
         if chosen:
             try:
@@ -2377,6 +2377,13 @@ def _progressed(progress: QProgressDialog, value: int) -> None:
     set again shows itself again until the export ends."""
     if not progress.wasCanceled():
         progress.setValue(value)
+
+
+def _name_file(button: QPushButton, what: str, chosen: str) -> None:
+    """A file's button: its name, the path in its tip as the session keeps it -- written
+    out, a path deep in folders leaves the number typed beside it no room."""
+    button.setText(f"{what}: {Path(chosen).name}" if chosen else f"{what} file...")
+    button.setToolTip(chosen)
 
 
 def _same_file(chosen: object, path: str) -> bool:
