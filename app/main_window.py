@@ -534,7 +534,8 @@ class MainWindow(QMainWindow):
 
     def about(self) -> None:
         """This program's version, and each phone's app as it said at its start
-        (specs/008, FR-001): the newest start its lens cameras' logs hold."""
+        (specs/008, FR-001): the start of its run at work, from whichever of its lens
+        cameras' logs holds it."""
         mine = version()
         name = f"PhotoFinish {mine}" if mine else "PhotoFinish, its version unknown"
         lines = [f"<b>{html.escape(name)}</b>", "Photo finish for offline race timing."]
