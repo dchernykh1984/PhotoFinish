@@ -77,7 +77,7 @@ def test_the_same_error_again_within_a_minute_is_counted_not_written() -> None:
     # A timer's slot failing each second: written once a minute, how often between.
     file = io.StringIO()
     now = [1000.0]
-    log = window_log.WindowLog(file, clock=lambda: now[0])
+    log = window_log.WindowLog(file, clock=lambda: now[0], steady=lambda: now[0])
     for second in range(62):
         now[0] = 1000.0 + second
         log.error(*raised("each second"))
@@ -94,7 +94,7 @@ def test_errors_by_turns_or_in_changing_words_are_each_written_once_a_minute() -
     # them the error just before, all of them repeats of one from the same place.
     file = io.StringIO()
     now = [1000.0]
-    log = window_log.WindowLog(file, clock=lambda: now[0])
+    log = window_log.WindowLog(file, clock=lambda: now[0], steady=lambda: now[0])
     for second in range(30):
         now[0] = 1000.0 + second
         log.error(*raised(f"at {second}"))
@@ -112,7 +112,7 @@ def test_a_run_writes_errors_up_to_its_room(monkeypatch: pytest.MonkeyPatch) -> 
     monkeypatch.setattr(window_log, "LIMIT_BYTES", 3000)
     file = io.StringIO()
     now = [1000.0]
-    log = window_log.WindowLog(file, clock=lambda: now[0])
+    log = window_log.WindowLog(file, clock=lambda: now[0], steady=lambda: now[0])
     for minute in range(100):
         now[0] = 1000.0 + 61 * minute
         log.error(*raised("again"))
@@ -188,3 +188,15 @@ def test_an_error_with_no_traceback_is_known_by_its_kind() -> None:
     text = file.getvalue()
     assert text.count("RuntimeError: handed on bare") == 1
     assert "RuntimeError came 1 time more in its minute" in text
+
+
+def test_a_clock_set_back_does_not_hold_an_error_back() -> None:
+    # The referee sets the laptop's clock back an hour to the chronometer's: an
+    # error's minute is a minute of the steady clock, not an hour more.
+    file = io.StringIO()
+    wall, steady = [50_400.0], [0.0]
+    log = window_log.WindowLog(file, clock=lambda: wall[0], steady=lambda: steady[0])
+    log.error(*raised("again"))
+    wall[0], steady[0] = 46_861.0, 61.0  # an hour back, a minute on
+    log.error(*raised("again"))
+    assert file.getvalue().count("ValueError: again") == 2

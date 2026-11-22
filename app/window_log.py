@@ -23,12 +23,18 @@ AGAIN_S = 60.0  # an error again within this of its writing is counted, not writ
 class WindowLog:
     """Lines with their local time, each written out at once: a crash loses none."""
 
-    def __init__(self, file: TextIO, clock: Callable[[], float] = time.time) -> None:
+    def __init__(
+        self,
+        file: TextIO,
+        clock: Callable[[], float] = time.time,
+        steady: Callable[[], float] = time.monotonic,
+    ) -> None:
         self.file = file
-        self._clock = clock
+        self._clock = clock  # the lines' times
+        self._steady = steady  # an error's minute: a clock set back stops neither
         self._lock = threading.Lock()  # errors come from the threads too
         self._seen: dict[str, tuple[float, int]] = {}  # an error's place: when
-        # it was written, how often it came since
+        # it was written, on the steady clock, how often it came since
         self._room = LIMIT_BYTES  # what this run may still write of its errors
         self._full = False
 
@@ -48,7 +54,7 @@ class WindowLog:
         disk."""
         text = "".join(traceback.format_exception(kind, value, tb)).rstrip("\n")
         place = _place(kind, tb)
-        now = self._clock()
+        now = self._steady()
         with self._lock:
             self._said_again(now)
             if place in self._seen:
