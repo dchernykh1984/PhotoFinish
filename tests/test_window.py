@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QSplitter,
+    QStyle,
 )
 
 from app import analysis, output_list, phone_status, playback, session
@@ -4395,3 +4396,20 @@ def test_about_says_the_phone_s_newest_start_whichever_lens_s_log_holds_it(
         (folder / "phone.log").write_text(line, encoding="utf-8")
     (text,) = about(make_window(), monkeypatch)
     assert f"Mi main, Mi tele: {app.format('0.13.1')}" in text.split("<br>")
+
+
+def test_alt_pressed_alone_leaves_the_arrows_to_the_video(
+    make_window: Callable[[], mw.MainWindow],
+) -> None:
+    # Windows' style lets Alt pressed alone hand the keys to the menu bar: the arrows
+    # would walk its menus then, not step the video. Not this window's menu bar.
+    hint = QStyle.StyleHint.SH_MenuBar_AltKeyNavigation
+    app = cast(QApplication, QApplication.instance())
+    kept = app.style().name()
+    app.setStyle("Windows")
+    try:
+        assert app.style().styleHint(hint)  # as Windows has it
+        bar = make_window().menuBar()
+        assert not bar.style().styleHint(hint, None, bar)
+    finally:
+        app.setStyle(kept)
