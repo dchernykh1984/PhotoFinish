@@ -565,3 +565,25 @@ def test_the_newest_lens_log_gone_since_leaves_the_run_at_work_unknown(
     written = {old: 1.0, gone: 2.0}
     monkeypatch.setattr(phone_log, "_written", lambda folder: written.get(folder))
     assert phone_log.newest_start([old, gone]) == ""
+
+
+def test_an_older_lens_log_not_to_be_read_leaves_the_run_s_start_to_the_others(
+    tmp_path: Path,
+) -> None:
+    # The tele's log, written last, holds the run at work, heard late; the main's
+    # newest file cannot be read, its file kept before holds the run's start. Said
+    # cannot be read only when no other holds it.
+    said = APP.format("0.13.1")
+    tele, main = tmp_path / "tele", tmp_path / "main"
+    tele.mkdir()
+    (tele / phone_log.FILE).write_text(f"--- run {LATER} from line 1500, heard\n")
+    os.utime(tele / phone_log.FILE, (2, 2))
+    main.mkdir()
+    (main / phone_log.FILE).mkdir()  # there, and not to be read
+    os.utime(main / phone_log.FILE, (1, 1))
+    held = f"--- run {LATER} from line 1\n2026-11-22 09:00:00.000 I - #1 {said}\n"
+    (main / (phone_log.FILE + ".1")).write_text(held, encoding="utf-8")
+    assert phone_log.newest_start([main, tele]) == said
+    (main / (phone_log.FILE + ".1")).unlink()
+    with pytest.raises(OSError):
+        phone_log.newest_start([main, tele])
