@@ -58,6 +58,21 @@ def test_the_frames_kept_are_bounded_by_their_size(tmp_path: Path) -> None:
     decoder.close()
 
 
+def test_a_frame_looked_at_again_is_kept_before_older_ones(tmp_path: Path) -> None:
+    # Stepping back and forth around a crossing: the frame looked at lately stays,
+    # the one decoded first and not looked at since goes.
+    index = frames(tmp_path)
+    one = 640 * 360 * 3 // 2
+    decoder = Decoder(keep_bytes=4 * one)
+    assert all(shows(decoder, index, place) for place in range(4))  # 0 to 3 kept
+    assert shows(decoder, index, 0)  # looked at again
+    assert shows(decoder, index, 4)  # one more decoded: 1 goes, not 0
+    seeks = decoder.seeks
+    assert shows(decoder, index, 0)
+    assert decoder.seeks == seeks
+    decoder.close()
+
+
 def test_another_segment_lets_the_frames_kept_go(tmp_path: Path) -> None:
     index = frames(tmp_path, 60)  # two segments
     first, second = index.frame(5), index.frame(40)
