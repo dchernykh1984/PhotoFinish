@@ -500,6 +500,44 @@ def test_a_recovery_that_finds_the_disk_full_leaves_the_crash_for_later(
     assert len(segments(tmp_path)) == 1
 
 
+def test_a_copy_that_finds_the_disk_full_leaves_the_crash_for_later(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A full disk is the file's, never a frame's the copy refused: said, the crash
+    # recovered whole once there is room, not named cut short.
+    killed_while_recording(tmp_path, 20)
+
+    class Full(RefusingSound):
+        """A copy whose disk fills as its fifth frame is written."""
+
+        frames = 0
+
+        def mux(self, packet: av.Packet) -> None:
+            if packet.stream.type == "video":
+                Full.frames += 1
+                if Full.frames == 5:
+                    av.error.err_check(-errno.ENOSPC)  # as libav says it
+            self.real.mux(packet)
+
+    real = av.open
+
+    def opened(path: Any, *args: Any, **kwargs: Any) -> Any:
+        made = real(path, *args, **kwargs)
+        copy = str(path).endswith(segments_module.RECOVERED_MKV)
+        return Full(made) if copy else made
+
+    monkeypatch.setattr(segments_module.av, "open", opened)
+    with pytest.raises(OSError) as raised:
+        SegmentWriter(tmp_path, fps=30)
+    assert raised.value.errno == errno.ENOSPC  # for the recorder: disk_full
+    assert (tmp_path / "current.mkv").exists()  # not given up
+    monkeypatch.undo()
+    SegmentWriter(tmp_path, fps=30)  # room made
+    named = [segments_module.frame_times(t) for t in tmp_path.glob("*-*-*.times")]
+    assert len(named) == 1
+    assert len(named[0]) >= 20 - 4  # all but 0.1 s, as a kill leaves: not four
+
+
 def test_a_recovery_not_yet_named_is_never_written_over_by_the_next(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
