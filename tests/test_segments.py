@@ -1604,14 +1604,15 @@ def test_a_last_close_whose_sound_line_was_refused_is_listed_as_the_recorder_sta
 ) -> None:
     # Its line kept for a next close that never came, the recorder stopped: the next
     # one lists it as it starts, its sound played and exported all the same.
-    with_sound(tmp_path / "phone.mkv", 2)
+    with_sound(tmp_path / "phone.mkv", 6)
     folder = tmp_path / "cam1"
     recorded_with_sound(tmp_path / "phone.mkv", folder)
     listed = (folder / segments_module.SOUND).read_text().split()
-    last = listed[-1]
-    (folder / segments_module.SOUND).write_text("".join(f"{n}\n" for n in listed[:-1]))
+    # A scanner held the list five closes, the recorder stopped before the next.
+    late = listed[-5:]
+    (folder / segments_module.SOUND).write_text("".join(f"{n}\n" for n in listed[:-5]))
     segments_module.recover(folder)
-    assert last in (folder / segments_module.SOUND).read_text().split()
+    assert set(late) <= set((folder / segments_module.SOUND).read_text().split())
 
 
 def test_the_segments_that_kept_sound_are_listed_beside_the_others(
