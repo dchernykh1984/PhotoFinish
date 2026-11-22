@@ -358,3 +358,33 @@ def test_a_finalizer_failing_for_each_new_object_is_counted_as_one_error() -> No
     text = file.getvalue()
     assert text.count("ValueError: closing") == 1
     assert text.count("RuntimeError: bare") == 1  # no traceback: known by whose
+
+
+def test_an_object_of_any_kind_is_named_whole_up_to_its_limit(
+    tmp_path: Path, hooks: list[object]
+) -> None:
+    # A string or a tuple named with an error: reprlib cut them to 30 characters
+    # or 6 items whatever its limit for other objects.
+    path = tmp_path / "window.log"
+    assert window_log.start(path, "1.0.0", enable=lambda file: None) is not None
+
+    class Unnamable:
+        def __repr__(self) -> str:
+            raise RuntimeError("no name")
+
+    things = ("a stream path of cam2 that runs long", tuple(range(12)), Unnamable())
+    for thing in (*things, "x" * 1000):
+        said = SimpleNamespace(
+            exc_type=RuntimeError,
+            exc_value=RuntimeError("closing"),
+            exc_traceback=None,
+            err_msg=None,
+            object=thing,
+        )
+        sys.unraisablehook(said)  # type: ignore[arg-type]
+    text = path.read_text(encoding="utf-8")
+    assert "'a stream path of cam2 that runs long'" in text
+    assert "(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11)" in text
+    assert "Unnamable" in text  # its repr failing: named by its kind
+    assert f"'{'x' * 296}..." in text  # past its limit: cut there
+    assert "x" * 400 not in text

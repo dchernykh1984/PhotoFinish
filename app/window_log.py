@@ -9,7 +9,6 @@ import faulthandler
 import math
 import os
 import re
-import reprlib
 import sys
 import threading
 import time
@@ -23,7 +22,7 @@ from typing import TextIO
 LIMIT_BYTES = 5_000_000  # a log past this at a start is set aside; a run's room
 AGAIN_S = 60.0  # an error again within this of its writing is counted, not written
 SAY_S = 5.0  # how often it came, written at its first repeat, then this often
-_NAMED = reprlib.Repr(maxother=300)  # an object named whole, a repr that fails too
+NAMED_CHARS = 300  # an object Python names with an error: this much of its repr
 _ADDRESS = re.compile(r" at 0x[0-9a-fA-F]+")  # where an object lives, not what
 
 
@@ -139,6 +138,16 @@ class WindowLog:
             pass
 
 
+def _named(thing: object) -> str:
+    """An object as its repr says it, whatever its kind, up to NAMED_CHARS; by its
+    kind when its repr fails."""
+    try:
+        text = repr(thing)
+    except Exception:
+        return f"<{type(thing).__name__}, its repr failing>"
+    return text if len(text) <= NAMED_CHARS else f"{text[: NAMED_CHARS - 3]}..."
+
+
 def _times(count: int) -> str:
     return f"{count} time" if count == 1 else f"{count} times"
 
@@ -201,7 +210,7 @@ def start(
         with contextlib.suppress(Exception):
             about = args.err_msg or "Exception ignored in"
             if args.object is not None:
-                about = f"{about}: {_NAMED.repr(args.object)}"
+                about = f"{about}: {_named(args.object)}"
             log.error(args.exc_type, args.exc_value, args.exc_traceback, about)
         unraisable(args)
 
