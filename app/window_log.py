@@ -5,6 +5,7 @@ from Finder or Explorer, which has none."""
 from __future__ import annotations
 
 import faulthandler
+import math
 import os
 import sys
 import threading
@@ -15,8 +16,8 @@ from pathlib import Path
 from types import TracebackType
 from typing import TextIO
 
-LIMIT_BYTES = 5_000_000  # past this at a start, the log starts over
-AGAIN_S = 60.0  # the same error again within this is counted, not written again
+LIMIT_BYTES = 5_000_000  # a log past this at a start is set aside; a run's room
+AGAIN_S = 60.0  # an error again within this of its writing is counted, not written
 
 
 class WindowLog:
@@ -26,12 +27,14 @@ class WindowLog:
         self.file = file
         self._clock = clock
         self._lock = threading.Lock()  # errors come from the threads too
-        self._last: tuple[str, float] | None = None  # the error written last, when
-        self._again = 0  # how often it came since, within AGAIN_S
+        self._seen: dict[str, tuple[float, int]] = {}  # an error's place: when
+        # it was written, how often it came since
+        self._room = LIMIT_BYTES  # what this run may still write of its errors
+        self._full = False
 
     def write(self, text: str) -> None:
         with self._lock:
-            self._write(text)
+            self._write(text, always=True)
 
     def error(
         self,
@@ -39,39 +42,73 @@ class WindowLog:
         value: BaseException | None,
         tb: TracebackType | None,
     ) -> None:
-        """An error no handler took, with its traceback; the same one again within
-        AGAIN_S of its writing counted instead -- a timer's slot failing each
-        second fills no disk."""
+        """An error no handler took, with its traceback. One from the same place
+        again within AGAIN_S of its writing -- by turns with others, its words
+        changed -- is counted instead: a paint failing at every frame fills no
+        disk."""
         text = "".join(traceback.format_exception(kind, value, tb)).rstrip("\n")
+        place = _place(kind, tb)
         now = self._clock()
         with self._lock:
-            last = self._last
-            if last is not None and last[0] == text and now - last[1] < AGAIN_S:
-                self._again += 1
+            self._said_again(now)
+            if place in self._seen:
+                written, again = self._seen[place]
+                self._seen[place] = (written, again + 1)
                 return
-            self._said_again()
             self._write(f"an error no handler took:\n{text}")
-            self._last = (text, now)
+            self._seen[place] = (now, 0)
 
     def end(self) -> None:
         with self._lock:
-            self._said_again()
-            self._write("the window ended")
+            self._said_again(math.inf)
+            self._write("the window ended", always=True)
 
-    def _said_again(self) -> None:
-        if self._again:
-            times = "time" if self._again == 1 else "times"
-            self._write(f"the error before came {self._again} {times} more")
-            self._again = 0
+    def _said_again(self, now: float) -> None:
+        """The errors written AGAIN_S ago or more let go, how often each came since
+        said."""
+        for place, (written, again) in list(self._seen.items()):
+            if now - written >= AGAIN_S:
+                if again:
+                    times = "time" if again == 1 else "times"
+                    self._write(f"{place} came {again} {times} more in its minute")
+                del self._seen[place]
 
-    def _write(self, text: str) -> None:
+    def _write(self, text: str, always: bool = False) -> None:
+        """A line written; an error's only while the run has room for it -- once it
+        has not, that is said, once."""
+        line = f"{self._stamp()} {text}\n"
+        if not always:
+            size = len(line.encode("utf-8", "backslashreplace"))
+            if size > self._room:
+                if not self._full:
+                    self._full = True
+                    self._put(
+                        f"{self._stamp()} the log is full for this run: no more "
+                        "of its errors are written\n"
+                    )
+                return
+            self._room -= size
+        self._put(line)
+
+    def _stamp(self) -> str:
         now = self._clock()
         stamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(now))
+        return f"{stamp}.{int(now * 1000) % 1000:03d}"
+
+    def _put(self, line: str) -> None:
         try:
-            self.file.write(f"{stamp}.{int(now * 1000) % 1000:03d} {text}\n")
+            self.file.write(line)
             self.file.flush()
         except OSError, ValueError:  # a full disk, a file gone: the window goes on
             pass
+
+
+def _place(kind: type[BaseException] | None, tb: TracebackType | None) -> str:
+    """An error's kind and where it was raised: the same error, whatever its words
+    say."""
+    name = getattr(kind, "__name__", str(kind))
+    frames = traceback.extract_tb(tb)
+    return f"{name} at {frames[-1].filename}:{frames[-1].lineno}" if frames else name
 
 
 def start(
