@@ -650,6 +650,10 @@ def test_a_heartbeat_holding_anything_never_stops_the_window_reading_it() -> Non
     for behind in ("n/a", [1], {"s": 2}, "nan"):
         beat = {"state": "recording", "heartbeat_ms": fresh, "behind_ms": behind}
         assert describe(beat) == "recording, 0 frames"
+        assert describe({**beat, "frames": behind}) == "recording, 0 frames"
+    assert describe({"state": "recording", "heartbeat_ms": fresh, "frames": 5.0}) == (
+        "recording, 5 frames"
+    )
     for beat_ms in ("soon", None, [fresh]):
         assert not alive({"state": "recording", "heartbeat_ms": beat_ms})
     assert describe({"state": "recording", "heartbeat_ms": "x"}) == "not responding"
