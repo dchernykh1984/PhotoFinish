@@ -183,7 +183,7 @@ class VideoIndex:
         """The newest frame's moment of the segments named in ``stems``; None when
         none of them is listed: a look at each segment's end, never at the frames."""
         segments = zip(self.paths, self._ends, strict=True)
-        ends = [end for path, end in segments if path.stem in stems]
+        ends = [end for path, end in segments if path.stem in stems and end]
         return max(ends) if ends else None
 
     def frame(self, place: int) -> Frame:
@@ -266,7 +266,7 @@ class FileIndex(VideoIndex):
             return False  # not a video: shown as a camera without frames
         ms, pts = self._found
         self.paths = [self.file]
-        self._ends = [int(ms.max())] if ms.size else []
+        self._ends = [int(ms.max()) if ms.size else 0]  # one for each path, as listed
         self._append(ms, pts, np.zeros(pts.size, np.int32))
         return True
 

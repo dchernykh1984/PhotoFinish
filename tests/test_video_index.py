@@ -403,6 +403,9 @@ def test_a_file_that_is_no_video_gives_no_frames(tmp_path: Path) -> None:
     index = FileIndex(empty)
     assert not read(index)
     assert len(index) == 0
+    assert (
+        index.newest_end_of({"empty"}) is None
+    )  # asked as sound later: no frame, no end
 
 
 def test_a_far_frame_of_a_long_file_is_sought_not_decoded_to(tmp_path: Path) -> None:
