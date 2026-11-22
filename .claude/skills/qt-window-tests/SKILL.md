@@ -119,3 +119,30 @@ for button in w.findChildren(QPushButton):
 A text that grows without bound on one row -- a path written out on a button --
 pushes the window past the screen and leaves the fields beside it no room: name
 the file, the path in the tip.
+
+## Painting
+
+Draw inside `with QPainter(self) as painter:`. A `paintEvent` that raises with
+its painter open leaves the window's backing store painted on: Qt warns
+`QBackingStore::endPaint() called with active painter`, and a later paint of the
+window crashes it (SIGSEGV in `QBackingStore::flush`) -- 0.14.0 crashed so, twice
+in an afternoon.
+
+Qt takes integer coordinates in 32 bits: an x worked out from a moment far from
+the view -- a stretch of a camera just removed, days of recording zoomed in on --
+overflows them, and `fillRect(int, ...)` raises `OverflowError`. Cut a span to
+the widget before drawing it, as the timeline's `_shown` does.
+
+A `grab()` in a test paints within the call, and a paint that raises fails the
+test with its error. `paintingActive()` says nothing of a painter left open on a
+grab: keep the painter -- patch a method it is handed to -- and ask its
+`isActive()`.
+
+## When the window crashed
+
+- `data/window.log` next to the program: each start, the Python errors no handler
+  took, the stacks of a crash.
+- On macOS, `~/Library/Logs/DiagnosticReports/PhotoFinish-*.ips` holds the native
+  stack, and the system log the minutes before it, Qt's warnings among them:
+  `/usr/bin/log show --style compact --start "<time>" --end "<time>" --predicate
+  'processID == <pid>'` -- in zsh a bare `log` is a builtin that shows nothing.
