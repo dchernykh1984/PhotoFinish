@@ -37,6 +37,7 @@ STEPS = 1000  # the whole of its progress
 FRAME_SLACK_MS = 50  # the sound heard this long after a file's last frame goes in it
 HELD_S = 0.1  # a piece whose times are held a moment, read again this much later
 HELD_TRIES = 5  # and so often: times a crash garbled hold each export no longer
+SILENCE_ASKS = 1000  # silent pieces a gap is filled with between asks for Cancel
 # Windows's device names: COM and LPT with a digit, or a superscript one, 1 to 3.
 RESERVED = {"CON", "PRN", "AUX", "NUL"} | {
     f"{d}{n}"
@@ -253,7 +254,7 @@ class _Writer:
             else:
                 path = free(_part(self.first, len(self.mine) + 1))
             found = _merged(self.sounds, moment, self.cancelled)
-            self.out = _Out(path, stream, moment, _form(stream), found)
+            self.out = _Out(path, stream, moment, _form(stream), found, self.cancelled)
         self.out.add(packet, moment, time_base)
 
     def _skip(self, video: Path) -> None:
@@ -361,8 +362,10 @@ class _Out:
         first: int,
         form: tuple[Any, ...],
         found: Iterator[sound.Piece] | None = None,
+        cancelled: Callable[[], bool] = lambda: False,
     ):
         self.path, self.first, self.form = path, first, form
+        self.cancelled = cancelled  # asked as a long gap fills with silence
         self.partial = path.with_name(path.name + ".part")
         self.container = av.open(str(self.partial), "w", format="mp4")
         self.found = iter(()) if found is None else found
@@ -436,6 +439,8 @@ class _Out:
             return until
         count = round((until - at) / size)
         for n in range(count):
+            if n % SILENCE_ASKS == 0 and self.cancelled():  # hours between sessions
+                raise CancelledError
             self._put(av.Packet(silent), at + n * size, size, form.rate)
         return at + count * size
 

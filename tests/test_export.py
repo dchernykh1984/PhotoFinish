@@ -576,6 +576,30 @@ def test_a_sound_that_fails_as_a_file_begins_leaves_no_part_behind(
     assert not list(tmp_path.glob("*.part"))
 
 
+def test_a_long_gap_filled_with_silence_hears_cancel(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A morning's and an afternoon's session in one file: hours of silence between,
+    # Cancel heard as it is filled, not once it is done.
+    recorded(tmp_path)
+    (tmp_path / "later").mkdir()
+    recorded(tmp_path / "later", folder=tmp_path / "cam1", start=HEARD + 2 * 3_600_000)
+    put: list[int] = []
+    real = export._Out._put
+
+    def counted(self: Any, *args: Any) -> None:
+        put.append(1)
+        real(self, *args)
+
+    monkeypatch.setattr(export._Out, "_put", counted)
+    with pytest.raises(export.CancelledError):
+        export.export(
+            tmp_path / "cam1", tmp_path / "Main.mp4", cancelled=lambda: len(put) > 200
+        )
+    assert len(put) < 10_000  # of some 340 000 for the two hours
+    assert not list(tmp_path.glob("Main*"))
+
+
 def test_a_gap_in_an_exported_files_sound_is_silence_so_it_stays_in_step(
     tmp_path: Path,
 ) -> None:
