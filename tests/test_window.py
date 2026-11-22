@@ -4486,3 +4486,27 @@ def test_about_says_a_phone_whose_log_cannot_be_read(
     (text,) = about(make_window(), monkeypatch)
     (line,) = [line for line in text.split("<br>") if line.startswith("Side: ")]
     assert line.startswith("Side: its log cannot be read: ")
+
+
+def test_the_lists_stay_put_when_the_corner_turns_green_again(
+    base: Path, make_window: Callable[[], mw.MainWindow]
+) -> None:
+    # Two cameras lost, the corner names them in red; back, it says RECORDING in
+    # green: its colour given after its text, the lists below stay where they were.
+    made = [{**CAMERA, "id": f"cam{n}", "name": f"Side {n}"} for n in (1, 2)]
+    session.save({**session.DEFAULTS, "cameras": made})
+    for n in (1, 2):
+        beating(base, f"cam{n}", state="connecting", detail="waiting")
+    win = make_window()
+    win.resize(100, 100)
+    win.show()
+    win.poll()
+    QApplication.processEvents()
+    assert win.recording_banner.text().startswith("NOT RECORDING")
+    lists = win.camera_list.mapTo(win, win.camera_list.rect().topLeft()).y()
+    for n in (1, 2):
+        beating(base, f"cam{n}")
+    win.poll()
+    QApplication.processEvents()
+    assert win.recording_banner.text() == "RECORDING"
+    assert win.camera_list.mapTo(win, win.camera_list.rect().topLeft()).y() == lists

@@ -33,7 +33,9 @@ class WholeLabel(QLabel):
     def changeEvent(self, event: QEvent) -> None:  # noqa: N802 - Qt's name
         super().changeEvent(event)
         if event.type() in (QEvent.Type.FontChange, QEvent.Type.StyleChange):
-            self._hold()  # a style's font, given after the text: as high as it is now
+            # A style's font, given after the text -- the corner's, red or green
+            # with each word --: as high as the text is now, a steady one no lower.
+            self._hold(keep=self.steady)
 
     def hideEvent(self, event: QHideEvent) -> None:  # noqa: N802 - Qt's name
         super().hideEvent(event)
