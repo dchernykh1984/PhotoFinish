@@ -257,6 +257,8 @@ or a swaying patch.
   chronometer's clock. The offset is shown beside the time and journaled with every change.
 - **Outside changes.** An output file changed by something else is kept in a backup beside it,
   journaled, and written again from the referee's list.
+- **About.** Help, About PhotoFinish -- on macOS in the program's own menu -- says the program's
+  version.
 
 ## Finding riders (experimental, off by default)
 

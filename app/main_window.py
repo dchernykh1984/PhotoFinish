@@ -23,6 +23,7 @@ from PySide6.QtCore import (
     Signal,
 )
 from PySide6.QtGui import (
+    QAction,
     QCloseEvent,
     QColor,
     QImage,
@@ -97,6 +98,7 @@ from app.recorder.launcher import (
 from app.recorder.phone_log import last_word
 from app.sound import exported_sound, playing_from
 from app.start_protocol import StartNumbers
+from app.version import version
 from app.video_index import FileIndex, Frame, VideoIndex
 from app.widgets import export_dialog
 from app.widgets.camera_dialog import CameraDialog
@@ -279,6 +281,7 @@ class MainWindow(QMainWindow):
 
         self.setCentralWidget(self._layout())
         self._shortcuts()
+        self._menus()
         for camera in self.session["cameras"]:
             self._add(camera)
         if self.cameras:
@@ -501,6 +504,23 @@ class MainWindow(QMainWindow):
             *((f"Ctrl+{n}", partial(self.show_alone, n - 1)) for n in range(1, 10)),
         ):
             QShortcut(QKeySequence(keys), self).activated.connect(slot)
+
+    def _menus(self) -> None:
+        """Help, with About -- which macOS shows in the program's own menu."""
+        about = QAction("About PhotoFinish", self)
+        about.setMenuRole(QAction.MenuRole.AboutRole)
+        about.triggered.connect(self.about)
+        self.menuBar().addMenu("Help").addAction(about)
+
+    def about(self) -> None:
+        """This program's version."""
+        mine = version()
+        name = f"PhotoFinish {mine}" if mine else "PhotoFinish, its version unknown"
+        QMessageBox.about(
+            self,
+            "About PhotoFinish",
+            f"<b>{html.escape(name)}</b><br>Photo finish for offline race timing.",
+        )
 
     def show_alone(self, row: int | None) -> None:
         """Camera ``row`` of the list alone, large; None: every camera side by side.

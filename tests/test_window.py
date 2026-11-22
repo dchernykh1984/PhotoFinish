@@ -16,12 +16,13 @@ import numpy as np
 import pytest
 import shiboken6
 from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
-from PySide6.QtGui import QImage, QWheelEvent
+from PySide6.QtGui import QAction, QImage, QWheelEvent
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
     QInputDialog,
+    QMenu,
     QMessageBox,
     QPushButton,
 )
@@ -4224,3 +4225,32 @@ def test_a_phone_status_heard_at_no_time_is_said_as_last_heard(
     win.session["summer_time"] = True
     for at in (1e20, "1e20", -1e20):
         assert win._heard(camera, {"at_ms": at}) == "last heard"
+
+
+def about(win: mw.MainWindow, monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """What About shows, from Help as the referee opens it: the box's text."""
+    shown: list[str] = []
+
+    def box(parent: object, title: str, text: str) -> None:
+        assert title == "About PhotoFinish"
+        shown.append(text)
+
+    monkeypatch.setattr(mw.QMessageBox, "about", box)
+    menus = win.menuBar().findChildren(QMenu)
+    (help_menu,) = [menu for menu in menus if menu.title() == "Help"]
+    (action,) = help_menu.actions()
+    assert action.text() == "About PhotoFinish"
+    assert action.menuRole() == QAction.MenuRole.AboutRole  # macOS: the program's menu
+    action.trigger()
+    assert len(shown) == 1
+    return shown
+
+
+def test_about_says_the_program_s_version(
+    win: mw.MainWindow, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (text,) = about(win, monkeypatch)
+    assert f"PhotoFinish {version()}<" in text
+    monkeypatch.setattr(mw, "version", lambda: "")  # a build that cannot tell its own
+    (text,) = about(win, monkeypatch)
+    assert "PhotoFinish, its version unknown<" in text
