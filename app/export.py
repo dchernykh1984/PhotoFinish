@@ -28,6 +28,7 @@ import av
 import numpy as np
 
 from app import sound
+from app.files import retried
 from app.recorder.segments import NAMED, SEGMENTS, frame_times, in_ms
 from app.video_index import VideoIndex
 
@@ -397,7 +398,7 @@ class _Out:
 
     def _sound_stream(self, piece: sound.Piece) -> Any:
         """The file's sound, made from the segment the first piece came from."""
-        with av.open(str(piece.path)) as heard:
+        with retried(lambda: av.open(str(piece.path))) as heard:  # held a moment
             made = self.container.add_stream_from_template(heard.streams.audio[0])
         made.time_base = Fraction(1, piece.form.rate)
         return made

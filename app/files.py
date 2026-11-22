@@ -34,7 +34,7 @@ def write_in_one_step(path: Path, data: bytes) -> None:
 def replace(source: Path, target: Path) -> None:
     """``source`` renamed over ``target``, tried again while another process holds
     one of them a moment (Windows)."""
-    _retried(lambda: source.replace(target))
+    retried(lambda: source.replace(target))
 
 
 def stat(path: Path) -> tuple[int, int, int] | None:
@@ -49,7 +49,7 @@ def stat(path: Path) -> tuple[int, int, int] | None:
 
 def read_bytes(path: Path) -> bytes:
     """The file's bytes, read again while another process is replacing it."""
-    return _retried(path.read_bytes)
+    return retried(path.read_bytes)
 
 
 def read_json(path: Path) -> dict[str, Any] | None:
@@ -78,10 +78,10 @@ def append(path: Path, data: bytes) -> None:
             f.flush()
             os.fsync(f.fileno())
 
-    _retried(once)
+    retried(once)
 
 
-def _retried[T](act: Callable[[], T]) -> T:
+def retried[T](act: Callable[[], T]) -> T:
     """``act`` done; tried again while another process holds the file a moment
     (Windows), its error raised at the last try."""
     for _ in range(TRIES - 1):
