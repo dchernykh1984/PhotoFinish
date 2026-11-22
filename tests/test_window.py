@@ -4282,7 +4282,8 @@ def test_about_says_each_phone_s_app_as_the_phone_said_it_at_its_start(
     said = "PhotoFinish Camera 0.13.1 on <b>Xiaomi</b> 25113PN0EC, Android 16 (API 36)"
     folder = base / "video" / "cam2"
     folder.mkdir(parents=True)
-    log = f"2026-11-22 10:15:03.123 I - #1 {said}\n"
+    mark = "--- run 0123456789abcdef from line 1"
+    log = f"{mark}\n2026-11-22 10:15:03.123 I - #1 {said}\n"
     (folder / "phone.log").write_text(log, encoding="utf-8")
     (text,) = about(make_window(), monkeypatch)
     lines = text.split("<br>")
@@ -4388,13 +4389,13 @@ def test_about_says_the_phone_s_newest_start_whichever_lens_s_log_holds_it(
     tele["settings"] = {"port": 2000, "path": "live/cam2"}
     session.save({**session.DEFAULTS, "cameras": [main, tele]})
     app = "PhotoFinish Camera {} on Xiaomi 25113PN0EC, Android 16 (API 36)"
-    for camera_id, when, version_said, written in (
-        ("cam1", "2026-10-25 02:40:00.000", "0.12.0", 1_000_000),
-        ("cam2", "2026-10-25 02:10:00.000", "0.13.1", 2_000_000),
+    for camera_id, run, when, version_said, written in (
+        ("cam1", "0123456789abcdef", "2026-10-25 02:40:00.000", "0.12.0", 1_000_000),
+        ("cam2", "fedcba9876543210", "2026-10-25 02:10:00.000", "0.13.1", 2_000_000),
     ):
         folder = base / "video" / camera_id
         folder.mkdir(parents=True)
-        line = f"{when} I - #1 {app.format(version_said)}\n"
+        line = f"--- run {run} from line 1\n{when} I - #1 {app.format(version_said)}\n"
         (folder / "phone.log").write_text(line, encoding="utf-8")
         os.utime(folder / "phone.log", (written, written))
     (text,) = about(make_window(), monkeypatch)

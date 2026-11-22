@@ -35,6 +35,7 @@ _SEQ = re.compile(r"\S+ \S+ [IWEwe] \S+ #(\d+) ")
 # Android (FR-001) -- no longer than such a line is, as it came over the network.
 _START = re.compile(r"\S+ \S+ I - #\d+ (PhotoFinish Camera [\w.+-]{1,40} on .{1,120})")
 _SAID = b"PhotoFinish Camera "  # in each such line: what is looked for first
+_MARK_AT = b"--- run "  # a mark's head: the run its lines that follow are of
 
 
 def _now_ms() -> int:
@@ -207,16 +208,24 @@ def last_word(said: object, now_ms: int) -> str:
 
 
 def newest_start(folders: Iterable[Path]) -> str | None:
-    """The app's newest start a phone's lens cameras' logs hold: the one of the log
-    written last that holds one -- a lens no longer recorded keeps an older, and the
+    """The phone's app's start as it said it (FR-001) for its run at work: the run of
+    the lens log written last -- a lens no longer recorded keeps an older run, and the
     times the lines keep are this computer's local ones, the hour the clocks go back
-    said twice. Read from the newest log on till one holds it: About asks it on the
-    window's thread. "" when none holds one any longer -- days of a log since the
-    app started --; None for no log at all."""
+    said twice --; read from the logs, newest first, till one holds that run's start:
+    a recorder that heard the run late, the phone no longer holding its start, has
+    none of it. About asks it on the window's thread. "" when no log holds it -- or
+    days of a log since --; None for no log at all."""
     logs = [(w, folder) for folder in folders if (w := _written(folder)) is not None]
+    run: str | None = None
     for _, folder in sorted(logs, reverse=True):
-        if said := started(folder):
-            return said
+        for path in (folder / FILE, folder / (FILE + ".1")):
+            try:
+                kept = path.read_bytes()
+            except OSError:
+                continue
+            run = run or _run_at(kept, len(kept))
+            if run is not None and (said := _start_of(kept, run)):
+                return said
     return "" if logs else None
 
 
@@ -228,25 +237,30 @@ def _written(folder: Path) -> float | None:
     return None
 
 
-def started(folder: Path) -> str:
-    """The app's newest start a camera's log holds: its version, its phone and
-    Android, as the app said them first (FR-001) -- read from the file kept before
-    when the one begun since holds none; "" when neither does. Each file read whole,
-    then looked through from its end, the lines that may be one only."""
-    for path in (folder / FILE, folder / (FILE + ".1")):
-        try:
-            kept = path.read_bytes()
-        except OSError:
-            continue
-        end = len(kept)
-        while (at := kept.rfind(_SAID, 0, end)) >= 0:
-            end = kept.rfind(b"\n", 0, at) + 1  # its line's: looked before it next
-            stop = kept.find(b"\n", at)
-            line = kept[end : len(kept) if stop < 0 else stop].decode(errors="replace")
-            found = _START.fullmatch(line.removesuffix("\r"))  # written as text
-            if found is not None:
-                return found.group(1)
+def _start_of(kept: bytes, run: str) -> str:
+    """``run``'s start a log holds, looked for from its end, the lines that may be one
+    only: an app's start line whose run -- its last mark's before it -- is ``run``;
+    "" when it holds none."""
+    end = len(kept)
+    while (at := kept.rfind(_SAID, 0, end)) >= 0:
+        end = kept.rfind(b"\n", 0, at) + 1  # its line's: looked before it next
+        stop = kept.find(b"\n", at)
+        line = kept[end : len(kept) if stop < 0 else stop].decode(errors="replace")
+        found = _START.fullmatch(line.removesuffix("\r"))  # written as text
+        if found is not None and _run_at(kept, end) == run:
+            return found.group(1)
     return ""
+
+
+def _run_at(kept: bytes, end: int) -> str | None:
+    """The run of a log's line ending before ``end``: its last mark's before it -- a
+    mark begins its line; a phone's text saying one is no mark --; None for none."""
+    while (at := kept.rfind(_MARK_AT, 0, end)) >= 0:
+        if at == 0 or kept[at - 1] == ord("\n"):
+            found = _MARK.match(kept[at : at + 64].decode(errors="replace"))
+            return None if found is None else found.group(1)
+        end = at
+    return None
 
 
 def _read(
