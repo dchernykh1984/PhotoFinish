@@ -109,7 +109,12 @@ class Timeline(QWidget):
         return self.x_at(second) - self.x_at(first) >= PICK_PX
 
     def paintEvent(self, event: QPaintEvent) -> None:  # noqa: N802 - Qt's name
-        painter = QPainter(self)
+        # Ended whatever the drawing does: a painter left open breaks the window's
+        # next paints, and Qt crashes in its backing store.
+        with QPainter(self) as painter:
+            self._paint(painter)
+
+    def _paint(self, painter: QPainter) -> None:
         height = self.height()
         painter.fillRect(self.rect(), QColor(45, 45, 45))
         recorded = [(self.start, self.end)] if self.frames.size else []
@@ -128,7 +133,6 @@ class Timeline(QWidget):
         if x is not None and 0 <= x <= self.width():
             painter.setPen(QColor(255, 210, 0))
             painter.drawLine(QPointF(x, 0), QPointF(x, height))
-        painter.end()
 
     def _shown(self, spans: list[tuple[int, int]]) -> list[tuple[float, float]]:
         """Where each span lies across the widget, cut a pixel past its sides; one

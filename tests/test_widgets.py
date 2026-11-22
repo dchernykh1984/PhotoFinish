@@ -10,7 +10,7 @@ import numpy as np
 import pytest
 import segno
 from PySide6.QtCore import QPoint, QPointF, Qt
-from PySide6.QtGui import QColor, QFont, QImage, QPixmap, QWheelEvent
+from PySide6.QtGui import QColor, QFont, QImage, QPainter, QPixmap, QWheelEvent
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QFileDialog
 
@@ -614,6 +614,32 @@ def test_the_timeline_paints_spans_far_from_its_view() -> None:
     timeline.zoom(0.0, 1000)
     assert timeline.view[1] - timeline.view[0] == LEAST_VIEW_MS
     timeline.grab()
+
+
+def test_a_widget_whose_drawing_fails_leaves_no_painter_open(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A paint that raised kept its painter open: the window's next paints failed,
+    # and Qt crashed in its backing store (0.14.0).
+    painters: list[QPainter] = []
+
+    def fails(painter: QPainter, *args: object) -> None:
+        painters.append(painter)
+        raise RuntimeError("drawing")
+
+    view = CameraView()
+    view.resize(200, 120)
+    view.show_image(QImage(160, 90, QImage.Format.Format_RGB888))
+    monkeypatch.setattr(QPainter, "drawImage", fails)
+    with pytest.raises(RuntimeError):
+        view.grab()
+    timeline = Timeline()
+    timeline.resize(200, 48)
+    monkeypatch.setattr(Timeline, "_tick_frames", lambda self, painter: fails(painter))
+    with pytest.raises(RuntimeError):
+        timeline.grab()
+    assert len(painters) == 2
+    assert not any(painter.isActive() for painter in painters)
 
 
 def test_the_timeline_draws_a_span_cut_at_its_side_and_none_past_it() -> None:

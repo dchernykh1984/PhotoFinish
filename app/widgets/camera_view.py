@@ -84,12 +84,16 @@ class CameraView(QWidget):
             self.clicked.emit(point)
 
     def paintEvent(self, event: QPaintEvent) -> None:  # noqa: N802 - Qt's name
-        painter = QPainter(self)
+        # Ended whatever the drawing does: a painter left open breaks the window's
+        # next paints, and Qt crashes in its backing store.
+        with QPainter(self) as painter:
+            self._paint(painter)
+
+    def _paint(self, painter: QPainter) -> None:
         painter.fillRect(self.rect(), QColor(20, 20, 20))
         if self.image.isNull():
             painter.setPen(QColor(200, 200, 200))
             painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, self.text)
-            painter.end()
             return
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
         painter.drawImage(self.image_rect(), self.image)
@@ -110,4 +114,3 @@ class CameraView(QWidget):
         if self.chosen:
             painter.setPen(QPen(QColor(80, 160, 255), 3))
             painter.drawRect(self.rect().adjusted(1, 1, -2, -2))
-        painter.end()
