@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QResizeEvent
 from PySide6.QtWidgets import QLabel
 
@@ -24,5 +25,8 @@ class WholeLabel(QLabel):
         self._hold()
 
     def _hold(self) -> None:
-        if self.isVisible():  # laid out: its width is the one it is shown at
-            self.setMinimumHeight(self.heightForWidth(self.width()))
+        # Once laid out: the width it had before is none it is shown at, and the
+        # window, made as high as that asks, would stay so.
+        if self.testAttribute(Qt.WidgetAttribute.WA_Resized):
+            # -1 for a label never given a text: no height of its own.
+            self.setMinimumHeight(max(self.heightForWidth(self.width()), 0))

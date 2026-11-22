@@ -31,6 +31,7 @@ from PySide6.QtWidgets import (
 
 from app import cameras
 from app.recorder.testcam import SCENES
+from app.widgets.whole_label import WholeLabel
 
 CONNECTION_NAMES = {  # the phone's streaming app first: the camera PhotoFinish expects
     "rtmp": "Phone streaming app, sending here (RTMP)",
@@ -138,12 +139,10 @@ class CameraDialog(QDialog):
         size_row.addWidget(self.width_box)
         size_row.addWidget(QLabel("x"))
         size_row.addWidget(self.height_box)
-        self.advice = QLabel()  # said, the OK left to the referee
+        self.advice = WholeLabel()  # said, the OK left to the referee
         self.advice.setStyleSheet("color: #b07000")
-        self.advice.setWordWrap(True)
-        self.problems = QLabel()
+        self.problems = WholeLabel()
         self.problems.setStyleSheet("color: #c03030")
-        self.problems.setWordWrap(True)
         self.buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )

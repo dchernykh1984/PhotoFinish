@@ -214,6 +214,25 @@ def test_the_front_beside_a_back_lens_is_advised_whatever_the_size_chosen_on_the
     assert "1920x1440" in dialog.advice.text()
 
 
+def test_the_advice_and_the_qr_code_are_shown_whole_however_small_the_dialog(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Four lenses ticked: the advice wraps over lines, the code holds four. A screen
+    # that cannot show the dialog at its size gives it its least, which must still
+    # hold both: the code cut would not scan.
+    monkeypatch.setattr(cameras, "this_computer", lambda: "10.0.0.5")
+    dialog = CameraDialog(None, "cam1", [], [], ["cam2", "cam3", "cam4"])
+    for tick in dialog.lenses.values():
+        tick.setChecked(True)
+    dialog.show()
+    dialog.resize(100, 100)  # as small as it goes
+    QApplication.processEvents()
+    advice = dialog.advice
+    assert advice.height() >= advice.heightForWidth(advice.width())
+    assert dialog.qr.height() >= dialog.qr.pixmap().height()
+    dialog.close()
+
+
 def test_more_than_two_lenses_are_advised_against_main_and_telephoto_advised(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
