@@ -28,5 +28,7 @@ class WholeLabel(QLabel):
         # Once laid out: the width it had before is none it is shown at, and the
         # window, made as high as that asks, would stay so.
         if self.testAttribute(Qt.WidgetAttribute.WA_Resized):
-            # -1 for a label never given a text: no height of its own.
+            # Measured with no least of its own: QLabel gives none under it, and the
+            # height once held would be held for good. -1: never given a text.
+            self.setMinimumHeight(0)
             self.setMinimumHeight(max(self.heightForWidth(self.width()), 0))

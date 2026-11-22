@@ -651,3 +651,33 @@ def test_a_frame_whose_rows_are_padded_is_shown_as_it_is(width: int) -> None:
         for x in (0, 100, width - 1):
             colour = image.pixelColor(x, y)
             assert (colour.red(), colour.green()) == (x % 256, y * 5)
+
+
+def test_a_whole_label_gives_back_its_height_to_a_shorter_text_or_more_width() -> None:
+    # Held as high as its text at its width, it is no higher once the text is short
+    # again, or the label wider: QLabel gives no height for a width under its least.
+    from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
+
+    from app.widgets.whole_label import WholeLabel
+
+    holder = QWidget()
+    layout = QVBoxLayout(holder)
+    label = WholeLabel()
+    layout.addWidget(label)
+    plain = QLabel()
+    plain.setWordWrap(True)
+    long = " ".join(["word"] * 60)
+    label.setText(long)
+    holder.resize(128, 600)
+    holder.show()
+    QApplication.processEvents()
+    tall = label.minimumHeight()
+    plain.setText(long)
+    assert tall == plain.heightForWidth(label.width()) > 100
+    holder.resize(1000, 600)
+    QApplication.processEvents()
+    assert label.minimumHeight() == plain.heightForWidth(label.width()) < tall
+    label.setText("short")
+    plain.setText("short")
+    assert label.minimumHeight() == plain.heightForWidth(label.width())
+    holder.close()
