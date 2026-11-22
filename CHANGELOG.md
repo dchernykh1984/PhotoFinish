@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.13.1](https://github.com/dchernykh1984/PhotoFinish/compare/v0.13.0...v0.13.1) (2026-11-22)
+
+
+### Bug Fixes
+
+* copy a crash's frames not listed only where a listed frame after them needs them, and list none that cannot decode from a keyframe in the copy ([8532a11](https://github.com/dchernykh1984/PhotoFinish/commit/8532a11afbda9d8426d91bb40d0d922895a6a153))
+* import the number reader where a stopped recorder is told, never as the recorder loads, which phone_status's import of cameras comes back to ([5f0b9c5](https://github.com/dchernykh1984/PhotoFinish/commit/5f0b9c548c82d0e705433985e8fe34f6dcb515db))
+* keep the frames sent again in a crash's copy, so a segment begun on them recovers from its keyframe, never undecodable ([ce4656b](https://github.com/dchernykh1984/PhotoFinish/commit/ce4656b2bf63954cad3388b238024d040bd6157d))
+* let a frame sent again the crash's copy refuses cost itself, never the recovery of the frames listed ([07c97c5](https://github.com/dchernykh1984/PhotoFinish/commit/07c97c5eb50e4face759bbbf9563572c34a033c5))
+* read a heartbeat's numbers as numbers or none, so one written by hand or another version never stops the window's poll ([420dfda](https://github.com/dchernykh1984/PhotoFinish/commit/420dfda57911c4101e4a3421b4aaf54b83713a49))
+* read the analyser's progress as a number or none, so its file written by hand never stops the window's poll ([002d75b](https://github.com/dchernykh1984/PhotoFinish/commit/002d75b9a168e1bd2fec52eada8179d34519c3cd))
+* say a full disk the crash copy meets, never taken for a frame it refused and the recovery named cut short ([c3bb39e](https://github.com/dchernykh1984/PhotoFinish/commit/c3bb39e96076f2f24b8bb412bee69653ed4f7428))
+* say a phone status heard at no time -- an infinity, a word -- as last heard, never a poll stopped by it ([a0d5d99](https://github.com/dchernykh1984/PhotoFinish/commit/a0d5d99863b217801b83f5edb388a7675c90a04a))
+* say a phone status heard past the years the platform's clock holds as last heard, never a poll stopped by it ([8365577](https://github.com/dchernykh1984/PhotoFinish/commit/8365577e92c6037b69c7d612f9f68f279e207bd9))
+* say a recorder's frames as a number however its heartbeat writes them, never the junk written ([1a2db53](https://github.com/dchernykh1984/PhotoFinish/commit/1a2db53081af6fd4a5e86ae741386c8ba7f9e3fa))
+* say the phone's last word whatever number its times are written as, never hidden for a float or a string ([6048d29](https://github.com/dchernykh1984/PhotoFinish/commit/6048d29c6df5ef6eafb8753ac4dbe18128715def))
+* tell a recorder stopped lately by its heartbeat's time read as the window reads it, a number however written ([ff2a9f8](https://github.com/dchernykh1984/PhotoFinish/commit/ff2a9f860b8591938995521e1ab9f59ccbe72b12))
+
+
+### Documentation
+
+* say how a review tries what libav's muxer does, a refused packet and a write error, instead of reading it ([fb9b599](https://github.com/dchernykh1984/PhotoFinish/commit/fb9b59984076f5a1fbc9f7accaf7312c375a5b40))
+* say what a crash's copy keeps of a phone's frames sent again and what a frame it cannot take costs ([b4ba6a4](https://github.com/dchernykh1984/PhotoFinish/commit/b4ba6a4b0fa4098eb27698864e8f8fdbcee7a9af))
+
 ## [0.13.0](https://github.com/dchernykh1984/PhotoFinish/compare/v0.12.0...v0.13.0) (2026-11-22)
 
 
