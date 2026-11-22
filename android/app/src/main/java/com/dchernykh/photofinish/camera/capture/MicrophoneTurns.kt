@@ -16,7 +16,7 @@ internal class MicrophoneTurns<T : Any>(
     private val open: () -> T?,
     /** What [open] gave read on a thread of its own, started, until its word to go on is false: the thread. */
     private val read: (T, AtomicBoolean) -> Thread,
-    /** Told whether it runs: as it starts, before its thread can fail, and as it fails. */
+    /** Told whether it runs: as it starts, before its thread can fail, as it fails, and as it stops. */
     private val sounded: (Boolean) -> Unit,
     private val refused: () -> Unit,
     private val reader: Reader = Reader.shared,
@@ -76,12 +76,13 @@ internal class MicrophoneTurns<T : Any>(
         return true
     }
 
-    /** Stopped: its reader told to end, never waited for. */
+    /** Stopped: its reader told to end, never waited for; its stream told it runs no more. */
     @Synchronized
     fun stop() {
         wanted = false
         running?.set(false)
         running = null
+        sounded(false) // a connection made now waits for no sound's config
     }
 
     /** Not allowed the microphone: said the first time, the stream going without sound; nothing opened. */
