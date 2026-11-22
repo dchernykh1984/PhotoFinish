@@ -824,6 +824,7 @@ class MainWindow(QMainWindow):
         elif camera.shown is None:
             camera.view.show_text("No video yet")
         self._refresh(force=True)  # the frame at the moment, or the newest when live
+        self._show_stretches()
         self._play_sound()  # playing on: the sound of the camera shown now (013)
 
     def _camera(self) -> Camera | None:
@@ -1816,7 +1817,14 @@ class MainWindow(QMainWindow):
         self._follow_files()
         self._refresh()
         self._follow_sound()
+        self._show_stretches()
+
+    def _show_stretches(self) -> None:
+        """The chosen camera's stretches with a rider in view, on the timeline --
+        none while riders are not looked for -- at each poll, and at once when
+        another camera is chosen: not the one's before till the next poll."""
         current = self._camera()
+        finding = self.analysis_box.isChecked()
         stretches = current.activity.stretches if current and finding else []
         offset = self._offset()
         self.timeline.set_stretches([(a + offset, b + offset) for a, b in stretches])
