@@ -492,3 +492,16 @@ def test_a_phone_s_start_is_its_run_at_work_s_from_whichever_lens_log_holds_it(
     assert phone_log.newest_start([main, front]) == ""  # the run's start held nowhere
     assert phone_log.newest_start([main]) == APP.format("0.12.0")
     assert phone_log.newest_start([tmp_path / "none"]) is None  # no log at all
+
+
+def test_a_log_there_that_cannot_be_read_is_said_so_not_taken_from_the_one_before(
+    tmp_path: Path,
+) -> None:
+    # The run at work is the log's: one there and not to be read leaves it unknown --
+    # the file kept before holds an older run, whose start would be taken for it.
+    said = APP.format("0.12.0")
+    before = f"--- run {RUN} from line 1\n2026-11-21 10:00:00.000 I - #1 {said}\n"
+    (tmp_path / (phone_log.FILE + ".1")).write_text(before, encoding="utf-8")
+    (tmp_path / phone_log.FILE).mkdir()  # there, and no file to be read
+    with pytest.raises(OSError):
+        phone_log.newest_start([tmp_path])
