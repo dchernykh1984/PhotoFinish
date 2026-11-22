@@ -603,3 +603,20 @@ def test_the_log_s_lines_end_as_its_room_counts_them(
     data = path.read_bytes()
     assert b"\r\n" not in data
     assert data.count(b"\n") >= 6
+
+
+def test_qt_objects_failing_at_their_end_are_one_error_whatever_their_pointers() -> (
+    None
+):
+    # PySide names a C++ object's pointer in brackets besides where its Python
+    # side lives: each new widget's finalizer error was a new error, the room
+    # used up by them.
+    file = io.StringIO()
+    log = window_log.WindowLog(file)
+    for k in range(5):
+        said = (
+            "Exception ignored in: "
+            f"<PySide6.QtCore.QObject(0x79d00{k}4500) at 0x10649{k}100>"
+        )
+        log.error(RuntimeError, RuntimeError("bare"), None, said)
+    assert file.getvalue().count("RuntimeError: bare") == 1
