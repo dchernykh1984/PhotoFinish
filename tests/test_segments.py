@@ -1350,19 +1350,22 @@ def test_a_crash_that_began_on_frames_sent_again_recovers_from_its_keyframe(
     assert opening.is_keyframe  # every frame listed in it decoded from it
 
 
-def test_a_frame_sent_again_the_copy_refuses_costs_itself_never_the_recovery(
+def test_a_frame_the_copy_refuses_never_leaves_frames_listed_that_cannot_decode(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    # The keyframe a phone sent again refused: the frames after it decode from none,
+    # so none of them is listed -- a frame shown at another's moment is worse than
+    # none. With no keyframe after it in the crash, nothing is recovered of it.
     folder, closed = resent_crash(tmp_path)
 
-    class RefusingUnlisted(RefusingSound):
-        """A copy whose muxer refuses the first frame, one sent again."""
+    class RefusingFirst(RefusingSound):
+        """A copy whose muxer refuses the first frame, the keyframe sent again."""
 
         refused = False
 
         def mux(self, packet: av.Packet) -> None:
-            if packet.stream.type == "video" and not RefusingUnlisted.refused:
-                RefusingUnlisted.refused = True
+            if packet.stream.type == "video" and not RefusingFirst.refused:
+                RefusingFirst.refused = True
                 raise av.FFmpegError(22, "refused")
             self.real.mux(packet)
 
@@ -1371,13 +1374,13 @@ def test_a_frame_sent_again_the_copy_refuses_costs_itself_never_the_recovery(
     def opened(path: Any, *args: Any, **kwargs: Any) -> Any:
         made = real(path, *args, **kwargs)
         copy = str(path).endswith(segments_module.RECOVERED_MKV)
-        return RefusingUnlisted(made) if copy else made
+        return RefusingFirst(made) if copy else made
 
     monkeypatch.setattr(segments_module.av, "open", opened)
     names = segments_module.recover(folder)
     monkeypatch.undo()
-    assert RefusingUnlisted.refused
-    assert len(names) == closed + 1  # its listed frames recovered all the same
+    assert RefusingFirst.refused
+    assert len(names) == closed  # none listed that would show another frame
 
 
 def test_a_crash_whose_sound_the_copy_refuses_keeps_its_frames(
