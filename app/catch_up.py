@@ -38,8 +38,8 @@ class CatchUp:
         status not heard for a while -- the phone gone quiet -- is told as last heard,
         with no estimate: nothing comes in meanwhile."""
         readings: dict[str, Any] = status if isinstance(status, dict) else {}
-        held = _number(readings.get("unsent_ms"))
-        heard = _number(readings.get("heard_ms"))
+        held = phone_status.whole(readings.get("unsent_ms"))
+        heard = phone_status.whole(readings.get("heard_ms"))
         if held is None or heard is None or held < SAID_MS:
             self.peak = 0
             self.said.clear()
@@ -93,9 +93,3 @@ def span(ms: int) -> str:
     if hours:
         return f"{hours}:{minutes:02d}:{seconds:02d}"
     return f"{minutes}:{seconds:02d}"
-
-
-def _number(value: object) -> int | None:
-    """A reading as a whole number, read as the phone's other readings are."""
-    found = phone_status.number(value)
-    return None if found is None else int(found)

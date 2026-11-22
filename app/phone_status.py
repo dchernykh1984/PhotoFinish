@@ -89,3 +89,9 @@ def number(value: object) -> float | None:
     except ValueError:
         return None
     return found if found is not None and math.isfinite(found) else None
+
+
+def whole(value: object) -> int | None:
+    """A reading as a whole number, read as ``number`` reads it."""
+    found = number(value)
+    return None if found is None else int(found)
