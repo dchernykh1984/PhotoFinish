@@ -221,7 +221,8 @@ class Watchdog:
             # gone. A beat from before its start is a dead one's, maybe.
             beat = None if info is None else _ms(info, "heartbeat_ms")
             own = process is not None and beat != self._start_beat
-            return alive(info) or (own and _ahead(info))
+            at_work = info is not None and info.get("state") not in ENDED
+            return alive(info) or (own and at_work and _ahead(info))
         now = time.monotonic()
         if code != 3 and self._dead is not process:
             info = heartbeat(self.camera_id)  # read since its end: no beat of it after
