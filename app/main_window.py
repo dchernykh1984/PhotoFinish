@@ -289,6 +289,7 @@ class MainWindow(QMainWindow):
         self.suggestion_list.itemClicked.connect(self._suggestion_picked)
 
         self.setCentralWidget(self._layout())
+        self.resize(1660, 900)  # as it opened before its lists could be lower
         self._shortcuts()
         self._menus()
         for camera in self.session["cameras"]:
@@ -486,6 +487,16 @@ class MainWindow(QMainWindow):
         # text: a splitter's part gives a wrapped label what it had, its text grown.
         column.addWidget(self.recording_banner)
         column.addWidget(self.phones)
+        # Two lines of each list at least, a table's head and a line: the window's
+        # least then fits a 1920x1080 screen, the corner's word and a phone of four
+        # lenses' lines whole above them. They scroll; a larger window gives them more.
+        for listed in (self.camera_list, self.suggestion_list):
+            text = 2 * listed.fontMetrics().lineSpacing()
+            listed.setMinimumHeight(text + 2 * listed.frameWidth())
+        for table in (self.input_view, self.output_view):
+            head = table.horizontalHeader().sizeHint().height()
+            line = table.verticalHeader().defaultSectionSize()
+            table.setMinimumHeight(head + line + 2 * table.frameWidth())
         parts = QSplitter(Qt.Orientation.Vertical)
         for n, part in enumerate((cameras, inputs, outputs, suggested)):
             part.setContentsMargins(0, side if n else 0, 0, side)

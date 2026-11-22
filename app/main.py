@@ -38,7 +38,6 @@ def main() -> None:
         qapp.setDesktopFileName(_APP_NAME.lower().replace(" ", "-"))
 
     window = MainWindow()
-    window.resize(1000, 700)
     window.show()
     sys.exit(qapp.exec())
 
