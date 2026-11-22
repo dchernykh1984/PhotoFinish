@@ -277,7 +277,8 @@ def start(
     def thread_hook(args: threading.ExceptHookArgs) -> None:
         if not issubclass(args.exc_type, SystemExit):  # Python's hook ignores it too
             with contextlib.suppress(Exception):
-                log.error(args.exc_type, args.exc_value, args.exc_traceback)
+                which = "" if args.thread is None else f"in thread {args.thread.name}"
+                log.error(args.exc_type, args.exc_value, args.exc_traceback, which)
         threads(args)
 
     def unraisable_hook(args: sys.UnraisableHookArgs) -> None:

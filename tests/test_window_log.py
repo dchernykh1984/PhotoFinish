@@ -997,3 +997,17 @@ def test_stacks_that_cannot_be_turned_off_are_tried_once(
         "a crash's stacks could not be turned off: "
         "RuntimeError: not enabled by this thread"
     ]
+
+
+def test_a_thread_s_error_names_the_thread(tmp_path: Path, hooks: list[object]) -> None:
+    # Python's own hook says which thread, to a stderr a window started from
+    # Finder or Explorer does not have: which worker failed was lost.
+    path = tmp_path / "window.log"
+    log = window_log.start(
+        path, "1.0.0", enable=lambda file: None, disable=lambda: None
+    )
+    assert log is not None
+    thread = threading.Thread(target=lambda: 1 / 0, name="decoding cam2")
+    thread.start()
+    thread.join()
+    assert "in thread decoding cam2" in path.read_text(encoding="utf-8")
