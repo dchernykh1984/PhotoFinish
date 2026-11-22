@@ -876,3 +876,16 @@ def test_a_dead_recorder_s_beat_ahead_of_the_clock_is_not_this_window_s_at_work(
         clock["now"] = moment
         watchdog.poll()
     assert len(spawns.processes) > 1
+
+
+def test_a_recorder_of_this_window_that_ended_is_not_at_work_its_beat_ahead(
+    folder: Path, clock: dict[str, float]
+) -> None:
+    # Its last word an end, written ahead of the clock set back, its process not
+    # yet gone: recording asked again starts one, not attaching to that end.
+    spawns = Spawns()
+    watchdog = Watchdog("cam1", spawns)
+    watchdog.start()
+    beat(folder, "stopped", age_ms=-60_000)
+    watchdog.start()
+    assert len(spawns.processes) == 2
