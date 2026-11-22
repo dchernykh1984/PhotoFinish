@@ -341,19 +341,32 @@ def _watch(log: WindowLog, disable: Callable[[], object] | None) -> None:
             _stacks_off(log, disable, error)
             disable = None
     while not log.stopped.wait(WATCH_S) and not log.file.closed:
-        log.tick()
-        if disable is None:
-            continue
         try:
-            size = os.fstat(log.file.fileno()).st_size
-        except OSError, ValueError:  # the file closed meanwhile
-            return
-        if size > room:
-            disable()
-            log.write(
-                "the log is full for this run: a crash's stacks are no longer written"
-            )
-            disable = None
+            log.tick()
+            if disable is not None:
+                disable = _look(log, room, disable)
+        except Exception as error:  # it goes on: the minutes, the stacks' room
+            with contextlib.suppress(Exception):
+                log.write(f"the log's watch met {type(error).__name__}: {error}")
+
+
+def _look(
+    log: WindowLog, room: int, disable: Callable[[], object]
+) -> Callable[[], object] | None:
+    """The stacks still on, or None: the log grown past ``room``, they are turned
+    off and that said; with no size to keep them in, off too -- quietly when the
+    file is gone with the window."""
+    try:
+        size = os.fstat(log.file.fileno()).st_size
+    except (OSError, ValueError) as error:
+        if not log.file.closed:
+            _stacks_off(log, disable, error)
+        return None
+    if size <= room:
+        return disable
+    disable()
+    log.write("the log is full for this run: a crash's stacks are no longer written")
+    return None
 
 
 def _set_aside(path: Path) -> None:

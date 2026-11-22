@@ -698,7 +698,7 @@ def test_the_watch_goes_on_having_minutes_said_after_the_stacks_are_off(
 
             def tick(self) -> None:
                 self.ticks += 1
-                if self.ticks == 1:  # stacks past the room: 2 x 10 bytes
+                if self.ticks == 2:  # stacks past the room: 2 x 10 bytes
                     file.write("Windows fatal exception: access violation\n")
                     file.flush()
                 if self.ticks == 3:
@@ -814,8 +814,11 @@ def test_the_watch_ends_when_the_log_s_file_goes_while_it_looks(
     with (tmp_path / "window.log").open("a") as real:
 
         class Going:
-            closed = False  # closed between its look and its size
             calls = 0
+
+            @property
+            def closed(self) -> bool:  # closed between its look and its size
+                return self.calls > 1
 
             def fileno(self) -> int:
                 self.calls += 1
@@ -830,3 +833,69 @@ def test_the_watch_ends_when_the_log_s_file_goes_while_it_looks(
             write=lambda text: None,
         )
         window_log._watch(log, lambda: None)  # type: ignore[arg-type]
+
+
+def test_the_watch_goes_on_after_an_error_of_its_own(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Anything raised in a pass ended the thread: the minutes went unsaid again,
+    # and the stacks had no room kept.
+    monkeypatch.setattr(window_log, "WATCH_S", 0.0)
+    said: list[str] = []
+    stopped = threading.Event()
+    ticks = [0]
+
+    def tick() -> None:
+        ticks[0] += 1
+        if ticks[0] == 1:
+            raise OverflowError("timestamp out of range for platform time_t")
+        if ticks[0] == 3:
+            stopped.set()
+
+    log = SimpleNamespace(
+        tick=tick,
+        file=SimpleNamespace(closed=False),
+        stopped=stopped,
+        write=said.append,
+    )
+    window_log._watch(log, None)  # type: ignore[arg-type]
+    assert ticks[0] == 3
+    assert said == [
+        "the log's watch met OverflowError: timestamp out of range for platform time_t"
+    ]
+
+
+def test_the_watch_turns_the_stacks_off_when_the_log_s_size_goes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The file still open, its size no longer to be had: no room to keep the
+    # stacks in, so none, and that said.
+    monkeypatch.setattr(window_log, "WATCH_S", 0.0)
+    said: list[str] = []
+    turned_off: list[bool] = []
+    stopped = threading.Event()
+    with (tmp_path / "window.log").open("a") as real:
+
+        class Sizeless:
+            closed = False
+            calls = 0
+
+            def fileno(self) -> int:
+                self.calls += 1
+                if self.calls > 1:
+                    raise OSError("the network share went away")
+                return real.fileno()
+
+        def tick() -> None:
+            if said:
+                stopped.set()
+
+        log = SimpleNamespace(
+            tick=tick, file=Sizeless(), stopped=stopped, write=said.append
+        )
+        window_log._watch(log, lambda: turned_off.append(True))  # type: ignore[arg-type]
+    assert turned_off == [True]
+    assert said == [
+        "a crash's stacks are not written this run: "
+        "OSError: the network share went away"
+    ]
