@@ -15,6 +15,7 @@ from typing import Any
 
 from app.analysis.analyzer import ACTIVITY
 from app.files import Appended, read_json
+from app.phone_status import number
 
 JOIN_MS = 1000  # pieces this close are one stretch
 _STEP_MS = 300  # "next" from inside a stretch's first moments is the one after
@@ -81,7 +82,7 @@ def how_far(progress: dict[str, Any] | None, newest_ms: int | None) -> str:
     progress = progress or {}
     if progress.get("state") == "failed":
         return str(progress.get("detail") or "cannot be found")
-    done = progress.get("done_ms")
+    done = number(progress.get("done_ms"))  # a file written by hand: not a number
     if done is None:
         return "not found yet"
     behind = 0 if newest_ms is None else newest_ms - int(done)

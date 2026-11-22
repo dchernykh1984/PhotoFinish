@@ -66,3 +66,7 @@ def test_how_far_the_analyser_has_got_is_said_in_words() -> None:
     assert how_far({"done_ms": 7_000}, 10_000) == "up to date"
     assert how_far({"done_ms": 6_999}, 10_000) == "3 s behind"
     assert how_far({"done_ms": 7_000}, None) == "up to date"  # nothing recorded yet
+    # Its file written by hand, or by another version: not found yet, never a poll
+    # stopped by it.
+    for done in ("x", [1], "nan"):
+        assert how_far({"done_ms": done}, 10_000) == "not found yet"
