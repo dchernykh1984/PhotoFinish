@@ -8,6 +8,7 @@ import contextlib
 import faulthandler
 import math
 import os
+import re
 import reprlib
 import sys
 import threading
@@ -20,6 +21,7 @@ from typing import TextIO
 
 LIMIT_BYTES = 5_000_000  # a log past this at a start is set aside; a run's room
 AGAIN_S = 60.0  # an error again within this of its writing is counted, not written
+_ADDRESS = re.compile(r" at 0x[0-9a-fA-F]+")  # where an object lives, not what
 
 
 class WindowLog:
@@ -61,12 +63,10 @@ class WindowLog:
         with self._lock:
             text = "".join(traceback.format_exception(kind, value, tb)).rstrip("\n")
             way, name = _way(kind, tb)
-            if about:  # a finalizer's: whose, its traceback maybe none
-                text, way, name = (
-                    f"{about}\n{text}",
-                    f"{way} ({about})",
-                    f"{name} ({about})",
-                )
+            if about:  # a finalizer's: what Python said of it, whose
+                text, name = f"{about}\n{text}", f"{name} ({about})"
+                if tb is None:  # no way to know it by: by whose, then, wherever
+                    way = f"{way} ({_ADDRESS.sub('', about)})"  # it lives
             now = self._steady()
             self._said_again(now)
             seen = self._seen.get(way)  # an error come back in may have let it go
