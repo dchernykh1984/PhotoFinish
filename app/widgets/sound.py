@@ -90,7 +90,7 @@ class SoundPlayer(QObject):
         self._listed = 0  # the index's segments the pieces know of
         self._waited = 0  # polls the newest have waited for one whose times are held
         self._waited_for: frozenset[str] = frozenset()  # those waited for: once each
-        self._drained: float | None = None  # when the output ran dry, the picture on
+        self._drained: float | None = None  # when what was given plays out, the clock's
         self._said = ""  # the output's failure said last, until one starts
         self._render_said = ""  # a rendering's failure said last, until one renders
         self._timer = QTimer(self)
@@ -224,6 +224,7 @@ class SoundPlayer(QObject):
             # More than was rendered ahead as it started: the rest as it comes.
             self._unskipped = self._skip(self._unskipped)
             room = int(self._output.bytesFree())
+            wrote = False
             while self._chunks and room > 0:
                 chunk = self._chunks.popleft()
                 taken = int(self._device.write(chunk[:room]))
@@ -232,8 +233,12 @@ class SoundPlayer(QObject):
                 taken = max(taken, 0)
                 self._held -= taken
                 room -= taken
+                wrote = wrote or taken > 0
                 if not taken:
                     break
+            if wrote:  # what it holds now plays out then
+                queued = max(self._buffer - int(self._output.bytesFree()), 0)
+                self._drained = self._clock() + queued / (self._out_rate * self._frame)
             self._room.notify_all()
 
     def _skip(self, count: int) -> int:
@@ -249,20 +254,14 @@ class SoundPlayer(QObject):
         return count
 
     def _dry(self) -> None:
-        """The output run dry -- the sound waited for segments, the window busy --
-        while the picture played on: as much left out once the sound comes again,
-        so it keeps up with the picture. The lock held."""
-        if self._asked is not None or self._output is None:
-            return  # not begun
-        if not self._chunks:
-            # Empty, or as good as: an output's free room may stop a period short.
-            # Dry once what it still holds has played: never counted as silence.
-            queued = self._buffer - int(self._output.bytesFree())
-            if self._drained is None and queued <= self._buffer // 8:
-                held = max(queued, 0) / (self._out_rate * self._frame)
-                self._drained = self._clock() + held
-            return
-        if self._drained is not None:
-            late = max(self._clock() - self._drained, 0.0)
-            self._drained = None
+        """The output run dry -- the sound waited for segments, the window busy past
+        its buffer, the chunks waiting or not -- while the picture played on: as much
+        left out of what comes next, so it keeps up with the picture. Counted from when
+        what was given played out, never what it still held. The lock held."""
+        if self._asked is not None or self._output is None or self._drained is None:
+            return  # not begun, or nothing given yet
+        now = self._clock()
+        if now > self._drained:
+            late = now - self._drained
+            self._drained = now  # counted once: on from here
             self._unskipped += round(late * self._out_rate) * self._frame
