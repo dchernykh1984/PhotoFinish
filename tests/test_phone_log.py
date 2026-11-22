@@ -437,3 +437,14 @@ def test_the_app_s_start_is_read_from_the_file_kept_before_a_new_one_began(
     after = f"--- run {RUN} from line 90000\n2026-11-22 12:00:00.000 I main #90000 x\n"
     (tmp_path / phone_log.FILE).write_text(after, encoding="utf-8")
     assert phone_log.started(tmp_path) == APP.format("1.0")
+
+
+def test_the_app_s_start_is_read_whole_from_a_log_written_with_windows_line_ends(
+    tmp_path: Path,
+) -> None:
+    # The log is written as text: Windows ends each of its lines with "\r\n", and
+    # the app's start is said without the "\r".
+    said = APP.format("0.13.1")
+    lines = [f"--- run {RUN} from line 1", f"2026-11-22 10:15:03.123 I - #1 {said}"]
+    (tmp_path / phone_log.FILE).write_bytes("\r\n".join(lines).encode() + b"\r\n")
+    assert phone_log.started(tmp_path) == said

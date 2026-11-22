@@ -214,7 +214,7 @@ def started(folder: Path) -> str:
         except OSError:
             continue
         for line in reversed(lines):
-            found = _START.fullmatch(line)
+            found = _START.fullmatch(line.removesuffix("\r"))  # written as text
             if found is not None:
                 return found.group(1)
     return ""
