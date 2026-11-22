@@ -83,6 +83,10 @@ class FrameStore(
         private var flags = ByteArray(FIRST_ROOM)
         private var wallMs = 0L
 
+        /** Its newest frame's capture time -- a piece of sound kept after a frame may be older than it --, us. */
+        var newestUs = Long.MIN_VALUE
+            private set
+
         val size: Int get() = count
 
         fun isEmpty(): Boolean = count == 0
@@ -137,6 +141,7 @@ class FrameStore(
             pts[count] = entry.ptsUs
             moments[count] = entry.momentUs ?: NO_MOMENT
             flags[count] = (flagsOf(entry) or (if (entry.readBack) READ_BACK else 0)).toByte()
+            if (!entry.sound) newestUs = maxOf(newestUs, entry.ptsUs)
             count++
         }
 
@@ -384,7 +389,7 @@ class FrameStore(
         get() =
             lock.withLock {
                 val next = nextEntry() ?: return Pending(0, 0)
-                val newest = runs.last().frames.last()
+                val newest = runs.last().frames.newestUs
                 var before = 0L
                 val at = cursorRun
                 if (at != null) {
@@ -396,7 +401,7 @@ class FrameStore(
                         before += run.bytes
                     }
                 }
-                Pending(maxOf((newest.ptsUs - next.ptsUs - unfedUs(next.ptsUs)) / 1000, 0), total - before)
+                Pending(maxOf((newest - next.ptsUs - unfedUs(next.ptsUs)) / 1000, 0), total - before)
             }
 
     /**
@@ -408,8 +413,7 @@ class FrameStore(
         get() =
             lock.withLock {
                 val next = nextEntry() ?: return 0
-                val last = runs.last().frames
-                val span = last.ptsUs(last.size - 1) - next.ptsUs
+                val span = runs.last().frames.newestUs - next.ptsUs
                 if (span <= UNFED_FROM_US) maxOf(span, 0) / 1000 else maxOf(span - unfedUs(next.ptsUs), 0) / 1000
             }
 
@@ -683,8 +687,7 @@ class FrameStore(
      * a hiccup, as with the queue before the store.
      */
     private fun full(nowUs: Long): Boolean {
-        val oldest = runs.first().frames.last()
-        if (oldest.ptsUs >= nowUs - KEPT_ANYWAY_US) return false
+        if (runs.first().frames.newestUs >= nowUs - KEPT_ANYWAY_US) return false
         val free = freeBytes()
         return free < minFreeBytes || total > floorBytes && free < reserveBytes
     }
@@ -810,7 +813,7 @@ class FrameStore(
             safeUs: Long?,
         ): Boolean {
             if (cursor == null || safeUs == null || run === cursor) return false
-            return run.frames.last().ptsUs < safeUs
+            return run.frames.newestUs < safeUs
         }
 
         private fun close(closeable: Closeable?) {
