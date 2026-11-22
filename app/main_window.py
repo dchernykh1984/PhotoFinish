@@ -1832,7 +1832,9 @@ class MainWindow(QMainWindow):
             else:
                 state += f"; riders {self._riders_progress(camera)}"
             state += self._numbers_state(camera)
-        camera.item.setText(f"{self._name(camera.id)}: {state}")
+        line = f"{self._name(camera.id)}: {state}"
+        camera.item.setText(line)
+        camera.item.setToolTip(line)  # whole: a word wider than the list is cut there
         return info
 
     def _phone_words(
