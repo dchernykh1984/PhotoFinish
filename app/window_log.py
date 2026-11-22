@@ -204,7 +204,13 @@ def start(
         path.parent.mkdir(parents=True, exist_ok=True)
         if path.exists() and path.stat().st_size > LIMIT_BYTES:
             _set_aside(path)
-        file = path.open("a", encoding="utf-8", errors="backslashreplace", buffering=1)
+        file = path.open(  # "\n" written as it is: as the run's room counts it
+            "a",
+            encoding="utf-8",
+            errors="backslashreplace",
+            newline="\n",
+            buffering=1,
+        )
     except OSError:
         return None
     log = WindowLog(file)
