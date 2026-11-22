@@ -22,6 +22,13 @@ def raised(text: str) -> Raised:
         return type(error), error, error.__traceback__
 
 
+def raised_elsewhere(text: str) -> Raised:
+    try:
+        raise KeyError(text)
+    except KeyError as error:
+        return type(error), error, error.__traceback__
+
+
 @pytest.fixture
 def hooks(monkeypatch: pytest.MonkeyPatch) -> list[object]:
     """The hooks before the log's: what they were called with; put back after."""
@@ -67,21 +74,53 @@ def test_a_thread_ending_by_system_exit_is_no_error(
 
 
 def test_the_same_error_again_within_a_minute_is_counted_not_written() -> None:
+    # A timer's slot failing each second: written once a minute, how often between.
     file = io.StringIO()
     now = [1000.0]
     log = window_log.WindowLog(file, clock=lambda: now[0])
-    error = raised("each second")
     for second in range(62):
         now[0] = 1000.0 + second
-        log.error(*error)
-    log.error(*raised("another"))
-    log.error(*error)  # after another: written again
+        log.error(*raised("each second"))
     log.end()
     text = file.getvalue()
-    assert text.count("ValueError: each second") == 3  # at 0 s, 60 s, after another
-    assert "the error before came 59 times more" in text
-    assert "the error before came 1 time more" in text  # at 61 s, said before another
-    assert text.count("ValueError: another") == 1
+    assert text.count("ValueError: each second") == 2  # at 0 s and at 60 s
+    assert "came 59 times more" in text
+    assert "came 1 time more" in text  # at 61 s, said at the end
+    assert text.rstrip().endswith("the window ended")
+
+
+def test_errors_by_turns_or_in_changing_words_are_each_written_once_a_minute() -> None:
+    # Two paints failing by turns, or one naming a moment that changes: none of
+    # them the error just before, all of them repeats of one from the same place.
+    file = io.StringIO()
+    now = [1000.0]
+    log = window_log.WindowLog(file, clock=lambda: now[0])
+    for second in range(30):
+        now[0] = 1000.0 + second
+        log.error(*raised(f"at {second}"))
+        log.error(*raised_elsewhere("frame"))
+    log.end()
+    text = file.getvalue()
+    assert text.count("ValueError: at ") == 1
+    assert text.count("KeyError: 'frame'") == 1
+    assert text.count("came 29 times more") == 2
+
+
+def test_a_run_writes_errors_up_to_its_room(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Errors that do not repeat fill no disk either: a run past its room says so
+    # once and writes no more of them; its end is still said.
+    monkeypatch.setattr(window_log, "LIMIT_BYTES", 3000)
+    file = io.StringIO()
+    now = [1000.0]
+    log = window_log.WindowLog(file, clock=lambda: now[0])
+    for minute in range(100):
+        now[0] = 1000.0 + 61 * minute
+        log.error(*raised("again"))
+    log.end()
+    text = file.getvalue()
+    assert len(text.encode("utf-8")) < 3300
+    assert text.count("the log is full for this run") == 1
+    assert text.rstrip().endswith("the window ended")
 
 
 def test_a_log_past_its_limit_is_kept_aside_and_a_new_one_begun(
@@ -138,3 +177,14 @@ def test_a_line_that_cannot_be_written_is_let_go() -> None:
     file.close()
     log.write("the disk full")  # no error out of the log into the window
     log.error(*raised("lost"))
+
+
+def test_an_error_with_no_traceback_is_known_by_its_kind() -> None:
+    file = io.StringIO()
+    log = window_log.WindowLog(file)
+    log.error(RuntimeError, RuntimeError("handed on bare"), None)
+    log.error(RuntimeError, RuntimeError("handed on bare"), None)
+    log.end()
+    text = file.getvalue()
+    assert text.count("RuntimeError: handed on bare") == 1
+    assert "RuntimeError came 1 time more in its minute" in text
