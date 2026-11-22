@@ -841,7 +841,6 @@ def test_the_watch_goes_on_after_an_error_of_its_own(
     # Anything raised in a pass ended the thread: the minutes went unsaid again,
     # and the stacks had no room kept.
     monkeypatch.setattr(window_log, "WATCH_S", 0.0)
-    said: list[str] = []
     stopped = threading.Event()
     ticks = [0]
 
@@ -852,17 +851,16 @@ def test_the_watch_goes_on_after_an_error_of_its_own(
         if ticks[0] == 3:
             stopped.set()
 
+    errors: list[tuple[object, ...]] = []
     log = SimpleNamespace(
         tick=tick,
         file=SimpleNamespace(closed=False),
         stopped=stopped,
-        write=said.append,
+        error=lambda *error: errors.append(error),
     )
     window_log._watch(log, None)  # type: ignore[arg-type]
     assert ticks[0] == 3
-    assert said == [
-        "the log's watch met OverflowError: timestamp out of range for platform time_t"
-    ]
+    assert [(e[0], e[3]) for e in errors] == [(OverflowError, "the log's watch")]
 
 
 def test_the_watch_turns_the_stacks_off_when_the_log_s_size_goes(
@@ -936,3 +934,66 @@ def test_errors_after_the_end_wait_one_second_for_the_log_in_all() -> None:
         log.error(*raised("at teardown"))
     assert time.monotonic() - began < 2.5  # not 5 s
     freed.set()
+
+
+def test_a_watch_failing_each_second_has_its_error_written_once_and_counted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Its own error written each second, outside the room: a line a second for
+    # as long as the window ran.
+    monkeypatch.setattr(window_log, "WATCH_S", 0.0)
+    file = io.StringIO()
+    log = window_log.WindowLog(file)
+    passes = [0]
+
+    def tick() -> None:
+        passes[0] += 1
+        if passes[0] == 6:
+            log.stopped.set()
+        raise OverflowError("timestamp out of range for platform time_t")
+
+    log.tick = tick  # type: ignore[method-assign]
+    window_log._watch(log, None)
+    text = file.getvalue()
+    assert text.count("OverflowError: timestamp out of range") == 1
+    assert "the log's watch" in text
+    assert "came 1 time more so far" in text
+
+
+def test_stacks_that_cannot_be_turned_off_are_tried_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(window_log, "WATCH_S", 0.0)
+    monkeypatch.setattr(window_log, "LIMIT_BYTES", 10)
+    tries = [0]
+    said: list[str] = []
+
+    def stubborn() -> None:
+        tries[0] += 1
+        raise RuntimeError("not enabled by this thread")
+
+    with (tmp_path / "grown.log").open("a") as file:
+
+        class Log:
+            def __init__(self) -> None:
+                self.file = file
+                self.ticks = 0
+                self.stopped = threading.Event()
+
+            def tick(self) -> None:
+                self.ticks += 1
+                if self.ticks == 1:
+                    file.write("Windows fatal exception: access violation\n")
+                    file.flush()
+                if self.ticks == 4:
+                    file.close()
+
+            def write(self, text: str) -> None:
+                said.append(text)
+
+        window_log._watch(Log(), stubborn)  # type: ignore[arg-type]
+    assert tries == [1]
+    assert said == [
+        "a crash's stacks could not be turned off: "
+        "RuntimeError: not enabled by this thread"
+    ]

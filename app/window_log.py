@@ -351,9 +351,10 @@ def _watch(log: WindowLog, disable: Callable[[], object] | None) -> None:
             log.tick()
             if disable is not None:
                 disable = _look(log, room, disable)
-        except Exception as error:  # it goes on: the minutes, the stacks' room
+        except Exception as error:  # it goes on: the minutes, the stacks' room;
+            # its error written as any, counted when it comes again, in the room
             with contextlib.suppress(Exception):
-                log.write(f"the log's watch met {type(error).__name__}: {error}")
+                log.error(type(error), error, error.__traceback__, "the log's watch")
 
 
 def _look(
@@ -370,7 +371,13 @@ def _look(
         return None
     if size <= room:
         return disable
-    disable()
+    try:
+        disable()
+    except Exception as error:  # tried once, not again each second
+        log.write(
+            f"a crash's stacks could not be turned off: {type(error).__name__}: {error}"
+        )
+        return None
     log.write("the log is full for this run: a crash's stacks are no longer written")
     return None
 
