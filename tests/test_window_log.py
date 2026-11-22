@@ -235,3 +235,22 @@ def test_an_error_in_a_finalizer_goes_to_the_log(
     _FailingAtItsEnd()  # dropped at once
     assert "RuntimeError: in a finalizer" in path.read_text(encoding="utf-8")
     assert hooks == [RuntimeError]
+
+
+def test_an_error_raised_while_the_log_writes_does_not_hang_the_window() -> None:
+    # A finalizer raising while the log writes -- the collector runs it there --
+    # comes back into the log on the same thread: it waited on its own lock for
+    # ever, and the window with it.
+    class Reentered(io.StringIO):
+        def write(self, text: str) -> int:
+            if "first" in text:
+                log.error(*raised_elsewhere("from a finalizer"))
+            return super().write(text)
+
+    file = Reentered()
+    log = window_log.WindowLog(file)
+    writer = threading.Thread(target=log.error, args=raised("first"), daemon=True)
+    writer.start()
+    writer.join(timeout=5)
+    assert not writer.is_alive()
+    assert "ValueError: first" in file.getvalue()
