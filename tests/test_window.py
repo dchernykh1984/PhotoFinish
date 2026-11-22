@@ -1971,6 +1971,31 @@ def test_two_cameras_show_one_moment_once_aligned_on_a_flash(
     assert abs(front.index.frame(front.shown).ms + offset - (FLASH + 28)) < 40
 
 
+def test_a_camera_aligned_on_an_event_has_its_riders_marked_on_its_new_offset(
+    two: None,
+    make_window: Callable[[], mw.MainWindow],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Its recording moved on the timeline at once; its rider marks stayed on the
+    # offset before till the next poll.
+    win = make_window()
+    side, front = win.cameras["cam1"], win.cameras["cam2"]
+    wait_until(lambda: side.shown == 25 and front.shown is not None)
+    win.seek_ms(FLASH + 28)
+    wait_until(lambda: bright(side.view))
+    win.mark_event()
+    win.picture_clicked((0.5, 0.5), "cam2")
+    win.seek_ms(FLASH + SKEW + 20)
+    wait_until(lambda: bright(front.view))
+    monkeypatch.setattr(win.analysis_box, "isChecked", lambda: True)
+    front.activity.stretches = [(FLASH + SKEW, FLASH + SKEW + 100)]  # its clock
+    win.mark_event()
+    offset = session.load()["cameras"][1]["offset_ms"]
+    assert win.timeline.stretches == [
+        (FLASH + SKEW + offset, FLASH + SKEW + 100 + offset)
+    ]
+
+
 def test_a_crossing_timed_on_the_second_camera_names_it(
     two: None, make_window: Callable[[], mw.MainWindow], base: Path
 ) -> None:
