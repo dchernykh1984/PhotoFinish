@@ -533,6 +533,36 @@ def test_a_sound_list_known_and_held_a_moment_never_holds_the_window_up(
     assert waited == []
 
 
+def test_a_list_waited_for_by_one_thread_holds_up_no_other_folders(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # An export waiting for a list a scanner holds: the window's ask for another
+    # camera's list never waits behind it.
+    for name in ("a", "b"):
+        (tmp_path / name).mkdir()
+        (tmp_path / name / sound.SOUND).write_text("20251029-103000-0001\n")
+    released = threading.Event()
+    real = sound._first_line
+
+    def first_line(path: Path, again: bool = False) -> Any:
+        if path.parent.name == "a":
+            released.wait(5)  # held, waited for
+        return real(path, again)
+
+    monkeypatch.setattr(sound, "_first_line", first_line)
+    waiting = threading.Thread(target=sound.sounding, args=(tmp_path / "a",))
+    waiting.start()
+    time.sleep(0.1)
+    other = threading.Thread(target=sound.sounding, args=(tmp_path / "b",))
+    other.start()
+    other.join(1)
+    held_up = other.is_alive()
+    released.set()
+    waiting.join(5)
+    other.join(5)
+    assert not held_up
+
+
 def test_a_sound_list_begun_anew_in_a_cleared_folder_is_read_from_its_start(
     tmp_path: Path,
 ) -> None:

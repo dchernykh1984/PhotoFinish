@@ -114,11 +114,14 @@ def sounding(folder: Path) -> frozenset[str]:
     cleared -- begins with another line, or is shorter: read from its start. One
     held a moment, unreadable, gives what it listed so far."""
     with _SOUNDING_LOCK:
+        known = folder in _SOUNDING
+    try:  # waited for only the first time, outside the lock: no one held up by it
+        file = _first_line(folder / SOUND, again=not known)
+    except OSError:
+        with _SOUNDING_LOCK:  # held by a scanner a moment (Windows): not gone
+            return _SOUNDING.get(folder, (None, frozenset(), None))[1]
+    with _SOUNDING_LOCK:
         follower, names, seen = _SOUNDING.get(folder, (None, frozenset(), None))
-        try:  # waited for only the first time: known, the window is never held up
-            file = _first_line(folder / SOUND, again=follower is None)
-        except OSError:
-            return names  # held by a scanner a moment (Windows): not gone
         if follower is None or file != seen:
             follower, names = Appended(folder / SOUND), frozenset()
         before = follower.offset
