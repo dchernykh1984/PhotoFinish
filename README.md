@@ -134,7 +134,8 @@ files land next to the `.app` bundle, in the folder that contains it.
 
 The session is `data/session.json` and each camera's recording is in
 `video/<camera>/`, so keep the folder on a disk with room: about 4 GB an hour
-for each phone sending 9 Mbit/s (1440p at 60 fps).
+for each phone sending 9 Mbit/s (1440p at 60 fps). Should the window close on
+its own, `data/window.log` says why: send it with the report.
 
 This is also how you run several events side by side: copy the folder per event,
 and each copy keeps its own data. A symlink or a Finder alias will not work for
