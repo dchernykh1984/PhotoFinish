@@ -50,6 +50,8 @@ class MicrophoneTurnsTest {
         assertTrue(mic.turns.start()) // running: not opened twice
         assertEquals(1, mic.opened.get())
         mic.turns.stop()
+        // Told as it stops: a connection made after it waits for no sound's config.
+        assertEquals(false, synchronized(mic.sounded) { mic.sounded.last() })
         waitFor { mic.reader.thread?.isAlive == false }
         assertTrue(mic.turns.start())
         assertEquals(2, mic.opened.get())
@@ -151,6 +153,7 @@ class MicrophoneTurnsTest {
         mic.allowed = false
         mic.turns.start()
         assertEquals(2, mic.refusals.get())
-        assertEquals(listOf(false, false, true, false), synchronized(mic.sounded) { mic.sounded.toList() })
+        // Refused, refused, started, stopped, refused.
+        assertEquals(listOf(false, false, true, false, false), synchronized(mic.sounded) { mic.sounded.toList() })
     }
 }
