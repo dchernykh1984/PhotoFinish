@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
     QMenu,
     QMessageBox,
     QPushButton,
+    QSplitter,
 )
 
 from app import analysis, output_list, phone_status, playback, session
@@ -4321,3 +4322,26 @@ def test_the_corner_s_word_and_each_phone_s_line_are_shown_whole(
     for button in win.findChildren(QPushButton):
         if button.isVisible():
             assert button.height() >= button.minimumSizeHint().height(), button.text()
+
+
+def test_the_camera_list_wraps_its_lines_with_no_bar_to_scroll_them_sideways(
+    base: Path, make_window: Callable[[], mw.MainWindow]
+) -> None:
+    # Lines that wrap: at some widths Qt lays a wrapped line out a pixel or two wider
+    # than the list, and a bar to scroll it sideways takes a line's height from a
+    # list that shows few. None, whatever width the column is dragged to.
+    long = "a camera named at length, as a referee may name one at a race"
+    made = [{**CAMERA, "id": f"cam{n}", "name": f"{long} {long} {n}"} for n in range(6)]
+    session.save({**session.DEFAULTS, "cameras": made})
+    win = make_window()
+    win.resize(2400, 100)  # as low as it goes: the list shows a line or two
+    win.show()
+    columns = cast(QSplitter, win.centralWidget())
+    listed = win.camera_list
+    sideways = []
+    for right in range(500, 700, 2):
+        columns.setSizes([2400 - right, right])
+        QApplication.processEvents()
+        assert listed.verticalScrollBar().isVisible()
+        sideways.append(listed.horizontalScrollBar().isVisible())
+    assert not any(sideways)
