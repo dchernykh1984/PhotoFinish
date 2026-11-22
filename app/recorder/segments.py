@@ -680,11 +680,15 @@ def _copy_whole(
     left: Path, copy: Path, frames: dict[int, int]
 ) -> list[tuple[int, int]]:
     """The packets of ``left`` that came whole, copied as they are into a file of
-    their own, which ends as a file should, its sound with them (specs/013); those not
-    listed as much -- a frame a phone sent again, written for the frames after it to
-    decode, or one whose time the kill cut short --, one the copy refuses costing
-    itself alone. The listed frames' ``(pts, ms)``."""
+    their own, which ends as a file should, its sound with them (specs/013): those not
+    listed too where a listed frame after them needs them -- a phone's frames sent
+    again, written for the frames after them to decode --, never one after the last.
+    The listed frames' ``(pts, ms)`` that decode from a keyframe in the copy: one the
+    copy refuses breaks the frames after it till the next keyframe, never listed, as
+    they would show another's picture at their moment."""
     kept: set[int] = set()
+    waiting: list[av.Packet] = []  # not listed: copied once a listed frame needs them
+    decodable = False  # the frames copied since the last keyframe decode from it
     with av.open(str(left)) as video, av.open(str(copy), "w", format="matroska") as out:
         into = out.add_stream_from_template(video.streams.video[0])
         heard = video.streams.audio
@@ -698,15 +702,31 @@ def _copy_whole(
                     out.mux(packet)
                 except av.FFmpegError:
                     sound = None  # a sound the copy refuses costs the sound alone
-            elif pts in frames:
-                packet.stream = into
-                out.mux(packet)
-                kept.add(pts)
-            else:  # for the frames after it: refused, it alone is lost
-                packet.stream = into
-                with contextlib.suppress(av.FFmpegError):
-                    out.mux(packet)
+            elif pts not in frames:
+                waiting.append(packet)
+            else:
+                for earlier in [*waiting, packet]:
+                    decodable = _copied(out, into, earlier, decodable)
+                waiting = []
+                if decodable:
+                    kept.add(pts)
     return [(pts, ms) for pts, ms in frames.items() if pts in kept]
+
+
+def _copied(
+    out: av.container.OutputContainer,
+    into: av.stream.Stream,
+    packet: av.Packet,
+    decodable: bool,
+) -> bool:
+    """``packet`` copied into ``out``: whether the frames from it on decode -- a
+    keyframe begins them, one refused ends them till the next keyframe."""
+    packet.stream = into
+    try:
+        out.mux(packet)
+    except av.FFmpegError:
+        return False
+    return decodable or packet.is_keyframe
 
 
 def _whole(video: av.container.InputContainer) -> Iterator[tuple[av.Packet, int]]:
