@@ -344,3 +344,17 @@ def test_an_object_python_names_with_an_error_is_in_the_log(
     text = path.read_text(encoding="utf-8")
     assert "Exception ignored in: <a decoder of cam2>" in text
     assert hooks == [RuntimeError]
+
+
+def test_a_finalizer_failing_for_each_new_object_is_counted_as_one_error() -> None:
+    # Generators failing at their end, one a frame: one way, each object at an
+    # address of its own -- written once, then counted, the run's room kept.
+    file = io.StringIO()
+    log = window_log.WindowLog(file)
+    for k in range(5):
+        said = f"Exception ignored while finalizing <generator frames at 0x{k:x}0>"
+        log.error(*raised("closing"), said)
+        log.error(RuntimeError, RuntimeError("bare"), None, said)
+    text = file.getvalue()
+    assert text.count("ValueError: closing") == 1
+    assert text.count("RuntimeError: bare") == 1  # no traceback: known by whose
