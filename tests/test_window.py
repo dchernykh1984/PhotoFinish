@@ -26,7 +26,7 @@ from PySide6.QtWidgets import (
     QPushButton,
 )
 
-from app import analysis, output_list, phone_status, session
+from app import analysis, output_list, phone_status, playback, session
 from app import main_window as mw
 from app.analysis import models
 from app.lines import parse_time, scale_time, to_line_scale
@@ -4054,6 +4054,39 @@ def test_the_sound_moves_with_the_microphone_while_playing_on(
     assert heard.calls[-1][:2] == ("play", win.cameras["cam2"].index)
     win.poll()
     assert heard.calls[-1][0] == "follow"  # chosen once: followed, never begun again
+
+
+def test_the_sound_begins_at_the_moment_due_as_it_starts_not_before_its_lists_are_read(
+    phone_with_sound: Path, make_window: Callable[[], mw.MainWindow], clock: list[float]
+) -> None:
+    # Whose sound plays found by reading lists, a day of them a while: the moment it
+    # begins from is the one due once found, the picture on meanwhile.
+    win = make_window()
+    wait_until(lambda: win.moment is not None and win.place is not None)
+    heard = sounding(win)
+    win.step(-40)
+    real = win._sound_camera
+
+    def slow(moment: int) -> Any:
+        clock[0] += 0.04  # 40 ms reading the lists
+        return real(moment)
+
+    win._sound_camera = slow  # type: ignore[method-assign]
+    win.play()
+    started = win._play_start
+    assert heard.calls[-1][2] == playback.moment_due(started, clock[0], win.rate)
+    win.sound.calls.clear()  # type: ignore[attr-defined]
+    # Begun finished -- a recording that grows no more --, then growing again before
+    # the poll that would have seen it end: begun anew all the same.
+    win.cameras["cam1"].watchdog.stop()
+    beating(phone_with_sound, state="stopped")
+    win.poll()
+    win._sound_camera = real  # type: ignore[method-assign]
+    win._play_sound()
+    assert heard.calls[-1][0::4] == ("play", False)
+    win.cameras["cam1"].watchdog.wanted = True  # recording switched on again
+    win.poll()
+    assert heard.calls[-1][0::4] == ("play", True)
 
 
 def test_a_sound_line_late_a_close_never_stops_the_sound_playing(

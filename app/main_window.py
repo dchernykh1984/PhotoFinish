@@ -2010,12 +2010,17 @@ class MainWindow(QMainWindow):
         due = playback.moment_due(self._play_start, time.monotonic(), self.rate)
         heard = self._sound_camera(due) if forwards else None  # where it goes on
         self._sound_from = None if heard is None else heard.id
-        self._sound_ended = False
         if heard is None:
+            self._sound_ended = False
             self.sound.stop()
             return
+        follows = self._grows(heard)
+        self._sound_ended = not follows  # begun finished: begun again as it grows
+        # Due again once found -- lists read a while, the picture on meanwhile --:
+        # begun from the moment due as it starts, never behind the picture.
+        due = playback.moment_due(self._play_start, time.monotonic(), self.rate)
         own = due - int(heard.settings.get("offset_ms", 0))  # on its own times
-        self.sound.play(heard.index, own, self.rate, follows=self._grows(heard))
+        self.sound.play(heard.index, own, self.rate, follows=follows)
 
     def _follow_sound(self) -> None:
         """Played behind live: the segments just listed heard on; its recorder let go
