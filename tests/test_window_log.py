@@ -6,8 +6,10 @@ import io
 import sys
 import threading
 import time
+from collections.abc import Iterator
 from pathlib import Path
 from types import SimpleNamespace, TracebackType
+from typing import Any
 
 import pytest
 
@@ -28,6 +30,25 @@ def raised_elsewhere(text: str) -> Raised:
         raise KeyError(text)
     except KeyError as error:
         return type(error), error, error.__traceback__
+
+
+@pytest.fixture(autouse=True)
+def closed_after(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    """Each log a test starts closed after it: its watch ends, its file is let
+    go -- Windows deletes no file still open."""
+    started: list[window_log.WindowLog] = []
+    real = window_log.start
+
+    def start(*args: Any, **kwargs: Any) -> window_log.WindowLog | None:
+        log = real(*args, **kwargs)
+        if log is not None:
+            started.append(log)
+        return log
+
+    monkeypatch.setattr(window_log, "start", start)
+    yield
+    for log in started:
+        log.file.close()
 
 
 @pytest.fixture
