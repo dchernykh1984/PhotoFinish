@@ -106,6 +106,12 @@ def alive(info: dict[str, Any] | None) -> bool:
     return abs(time.time_ns() // 1_000_000 - _ms(info, "heartbeat_ms")) <= STALE_MS
 
 
+def _ahead(info: dict[str, Any] | None) -> bool:
+    """A heartbeat written ahead of this computer's clock: the clock set back since."""
+    beat = 0 if info is None else _ms(info, "heartbeat_ms")
+    return beat > time.time_ns() // 1_000_000
+
+
 def recording(info: dict[str, Any] | None) -> bool:
     """A recorder writing its camera's frames now: running, and recording -- not
     starting, waiting for the camera or connecting again after a loss."""
@@ -208,7 +214,9 @@ class Watchdog:
         process = self._process
         code = None if process is None else process.poll()
         if code is None:
-            return alive(info)
+            # This window's own, running: a beat ahead of the clock is the clock set
+            # back as it was held by a camera's open, not a recorder gone.
+            return alive(info) or (process is not None and _ahead(info))
         now = time.monotonic()
         if code != 3 and self._dead is not process:
             info = heartbeat(self.camera_id)  # read since its end: no beat of it after

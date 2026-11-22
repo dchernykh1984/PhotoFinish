@@ -843,3 +843,19 @@ def test_a_heartbeat_being_replaced_is_read_again(
     info = heartbeat("cam1")
     assert info is not None
     assert info["state"] == "recording"
+
+
+def test_this_window_s_recorder_still_running_is_at_work_its_beat_ahead_of_the_clock(
+    folder: Path, clock: dict[str, float]
+) -> None:
+    # The clock set back as the recorder this window started was held by a camera's
+    # open: its process runs, its beat is ahead. No second one started -- it would
+    # exit 3 and take the first one's place, whose end would then go unseen.
+    spawns = Spawns()
+    watchdog = Watchdog("cam1", spawns)
+    watchdog.start()
+    beat(folder, "connecting", age_ms=-60_000)
+    for moment in (1040, 1041, 1043, 1047):  # its start's grace long past
+        clock["now"] = moment
+        watchdog.poll()
+    assert len(spawns.processes) == 1
