@@ -1905,9 +1905,11 @@ class MainWindow(QMainWindow):
         offset = phone_status.number(camera.settings.get("offset_ms", 0))
         if at is None or offset is None:
             return "last heard"
-        return "at " + clock_of(
-            self._line_ms(int(at) + int(offset)), whole_seconds=True
-        )
+        try:  # summer time asks the platform the date, which holds only so many years
+            moment = self._line_ms(int(at) + int(offset))
+        except OverflowError, OSError:
+            return "last heard"
+        return "at " + clock_of(moment, whole_seconds=True)
 
     def _riders_progress(self, camera: Camera) -> str:
         """How far the camera's analyser has got (FR-009)."""
