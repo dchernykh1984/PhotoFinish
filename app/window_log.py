@@ -8,6 +8,7 @@ import contextlib
 import faulthandler
 import math
 import os
+import reprlib
 import sys
 import threading
 import time
@@ -50,16 +51,23 @@ class WindowLog:
         kind: type[BaseException] | None,
         value: BaseException | None,
         tb: TracebackType | None,
+        about: str = "",
     ) -> None:
-        """An error no handler took, with its traceback. One come the same way
-        again within AGAIN_S of its writing -- by turns with others, its words
-        changed -- is counted instead: a paint failing at every frame fills no
-        disk."""
+        """An error no handler took, with its traceback and what Python said
+        ``about`` it. One come the same way again within AGAIN_S of its writing --
+        by turns with others, its words changed -- is counted instead: a paint
+        failing at every frame fills no disk."""
         with self._entered() as entered:
             if not entered:
                 return
             text = "".join(traceback.format_exception(kind, value, tb)).rstrip("\n")
             way, name = _way(kind, tb)
+            if about:  # a finalizer's: whose, its traceback maybe none
+                text, way, name = (
+                    f"{about}\n{text}",
+                    f"{way} ({about})",
+                    f"{name} ({about})",
+                )
             now = self._steady()
             self._said_again(now)
             if way in self._seen:
@@ -193,7 +201,10 @@ def start(
         # In a finalizer, a weakref's callback: Python prints these to a stderr
         # a window started from Finder or Explorer does not have.
         with contextlib.suppress(Exception):
-            log.error(args.exc_type, args.exc_value, args.exc_traceback)
+            about = args.err_msg or "Exception ignored in"
+            if args.object is not None:
+                about = f"{about}: {reprlib.repr(args.object)}"
+            log.error(args.exc_type, args.exc_value, args.exc_traceback, about)
         unraisable(args)
 
     sys.excepthook = excepthook

@@ -6,7 +6,7 @@ import io
 import sys
 import threading
 from pathlib import Path
-from types import TracebackType
+from types import SimpleNamespace, TracebackType
 
 import pytest
 
@@ -233,7 +233,9 @@ def test_an_error_in_a_finalizer_goes_to_the_log(
     path = tmp_path / "window.log"
     assert window_log.start(path, "1.0.0", enable=lambda file: None) is not None
     _FailingAtItsEnd()  # dropped at once
-    assert "RuntimeError: in a finalizer" in path.read_text(encoding="utf-8")
+    text = path.read_text(encoding="utf-8")
+    assert "RuntimeError: in a finalizer" in text
+    assert "_FailingAtItsEnd.__del__" in text  # whose: what Python says with it
     assert hooks == [RuntimeError]
 
 
@@ -303,3 +305,41 @@ def test_errors_raised_at_one_line_by_two_ways_are_two_errors() -> None:
     assert "ValueError: one way" in text
     assert "ValueError: another way" in text
     assert text.count("came 1 time more so far") == 1  # the other way, again
+
+
+def test_errors_with_no_traceback_said_of_two_objects_are_two_errors() -> None:
+    # A destructor's in native code: no traceback to tell them apart by, the
+    # object Python names with each does.
+    file = io.StringIO()
+    log = window_log.WindowLog(file)
+    error = RuntimeError("closing")
+    log.error(RuntimeError, error, None, "Exception ignored in: <a decoder>")
+    log.error(RuntimeError, error, None, "Exception ignored in: <a recorder>")
+    text = file.getvalue()
+    assert "Exception ignored in: <a decoder>" in text
+    assert "Exception ignored in: <a recorder>" in text
+    assert text.count("RuntimeError: closing") == 2
+
+
+def test_an_object_python_names_with_an_error_is_in_the_log(
+    tmp_path: Path, hooks: list[object]
+) -> None:
+    # A native extension names the object it could not finish, no words of its own.
+    path = tmp_path / "window.log"
+    assert window_log.start(path, "1.0.0", enable=lambda file: None) is not None
+
+    class Decoder:
+        def __repr__(self) -> str:
+            return "<a decoder of cam2>"
+
+    said = SimpleNamespace(
+        exc_type=RuntimeError,
+        exc_value=RuntimeError("closing"),
+        exc_traceback=None,
+        err_msg=None,
+        object=Decoder(),
+    )
+    sys.unraisablehook(said)  # type: ignore[arg-type]
+    text = path.read_text(encoding="utf-8")
+    assert "Exception ignored in: <a decoder of cam2>" in text
+    assert hooks == [RuntimeError]
