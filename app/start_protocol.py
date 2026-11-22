@@ -12,6 +12,7 @@ import re
 from collections.abc import Callable
 from pathlib import Path
 
+from app.files import read_bytes
 from app.paths import app_path
 
 ENCODINGS = ("utf-8-sig", "cp1251", "latin-1")  # as the older tools wrote them
@@ -31,7 +32,7 @@ def read_numbers(path: Path) -> dict[str, str]:
     """The protocol's numbers, each by its loose form, spelled as the protocol spells
     it. A first field without a digit -- a header, an unpaid marker -- is no number.
     Raises OSError when the file cannot be read."""
-    data = path.read_bytes()
+    data = read_bytes(path)  # read again while its writer replaces it (Windows)
     for encoding in ENCODINGS:
         try:
             text = data.decode(encoding)
@@ -76,6 +77,7 @@ class StartNumbers:
         self.path = path
         self._seen: tuple[str, int, int] | None = None
         self._numbers: dict[str, str] = {}
+        self._read_from = ""  # the protocol the numbers are of
         self.problem = ""
 
     def __call__(self) -> dict[str, str]:
@@ -89,8 +91,13 @@ class StartNumbers:
             seen = (chosen, stat.st_size, stat.st_mtime_ns)
             if seen != self._seen:
                 self._numbers, self._seen = read_numbers(file), seen
+                self._read_from = chosen
             self.problem = ""
         except (OSError, ValueError) as error:  # a protocol never stops the window
-            self._seen, self._numbers = None, {}
+            # Held by its writer a moment -- a late entry --: the numbers read of it
+            # kept, never none; another's let go.
+            self._seen = None
+            if self._read_from != chosen:
+                self._numbers, self._read_from = {}, ""
             self.problem = f"the start protocol cannot be read: {error}"
         return self._numbers
