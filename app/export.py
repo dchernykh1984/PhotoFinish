@@ -441,10 +441,14 @@ class _Out:
         for n in range(count):
             if n % SILENCE_ASKS == 0 and self.cancelled():  # hours between sessions
                 raise CancelledError
+            if self.audio is None:
+                break  # a silent piece refused: the sound ends there, the file goes on
             self._put(av.Packet(silent), at + n * size, size, form.rate)
         return at + count * size
 
     def _put(self, packet: av.Packet, pts: int, size: int, rate: int) -> None:
+        if self.audio is None:
+            return  # a piece refused before: the sound ended there
         packet.pts = packet.dts = pts
         packet.duration = size
         packet.time_base = Fraction(1, rate)

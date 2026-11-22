@@ -576,6 +576,28 @@ def test_a_sound_that_fails_as_a_file_begins_leaves_no_part_behind(
     assert not list(tmp_path.glob("*.part"))
 
 
+def test_a_silent_piece_the_muxer_refuses_costs_the_sound_never_the_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Refused as a gap fills: the sound ends there, the file is written all the same.
+    recorded(tmp_path)
+    (tmp_path / "later").mkdir()
+    recorded(tmp_path / "later", folder=tmp_path / "cam1", start=HEARD + 60_000)
+    real = export._Out._put
+    put = [0]
+
+    def refusing(self: Any, packet: av.Packet, *args: Any) -> None:
+        put[0] += 1
+        if put[0] == 500 and self.audio is not None:  # a silent piece of the gap's
+            real(self, av.Packet(b"\x00"), -1_000_000, *args[1:])
+            return
+        real(self, packet, *args)
+
+    monkeypatch.setattr(export._Out, "_put", refusing)
+    (written,) = export.export(tmp_path / "cam1", tmp_path / "Main.mp4")
+    assert read(written)[1]  # its frames all there
+
+
 def test_a_long_gap_filled_with_silence_hears_cancel(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
