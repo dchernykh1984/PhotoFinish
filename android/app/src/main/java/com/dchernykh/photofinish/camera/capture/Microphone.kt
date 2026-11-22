@@ -101,7 +101,7 @@ internal class Microphone(
                 drain(codec, info)
             }
         } catch (error: RuntimeException) {
-            failed("no sound from now on: ${error.message ?: error.javaClass.simpleName}")
+            failed("no sound until a camera feeds the stream again: ${error.message ?: error.javaClass.simpleName}")
         } finally {
             // Each let go on its own: an encoder in its error state throws at stop, and an exception out of this
             // thread would end the app -- both lenses' streams with it. Released whatever came before.
