@@ -217,27 +217,46 @@ def newest_start(folders: Iterable[Path]) -> str | None:
     days of a log since --; None for no log at all. OSError for a log there that
     cannot be read: whose run is at work is not known then."""
     logs = [(w, folder) for folder in folders if (w := _written(folder)) is not None]
-    run: str | None = None
-    read = False  # the newest file read: its last mark's run is at work, or none known
-    for _, folder in sorted(logs, reverse=True):
+    if not logs:
+        return None
+    ordered = [folder for _, folder in sorted(logs, reverse=True)]
+    newest = _newest_file(ordered[0])
+    run = None if newest is None else _run_at(newest[1], len(newest[1]))
+    if newest is None or run is None:  # gone since, or no whole mark: not known
+        return ""
+    for folder in ordered:
         for path in (folder / FILE, folder / (FILE + ".1")):
-            try:
-                kept = path.read_bytes()
-            except FileNotFoundError:  # gone since: moved to the file kept before
-                continue
-            if not read:
-                run, read = _run_at(kept, len(kept)), True
-            if run is not None and (said := _start_of(kept, run)):
+            kept = newest[1] if path == newest[0] else _bytes_of(path)
+            if kept is not None and (said := _start_of(kept, run)):
                 return said
-    return "" if logs else None
+    return ""
 
 
 def _written(folder: Path) -> float | None:
-    """When a camera's log was written last; None when it has none."""
+    """When a camera's log was written last; None when it has none. OSError for one
+    whose time is not to be had: not known to be none."""
     for name in (FILE, FILE + ".1"):
-        with contextlib.suppress(OSError):
+        with contextlib.suppress(FileNotFoundError):
             return (folder / name).stat().st_mtime
     return None
+
+
+def _newest_file(folder: Path) -> tuple[Path, bytes] | None:
+    """A camera's log written last, and what it holds: the one begun last, or the
+    file kept before when there is none since; None when both are gone."""
+    for path in (folder / FILE, folder / (FILE + ".1")):
+        if (kept := _bytes_of(path)) is not None:
+            return path, kept
+    return None
+
+
+def _bytes_of(path: Path) -> bytes | None:
+    """What a log file holds; None when it is gone -- moved to the file kept before
+    since it was found."""
+    try:
+        return path.read_bytes()
+    except FileNotFoundError:
+        return None
 
 
 def _start_of(kept: bytes, run: str) -> str:
