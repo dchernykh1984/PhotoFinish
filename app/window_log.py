@@ -245,14 +245,22 @@ def start(
     sys.excepthook = excepthook
     threading.excepthook = thread_hook
     sys.unraisablehook = unraisable_hook
-    enable(file)
-    began = os.fstat(file.fileno()).st_size
-    threading.Thread(
-        target=_watch,
-        args=(log, began + 2 * LIMIT_BYTES, disable),
-        name="the window log's size",
-        daemon=True,
-    ).start()
+    try:
+        enable(file)
+        began = os.fstat(file.fileno()).st_size
+        threading.Thread(
+            target=_watch,
+            args=(log, began + 2 * LIMIT_BYTES, disable),
+            name="the window log's size",
+            daemon=True,
+        ).start()
+    except Exception as error:  # stacks with no watch on them, or none: off, said
+        with contextlib.suppress(Exception):
+            disable()
+        log.write(
+            "a crash's stacks are not written this run: "
+            f"{type(error).__name__}: {error}"
+        )
     return log
 
 

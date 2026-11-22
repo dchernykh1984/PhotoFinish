@@ -535,3 +535,33 @@ def test_the_same_error_come_back_while_it_is_written_is_counted_once() -> None:
     text = file.getvalue()
     assert text.count("ValueError: first") == 1
     assert "came 1 time more so far" in text
+
+
+def test_a_log_whose_crash_stacks_cannot_be_kept_still_lets_the_window_start(
+    tmp_path: Path, hooks: list[object], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # faulthandler refusing the file, or no thread left to watch it: the window
+    # starts all the same, the stacks off, and the log says why.
+    path = tmp_path / "window.log"
+    turned_off: list[bool] = []
+
+    def refused(file: object) -> None:
+        raise RuntimeError("no such descriptor")
+
+    log = window_log.start(
+        path, "1.0.0", enable=refused, disable=lambda: turned_off.append(True)
+    )
+    assert log is not None
+    said = "a crash's stacks are not written this run: RuntimeError: no such descriptor"
+    assert said in path.read_text(encoding="utf-8")
+
+    def no_thread(self: threading.Thread) -> None:
+        raise RuntimeError("can't start new thread")
+
+    monkeypatch.setattr(threading.Thread, "start", no_thread)
+    log = window_log.start(
+        path, "1.0.1", enable=lambda file: None, disable=lambda: turned_off.append(True)
+    )
+    assert log is not None
+    assert "can't start new thread" in path.read_text(encoding="utf-8")
+    assert turned_off == [True, True]
