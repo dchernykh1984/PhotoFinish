@@ -13,7 +13,7 @@ import sys
 import threading
 import time
 import traceback
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from types import TracebackType
@@ -23,6 +23,7 @@ LIMIT_BYTES = 5_000_000  # a log past this at a start is set aside; a run's room
 AGAIN_S = 60.0  # an error again within this of its writing is counted, not written
 SAY_S = 5.0  # how often it came, written at its first repeat, then this often
 WATCH_S = 1.0  # how often the minutes are said and the crash stacks' room looked at
+EXIT_WAIT_S = 1.0  # after the end, how long the log's lock is waited for
 NAMED_CHARS = 300  # an object Python names with an error: this much of its repr
 _ADDRESS = re.compile(r"0x[0-9a-fA-F]+")  # where an object lives -- its C++ side too
 
@@ -60,10 +61,13 @@ class WindowLog:
         self._ended = False  # an error after: at the window's exit, no crash
         self._waiting: list[str] = []  # lines to write, one come in mid-write too
         self._putting = False
+        self.watch: threading.Thread | None = None  # the thread watching it
+        self.stopped = threading.Event()  # set at the end: the watch ends
 
     def write(self, text: str) -> None:
-        with self._lock:
-            self._write(text, always=True)
+        with self._held() as taken:
+            if taken:
+                self._write(text, always=True)
 
     def error(
         self,
@@ -76,7 +80,9 @@ class WindowLog:
         ``about`` it. One come the same way again within AGAIN_S of its writing --
         by turns with others, its words changed -- is counted instead: a paint
         failing at every frame fills no disk."""
-        with self._lock:
+        with self._held() as taken:
+            if not taken:
+                return
             text = "".join(traceback.format_exception(kind, value, tb)).rstrip("\n")
             way, name = _way(kind, tb)
             if about:  # a finalizer's: what Python said of it, whose
@@ -111,14 +117,33 @@ class WindowLog:
         """The counts of the errors whose minute has ended written now -- not at
         the next error, an hour on maybe, stamped then: the watch calls it every
         WATCH_S."""
-        with self._lock:
-            self._said_again(self._steady())
+        with self._held() as taken:
+            if taken:
+                self._said_again(self._steady())
 
     def end(self) -> None:
-        with self._lock:
-            self._said_again(math.inf)
-            self._write("the window ended", always=True)
+        """The counts said, the end written, and the watch stopped before Python
+        ends: frozen there holding the lock, it would keep an error at teardown
+        waiting, and the process with it."""
+        with self._held() as taken:
+            if taken:
+                self._said_again(math.inf)
+                self._write("the window ended", always=True)
             self._ended = True
+        self.stopped.set()
+        if self.watch is not None:
+            self.watch.join(timeout=EXIT_WAIT_S)
+
+    @contextlib.contextmanager
+    def _held(self) -> Iterator[bool]:
+        """True with the lock taken -- after the end, waited for EXIT_WAIT_S at
+        most: a daemon thread Python froze at its exit may hold it for ever."""
+        taken = self._lock.acquire(timeout=EXIT_WAIT_S if self._ended else -1)
+        try:
+            yield taken
+        finally:
+            if taken:
+                self._lock.release()
 
     def _said_again(self, now: float) -> None:
         """The errors written AGAIN_S ago or more let go, how often each came since
@@ -283,12 +308,13 @@ def _keep_stacks(
         stacks = None
     try:
         began = os.fstat(file.fileno()).st_size
-        threading.Thread(
+        log.watch = threading.Thread(
             target=_watch,
             args=(log, began + 2 * LIMIT_BYTES, stacks),
             name="the window log's size",
             daemon=True,
-        ).start()
+        )
+        log.watch.start()
     except Exception as error:  # stacks with no watch on them: none
         if stacks is not None:
             _stacks_off(log, disable, error)
@@ -310,8 +336,7 @@ def _watch(log: WindowLog, room: int, disable: Callable[[], object] | None) -> N
     room -- on Windows also for an exception native code handles itself --, so
     the log grown past ``room`` in this run, they are turned off and that is said.
     It ends with the log's file."""
-    while not log.file.closed:
-        time.sleep(WATCH_S)
+    while not log.stopped.wait(WATCH_S) and not log.file.closed:
         log.tick()
         if disable is None:
             continue

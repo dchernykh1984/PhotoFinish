@@ -671,7 +671,9 @@ def test_the_watch_has_the_minutes_said_each_time_it_looks(
             raise ValueError("I/O operation on closed file")
 
     ticks: list[int] = []
-    log = SimpleNamespace(tick=lambda: ticks.append(1), file=Closed())
+    log = SimpleNamespace(
+        tick=lambda: ticks.append(1), file=Closed(), stopped=threading.Event()
+    )
     window_log._watch(log, 0, lambda: None)  # type: ignore[arg-type]
     assert ticks == [1]
 
@@ -693,6 +695,7 @@ def test_the_watch_goes_on_having_minutes_said_after_the_stacks_are_off(
             def __init__(self) -> None:
                 self.file = file
                 self.ticks = 0
+                self.stopped = threading.Event()
 
             def tick(self) -> None:
                 self.ticks += 1
@@ -743,3 +746,33 @@ def test_a_count_names_no_object_of_the_first_error_when_others_came() -> None:
     counts = [line for line in file.getvalue().splitlines() if "so far" in line]
     assert len(counts) == 1
     assert "<Decoder A>" not in counts[0]
+
+
+def test_the_end_stops_the_watch_and_no_error_after_it_waits_for_ever(
+    tmp_path: Path, hooks: list[object], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Python freezes a daemon thread at its exit wherever it is: the watch frozen
+    # with the log's lock held, an error at teardown waited on it for ever, and
+    # the window's process never ended.
+    monkeypatch.setattr(window_log, "WATCH_S", 0.01)
+    log = window_log.start(
+        tmp_path / "window.log", "1.0.0", enable=lambda file: None, disable=lambda: None
+    )
+    assert log is not None
+    watch = log.watch
+    assert watch is not None
+    log.end()
+    assert not watch.is_alive()
+    taken, freed = threading.Event(), threading.Event()
+
+    def frozen() -> None:  # a thread holding the lock, as one Python froze would
+        with log._lock:
+            taken.set()
+            freed.wait()
+
+    threading.Thread(target=frozen, daemon=True).start()
+    taken.wait()
+    began = time.monotonic()
+    log.error(*raised("at teardown"))
+    assert time.monotonic() - began < 5
+    freed.set()
