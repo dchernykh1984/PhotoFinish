@@ -52,6 +52,20 @@ def test_the_window_s_errors_go_to_its_log_and_on_to_the_hooks_before(
     assert hooks == [ValueError, ZeroDivisionError]  # the console's still told
 
 
+def test_a_thread_ending_by_system_exit_is_no_error(
+    tmp_path: Path, hooks: list[object]
+) -> None:
+    # Python's own hook lets SystemExit from a thread pass in silence: no fault to
+    # send anyone looking for.
+    path = tmp_path / "window.log"
+    assert window_log.start(path, "1.0.0", enable=lambda file: None) is not None
+    thread = threading.Thread(target=sys.exit)
+    thread.start()
+    thread.join()
+    assert "SystemExit" not in path.read_text(encoding="utf-8")
+    assert hooks == [SystemExit]  # the hook before still asked
+
+
 def test_the_same_error_again_within_a_minute_is_counted_not_written() -> None:
     file = io.StringIO()
     now = [1000.0]
