@@ -28,6 +28,7 @@ import numpy as np
 
 from app import cameras, session
 from app.paths import app_path
+from app.phone_status import number
 from app.recorder.clock_sync import ClockResponder
 from app.recorder.phone_log import PhoneLog
 from app.recorder.segments import SegmentWriter, recover
@@ -471,8 +472,9 @@ def _stopping(folder: Path) -> bool:
         info = json.loads((folder / "recorder.json").read_text(encoding="ascii"))
     except OSError, ValueError:
         return False
-    heard = info.get("heartbeat_ms") if isinstance(info, dict) else None
-    if not isinstance(heard, int) or info.get("state") != "stopped":
+    # Its time read as the window reads it: a number, however written (launcher._ms).
+    heard = number(info.get("heartbeat_ms")) if isinstance(info, dict) else None
+    if heard is None or info.get("state") != "stopped":
         return False
     return time.time_ns() // 1_000_000 - heard <= STALE_MS
 
