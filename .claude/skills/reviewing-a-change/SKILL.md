@@ -35,6 +35,17 @@ not one to cause.
 from that frame's own timestamp, not from its index times a nominal frame rate
 (phones record at a variable rate), and a camera's offset is applied once.
 
+**What does libav really do?** A finding, or a fix, that rests on how PyAV's
+muxer behaves is tried, not read: a scratch script muxing into a real file.
+Tried in #46: a packet libav refuses (a dts set back) raises at its own `mux`,
+before the interleaving queue; a write error -- a file capped with
+`RLIMIT_FSIZE` gives EFBIG, as a full disk gives ENOSPC -- comes back as the
+same `OSError` at every later `mux` and at the close. PyAV raises a write error
+as `av.error.OSError`, an `FFmpegError` too: an `except av.FFmpegError` takes a
+full disk for a refused packet unless it raises an `OSError` again. A Python
+file object in place of a path turns the later errors into `PyAVCallbackError`:
+try a path.
+
 **Does it change a format?** `number#time#action#` with the time as
 `D H:M:S[.mmm]` - hours, minutes and seconds not zero-padded, milliseconds
 always three digits when recorded - is written by every chronometer and read by FinishProtocolGeneratorPython. Lines
