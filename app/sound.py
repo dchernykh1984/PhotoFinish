@@ -40,7 +40,9 @@ SILENCE_MS = 100  # a gap's silence made this much at a time
 # Following a recording, its last segment's sound is given up to this long before its
 # last frame: a piece and the frame beside it lie this far apart in a stream at most.
 FOLLOW_SLACK_MS = 200
-UNHEARD = 5  # the newest segments not listed as sounding, looked at again as more come
+# The newest segments not listed as sounding, looked at again as more come: half a
+# minute of them, a list held by a scanner that long.
+UNHEARD = 30
 HELD_READS, HELD_PAUSE_S = 3, 0.05  # a segment's times held a moment: read again
 # atempo's range: faster in one stage, as each stage's window puts the sound earlier
 # by its lag -- x4 some 40 ms on the recording's time, two stages of x2 some 70 --;
