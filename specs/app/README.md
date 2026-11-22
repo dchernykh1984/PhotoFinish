@@ -40,7 +40,9 @@ that dies is started again after 1 s, the
 pause doubling to 30 s while it keeps failing. A lock keeps a second recorder off a camera.
 The segment being written reaches the disk as it is written, its video every 0.1 s: the frames a
 dead recorder wrote whole are shown once the next one starts, so a crash costs the time the
-recorder is down and at most the 0.1 s before it.
+recorder is down and at most the 0.1 s before it. A phone's frames sent again, written for the
+frames after them to decode, are copied with them; a frame the copy cannot take costs the frames
+after it up to the next keyframe, none shown with another's picture.
 
 - USB cameras, files played as live and the test camera are encoded (mpeg4, a keyframe every 15
   frames); RTSP and RTMP streams are kept as the camera encoded them, cut at its keyframes.
