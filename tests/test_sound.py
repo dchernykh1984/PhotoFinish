@@ -636,6 +636,23 @@ def test_segments_followed_are_told_apart_without_listing_all_known_again(
     assert len(list(found)) > 100
 
 
+def test_the_segments_sound_is_played_from_are_named_once_each(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Listed at each play, a day of them: each segment's name made once, not twice.
+    index = recorded(tmp_path)
+    walked: list[int] = []
+    real = PurePath.__dict__["stem"]
+
+    def stem(path: Path) -> str:
+        walked.append(1)
+        return str(real.__get__(path))
+
+    monkeypatch.setattr(Path, "stem", property(stem))
+    sound.Pieces(list(index.paths), START, True, folder=index.folder)
+    assert len(walked) == len(index.paths)
+
+
 def test_the_sound_later_is_told_at_once_while_nothing_changed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
