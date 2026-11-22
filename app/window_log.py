@@ -103,7 +103,8 @@ def start(
         hooked(kind, value, tb)
 
     def thread_hook(args: threading.ExceptHookArgs) -> None:
-        log.error(args.exc_type, args.exc_value, args.exc_traceback)
+        if not issubclass(args.exc_type, SystemExit):  # Python's hook ignores it too
+            log.error(args.exc_type, args.exc_value, args.exc_traceback)
         threads(args)
 
     sys.excepthook = excepthook
