@@ -81,3 +81,41 @@ w.grab().save("window.png")
 ```
 
 Keep it as a scratch script writing outside the repository, not as a test.
+
+The offscreen platform draws the Fusion style -- Windows' and Linux's sizes, a
+push button never under 80 px -- on an 800x600 screen, where a dialog opens at
+its least. For the macOS look, render with the platform macOS runs, off the
+screen:
+
+```python
+os.environ["QT_QPA_PLATFORM"] = "cocoa"  # before QtWidgets is imported
+w.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen)
+```
+
+Look at the window at its smallest (`w.resize(100, 100)`): a field cut shows
+there first.
+
+## A wrapped label cut
+
+A label with word wrap gets no more height than its minimum asks for wherever
+its height for its width is left out: in a `QSplitter`'s part, and in a window
+or dialog's least size, a layout's minimum leaving it out. Its text grown -- a
+phone's lines, a lens's advice --, it is cut, or what is below it is pressed
+under its own minimum: a QR code that does not scan, buttons a few pixels high.
+Use `app/widgets/whole_label.WholeLabel`, which keeps its height for its width as
+its minimum, and keep such a label out of a splitter's part. Test it at the
+smallest size:
+
+```python
+w.resize(100, 100)
+w.show()
+QApplication.processEvents()
+assert label.height() >= label.heightForWidth(label.width())
+for button in w.findChildren(QPushButton):
+    if button.isVisible():
+        assert button.height() >= button.minimumSizeHint().height(), button.text()
+```
+
+A text that grows without bound on one row -- a path written out on a button --
+pushes the window past the screen and leaves the fields beside it no room: name
+the file, the path in the tip.
