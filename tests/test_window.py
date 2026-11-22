@@ -4473,3 +4473,16 @@ def test_the_lists_stay_put_while_a_phone_s_line_wraps_to_fewer_lines(
     win.poll()
     QApplication.processEvents()
     assert win.camera_list.mapTo(win, win.camera_list.rect().topLeft()).y() == lists
+
+
+def test_about_says_a_phone_whose_log_cannot_be_read(
+    base: Path,
+    make_window: Callable[[], mw.MainWindow],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    phone = {**CAMERA, "connection": "rtmp", "settings": {"port": 1999, "path": "x"}}
+    session.save({**session.DEFAULTS, "cameras": [phone]})
+    (base / "video" / "cam1" / "phone.log").mkdir(parents=True)  # not to be read
+    (text,) = about(make_window(), monkeypatch)
+    (line,) = [line for line in text.split("<br>") if line.startswith("Side: ")]
+    assert line.startswith("Side: its log cannot be read: ")

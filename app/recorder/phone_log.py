@@ -214,14 +214,15 @@ def newest_start(folders: Iterable[Path]) -> str | None:
     said twice --; read from the logs, newest first, till one holds that run's start:
     a recorder that heard the run late, the phone no longer holding its start, has
     none of it. About asks it on the window's thread. "" when no log holds it -- or
-    days of a log since --; None for no log at all."""
+    days of a log since --; None for no log at all. OSError for a log there that
+    cannot be read: whose run is at work is not known then."""
     logs = [(w, folder) for folder in folders if (w := _written(folder)) is not None]
     run: str | None = None
     for _, folder in sorted(logs, reverse=True):
         for path in (folder / FILE, folder / (FILE + ".1")):
             try:
                 kept = path.read_bytes()
-            except OSError:
+            except FileNotFoundError:  # gone since: moved to the file kept before
                 continue
             run = run or _run_at(kept, len(kept))
             if run is not None and (said := _start_of(kept, run)):

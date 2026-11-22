@@ -546,7 +546,10 @@ class MainWindow(QMainWindow):
         if phones:
             lines.append("")
         for ids in phones.values():
-            said = newest_start(folder_of(i) for i in ids)
+            try:
+                said = newest_start(folder_of(i) for i in ids)
+            except OSError as error:
+                said = f"its log cannot be read: {error.strerror or error}"
             names = ", ".join(self._name(i) for i in ids)
             if said is None:  # a free streaming app's, or one never heard
                 said = "no word from PhotoFinish Camera yet"
