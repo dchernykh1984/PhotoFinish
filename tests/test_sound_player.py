@@ -440,6 +440,25 @@ def test_a_recording_that_grows_no_more_is_heard_to_its_end(tmp_path: Path) -> N
     played.stop()
 
 
+def test_a_window_busy_past_the_outputs_buffer_leaves_the_time_out_so_it_keeps_up(
+    tmp_path: Path,
+) -> None:
+    # A poll holding the window 0.4 s, the sound rendered ahead all the while: the
+    # output ran dry that long as the picture went on, as much left out of it.
+    index = recorded(tmp_path)
+    output = Output()
+    now = [100.0]
+    made = (output, player.RATE, player.CHANNELS)
+    played = player.SoundPlayer(output=lambda: made, clock=lambda: now[0])
+    played.play(index, START, 1.0, follows=False)
+    wait_until(lambda: len(output.taken) > 4 * RATE * 0.5)
+    wait_until(lambda: bool(played._chunks))  # rendered ahead, waiting
+    now[0] += 0.4  # the window busy: no pump
+    wait_until(lambda: given(played))
+    assert beep_at(heard(output)) == pytest.approx(1.5 - 0.4, abs=0.05)
+    played.stop()
+
+
 class ShortOutput(Output):
     """An output whose free room stops a tenth of a second short of its buffer: as
     one still playing that much, or one whose empty room stops a period short."""
