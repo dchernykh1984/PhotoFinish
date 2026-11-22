@@ -665,6 +665,8 @@ def test_the_watch_has_the_minutes_said_each_time_it_looks(
     monkeypatch.setattr(window_log, "WATCH_S", 0.0)
 
     class Closed:
+        closed = False  # closed as it is looked at
+
         def fileno(self) -> int:
             raise ValueError("I/O operation on closed file")
 
@@ -672,3 +674,54 @@ def test_the_watch_has_the_minutes_said_each_time_it_looks(
     log = SimpleNamespace(tick=lambda: ticks.append(1), file=Closed())
     window_log._watch(log, 0, lambda: None)  # type: ignore[arg-type]
     assert ticks == [1]
+
+
+def test_the_watch_goes_on_having_minutes_said_after_the_stacks_are_off(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # It turned the stacks off and stopped: a burst's count waited again for the
+    # next error, an hour on maybe.
+    monkeypatch.setattr(window_log, "WATCH_S", 0.0)
+    grown = tmp_path / "grown.log"
+    grown.write_text("x" * 300)
+    turned_off: list[bool] = []
+    said: list[str] = []
+
+    with grown.open("a") as file:
+
+        class Log:
+            def __init__(self) -> None:
+                self.file = file
+                self.ticks = 0
+
+            def tick(self) -> None:
+                self.ticks += 1
+                if self.ticks == 3:
+                    file.close()  # the window gone: the watch ends
+
+            def write(self, text: str) -> None:
+                said.append(text)
+
+        log = Log()
+        window_log._watch(log, 100, lambda: turned_off.append(True))  # type: ignore[arg-type]
+    assert turned_off == [True]
+    assert said == [
+        "the log is full for this run: a crash's stacks are no longer written"
+    ]
+    assert log.ticks == 3  # on after the stacks were turned off
+
+
+def test_the_watch_has_minutes_said_when_the_stacks_cannot_be_kept(
+    tmp_path: Path, hooks: list[object]
+) -> None:
+    def refused(file: object) -> None:
+        raise RuntimeError("no such descriptor")
+
+    before = set(threading.enumerate())
+    log = window_log.start(
+        tmp_path / "window.log", "1.0.0", enable=refused, disable=lambda: None
+    )
+    assert log is not None
+    assert [t.name for t in set(threading.enumerate()) - before] == [
+        "the window log's size"
+    ]

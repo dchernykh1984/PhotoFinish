@@ -258,42 +258,69 @@ def start(
     sys.excepthook = excepthook
     threading.excepthook = thread_hook
     sys.unraisablehook = unraisable_hook
-    try:
-        enable(file)
-        began = os.fstat(file.fileno()).st_size
-        threading.Thread(
-            target=_watch,
-            args=(log, began + 2 * LIMIT_BYTES, disable),
-            name="the window log's size",
-            daemon=True,
-        ).start()
-    except Exception as error:  # stacks with no watch on them, or none: off, said
-        with contextlib.suppress(Exception):
-            disable()
-        log.write(
-            "a crash's stacks are not written this run: "
-            f"{type(error).__name__}: {error}"
-        )
+    _keep_stacks(log, file, enable, disable)
     return log
 
 
-def _watch(log: WindowLog, room: int, disable: Callable[[], object]) -> None:
-    """faulthandler writes outside the log's room -- on Windows also for an
-    exception native code handles itself: the log grown past ``room`` in this
-    run, it is turned off, and that is said."""
-    while True:
+def _keep_stacks(
+    log: WindowLog,
+    file: TextIO,
+    enable: Callable[[TextIO], object],
+    disable: Callable[[], object],
+) -> None:
+    """A crash's stacks written to the log, a thread watching it -- the minutes
+    said, the stacks' room kept; stacks that cannot be kept, or watched, off and
+    that said."""
+    stacks: Callable[[], object] | None = disable  # on, to be watched
+    try:
+        enable(file)
+    except Exception as error:
+        _stacks_off(log, disable, error)
+        stacks = None
+    try:
+        began = os.fstat(file.fileno()).st_size
+        threading.Thread(
+            target=_watch,
+            args=(log, began + 2 * LIMIT_BYTES, stacks),
+            name="the window log's size",
+            daemon=True,
+        ).start()
+    except Exception as error:  # stacks with no watch on them: none
+        if stacks is not None:
+            _stacks_off(log, disable, error)
+
+
+def _stacks_off(
+    log: WindowLog, disable: Callable[[], object], error: Exception
+) -> None:
+    with contextlib.suppress(Exception):
+        disable()
+    log.write(
+        f"a crash's stacks are not written this run: {type(error).__name__}: {error}"
+    )
+
+
+def _watch(log: WindowLog, room: int, disable: Callable[[], object] | None) -> None:
+    """Every WATCH_S the minutes ended are said (``tick``), and while the stacks
+    are on the log's size looked at: faulthandler writes them outside the log's
+    room -- on Windows also for an exception native code handles itself --, so
+    the log grown past ``room`` in this run, they are turned off and that is said.
+    It ends with the log's file."""
+    while not log.file.closed:
         time.sleep(WATCH_S)
         log.tick()
+        if disable is None:
+            continue
         try:
             size = os.fstat(log.file.fileno()).st_size
-        except OSError, ValueError:  # the file closed: nothing to watch
+        except OSError, ValueError:  # the file closed meanwhile
             return
         if size > room:
             disable()
             log.write(
                 "the log is full for this run: a crash's stacks are no longer written"
             )
-            return
+            disable = None
 
 
 def _set_aside(path: Path) -> None:
