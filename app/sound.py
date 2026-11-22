@@ -115,8 +115,8 @@ def sounding(folder: Path) -> frozenset[str]:
     held a moment, unreadable, gives what it listed so far."""
     with _SOUNDING_LOCK:
         follower, names, seen = _SOUNDING.get(folder, (None, frozenset(), None))
-        try:
-            file = _first_line(folder / SOUND)
+        try:  # waited for only the first time: known, the window is never held up
+            file = _first_line(folder / SOUND, again=follower is None)
         except OSError:
             return names  # held by a scanner a moment (Windows): not gone
         if follower is None or file != seen:
@@ -131,12 +131,13 @@ def sounding(folder: Path) -> frozenset[str]:
         return names
 
 
-def _first_line(path: Path) -> bytes | None:
+def _first_line(path: Path, again: bool = False) -> bytes | None:
     """A list's first line: another, the list begun anew, whatever its inode -- which
     a filesystem may give a file made again; None when there is none. Raises when it
     is there and cannot be read."""
     try:
-        with retried(lambda: path.open("rb")) as f:  # held a moment (Windows)
+        opened = retried(lambda: path.open("rb")) if again else path.open("rb")
+        with opened as f:  # ``again``: held a moment (Windows), opened again
             return f.readline(64)
     except FileNotFoundError:
         return None
