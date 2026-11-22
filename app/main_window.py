@@ -44,9 +44,12 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMessageBox,
     QProgressDialog,
+    QProxyStyle,
     QPushButton,
     QSplitter,
     QStyle,
+    QStyleHintReturn,
+    QStyleOption,
     QVBoxLayout,
     QWidget,
 )
@@ -523,7 +526,10 @@ class MainWindow(QMainWindow):
         about = QAction("About PhotoFinish", self)
         about.setMenuRole(QAction.MenuRole.AboutRole)
         about.triggered.connect(self.about)
-        self.menuBar().addMenu("Help").addAction(about)
+        bar = self.menuBar()
+        self._bar_style = _NoAltKeys(self.style().name())  # a widget's is not owned
+        bar.setStyle(self._bar_style)
+        bar.addMenu("Help").addAction(about)
 
     def about(self) -> None:
         """This program's version, and each phone's app as it said at its start
@@ -2349,6 +2355,23 @@ class MainWindow(QMainWindow):
 
 
 _OWN_FILE = "?file"  # the model list's last item: a file of the referee's own
+
+
+class _NoAltKeys(QProxyStyle):
+    """The window's style, but for Alt pressed alone, which Windows' hands the keys
+    to the menu bar with: the arrows would walk its menus then, not step the video."""
+
+    def styleHint(  # noqa: N802 - Qt's name
+        self,
+        hint: QStyle.StyleHint,
+        /,
+        option: QStyleOption | None = None,
+        widget: QWidget | None = None,
+        returnData: QStyleHintReturn | None = None,  # noqa: N803 - Qt's name
+    ) -> int:
+        if hint == QStyle.StyleHint.SH_MenuBar_AltKeyNavigation:
+            return 0
+        return super().styleHint(hint, option, widget, returnData)
 
 
 class _StillCombo(QComboBox):
