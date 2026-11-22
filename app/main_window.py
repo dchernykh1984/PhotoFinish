@@ -2366,6 +2366,7 @@ class MainWindow(QMainWindow):
         self._say(f"{name} is aligned on the event: {offset:+d} ms")
         self._refresh(force=True)
         self._go(self.place)
+        self._show_stretches()  # the rider marks on the new offset too
         self._show_suggestions()  # gathered and timed on the new offset
 
     def _offset(self) -> int:
