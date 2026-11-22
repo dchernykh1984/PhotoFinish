@@ -4286,3 +4286,38 @@ def test_about_says_each_phone_s_app_as_the_phone_said_it_at_its_start(
     assert f"Mi main, Mi tele: {html.escape(said)}" in lines
     assert "Larix &lt;i&gt;: no word from PhotoFinish Camera yet" in lines
     assert not any("Side" in line for line in lines)
+
+
+def test_the_corner_s_word_and_each_phone_s_line_are_shown_whole(
+    base: Path, make_window: Callable[[], mw.MainWindow]
+) -> None:
+    # A phone's four lenses, each with its status, one of them not recording: the
+    # banner names it and each lens's line wraps. Each is as high as its text at its
+    # width -- not cut to what it had before its text grew, as a splitter's part
+    # leaves a wrapped label.
+    made = []
+    for n, lens in enumerate(("main", "telephoto", "ultrawide", "front"), start=1):
+        camera: dict[str, Any] = {"id": f"cam{n}", "name": f"Mi 17 {lens}"}
+        camera |= {"lens": lens, "connection": "rtmp", "phone": "cam1"}
+        made.append(camera | {"settings": {"port": 1999 + n, "path": f"live/cam{n}"}})
+    session.save({**session.DEFAULTS, "cameras": made})
+    now = time.time_ns() // 1_000_000
+    status: dict[str, Any] = {"battery": "47", "charging": "0", "temp": "41.5"}
+    status |= {"thermal": "3"}
+    status |= {"wifi": "-72", "saver": "1", "dropped": "1234", "free": "25000"}
+    status |= {"at_ms": now, "heard_ms": now}
+    for n in range(1, 4):
+        beating(base, f"cam{n}", phone=status)
+    beating(base, "cam4", state="connecting", phone=status)
+    win = make_window()
+    win.resize(100, 100)  # as small as it goes: none of it pressed under the rest
+    win.show()
+    win.poll()
+    QApplication.processEvents()
+    assert win.recording_banner.text().startswith("NOT RECORDING")
+    for label in (win.recording_banner, win.phones):
+        assert label.isVisible()
+        assert label.height() >= label.heightForWidth(label.width())
+    for button in win.findChildren(QPushButton):
+        if button.isVisible():
+            assert button.height() >= button.minimumSizeHint().height(), button.text()

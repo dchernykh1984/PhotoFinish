@@ -46,6 +46,7 @@ from PySide6.QtWidgets import (
     QProgressDialog,
     QPushButton,
     QSplitter,
+    QStyle,
     QVBoxLayout,
     QWidget,
 )
@@ -108,6 +109,7 @@ from app.widgets.lists import LinesView, input_rows, output_rows
 from app.widgets.number_field import NumberField
 from app.widgets.sound import SoundPlayer
 from app.widgets.timeline import Timeline
+from app.widgets.whole_label import WholeLabel
 
 POLL_MS = 500
 PLAY_MS = 15  # how often playing looks for the next frame: oftener than any camera's
@@ -198,14 +200,12 @@ class MainWindow(QMainWindow):
             "Added to the video's time to give the timing source's: set with "
             "'Align with source'"
         )
-        self.recording_banner = QLabel()  # whether the cameras record now (FR-019)
+        self.recording_banner = WholeLabel()  # whether the cameras record now (FR-019)
         self.recording_banner.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.recording_banner.setTextFormat(Qt.TextFormat.RichText)
-        self.recording_banner.setWordWrap(True)
         self.recording_banner.hide()  # until a camera records
-        self.phones = QLabel()  # what may stop each phone's stream (specs/005)
+        self.phones = WholeLabel()  # what may stop each phone's stream (specs/005)
         self.phones.setTextFormat(Qt.TextFormat.RichText)
-        self.phones.setWordWrap(True)
         self.phones.setStyleSheet("QLabel { font-size: 13px; }")
         self.phones.hide()  # until a phone says how it is
         self.camera_list = QListWidget()
@@ -422,8 +422,6 @@ class MainWindow(QMainWindow):
         buttons.addWidget(export_video)
         buttons.addWidget(self.one_camera)
         cameras = QVBoxLayout()
-        cameras.addWidget(self.recording_banner)
-        cameras.addWidget(self.phones)
         cameras.addWidget(QLabel("Cameras"))
         cameras.addWidget(self.camera_list)
         cameras.addLayout(buttons)
@@ -471,11 +469,21 @@ class MainWindow(QMainWindow):
         suggested.addWidget(QLabel("Suggested crossings (experimental)"))
         suggested.addWidget(self.suggestion_list)
         suggested.addLayout(decide)
-        right = QSplitter(Qt.Orientation.Vertical)
-        for part in (cameras, inputs, outputs, suggested):
+        right = QWidget()
+        column = QVBoxLayout(right)
+        side = self.style().pixelMetric(QStyle.PixelMetric.PM_LayoutTopMargin)
+        column.setContentsMargins(side, side, side, 0)  # a part's, as a widget's within
+        # The corner's word and the phones' lines above the parts, as high as their
+        # text: a splitter's part gives a wrapped label what it had, its text grown.
+        column.addWidget(self.recording_banner)
+        column.addWidget(self.phones)
+        parts = QSplitter(Qt.Orientation.Vertical)
+        for n, part in enumerate((cameras, inputs, outputs, suggested)):
+            part.setContentsMargins(0, side if n else 0, 0, side)
             holder = QWidget()
             holder.setLayout(part)
-            right.addWidget(holder)
+            parts.addWidget(holder)
+        column.addWidget(parts, stretch=1)
         # Never narrower than its rows need: a set minimum below that cuts labels.
         right.setMinimumWidth(max(320, right.minimumSizeHint().width()))
 
