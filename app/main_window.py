@@ -2276,7 +2276,6 @@ class MainWindow(QMainWindow):
         self._refresh(force=True)
         self._go(self.place)
         self._show_suggestions()  # gathered and timed on the new offset
-        self._play_sound()  # playing on: its sound on the new offset (013)
 
     def _offset(self) -> int:
         camera = self._camera()
