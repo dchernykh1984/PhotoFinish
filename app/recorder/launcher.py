@@ -132,8 +132,9 @@ class Watchdog:
         self.backoff = Backoff()
         self._process: subprocess.Popen[bytes] | None = None
         self._started = 0.0  # monotonic, when this window last started one
-        self._started_ms = 0  # wall clock, when it last tried to
-        self._start_beat = 0  # the heartbeat then: one since is the one it started's
+        # The heartbeat when this window last tried to start one: a beat since is the
+        # one it started's -- whatever the clock was set to between, back or ahead.
+        self._start_beat = 0
         self._retry_at: float | None = None
         # The end of a recorder this window started, first seen (monotonic), which one,
         # and the heartbeat then: a later one is another recorder's.
@@ -161,7 +162,6 @@ class Watchdog:
             if not self.replacing:
                 return
             (folder_of(self.camera_id) / "stop.request").touch()
-        self._started_ms = time.time_ns() // 1_000_000  # an end before: not its own
         self._start_beat = 0 if info is None else _ms(info, "heartbeat_ms")
         try:
             self._process = (self._spawn or spawn)(self.camera_id)
@@ -238,13 +238,14 @@ class Watchdog:
         return (beating or not died) and alive(info)
 
     def _ended_by_itself(self, info: dict[str, Any] | None) -> bool:
-        """Failed, or the disk full, since this window started it: left for the
+        """Failed, or the disk full, since this window started it -- its beat one
+        since, not one before, earlier on a clock set back or not: left for the
         referee. One that stopped heard a stop, maybe just before it was withdrawn:
         started again while it is wanted."""
         return (
             info is not None
             and info.get("state") in ("failed", "disk_full")
-            and _ms(info, "heartbeat_ms") >= self._started_ms
+            and _ms(info, "heartbeat_ms") != self._start_beat
         )
 
     def _starting(self, now: float) -> bool:

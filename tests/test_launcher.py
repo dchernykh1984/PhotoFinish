@@ -889,3 +889,19 @@ def test_a_recorder_of_this_window_that_ended_is_not_at_work_its_beat_ahead(
     beat(folder, "stopped", age_ms=-60_000)
     watchdog.start()
     assert len(spawns.processes) == 2
+
+
+def test_a_recorder_failed_after_the_clock_was_set_back_is_left_for_the_referee(
+    folder: Path, clock: dict[str, float]
+) -> None:
+    # Started, then the clock set back a minute, then failed: its end's beat is
+    # earlier on the clock than its start, and still its own -- not started again.
+    spawns = Spawns()
+    watchdog = Watchdog("cam1", spawns)
+    watchdog.start()
+    beat(folder, "failed", age_ms=60_000)
+    spawns.processes[-1].code = 2
+    for moment in (1001, 1003, 1010, 1040):
+        clock["now"] = moment
+        watchdog.poll()
+    assert len(spawns.processes) == 1
