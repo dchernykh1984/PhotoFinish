@@ -455,6 +455,29 @@ def test_a_sound_list_held_a_moment_keeps_what_it_listed(tmp_path: Path) -> None
     assert len(sound.sounding(tmp_path)) == 4
 
 
+def test_segments_whose_lines_came_closes_late_are_heard_as_they_come(
+    tmp_path: Path,
+) -> None:
+    # A scanner holding the list seven seconds: seven lines written at once, each of
+    # the seven segments heard as the list gains them, the oldest as much.
+    index = recorded(tmp_path, 9)
+    listed = index.folder / sound.SOUND
+    names = listed.read_text().split()
+    late = [path for path in index.paths[1:8]]
+    listed.write_text(
+        "".join(f"{n}\n" for n in names if n not in {p.stem for p in late})
+    )
+    found = sound.Pieces(index.paths[:1], START, True, folder=index.folder)
+    for path in late:
+        found.extend([path])  # each closed, its line held back
+    with listed.open("a") as f:
+        f.write("".join(f"{path.stem}\n" for path in late))
+    found.extend(index.paths[8:])
+    found.finish()
+    moments = [piece.ms for piece in found]
+    assert any(START + 1000 <= ms < START + 1100 for ms in moments)  # the oldest's
+
+
 def test_a_sound_list_begun_anew_in_a_cleared_folder_is_read_from_its_start(
     tmp_path: Path,
 ) -> None:
