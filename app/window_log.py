@@ -15,14 +15,27 @@ import threading
 import time
 import traceback
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from types import TracebackType
 from typing import TextIO
 
 LIMIT_BYTES = 5_000_000  # a log past this at a start is set aside; a run's room
 AGAIN_S = 60.0  # an error again within this of its writing is counted, not written
+SAY_S = 5.0  # how often it came, written at its first repeat, then this often
 _NAMED = reprlib.Repr(maxother=300)  # an object named whole, a repr that fails too
 _ADDRESS = re.compile(r" at 0x[0-9a-fA-F]+")  # where an object lives, not what
+
+
+@dataclass
+class _Seen:
+    """An error written: when, on the steady clock; how often it came since, and
+    when that was last written."""
+
+    written: float
+    name: str
+    again: int = 0
+    said: float = 0.0
 
 
 class WindowLog:
@@ -41,8 +54,7 @@ class WindowLog:
         # writes -- a finalizer's, the collector runs it there -- comes back in:
         # it is written, the lock taken again, no longer waited on for ever.
         self._lock = threading.RLock()
-        self._seen: dict[str, tuple[float, int, str]] = {}  # an error's way: when
-        # it was written, on the steady clock, how often it came since, its name
+        self._seen: dict[str, _Seen] = {}  # by the way each error came
         self._room = LIMIT_BYTES  # what this run may still write of its errors
         self._full = False
 
@@ -72,14 +84,14 @@ class WindowLog:
             self._said_again(now)
             seen = self._seen.get(way)  # an error come back in may have let it go
             if seen is not None:
-                written, again, _ = seen
-                self._seen[way] = (written, again + 1, name)
-                if str(again + 1).rstrip("0") == "1":  # 1, 10, 100...: a crash
-                    # ends the minute unsaid, so how often is written on the way
-                    self._write(f"{name} came {_times(again + 1)} more so far")
+                seen.again += 1
+                # A crash ends the minute unsaid: how often is written on the way.
+                if seen.again == 1 or now - seen.said >= SAY_S:
+                    seen.said = now
+                    self._write(f"{seen.name} came {_times(seen.again)} more so far")
                 return
             self._write(f"an error no handler took:\n{text}")
-            self._seen[way] = (now, 0, name)
+            self._seen[way] = _Seen(now, name, said=now)
 
     def end(self) -> None:
         with self._lock:
@@ -89,10 +101,12 @@ class WindowLog:
     def _said_again(self, now: float) -> None:
         """The errors written AGAIN_S ago or more let go, how often each came since
         said."""
-        for way, (written, again, name) in list(self._seen.items()):
-            if now - written >= AGAIN_S:
-                if again:
-                    self._write(f"{name} came {_times(again)} more in its minute")
+        for way, seen in list(self._seen.items()):
+            if now - seen.written >= AGAIN_S:
+                if seen.again:
+                    self._write(
+                        f"{seen.name} came {_times(seen.again)} more in its minute"
+                    )
                 self._seen.pop(way, None)  # let go already by an error come in
 
     def _write(self, text: str, always: bool = False) -> None:

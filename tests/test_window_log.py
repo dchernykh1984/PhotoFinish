@@ -205,19 +205,19 @@ def test_a_clock_set_back_does_not_hold_an_error_back() -> None:
 
 def test_an_error_repeating_till_a_crash_has_its_count_written_as_it_grows() -> None:
     # A paint failing at every frame till Qt crashes: the minute's count is never
-    # said at its end, so it is written on the way -- once, ten times, a hundred.
+    # said at its end, so it is written on the way -- at the first repeat, then
+    # every 5 s: a crash leaves it at most 5 s short.
     file = io.StringIO()
     now = [1000.0]
     log = window_log.WindowLog(file, clock=lambda: now[0], steady=lambda: now[0])
     for frame in range(150):
-        now[0] = 1000.0 + frame * 0.1
+        now[0] = 1000.0 + frame * 0.125
         log.error(*raised("at every frame"))
     text = file.getvalue()  # no end: the crash
     assert text.count("ValueError: at every frame") == 1
-    assert "came 1 time more so far" in text
-    assert "came 10 times more so far" in text
-    assert "came 100 times more so far" in text
-    assert text.count("so far") == 3
+    for count in ("1 time", "41 times", "81 times", "121 times"):
+        assert f"came {count} more so far" in text
+    assert text.count("so far") == 4
 
 
 class _FailingAtItsEnd:
