@@ -448,3 +448,16 @@ def test_the_app_s_start_is_read_whole_from_a_log_written_with_windows_line_ends
     lines = [f"--- run {RUN} from line 1", f"2026-11-22 10:15:03.123 I - #1 {said}"]
     (tmp_path / phone_log.FILE).write_bytes("\r\n".join(lines).encode() + b"\r\n")
     assert phone_log.started(tmp_path) == said
+
+
+def test_the_app_s_start_is_found_at_the_head_of_a_long_log(tmp_path: Path) -> None:
+    # A day's log of the app's own run: its start the first of 100 000 lines, and
+    # the words it is looked for by in lines that are no start.
+    said = APP.format("0.13.1")
+    head = f"--- run {RUN} from line 1\n2026-11-22 08:00:00.000 I - #1 {said}\n"
+    body = "".join(
+        f"2026-11-22 09:00:00.000 I main #{n} PhotoFinish Camera sent a frame\n"
+        for n in range(2, 100_002)
+    )
+    (tmp_path / phone_log.FILE).write_text(head + body, encoding="utf-8")
+    assert phone_log.started(tmp_path) == said
