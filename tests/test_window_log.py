@@ -565,3 +565,20 @@ def test_a_log_whose_crash_stacks_cannot_be_kept_still_lets_the_window_start(
     assert log is not None
     assert "can't start new thread" in path.read_text(encoding="utf-8")
     assert turned_off == [True, True]
+
+
+def test_the_log_s_lines_end_as_its_room_counts_them(
+    tmp_path: Path, hooks: list[object]
+) -> None:
+    # Windows' text mode wrote "\r\n" for each "\n" the room counted: past its
+    # 5 MB by a few percent there. The lines end in "\n" on every system.
+    path = tmp_path / "window.log"
+    log = window_log.start(
+        path, "1.0.0", enable=lambda file: None, disable=lambda: None
+    )
+    assert log is not None
+    log.error(*raised("two\nlines"))
+    log.end()
+    data = path.read_bytes()
+    assert b"\r\n" not in data
+    assert data.count(b"\n") >= 6
