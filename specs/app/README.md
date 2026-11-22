@@ -11,6 +11,7 @@ FinishProtocolGeneratorPython reads as a finish file. Built by
 | File | What it holds |
 | --- | --- |
 | `data/session.json` | The input and output files chosen, the cameras with their settings, finish lines and offsets, the summer-time and finish-mode switches, the timing source's offset. |
+| `data/window.log` | The window's own log, as no console shows its errors: each start with the version, a Python error no handler took with its traceback -- the same one again within a minute counted, not written again --, the end, and the stacks of a crash (`faulthandler`). Started over when past 5 MB at a start; one that cannot be opened leaves the window to start without it. |
 | `video/<camera>/<YYYYmmdd-HHMMSS>-<n>.mkv`, `.times`, `segments.txt` | A camera's recording in one-second segments; each frame's timestamp and moment; the segments' names as they closed, the list readers follow. |
 | `video/<camera>/gaps.txt` | Stretches without frames: a restart, a reconnect, a camera that stalled. |
 | `video/<camera>/sound.txt` | The segments that kept sound beside their frames, as they closed (`specs/013-sound`): whether a camera has sound, read without opening its segments. |

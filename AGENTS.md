@@ -59,7 +59,9 @@ are based on that folder, absolute paths stay unchanged, and config values keep
 their original spelling. Finder may launch a macOS app with `/` as its working
 directory.
 
-Next to the program: `data/session.json` (the session), `video/<camera id>/`
+Next to the program: `data/session.json` (the session), `data/window.log`
+(the window's starts, the errors no handler took and a crash's stacks),
+`video/<camera id>/`
 (each camera's segments, frame times, gaps, its recorder's heartbeat and a
 phone's log),
 `temp/` (a copy of the output after each change) and `models/` (the detection

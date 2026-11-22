@@ -20,6 +20,12 @@ def main() -> None:
         from app.analysis.analyzer import run as analyze
 
         sys.exit(analyze(sys.argv[2]))
+    from app import window_log
+    from app.paths import app_path
+    from app.version import version
+
+    # Before anything else of the window's: no console shows its errors.
+    log = window_log.start(app_path("data", "window.log"), version())
     # Qt only for the window: a recorder process does without it.
     from PySide6.QtGui import QIcon
     from PySide6.QtWidgets import QApplication
@@ -39,7 +45,10 @@ def main() -> None:
 
     window = MainWindow()
     window.show()
-    sys.exit(qapp.exec())
+    code = qapp.exec()
+    if log is not None:
+        log.end()
+    sys.exit(code)
 
 
 def _macos_set_process_name(name: str) -> None:
