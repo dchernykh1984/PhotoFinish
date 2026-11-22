@@ -256,6 +256,7 @@ def test_an_error_raised_while_the_log_writes_does_not_hang_the_window() -> None
     writer.join(timeout=5)
     assert not writer.is_alive()
     assert "ValueError: first" in file.getvalue()
+    assert "KeyError: 'from a finalizer'" in file.getvalue()  # written too
 
 
 def test_a_failure_of_the_log_itself_still_hands_each_error_on(
