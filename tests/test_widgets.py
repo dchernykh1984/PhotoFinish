@@ -704,3 +704,25 @@ def test_a_whole_label_given_its_own_text_again_leaves_the_window_be() -> None:
     QApplication.processEvents()
     assert held == []
     holder.close()
+
+
+def test_a_whole_label_is_as_high_as_its_text_in_the_font_a_style_gives_it() -> None:
+    # The corner's word is given its text, then its style: 24 px, bold. Measured
+    # in the font it had, it would be cut till its text changed.
+    from PySide6.QtWidgets import QVBoxLayout, QWidget
+
+    from app.widgets.whole_label import WholeLabel
+
+    holder = QWidget()
+    label = WholeLabel()
+    QVBoxLayout(holder).addWidget(label)
+    label.setText("NOT RECORDING<br>Side: no video since 12:00:00")
+    holder.resize(800, 600)  # as wide in either font: only its height asks anew
+    holder.show()
+    QApplication.processEvents()
+    small, wide = label.minimumHeight(), label.width()
+    label.setStyleSheet("QLabel { font-size: 40px; font-weight: bold; }")
+    QApplication.processEvents()
+    assert label.width() == wide
+    assert label.minimumHeight() == label.heightForWidth(label.width()) > small
+    holder.close()
