@@ -448,6 +448,25 @@ def test_a_heartbeat_is_read_as_it_is(folder: Path) -> None:
     assert not alive({"state": "stopped", "heartbeat_ms": now_ms()})
 
 
+def test_a_heartbeat_ahead_of_this_computer_s_clock_is_no_recorder_at_work(
+    folder: Path, clock: dict[str, float]
+) -> None:
+    # The computer's clock set back an hour after the recorder's last beat, and the
+    # recorder dead before its next: its beat, an hour ahead of now, is none of a
+    # recorder at work -- the camera's is started, not an hour later. One that lives
+    # beats again within the second, on the clock set back.
+    beat(folder, "recording", age_ms=-3_600_000)
+    info = heartbeat("cam1")
+    assert not alive(info)
+    assert not launcher.recording(info)
+    assert launcher.describe(info) == "not responding"
+    spawns = Spawns()
+    Watchdog("cam1", spawns).start()
+    assert len(spawns.processes) == 1
+    beat(folder, "recording", age_ms=-1_000)  # a clock a second off: at work
+    assert alive(heartbeat("cam1"))
+
+
 def test_a_recorder_records_while_its_fresh_heartbeat_says_so() -> None:
     assert launcher.recording({"state": "recording", "heartbeat_ms": now_ms()})
     for state in ("starting", "connecting", "reconnecting", "stopped", "failed"):

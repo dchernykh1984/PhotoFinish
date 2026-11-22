@@ -1343,3 +1343,8 @@ def test_a_recorder_stopped_lately_is_told_as_the_window_tells_it(
         assert _stopping(tmp_path), written
     beat.write_text(json.dumps({"state": "stopped", "heartbeat_ms": "soon"}))
     assert not _stopping(tmp_path)
+    # Written an hour ahead of now -- the clock set back since --: as old as an hour
+    # behind, as the window reads it.
+    ahead = {"state": "stopped", "heartbeat_ms": now + 3_600_000}
+    beat.write_text(json.dumps(ahead))
+    assert not _stopping(tmp_path)
