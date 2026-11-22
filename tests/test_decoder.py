@@ -73,7 +73,11 @@ def test_a_frame_looked_at_again_is_kept_before_older_ones(tmp_path: Path) -> No
     decoder.close()
 
 
-def test_another_segment_lets_the_frames_kept_go(tmp_path: Path) -> None:
+def test_a_step_back_over_a_segments_start_takes_the_frames_kept(
+    tmp_path: Path,
+) -> None:
+    # A crossing on a segment's first frame, stepped around: the segment before's
+    # frames kept across the change of segment, never decoded again each time.
     index = frames(tmp_path, 60)  # two segments
     first, second = index.frame(5), index.frame(40)
     assert first.path != second.path
@@ -81,7 +85,7 @@ def test_another_segment_lets_the_frames_kept_go(tmp_path: Path) -> None:
     assert shows(decoder, index, 5)
     assert shows(decoder, index, 40)
     assert decoder.seeks == 2
-    assert shows(decoder, index, 4)  # its segment's frames gone with it
-    assert decoder.seeks == 3
+    assert shows(decoder, index, 4)  # its segment's frames kept with the other's
+    assert decoder.seeks == 2
     decoder.close()
     assert decoder.kept == 0
