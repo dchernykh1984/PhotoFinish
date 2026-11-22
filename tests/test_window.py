@@ -4369,3 +4369,29 @@ def test_the_files_are_named_on_their_buttons_the_number_left_room_beside_them(
     QApplication.processEvents()
     hint = win.number.placeholderText()
     assert win.number.width() > win.number.fontMetrics().horizontalAdvance(hint)
+
+
+def test_about_says_the_phone_s_newest_start_whichever_lens_s_log_holds_it(
+    base: Path,
+    make_window: Callable[[], mw.MainWindow],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The main lens no longer recorded when the app was updated: its log holds the
+    # old start, the telephoto's the new one. The newest is the app at work.
+    lens: dict[str, Any] = {"connection": "rtmp", "phone": "cam1"}
+    main = {**lens, "id": "cam1", "name": "Mi main", "lens": "main"}
+    main["settings"] = {"port": 1999, "path": "live/cam1"}
+    tele = {**lens, "id": "cam2", "name": "Mi tele", "lens": "telephoto"}
+    tele["settings"] = {"port": 2000, "path": "live/cam2"}
+    session.save({**session.DEFAULTS, "cameras": [main, tele]})
+    app = "PhotoFinish Camera {} on Xiaomi 25113PN0EC, Android 16 (API 36)"
+    for camera_id, when, version_said in (
+        ("cam1", "2026-11-21 18:00:00.000", "0.12.0"),
+        ("cam2", "2026-11-22 09:00:00.000", "0.13.1"),
+    ):
+        folder = base / "video" / camera_id
+        folder.mkdir(parents=True)
+        line = f"{when} I - #1 {app.format(version_said)}\n"
+        (folder / "phone.log").write_text(line, encoding="utf-8")
+    (text,) = about(make_window(), monkeypatch)
+    assert f"Mi main, Mi tele: {app.format('0.13.1')}" in text.split("<br>")

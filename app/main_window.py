@@ -527,8 +527,8 @@ class MainWindow(QMainWindow):
 
     def about(self) -> None:
         """This program's version, and each phone's app as it said at its start
-        (specs/008, FR-001): read from its lens cameras' logs, the first that holds
-        it."""
+        (specs/008, FR-001): the newest start its lens cameras' logs hold -- a lens
+        no longer recorded keeps an older one."""
         mine = version()
         name = f"PhotoFinish {mine}" if mine else "PhotoFinish, its version unknown"
         lines = [f"<b>{html.escape(name)}</b>", "Photo finish for offline race timing."]
@@ -540,7 +540,7 @@ class MainWindow(QMainWindow):
         if phones:
             lines.append("")
         for ids in phones.values():
-            said = next((s for i in ids if (s := started(folder_of(i)))), "")
+            _, said = max(started(folder_of(i)) for i in ids)
             names = ", ".join(self._name(i) for i in ids)
             word = said or "no word from PhotoFinish Camera yet"
             lines.append(html.escape(f"{names}: {word}"))
