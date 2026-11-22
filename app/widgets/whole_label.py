@@ -17,12 +17,14 @@ class WholeLabel(QLabel):
         self.setWordWrap(True)
 
     def setText(self, text: str) -> None:  # noqa: N802 - Qt's name
-        super().setText(text)
-        self._hold()
+        if text != self.text():  # said again at every poll: nothing asked of the window
+            super().setText(text)
+            self._hold()
 
     def resizeEvent(self, event: QResizeEvent) -> None:  # noqa: N802 - Qt's name
         super().resizeEvent(event)
-        self._hold()
+        if event.size().width() != event.oldSize().width():  # its text wraps anew
+            self._hold()
 
     def _hold(self) -> None:
         # Once laid out: the width it had before is none it is shown at, and the
