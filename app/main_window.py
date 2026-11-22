@@ -95,7 +95,7 @@ from app.recorder.launcher import (
     heartbeat,
     recording,
 )
-from app.recorder.phone_log import last_word
+from app.recorder.phone_log import last_word, started
 from app.sound import exported_sound, playing_from
 from app.start_protocol import StartNumbers
 from app.version import version
@@ -513,14 +513,25 @@ class MainWindow(QMainWindow):
         self.menuBar().addMenu("Help").addAction(about)
 
     def about(self) -> None:
-        """This program's version."""
+        """This program's version, and each phone's app as it said at its start
+        (specs/008, FR-001): read from its lens cameras' logs, the first that holds
+        it."""
         mine = version()
         name = f"PhotoFinish {mine}" if mine else "PhotoFinish, its version unknown"
-        QMessageBox.about(
-            self,
-            "About PhotoFinish",
-            f"<b>{html.escape(name)}</b><br>Photo finish for offline race timing.",
-        )
+        lines = [f"<b>{html.escape(name)}</b>", "Photo finish for offline race timing."]
+        phones: dict[str, list[str]] = {}
+        for camera in self.cameras.values():
+            if camera.settings.get("connection") == "rtmp":
+                phone = str(camera.settings.get("phone") or camera.id)
+                phones.setdefault(phone, []).append(camera.id)
+        if phones:
+            lines.append("")
+        for ids in phones.values():
+            said = next((s for i in ids if (s := started(folder_of(i)))), "")
+            names = ", ".join(self._name(i) for i in ids)
+            word = said or "no word from PhotoFinish Camera yet"
+            lines.append(html.escape(f"{names}: {word}"))
+        QMessageBox.about(self, "About PhotoFinish", "<br>".join(lines))
 
     def show_alone(self, row: int | None) -> None:
         """Camera ``row`` of the list alone, large; None: every camera side by side.
