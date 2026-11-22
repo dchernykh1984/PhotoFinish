@@ -30,6 +30,9 @@ _RUN = re.compile(r"[0-9a-f]{16}")
 _LINE = re.compile(r"(\d+) (\d+) ([IWEwe]) (\S+) (.*)")
 _MARK = re.compile(r"--- run ([0-9a-f]{16}) from line (\d+)")
 _SEQ = re.compile(r"\S+ \S+ [IWEwe] \S+ #(\d+) ")
+# The app's start, as kept: its own line, of no lens, saying its version, phone and
+# Android (FR-001) -- no longer than such a line is, as it came over the network.
+_START = re.compile(r"\S+ \S+ I - #\d+ (PhotoFinish Camera [\w.+-]{1,40} on .{1,120})")
 
 
 def _now_ms() -> int:
@@ -199,6 +202,22 @@ def last_word(said: object, now_ms: int) -> str:
     if ago < SAID_MS:
         return f"the phone: {text}"
     return f"the phone, {ago // MINUTE_MS} min ago: {text}"
+
+
+def started(folder: Path) -> str:
+    """The app's newest start a camera's log holds: its version, its phone and
+    Android, as the app said them first (FR-001) -- read from the file kept before
+    when the one begun since holds none; "" when neither does."""
+    for path in (folder / FILE, folder / (FILE + ".1")):
+        try:
+            lines = path.read_bytes().decode("utf-8", errors="replace").split("\n")
+        except OSError:
+            continue
+        for line in reversed(lines):
+            found = _START.fullmatch(line)
+            if found is not None:
+                return found.group(1)
+    return ""
 
 
 def _read(

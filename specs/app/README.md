@@ -258,7 +258,9 @@ or a swaying patch.
 - **Outside changes.** An output file changed by something else is kept in a backup beside it,
   journaled, and written again from the referee's list.
 - **About.** Help, About PhotoFinish -- on macOS in the program's own menu -- says the program's
-  version.
+  version, and each phone's PhotoFinish Camera as the phone said at the app's last start: its
+  version, the phone and its Android, read from the phone's log (`specs/008-phone-log`); a phone
+  with no such word in its log, a free streaming app's among them, is said so.
 
 ## Finding riders (experimental, off by default)
 

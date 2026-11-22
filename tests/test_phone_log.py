@@ -386,3 +386,54 @@ def test_the_phones_last_word_is_said_whatever_number_its_times_are_written_as()
         assert last_word(word, 5_000) == "the phone: camera error 4"
     assert last_word({**said, "at_ms": "soon"}, 5_000) == ""
     assert last_word({**said, "at_ms": float("inf")}, 5_000) == ""
+
+
+APP = "PhotoFinish Camera {} on Xiaomi 25113PN0EC, Android 16 (API 36)"
+
+
+def test_the_app_s_last_start_is_read_from_the_phone_s_log(
+    log: PhoneLog, tmp_path: Path
+) -> None:
+    # FR-001: each start of the app logs its version, phone and Android first; the
+    # newest the log holds is the app at work, whatever was said after it.
+    assert phone_log.started(tmp_path) == ""  # no log yet
+    log.heard(message(1, (1, "I", "-", APP.format("0.12.0")), (2, "W", "main", "x")))
+    assert phone_log.started(tmp_path) == APP.format("0.12.0")
+    started_again = message(
+        1, (1, "I", "-", APP.format("0.13.1")), (2, "I", "-", "main"), run=LATER
+    )
+    log.heard(started_again)
+    assert phone_log.started(tmp_path) == APP.format("0.13.1")
+
+
+def test_no_line_but_the_app_s_own_start_is_taken_for_it(
+    log: PhoneLog, tmp_path: Path
+) -> None:
+    # What came over the network as a lens's line, a warning, the system log's, or
+    # a start quoted: no version of the app's -- nor one longer than a version is.
+    for seq, (level, lens, text) in enumerate(
+        (
+            ("I", "main", APP.format("9.9.9")),
+            ("W", "-", APP.format("9.9.9")),
+            ("w", "-", APP.format("9.9.9")),
+            ("I", "-", "said: " + APP.format("9.9.9")),
+            ("I", "-", APP.format("9" * 41)),
+            ("I", "-", APP.format("9.9.9") + "x" * 200),
+        ),
+        start=1,
+    ):
+        log.heard(message(1, (seq, level, lens, text), prev=seq - 1))
+    assert len(kept(tmp_path)) == 7  # each kept, after the run's mark
+    assert phone_log.started(tmp_path) == ""
+
+
+def test_the_app_s_start_is_read_from_the_file_kept_before_a_new_one_began(
+    tmp_path: Path,
+) -> None:
+    # KEEP_BYTES past, the log goes on in a new file: its run's start in the one
+    # kept before -- or a phone's clock gone wrong, its time kept as it came.
+    before = f"--- run {RUN} from line 1\n1794918339001 ms I - #1 {APP.format('1.0')}\n"
+    (tmp_path / (phone_log.FILE + ".1")).write_text(before, encoding="utf-8")
+    after = f"--- run {RUN} from line 90000\n2026-11-22 12:00:00.000 I main #90000 x\n"
+    (tmp_path / phone_log.FILE).write_text(after, encoding="utf-8")
+    assert phone_log.started(tmp_path) == APP.format("1.0")

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import html
 import json
 import os
 import threading
@@ -4251,6 +4252,37 @@ def test_about_says_the_program_s_version(
 ) -> None:
     (text,) = about(win, monkeypatch)
     assert f"PhotoFinish {version()}<" in text
+    assert "PhotoFinish Camera" not in text  # no phone in the session
     monkeypatch.setattr(mw, "version", lambda: "")  # a build that cannot tell its own
     (text,) = about(win, monkeypatch)
     assert "PhotoFinish, its version unknown<" in text
+
+
+def test_about_says_each_phone_s_app_as_the_phone_said_it_at_its_start(
+    base: Path,
+    make_window: Callable[[], mw.MainWindow],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A phone of two lenses, one of a free streaming app, and a camera that is no
+    # phone: the app's start read from a lens's log -- the first that holds it --, a
+    # phone with none said so, nothing of a camera that is no phone. What came over
+    # the network, and a name typed, are shown as text.
+    lens: dict[str, Any] = {"connection": "rtmp", "phone": "cam1"}
+    main = {**lens, "id": "cam1", "name": "Mi main", "lens": "main"}
+    main["settings"] = {"port": 1999, "path": "live/cam1"}
+    tele = {**lens, "id": "cam2", "name": "Mi tele", "lens": "telephoto"}
+    tele["settings"] = {"port": 2000, "path": "live/cam2"}
+    larix: dict[str, Any] = {"id": "cam3", "name": "Larix <i>", "connection": "rtmp"}
+    larix["settings"] = {"port": 2001, "path": "live/cam3"}
+    side = {**CAMERA, "id": "cam4", "name": "Side"}
+    session.save({**session.DEFAULTS, "cameras": [main, tele, larix, side]})
+    said = "PhotoFinish Camera 0.13.1 on <b>Xiaomi</b> 25113PN0EC, Android 16 (API 36)"
+    folder = base / "video" / "cam2"
+    folder.mkdir(parents=True)
+    log = f"2026-11-22 10:15:03.123 I - #1 {said}\n"
+    (folder / "phone.log").write_text(log, encoding="utf-8")
+    (text,) = about(make_window(), monkeypatch)
+    lines = text.split("<br>")
+    assert f"Mi main, Mi tele: {html.escape(said)}" in lines
+    assert "Larix &lt;i&gt;: no word from PhotoFinish Camera yet" in lines
+    assert not any("Side" in line for line in lines)
