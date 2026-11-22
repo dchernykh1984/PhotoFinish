@@ -330,8 +330,8 @@ def test_an_object_python_names_with_an_error_is_in_the_log(
     assert window_log.start(path, "1.0.0", enable=lambda file: None) is not None
 
     class Decoder:
-        def __repr__(self) -> str:
-            return "<a decoder of cam2>"
+        def __repr__(self) -> str:  # as long as a real object's
+            return "<app.decoder.FrameDecoder of cam2 at 0x102c64bf0>"
 
     said = SimpleNamespace(
         exc_type=RuntimeError,
@@ -342,7 +342,7 @@ def test_an_object_python_names_with_an_error_is_in_the_log(
     )
     sys.unraisablehook(said)  # type: ignore[arg-type]
     text = path.read_text(encoding="utf-8")
-    assert "Exception ignored in: <a decoder of cam2>" in text
+    assert "Exception ignored in: <app.decoder.FrameDecoder of cam2 at 0x" in text
     assert hooks == [RuntimeError]
 
 

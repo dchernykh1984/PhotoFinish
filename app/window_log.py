@@ -21,6 +21,7 @@ from typing import TextIO
 
 LIMIT_BYTES = 5_000_000  # a log past this at a start is set aside; a run's room
 AGAIN_S = 60.0  # an error again within this of its writing is counted, not written
+_NAMED = reprlib.Repr(maxother=300)  # an object named whole, a repr that fails too
 _ADDRESS = re.compile(r" at 0x[0-9a-fA-F]+")  # where an object lives, not what
 
 
@@ -186,7 +187,7 @@ def start(
         with contextlib.suppress(Exception):
             about = args.err_msg or "Exception ignored in"
             if args.object is not None:
-                about = f"{about}: {reprlib.repr(args.object)}"
+                about = f"{about}: {_NAMED.repr(args.object)}"
             log.error(args.exc_type, args.exc_value, args.exc_traceback, about)
         unraisable(args)
 
