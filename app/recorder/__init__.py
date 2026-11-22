@@ -478,7 +478,9 @@ def _stopping(folder: Path) -> bool:
     heard = number(info.get("heartbeat_ms")) if isinstance(info, dict) else None
     if heard is None or info.get("state") != "stopped":
         return False
-    return abs(time.time_ns() // 1_000_000 - heard) <= STALE_MS  # as launcher.alive
+    # A beat ahead of the clock -- set back since it stopped -- is a stop of lately
+    # all the same: its lock waited for costs nothing, taken at once once let go of.
+    return time.time_ns() // 1_000_000 - heard <= STALE_MS
 
 
 def _lock(path: Path) -> IO[bytes] | None:
