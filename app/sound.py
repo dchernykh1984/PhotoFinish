@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import heapq
 import threading
+import time
 import weakref
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
@@ -40,6 +41,7 @@ SILENCE_MS = 100  # a gap's silence made this much at a time
 # last frame: a piece and the frame beside it lie this far apart in a stream at most.
 FOLLOW_SLACK_MS = 200
 UNHEARD = 5  # the newest segments not listed as sounding, looked at again as more come
+HELD_READS, HELD_PAUSE_S = 3, 0.05  # a segment's times held a moment: read again
 # atempo's range: faster in one stage, as each stage's window puts the sound earlier
 # by its lag -- x4 some 40 ms on the recording's time, two stages of x2 some 70 --;
 # slower chained, from x0.5 down.
@@ -348,20 +350,30 @@ def _half(piece: Piece) -> int:
     return (piece.end_ms - piece.ms) // 2
 
 
+def _times_of(path: Path) -> np.ndarray | None:
+    """A segment's times, read again a moment on when they cannot be read -- held by
+    a scanner (Windows) --: a listed segment's sound never taken for none at once."""
+    for _ in range(HELD_READS):
+        if (times := read_times(path)) is not None:
+            return times
+        time.sleep(HELD_PAUSE_S)
+    return read_times(path)
+
+
 def _first_ms(path: Path) -> int:
-    times = read_times(path)
+    times = _times_of(path)
     return int(times[0, 1]) if times is not None and len(times) else 0
 
 
 def _last_ms(path: Path) -> int:
-    times = read_times(path)
+    times = _times_of(path)
     return int(times[-1, 1]) if times is not None and len(times) else 0
 
 
 def _pieces_of(path: Path) -> list[Piece]:
     """A segment's pieces of sound at their moments; none when it keeps none, or
     cannot be read."""
-    times = read_times(path)
+    times = _times_of(path)
     if times is None or not len(times):
         return []
     by_pts = times[np.argsort(times[:, 0], kind="stable")]
