@@ -190,7 +190,9 @@ jobs:
             if compgen -G "$folder/*-*-*.mkv" > /dev/null; then break; fi
             sleep 1
           done
-          ls -l "$folder"
+          # A look for the log alone: a file the recorder deletes as it is listed --
+          # closing.name, as a segment closes -- never fails the step.
+          ls -l "$folder" || true
           compgen -G "$folder/*-*-*.mkv" > /dev/null
           touch "$folder/stop.request"
           wait "$pid"
