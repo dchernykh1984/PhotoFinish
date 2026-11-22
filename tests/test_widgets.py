@@ -681,3 +681,26 @@ def test_a_whole_label_gives_back_its_height_to_a_shorter_text_or_more_width() -
     plain.setText("short")
     assert label.minimumHeight() == plain.heightForWidth(label.width())
     holder.close()
+
+
+def test_a_whole_label_given_its_own_text_again_leaves_the_window_be() -> None:
+    # The window says the corner's word and the phones' lines again at every poll:
+    # the same text asks nothing of the window's layout, nor a height it has.
+    from PySide6.QtWidgets import QVBoxLayout, QWidget
+
+    from app.widgets.whole_label import WholeLabel
+
+    holder = QWidget()
+    label = WholeLabel()
+    QVBoxLayout(holder).addWidget(label)
+    label.setText(" ".join(["word"] * 60))
+    holder.resize(200, 600)
+    holder.show()
+    QApplication.processEvents()
+    held: list[int] = []
+    label.setMinimumHeight = held.append  # type: ignore[method-assign]
+    label.setText(label.text())
+    holder.resize(200, 700)  # higher only: the text wraps as it did
+    QApplication.processEvents()
+    assert held == []
+    holder.close()
