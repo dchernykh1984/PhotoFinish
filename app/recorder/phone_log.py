@@ -33,7 +33,9 @@ _MARK = re.compile(r"--- run ([0-9a-f]{16}) from line (\d+)")
 _SEQ = re.compile(r"\S+ \S+ [IWEwe] \S+ #(\d+) ")
 # The app's start, as kept: its own line, of no lens, saying its version, phone and
 # Android (FR-001) -- no longer than such a line is, as it came over the network.
-_START = re.compile(r"\S+ \S+ I - #\d+ (PhotoFinish Camera [\w.+-]{1,40} on .{1,120})")
+_START = re.compile(
+    r"(\S+ \S+) I - #\d+ (PhotoFinish Camera [\w.+-]{1,40} on .{1,120})"
+)
 _SAID = b"PhotoFinish Camera "  # in each such line: what is looked for first
 _MARK_AT = b"--- run "  # a mark's head: the run its lines that follow are of
 
@@ -275,9 +277,9 @@ def _bytes_of(path: Path) -> bytes | None:
 
 
 def _start_of(kept: bytes, run: str) -> str:
-    """``run``'s start a log holds, looked for from its end, the lines that may be one
-    only: an app's start line whose run -- its last mark's before it -- is ``run``;
-    "" when it holds none."""
+    """``run``'s start a log holds, and when it was said, looked for from its end, the
+    lines that may be one only: an app's start line whose run -- its last mark's
+    before it -- is ``run``; "" when it holds none."""
     end = len(kept)
     while (at := kept.rfind(_SAID, 0, end)) >= 0:
         end = kept.rfind(b"\n", 0, at) + 1  # its line's: looked before it next
@@ -285,7 +287,8 @@ def _start_of(kept: bytes, run: str) -> str:
         line = kept[end : len(kept) if stop < 0 else stop].decode(errors="replace")
         found = _START.fullmatch(line.removesuffix("\r"))  # written as text
         if found is not None and _run_at(kept, end) == run:
-            return found.group(1)
+            # When, to the second, as kept: a start of a day before is seen for one.
+            return f"{found.group(2)}, started {found.group(1)[:19]}"
     return ""
 
 
