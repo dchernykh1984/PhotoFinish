@@ -43,7 +43,9 @@ CLOSED = "[0-9]*-[0-9]*-[0-9]*"  # a closed segment's name, without its suffix
 NAMED = re.compile(r"\d{8}-\d{6}-\d{4,}")  # the same, exactly
 SEGMENTS = "segments.txt"  # the closed segments' names, in the order they closed
 SOUND = "sound.txt"  # those of them that kept sound (013): found without opening any
-LAST_LOOKED = 3  # the newest closed looked at for sound as a recorder starts
+# The newest closed looked at for sound as a recorder starts: half a minute of them,
+# as far back as the sound's reader looks for lines a scanner held (sound.UNHEARD).
+LAST_LOOKED = 30
 KEYFRAME_SLACK_MS = 100  # a camera's keyframe this much short of a second still cuts
 CLOSING = "closing.name"  # the name a close gives, written before its two renames
 READING = "reading.crash"  # there while a crash is read: one that kills is read once
