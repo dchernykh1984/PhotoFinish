@@ -70,9 +70,11 @@ def test_the_same_error_again_within_a_minute_is_counted_not_written() -> None:
     assert text.count("ValueError: another") == 1
 
 
-def test_a_log_past_its_limit_starts_over(
+def test_a_log_past_its_limit_is_kept_aside_and_a_new_one_begun(
     tmp_path: Path, hooks: list[object], monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    # Grown by errors before a crash, it is the log that explains it: a start of
+    # the window again keeps it for the report.
     path = tmp_path / "window.log"
     path.write_text("an old run\n", encoding="utf-8")
     assert window_log.start(path, "1.0.0", enable=lambda file: None) is not None
@@ -81,6 +83,26 @@ def test_a_log_past_its_limit_starts_over(
     assert window_log.start(path, "1.0.1", enable=lambda file: None) is not None
     text = path.read_text(encoding="utf-8")
     assert "an old run" not in text
+    assert "PhotoFinish 1.0.1 started" in text
+    aside = (tmp_path / "window.log.1").read_text(encoding="utf-8")
+    assert "an old run" in aside
+    assert "PhotoFinish 1.0.0 started" in aside
+
+
+def test_a_log_that_cannot_be_set_aside_is_written_on(
+    tmp_path: Path, hooks: list[object], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "window.log"
+    path.write_text("an old run\n", encoding="utf-8")
+    monkeypatch.setattr(window_log, "LIMIT_BYTES", 5)
+
+    def busy(self: Path, target: Path) -> Path:
+        raise PermissionError("open in another window")  # as Windows says
+
+    monkeypatch.setattr(Path, "replace", busy)
+    assert window_log.start(path, "1.0.1", enable=lambda file: None) is not None
+    text = path.read_text(encoding="utf-8")
+    assert "an old run" in text
     assert "PhotoFinish 1.0.1 started" in text
 
 
