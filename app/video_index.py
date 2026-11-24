@@ -84,7 +84,8 @@ class VideoIndex:
     def refresh(self) -> bool:
         """Segments closed since the last refresh added; True when any was."""
         self._read_gaps()
-        names = [*self._unread, *self._listed.new_lines()]
+        # A name listed twice is one segment, as an export takes it: its frames once.
+        names = dict.fromkeys([*self._unread, *self._listed.new_lines()])
         new = [self.folder / f"{n}.mkv" for n in names if f"{n}.mkv" not in self._names]
         read = [
             (path, times) for path in new if (times := read_times(path)) is not None

@@ -95,6 +95,16 @@ def test_a_segment_whose_times_stay_unreadable_is_given_up(
     assert index.unreadable == [broken.name]  # said once, not read again
 
 
+def test_a_segment_listed_twice_in_one_read_is_indexed_once(tmp_path: Path) -> None:
+    record(tmp_path, START, 40)
+    listed = tmp_path / "segments.txt"
+    listed.write_text(listed.read_text() * 2)  # every name listed again
+    index = VideoIndex(tmp_path)
+    assert index.refresh()
+    assert len(index) == 40
+    assert len(index.paths) == 2
+
+
 def test_a_second_on_steps_over_a_gap_in_the_recording(tmp_path: Path) -> None:
     record(tmp_path, START, 10)
     record(tmp_path, START + 60_000, 10)  # the recorder was down for a minute
