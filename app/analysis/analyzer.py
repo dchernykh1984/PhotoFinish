@@ -196,7 +196,10 @@ def run(
     todo: deque[str] = deque()
     failures: dict[str, int] = {}
     while not stop():
-        todo.extend(name for name in listed.new_lines() if name not in done)
+        # A name listed twice is one segment, as the index takes it: analysed once.
+        todo.extend(
+            name for name in dict.fromkeys(listed.new_lines()) if name not in done
+        )
         if not todo:
             _progress(folder, "waiting")
             if once:
