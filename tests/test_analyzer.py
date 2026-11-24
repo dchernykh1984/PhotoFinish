@@ -84,6 +84,16 @@ def test_a_recording_with_three_passes_has_three_stretches(base: Path) -> None:
     assert (folder / "activity.jsonl").read_bytes() == written
 
 
+def test_a_segment_listed_twice_in_one_read_is_analysed_once(base: Path) -> None:
+    # A list a recorder start doubled on disk before 488365f.
+    folder = camera(base, "passes", 3)
+    listed = folder / "segments.txt"
+    names = listed.read_text().split()
+    listed.write_text(listed.read_text() * 2)
+    assert analyzer.run("cam1", stop=lambda: False, once=True) == 0
+    assert [a["segment"] for a in activity(folder)] == names
+
+
 def test_leaves_alone_give_no_stretch(base: Path) -> None:
     folder = camera(base, "sway", 10)
     analyzer.run("cam1", stop=lambda: False, once=True)
