@@ -1065,6 +1065,31 @@ def test_closed_segments_are_listed_and_a_restart_lists_any_a_crash_missed(
     assert restarted._before_ms == START + 39 * 33
 
 
+def test_a_list_held_as_a_recorder_starts_is_read_again_never_taken_for_none(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    writer = SegmentWriter(tmp_path, fps=30)
+    record(writer, START, 40)
+    writer.close()
+    listed = (tmp_path / "segments.txt").read_text().split()
+    real = Path.read_bytes
+    refusals = [1]  # a scanner holds the list a moment
+
+    def held(self: Path) -> bytes:
+        if self.name == "segments.txt" and refusals[0]:
+            refusals[0] -= 1
+            raise PermissionError(13, "held by a scanner")
+        return real(self)
+
+    monkeypatch.setattr(Path, "read_bytes", held)
+    assert segments_module.recover(tmp_path) == listed
+    assert (tmp_path / "segments.txt").read_text().split() == listed  # each once
+    refusals[0] = files.TRIES  # held past every try
+    with pytest.raises(PermissionError):
+        segments_module.recover(tmp_path)
+    assert (tmp_path / "segments.txt").read_text().split() == listed
+
+
 def test_a_restart_after_a_garbled_segment_records_on_from_the_one_before(
     tmp_path: Path,
 ) -> None:
