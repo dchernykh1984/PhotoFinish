@@ -28,7 +28,7 @@ from typing import Any, TextIO
 import av
 import numpy as np
 
-from app.files import append, retried, write_in_one_step
+from app.files import append, read_bytes, retried, write_in_one_step
 
 SEGMENT_MS = 1000  # a segment's first frame is shown once it closes: SC-006's 2 s
 # A phone sends again up to 7 s it may have lost (specs/007): the moments listed this
@@ -406,14 +406,16 @@ def _size(image: np.ndarray | av.VideoFrame) -> tuple[int, int]:
 
 def _list_missing(folder: Path) -> list[str]:
     """Every closed segment's name, the list completed with any a crash closed but
-    did not list; once, when a recorder starts."""
+    did not list; once, when a recorder starts. A list held a moment is read again,
+    and one still refused raises: taken for none, every segment would be listed
+    twice."""
     try:
         # read as its readers read it: a byte not ASCII names no segment, stops nothing,
         # and a name a kill cut short counts for none
-        text = (folder / SEGMENTS).read_bytes().decode("utf-8", "replace")
-        listed = [name for name in text.split() if NAMED.fullmatch(name)]
-    except OSError:
-        listed = []
+        text = read_bytes(folder / SEGMENTS).decode("utf-8", "replace")
+    except FileNotFoundError:
+        text = ""  # none listed yet
+    listed = [name for name in text.split() if NAMED.fullmatch(name)]
     known = set(listed)
     with contextlib.suppress(OSError):  # held a moment: listed as it is named
         if held := _meant(folder):
