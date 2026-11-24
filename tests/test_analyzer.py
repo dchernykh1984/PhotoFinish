@@ -85,7 +85,7 @@ def test_a_recording_with_three_passes_has_three_stretches(base: Path) -> None:
 
 
 def test_a_segment_listed_twice_in_one_read_is_analysed_once(base: Path) -> None:
-    # A list a recorder start doubled on disk before 488365f.
+    # As a recorder that took a held list for none left it: every name listed again.
     folder = camera(base, "passes", 3)
     listed = folder / "segments.txt"
     names = listed.read_text().split()
