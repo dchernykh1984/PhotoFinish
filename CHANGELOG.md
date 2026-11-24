@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.15.1](https://github.com/dchernykh1984/PhotoFinish/compare/v0.15.0...v0.15.1) (2026-11-24)
+
+
+### Bug Fixes
+
+* **analysis:** a segment listed twice in one read of the segment list is analysed once ([63ab257](https://github.com/dchernykh1984/PhotoFinish/commit/63ab2570b8c33af2892a22afec4c4fe935100f09))
+* **index:** show a segment listed twice in the segment list once, not every frame twice ([2899143](https://github.com/dchernykh1984/PhotoFinish/commit/2899143d2b1d0e859e5b3fe5c4225ead81859a9d))
+* **recorder:** list each segment once when the segment list is held a moment as a recorder starts ([9eb7fae](https://github.com/dchernykh1984/PhotoFinish/commit/9eb7fae24076ee24a2ba32c3a3d3cf655163c9c0))
+
 ## [0.15.0](https://github.com/dchernykh1984/PhotoFinish/compare/v0.14.0...v0.15.0) (2026-11-22)
 
 
