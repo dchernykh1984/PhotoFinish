@@ -748,6 +748,42 @@ def test_after_a_broken_state_the_journal_says_what_was_taken(path: Path) -> Non
     assert found.new == []  # nothing taken twice, the corrected line not either
 
 
+@pytest.mark.parametrize("refused", ["journal", "disk"])
+def test_a_broken_state_an_open_fails_on_is_found_broken_by_the_next(
+    path: Path, monkeypatch: pytest.MonkeyPatch, refused: str
+) -> None:
+    out = OutputList(path)
+    second = "16#20389 11:35:30.000#nextLap#"
+    take(out, TAKEN, second)
+    out.set_time(0, ms("20389 11:35:29.500"), Change("frame"))  # the referee's fix
+    out.remove(1)  # a false crossing
+    out.state_path.write_text("{broken")
+    real = Path.read_bytes
+
+    def held(self: Path) -> bytes:
+        if self == out.journal_path:
+            raise PermissionError("held by another program")
+        return real(self)
+
+    def full(_path: Path, _data: bytes) -> None:
+        raise OSError("disk full")
+
+    if refused == "journal":  # held past the tries
+        monkeypatch.setattr(Path, "read_bytes", held)
+        monkeypatch.setattr(files.time, "sleep", lambda _seconds: None)
+    else:
+        monkeypatch.setattr(output_list, "_write_in_one_step", full)
+    for _ in range(3):  # the window opens it again at each poll
+        with pytest.raises(OSError):
+            OutputList(path)
+    assert out.state_path.read_text() == "{broken"  # where the next open finds it
+    monkeypatch.undo()
+    again = OutputList(path)
+    assert (again.taken, again.removed) == ([TAKEN, second], [second])
+    (kept,) = path.parent.glob("out.txt.state.json.broken-*")  # kept once, at last
+    assert kept.read_text() == "{broken"
+
+
 def test_an_output_as_written_is_not_read_again_at_each_poll(
     path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
