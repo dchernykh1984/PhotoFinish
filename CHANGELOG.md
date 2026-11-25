@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.15.2](https://github.com/dchernykh1984/PhotoFinish/compare/v0.15.1...v0.15.2) (2026-11-25)
+
+
+### Bug Fixes
+
+* **output:** put a broken state back only when its open fails on a file or the disk, so a journal it cannot replay stops one start, not every one ([9b89008](https://github.com/dchernykh1984/PhotoFinish/commit/9b890084ad5ca5be9fd6b136007d5e332ef26f5d))
+* **output:** put a broken state back when the open that found it fails, so the next open still replays the journal ([7efdb3a](https://github.com/dchernykh1984/PhotoFinish/commit/7efdb3a0e23c670ffcf2680021675e2284b5b013))
+
 ## [0.15.1](https://github.com/dchernykh1984/PhotoFinish/compare/v0.15.0...v0.15.1) (2026-11-24)
 
 
