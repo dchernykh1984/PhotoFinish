@@ -338,8 +338,15 @@ class OutputList:
             # the input as taken is what the journal says was taken, so a line the
             # referee corrected does not come back beside its correction, nor one
             # whose crossing the referee removed.
-            self.state_path.replace(_aside(self.state_path, "broken"))
-            self._start_from_file(_replay(self.journal_path))
+            aside = _aside(self.state_path, "broken")
+            self.state_path.replace(aside)
+            try:
+                self._start_from_file(_replay(self.journal_path))
+            except BaseException:
+                # No new state yet: put back, so the next try replays the journal too.
+                if not self.state_path.exists():
+                    files.replace(aside, self.state_path)
+                raise
             return
         found, body = _read(self.path), self._body()
         self._before = state.get("output_before")
