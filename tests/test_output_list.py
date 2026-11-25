@@ -802,6 +802,27 @@ def test_a_broken_state_stays_aside_when_the_journal_cannot_be_replayed(
     assert kept.read_text() == "{broken"
 
 
+def test_a_journal_that_refuses_after_a_broken_state_keeps_the_new_state(
+    path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    out = OutputList(path)
+    second = "16#20389 11:35:30.000#nextLap#"
+    take(out, TAKEN, second)
+    out.set_time(0, ms("20389 11:35:29.500"), Change("frame"))  # the referee's fix
+    out.remove(1)  # a false crossing
+    out.state_path.write_text("{broken")
+
+    def full(target: Path, data: bytes) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(output_list, "_append", full)
+    assert OutputList(path).journal_error is not None  # both files written
+    state = json.loads(out.state_path.read_text())  # the new state, not put back
+    assert (state["input_taken"], state["removed_input"]) == ([TAKEN, second], [second])
+    (kept,) = path.parent.glob("out.txt.state.json.broken-*")
+    assert kept.read_text() == "{broken"
+
+
 def test_an_output_as_written_is_not_read_again_at_each_poll(
     path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
