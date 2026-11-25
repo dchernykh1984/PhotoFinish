@@ -342,7 +342,7 @@ class OutputList:
             self.state_path.replace(aside)
             try:
                 self._start_from_file(_replay(self.journal_path))
-            except BaseException:
+            except OSError:  # what the window tries again, not an error in the data
                 # No new state yet: put back, so the next try replays the journal too.
                 if not self.state_path.exists():
                     files.replace(aside, self.state_path)
