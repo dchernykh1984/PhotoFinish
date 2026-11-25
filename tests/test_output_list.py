@@ -784,6 +784,24 @@ def test_a_broken_state_an_open_fails_on_is_found_broken_by_the_next(
     assert kept.read_text() == "{broken"
 
 
+def test_a_broken_state_stays_aside_when_the_journal_cannot_be_replayed(
+    path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    out = OutputList(path)
+    take(out, TAKEN)
+    out.state_path.write_text("{broken")
+
+    def unreadable(_journal: Path) -> None:
+        raise TypeError("unhashable type: 'list'")  # a line edited by hand
+
+    monkeypatch.setattr(output_list, "_replay", unreadable)
+    with pytest.raises(TypeError):  # no try gets past it
+        OutputList(path)
+    assert OutputList(path).texts() == [TAKEN]  # the next open goes on
+    (kept,) = path.parent.glob("out.txt.state.json.broken-*")
+    assert kept.read_text() == "{broken"
+
+
 def test_an_output_as_written_is_not_read_again_at_each_poll(
     path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
