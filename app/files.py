@@ -8,6 +8,7 @@ of a second before they give up.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import time
@@ -21,14 +22,20 @@ PAUSE_S = 0.05
 
 def write_in_one_step(path: Path, data: bytes) -> None:
     """A temporary file, flushed and synced, renamed over: a reader sees the old file
-    or the new one, never a mix."""
+    or the new one, never a mix. A write that fails removes its temporary file and
+    raises its error: a full disk tried at every poll leaves no file behind."""
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + ".tmp")
-    with tmp.open("wb") as f:
-        f.write(data)
-        f.flush()
-        os.fsync(f.fileno())
-    replace(tmp, path)
+    try:
+        with tmp.open("wb") as f:
+            f.write(data)
+            f.flush()
+            os.fsync(f.fileno())
+        replace(tmp, path)
+    except BaseException:
+        with contextlib.suppress(OSError):  # the write's error is the one to say
+            tmp.unlink(missing_ok=True)
+        raise
 
 
 def replace(source: Path, target: Path) -> None:

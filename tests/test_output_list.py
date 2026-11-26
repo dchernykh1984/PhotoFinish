@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import contextlib
+import errno
+import io
 import json
 import os
 import re
@@ -676,6 +678,60 @@ def test_an_outside_version_a_crash_left_is_journaled_at_the_next_start_once(
     assert journal(again)[-1]["backup"] == backup.name
     assert again.outside_kept
     assert path.read_text() == TAKEN + "\n"
+
+
+class _FullDisk(io.FileIO):
+    """A file a full disk lets be created and takes no byte of (APFS, FAT32, exFAT)."""
+
+    def write(self, _data: Any) -> int:
+        raise OSError(errno.ENOSPC, "No space left on device")
+
+
+def _fill_the_disk(monkeypatch: pytest.MonkeyPatch) -> None:
+    real = Path.open
+
+    def opened(self: Path, *args: Any, **kwargs: Any) -> Any:
+        if self.name.endswith(".tmp"):
+            return _FullDisk(self, "wb")
+        return real(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", opened)
+
+
+def test_a_write_the_disk_refuses_leaves_no_temporary_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _fill_the_disk(monkeypatch)
+    with pytest.raises(OSError) as refused:
+        files.write_in_one_step(tmp_path / "out.txt", b"x\n")
+    assert refused.value.errno == errno.ENOSPC
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_a_temporary_file_that_cannot_be_removed_leaves_the_writes_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def held(self: Path, missing_ok: bool = False) -> None:
+        raise PermissionError("held by a virus scanner")
+
+    _fill_the_disk(monkeypatch)
+    monkeypatch.setattr(Path, "unlink", held)
+    with pytest.raises(OSError) as refused:
+        files.write_in_one_step(tmp_path / "out.txt", b"x\n")
+    assert refused.value.errno == errno.ENOSPC
+
+
+def test_polls_on_a_lasting_full_disk_leave_no_temporary_file_beside_the_output(
+    path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    out = OutputList(path)
+    take(out, TAKEN)
+    path.write_text("edited by hand\n")
+    _fill_the_disk(monkeypatch)
+    for _ in range(20):  # ten seconds of the window's polls
+        with pytest.raises(OSError, match="No space left"):  # the window says it
+            out.check_outside()
+    assert not list(path.parent.glob("*.tmp"))
 
 
 def test_an_output_whose_journal_refuses_opens_all_the_same(
