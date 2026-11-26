@@ -701,11 +701,14 @@ def _fill_the_disk(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_a_write_the_disk_refuses_leaves_no_temporary_file(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    target = tmp_path / "out.txt"
+    target.write_bytes(b"old\n")  # the file the failed write must keep
     _fill_the_disk(monkeypatch)
     with pytest.raises(OSError) as refused:
-        files.write_in_one_step(tmp_path / "out.txt", b"x\n")
+        files.write_in_one_step(target, b"x\n")
     assert refused.value.errno == errno.ENOSPC
-    assert list(tmp_path.iterdir()) == []
+    assert list(tmp_path.iterdir()) == [target]
+    assert target.read_bytes() == b"old\n"
 
 
 def test_a_rename_the_disk_refuses_leaves_no_temporary_file(
@@ -715,11 +718,14 @@ def test_a_rename_the_disk_refuses_leaves_no_temporary_file(
         # A full APFS disk refuses the rename itself, the bytes already written.
         raise OSError(errno.ENOSPC, "No space left on device")
 
+    target = tmp_path / "out.txt"
+    target.write_bytes(b"old\n")  # the file the failed rename must keep
     monkeypatch.setattr(Path, "replace", full)
     with pytest.raises(OSError) as refused:
-        files.write_in_one_step(tmp_path / "out.txt", b"x\n")
+        files.write_in_one_step(target, b"x\n")
     assert refused.value.errno == errno.ENOSPC
-    assert list(tmp_path.iterdir()) == []
+    assert list(tmp_path.iterdir()) == [target]
+    assert target.read_bytes() == b"old\n"
 
 
 def test_a_temporary_file_that_cannot_be_removed_leaves_the_writes_error(
