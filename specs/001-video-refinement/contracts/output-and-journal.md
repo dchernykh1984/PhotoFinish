@@ -10,7 +10,8 @@
   option during daylight saving), hours, minutes and seconds without zero padding.
 - FinishProtocolGeneratorPython reads it as a finish file; nothing else is in it.
 - Replaced in one step (temporary file, flush, fsync, rename); a reader sees the old or the new
-  file, never a mix.
+  file, never a mix. A write that fails removes its temporary file: a full disk leaves none beside
+  the output.
 - After each change a copy of the file as it left it goes to `temp/<output stem>-<place>/` next to
   the program, as `<YYYYmmdd-HHMMSS-ffffff><suffix>`, `<place>` six hex of the output's path so
   outputs of one name in two folders keep apart, never over another copy; a change that leaves
