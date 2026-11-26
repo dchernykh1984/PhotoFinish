@@ -708,6 +708,20 @@ def test_a_write_the_disk_refuses_leaves_no_temporary_file(
     assert list(tmp_path.iterdir()) == []
 
 
+def test_a_rename_the_disk_refuses_leaves_no_temporary_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def full(self: Path, target: Any) -> Path:
+        # A full APFS disk refuses the rename itself, the bytes already written.
+        raise OSError(errno.ENOSPC, "No space left on device")
+
+    monkeypatch.setattr(Path, "replace", full)
+    with pytest.raises(OSError) as refused:
+        files.write_in_one_step(tmp_path / "out.txt", b"x\n")
+    assert refused.value.errno == errno.ENOSPC
+    assert list(tmp_path.iterdir()) == []
+
+
 def test_a_temporary_file_that_cannot_be_removed_leaves_the_writes_error(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
