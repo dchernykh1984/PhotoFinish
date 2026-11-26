@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.15.3](https://github.com/dchernykh1984/PhotoFinish/compare/v0.15.2...v0.15.3) (2026-11-26)
+
+
+### Bug Fixes
+
+* **files:** a write that fails removes its temporary file, so polls on a full disk leave no empty .tmp beside the output ([433586e](https://github.com/dchernykh1984/PhotoFinish/commit/433586e75f56dc759c37bbf7d9c87493854fcabf))
+
+
+### Documentation
+
+* **skills:** what a full disk does to a write, tried on disk images, goes into the review skill ([f1149ed](https://github.com/dchernykh1984/PhotoFinish/commit/f1149edeb0f77523c840364d4f144a1c735e6404))
+
 ## [0.15.2](https://github.com/dchernykh1984/PhotoFinish/compare/v0.15.1...v0.15.2) (2026-11-25)
 
 
