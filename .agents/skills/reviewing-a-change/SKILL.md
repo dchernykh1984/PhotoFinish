@@ -46,6 +46,15 @@ full disk for a refused packet unless it raises an `OSError` again. A Python
 file object in place of a path turns the later errors into `PyAVCallbackError`:
 try a path.
 
+**What does a full disk really do?** Tried, not read, on small disk images:
+`hdiutil create -size 12m -fs APFS` (or `MS-DOS`, `ExFAT`, `HFS+`), then
+`hdiutil attach -nobrowse -mountpoint <a scratch folder>`, filled, and
+detached after. APFS, FAT32 and exFAT create the file and refuse its bytes at
+the write or the flush, so a failed write leaves an empty file behind unless it
+removes it; HFS+ refuses the create; a full APFS refuses even the rename once
+the bytes are synced. A write that created a file removes it when it fails, as
+`files.write_in_one_step` does.
+
 **Does it change a format?** `number#time#action#` with the time as
 `D H:M:S[.mmm]` - hours, minutes and seconds not zero-padded, milliseconds
 always three digits when recorded - is written by every chronometer and read by FinishProtocolGeneratorPython. Lines
